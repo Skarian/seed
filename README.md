@@ -7,7 +7,8 @@ Includes MiniMax H3 video workflows, Krea 2 image generation and identity editin
 Next-stage planning: [media studio MVP](STUDIO-MVP.md) — a local Windows studio,
 manual RunPod deployment and pairing, expressive workflows, and permanent media
 on your PC. See the [implementation plan](studio/EXECUTION-PLAN.md) for access,
-milestones, reviews and commit policy. This frontend is planned, not deployed. [LLM choices](research/llm/README.md)
+milestones, reviews and commit policy. A local frontend foundation is implemented;
+GPU pairing/generation and Windows packaging are pending. See [local development](studio/DEVELOPMENT.md). [LLM choices](research/llm/README.md)
 are saved for a later phase.
 
 ## Use the studio

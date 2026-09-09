@@ -1,18 +1,20 @@
 # Studio API contract
 
-Revision 5, planning only. Private same-origin `/api/v1`. No provider credentials, model paths or raw graphs accepted from browsers.
+Revision 6. Contract specified; implementation and live validation pending. Private same-origin `/api/v1`. No provider credentials, model paths or raw graphs accepted from browsers.
 
 ## Routes
 
 | Route | Contract |
 |---|---|
+| `GET /health` | Implemented local app identity/version/instance; does not report worker readiness |
 | `GET /capabilities` | Revision, four workflow IDs, enabled models/modes, plain input rules/preparation paths/output choices and tested combinations; ETag |
 | `PUT /connection` | `{connection_code}`; validate target, exchange single-use token for worker credential, store server-side, reconcile engine before dispatch; never echo secrets |
 | `DELETE /connection` | Forget saved connection, pause dispatch; no provider shutdown |
-| `GET /studio` | Engine state, last observation time, stale flag, active/waiting jobs, pending transfers, maintenance/pause flag and Open Runpod link; no provider status or billing claim |
+| `GET /studio` | Engine state, last observation time, stale flag, active/waiting jobs, pending transfers, maintenance/pause flag, `safe_to_terminate:true|false|null`, `checked_at`, `reasons` and Open Runpod link; no provider status or billing claim |
 | `POST /queue/pause` | `{}`; pause new dispatch, retain waiting jobs; current execution/copies continue |
 | `POST /queue/resume` | `{}`; resume only after engine/session/job reconciliation; no compute action |
 | `/uploads` and `/uploads/{id}` | Standard tus creation, HEAD/PATCH/DELETE; library-defined headers/status/offset behavior, not a custom transport |
+| `GET /assets` | Asset inventory for Library; first local slice returns up to 50 rows and `next_cursor:null`. Cursor pagination is required before media-library acceptance. |
 | `GET /assets/{id}` | Upload/preparation/readiness metadata, derivatives, provenance and errors |
 | `GET /assets/{id}/content` | Authenticated streaming with Range, correct type and download disposition |
 | `POST /jobs` | Request below + Idempotency-Key; 202 durable job; 409 when engine unavailable, reconciliation blocked or maintenance active |
@@ -20,7 +22,7 @@ Revision 5, planning only. Private same-origin `/api/v1`. No provider credential
 | `GET /jobs/{id}` | Latest progress, frozen settings, effective inputs, outputs/error |
 | `POST /jobs/{id}/cancel` | `{}`; 202 cancellation request; terminal job returns unchanged snapshot |
 
-Connection strings are credentials: exclude them from URLs, analytics, logs and browser persistence after submission. Restrict connection targets to configured provider host patterns or explicit operator-approved hosts; reject redirects/private metadata targets to avoid turning connection setup into arbitrary server-side requests. The exchange/worker credential contract follows [pairing](POD-BOOTSTRAP.md); final route details remain a proof gate. Disconnect/replacement must not erase uncertain jobs.
+Connection strings are credentials: exclude them from URLs, analytics, logs and browser persistence after submission. Restrict connection targets to configured provider host patterns or explicit operator-approved hosts; reject redirects/private metadata targets to avoid turning connection setup into arbitrary server-side requests. The exact exchange, status, spool receipt and preset routes follow [the worker protocol](POD-BOOTSTRAP.md). The PC persists the credential before enabling dispatch; a lost exchange response requires a newly minted code. Disconnect/replacement must not erase uncertain jobs.
 
 All mutation routes including tus require owner authentication and same-origin/CSRF protection. External browser login/hosting is owner-managed, outside this project. Default local binding is loopback; require an authenticated boundary for public exposure, explicitly configure trusted proxies/origins and never trust arbitrary identity headers. No public operation, event or draft API. Poll snapshots every two seconds while active; slower idle/focus refresh. Library/uploads work with compute off; submitting a job never secretly starts compute.
 
@@ -89,9 +91,17 @@ Normal input requirements are checked client-side before bytes transfer. Server 
 [Examples](job-examples.json) and [preparation rules](ASSET-PREPARATION.md).
 
 
-## Revision 5 pending contract work
+## Worker integration and independent save state
 
-Specify the worker token exchange and idempotent durable-receipt/cleanup routes before implementation. Keep saved-output state separate from cleanup state. Safe-to-terminate must require paused dispatch, no active generation and no unsaved outputs with fresh worker reconciliation; disconnected reports unknown. Main job-state enums may map to friendlier progress labels; do not infer billing state.
+The [worker protocol](POD-BOOTSTRAP.md) defines `/worker/v1/exchange`, `/status`, `/jobs`, output streams, idempotent manifest receipts and CLI-only preset staging/activation. These are worker routes, not new public `/api/v1` routes. Existing Comfy routes sit behind authenticated `/comfy/*`; the engine session guard still runs inside the actual Comfy process. Native uploads/queue/history/WebSocket behavior must be verified on the pinned runtime. No generic execution API replaces ComfyUI.
+
+Every job response also exposes `output_save_state: pending|saving|saved|not_applicable`, `cleanup_state: not_requested|pending|complete|failed`, and optional `cleanup_error`. Completed means required outputs and local finishing are durably saved; cleanup can remain pending/failed. A generation failure without complete outputs uses not_applicable. A copy interruption keeps copy_pending and pending/saving output state, never completed. After all local files and SQLite commit succeed, record saved before acknowledging the worker. Receipt retry is independent of generation and cannot create another Library entry. Preserve terminal manifests for receipt/replacement reconciliation.
+
+The termination indicator is computed by the same serialized dispatcher pass that reconciles native execution and local durability. Pause must persist and settle any in-flight submission before assessment. Require no active, ambiguous or foreign work and no unsaved outputs; parked never-submitted jobs and cleanup-only failures are allowed. Any new mutation/connection/session change invalidates it immediately; an observation older than five seconds is unknown. Never infer provider-off status. See the worker document for restart and admin-maintenance limits.
+
+Preset acquisition remains a local operator command: stage pinned assets on the paired worker, pause/wait for idle, activate an immutable revision, refresh capabilities and leave dispatch paused. Already queued jobs retain exact old assets/settings. No browser arbitrary-download endpoint or automatic mode substitution is introduced.
+
+M0 design specified on 2026-09-09. Live streaming, session/submission hooks, crash durability, concurrency and exact Civitai compatibility remain M2/M3/M4 validation gates; documented routes are not evidence those integrations already work.
 
 ## Existing ComfyUI API first
 

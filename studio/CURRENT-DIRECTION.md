@@ -1,6 +1,6 @@
 # Current studio direction
 
-Revision 5, 9 September 2026. Planning only. This replaces the Terraform, exe.dev hosting, GHCR model-artifact and PC model-packaging proposals. No infrastructure or runtime changes have been made.
+Revision 5 product direction, 9 September 2026. The [local application foundation](DEVELOPMENT.md) has started; GPU infrastructure/runtime changes remain pending. This replaces the Terraform, exe.dev hosting, GHCR model-artifact and PC model-packaging proposals. Current implementation evidence is in the [milestone journal](EXECUTION-PLAN.md).
 
 ## Agreed shape
 
@@ -10,7 +10,7 @@ Revision 5, 9 September 2026. Planning only. This replaces the Terraform, exe.de
 - Keep the software image in GHCR, with pinned application/worker dependencies and Jupyter administration. Jupyter is separate from studio authentication.
 - Pod connection page on port 8080 starts before model preparation. Unlock with pairing secret; copy a short-lived single-use connection value into the PC studio. The PC exchanges it for a worker credential kept server-side. Pairing works during preparation. No central code-directory service; copied value can include endpoint and opaque exchange token.
 - Models/reusable caches live on the RunPod volume. A temporary per-job spool there preserves complete pending outputs across pod replacement. The PC is the permanent media home. Delete worker copies only after durable PC receipt; no S3 credentials or separate storage service.
-- Retain the four workflows, full reference inputs, modes, meaningful Advanced, waiting queue, client preflight and resumable uploads. Main UI/SwarmUI choice remains separate and unresolved.
+- Retain the four workflows, full reference inputs, modes, meaningful Advanced, waiting queue, client preflight and resumable uploads. First implementation uses the agreed custom Generate/Library UI; earlier SwarmUI exploration remains a deferred alternative.
 
 ## PC application setup
 

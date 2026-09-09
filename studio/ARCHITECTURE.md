@@ -1,8 +1,16 @@
 # Architecture and implementation boundaries
 
-Revision 5. Planning only. One application submits media jobs; the owner manages Runpod manually.
+Revision 6. Local foundation implemented; worker integration and Windows packaging pending. One application will submit media jobs; the owner manages Runpod manually.
 
-## Candidate custom stack (pending SwarmUI evaluation)
+## Custom stack and implementation status
+
+The first local slice uses React/Vite, Fastify, better-sqlite3 and env-paths with
+Node 22.23.2. Exact package versions and the lockfile are committed. Native SQLite
+crashed on this PC's older Node 22.13; the pinned runtime passed tests. See
+[development](DEVELOPMENT.md) for running it, module coverage and limitations.
+The table below includes later modules: it is not a claim they are all implemented.
+The custom frontend follows the owner's agreed Generate/Library layout; earlier
+SwarmUI exploration is a deferred alternative, not a blocker for this slice.
 
 | Module | Choice and responsibility |
 |---|---|
@@ -44,7 +52,7 @@ Store the pasted endpoint/session credential server-side on local PC. No Runpod 
 | Alternative | Decision |
 |---|---|
 | Existing ComfyUI + graphs | Keep execution, queue, nodes, model loaders and media tools; custom work is product forms, graph bindings and durable media jobs |
-| [SwarmUI](https://github.com/mcmonkeyprojects/SwarmUI) | Owner is evaluating; prefer reuse if four workflows, remote auth and local PC media ownership fit |
+| [SwarmUI](https://github.com/mcmonkeyprojects/SwarmUI) | Earlier evaluation retained as an alternative; first slice proceeds with the agreed custom frontend |
 | [InvokeAI](https://invoke.ai/features/workflows/comfyui-migration/) | Do not migrate: its own documentation says ComfyUI workflows cannot be directly imported; adds backend/model integration work |
 | Full ComfyUI App export pipeline | Defer; preserve old editable graphs, maintain only new trusted API templates for this frontend |
 | New local GPU/NAS, cross-vendor storage, serverless | No requirement justifies another hardware/storage/runtime project; begin with the existing 96 GB GPU class; measure cache/staging capacity before choosing volume size |

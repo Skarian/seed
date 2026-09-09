@@ -1,6 +1,6 @@
 # Personal media studio MVP
 
-Planning revision 5, 9 September 2026. Proposed, not deployed. This replaces the earlier LLM-first design. Existing operational instructions remain in [LEAN-SETUP](deployment/LEAN-SETUP.md).
+Scope revision 5, 9 September 2026. The [local application foundation](studio/DEVELOPMENT.md) is implemented; full MVP integration and deployment remain pending. This replaces the earlier LLM-first design. Existing operational instructions remain in [LEAN-SETUP](deployment/LEAN-SETUP.md).
 
 ## Product
 

@@ -56,3 +56,11 @@ backups/
 
 # Downloaded LLM reference snapshots; curated research notes remain versioned
 /research/llm/snapshots/
+
+# Local studio development and build output
+node_modules/
+dist/
+.local/
+test-results/
+playwright-report/
+coverage/

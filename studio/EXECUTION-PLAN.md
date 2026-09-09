@@ -1,6 +1,6 @@
 # Implementation plan, checkpoints and acceptance
 
-Revision 7. Checkout preparation is complete; application implementation and live validation are pending. This is the working execution plan and milestone journal. Product scope is [STUDIO-MVP](../STUDIO-MVP.md). Technical references remain [architecture](ARCHITECTURE.md), [API](API-CONTRACT.md), [worker](POD-BOOTSTRAP.md), [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) and [workflows](COMFYUI-CHANGES.md).
+Revision 8. Checkout preparation and the first local app foundation are implemented; worker integration, packaging and live GPU validation are pending. This is the working execution plan and milestone journal. Product scope is [STUDIO-MVP](../STUDIO-MVP.md). Technical references remain [architecture](ARCHITECTURE.md), [API](API-CONTRACT.md), [worker](POD-BOOTSTRAP.md), [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) and [workflows](COMFYUI-CHANGES.md).
 
 ## 0. Owner-present kickoff: obtain all access first
 
@@ -86,11 +86,16 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 
 - **2026-09-09, completed:** checkout backed up and curated on `feat/studio-mvp`; local commits `332a0a0` and `014db4e`. Obsolete plans and fixed-run helpers removed; LLM research retained in topic buckets. Current documentation links checked, 49 maintenance Python files parsed without execution, and credential scan passed. Two pre-existing missing assets in copied upstream research remain outside the active specifications. No pods were operated or remote changes made.
 - **2026-09-09, owner-agreed:** collaborate on UX, output quality and consequential API behavior using concrete previews/comparisons; hand off bounded engineering and tests for unattended execution. Keep decisions and implementation evidence in the relevant milestone/specification sections.
-- **Next:** verify required access/operational limits and finish the worker contract. Bring a concrete pairing → generation → durable-save example for review where behavior needs a decision. Local cleanup does not establish credentials or paid-work authorization.
+- **2026-09-09, access checked:** RunPod MCP read access works; existing pod `m6k75q8bdelebh` reports `EXITED`, volume `f7vnixgws1` is 150 GB in EUR-IS-1. GitHub remote read works. Docker is installed but its daemon is off. Standalone RunPod key, HF and Civitai credentials are absent in checked environment/conventional local locations; ignored `.env` prepared from `.env.example`. Existing private Jupyter configuration is present but not tested against a running pod. No compute was started; no publication or storage change occurred.
+- **2026-09-09, specified:** focused agent pass completed exact [worker protocol](POD-BOOTSTRAP.md) and [API save/cleanup semantics](API-CONTRACT.md), reusing native ComfyUI. These are design specifications, not verified worker behavior. Actual pinned-runtime streaming/hooks, restart recovery and preset activation need live proof.
+- **Next:** finish missing access and establish explicit hourly/session spending limits (question pending). Model-source access, GHCR publication access and Windows packaging permissions still need verification. Public ungated downloads may not need HF credentials. No paid tests until their access/limits are settled.
 
-#### M1 — Not started: local application
+#### M1 — In progress: local application
 
-Next owner checkpoint: try the Windows setup and Generate/Library shell; compare alternatives only for unresolved interactions. Record launch/storage implementation and usability findings here as they occur.
+- **2026-09-09, implemented:** React/Vite Generate/Library shell and four workflow selectors, per-workflow browser prompt drafts, loopback Fastify server, standard env-paths layout and SQLite migration. Pairing/uploads/generation intentionally unavailable. Preview runs on port 4310 using isolated `.local/preview` data. [Development guide](DEVELOPMENT.md) records code boundaries and commands.
+- **Verified:** TypeScript check and production build; six storage/API tests; two browser tests covering draft reload, workflow controls, navigation and 390 px mobile layout. Desktop/mobile screenshots inspected. Dependency audit reported zero vulnerabilities. Node 22.13 crashed in SQLite; official Node 22.23.2 ZIP was checksum-verified and native SQLite works. Runtime minimum and `.node-version` now match tested version. Independent code review found no further blocking issues for this disconnected foundation. Browser-test teardown required normal Windows process permissions; rerun passed and exited cleanly.
+- **Owner checkpoint pending:** try Generate/Library and the workflow selector; assess layout/wording before UI expansion. Question sent with preview URL. No approval or preference inferred yet.
+- **Next unattended slice:** Windows packaging, launcher reuse/stop/logging and optional sign-in startup; then worker implementation once M0 access gates are met. M1 is not complete until real fresh/repeat setup, duplicate launch and preservation/update tests pass. Public proxy support and richer media/library contracts remain future implementation, not claimed by this shell.
 
 #### M2 — Not started: setup and worker connection
 
