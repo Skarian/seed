@@ -79,8 +79,8 @@ legend { font-size: 12px; color: #a4ad98; padding: 0; margin-bottom: 12px; }
 .duration-options { display: flex; gap: 7px; }
 .duration-options button { height: 66px; min-width: 52px; border: 1px solid #3c4433; border-radius: 8px; background: #1c2118; color: #a7b297; }
 .duration-options button[aria-pressed=true] { border-color: #8ba962; background: #28321f; color: #e5eecf; }
-.generate-button { display: flex; justify-content: space-between; align-items: center; width: 100%; border: 0; border-radius: 7px; background: #d4ea93; color: #253215; padding: 15px 18px; font-weight: 600; opacity: .64; }
-.generate-button span { font-size: 19px; }
+.generate-button { position: relative; display: flex; justify-content: center; align-items: center; width: 100%; border: 0; border-radius: 7px; background: #d4ea93; color: #253215; padding: 15px 18px; font-weight: 600; opacity: .64; }
+.generate-button span { position:absolute; right:18px; font-size:19px; }
 .reference-placeholder { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 20px 16px; background: #20241b; border: 1px dashed #465237; border-radius: 8px; margin-top: 18px; font-size: 12px; }
 .reference-placeholder strong { font-weight: 500; }
 .reference-placeholder span { color: #96a386; font-size: 11px; }
@@ -145,8 +145,7 @@ footer { color: #8a977a; font-size: 11px; padding: 24px 0; margin-top: 45px; bor
 .reference-dropbox.dragging { outline:2px solid #d4ea93; background:#28321f; }
 .reference-bar { display:flex; align-items:center; gap:12px; }
 .reference-label { display:flex; flex:1; gap:12px; align-items:center; min-width:0; background:none; color:#e2eccf; border:0; padding:8px 0; font-size:12px; text-align:left; }
-.reference-label > span:first-child { flex:1; }
-.reference-count { color:#a4ad98; font-size:11px; }
+
 .reference-add { width:38px; height:38px; background:#2d3923; border:1px solid #63744e; border-radius:7px; color:#d4ea93; font-size:24px; }
 .reference-thumbnails { display:flex; gap:10px; overflow-x:auto; padding:12px 0 4px; }
 .reference-thumb { position:relative; display:flex; align-items:center; justify-content:center; padding:0; border:1px solid #536140; width:76px; height:76px; flex-shrink:0; border-radius:7px; overflow:hidden; background:#303b26; }
@@ -181,6 +180,11 @@ footer { color: #8a977a; font-size: 11px; padding: 24px 0; margin-top: 45px; bor
 .reference-errors { color:#e8b29a; font-size:12px; line-height:1.6; padding-left:20px; }
 .sr-only { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
 
-.reference-count { display:flex; flex-direction:column; gap:3px; }
-.reference-max { font-size:10px; color:#91a27c; }
-.reference-limits { margin:8px 0 0; color:#91a27c; font-size:10px; line-height:1.5; }
+
+.reference-bar { position:relative; }
+.reference-help summary { display:flex; align-items:center; justify-content:center; width:28px; height:28px; cursor:pointer; color:#a4ad98; list-style:none; border-radius:50%; }
+.reference-help summary::-webkit-details-marker { display:none; }
+.reference-help summary:hover { color:#e2eccf; background:#303b26; }
+.reference-help svg { width:17px; height:17px; }
+.reference-help > div { position:absolute; top:44px; left:0; z-index:4; width:260px; max-width:100%; display:flex; flex-direction:column; gap:8px; padding:14px; box-sizing:border-box; background:#222c1b; border:1px solid #63744e; border-radius:8px; box-shadow:0 8px 20px #0007; font-size:12px; line-height:1.5; color:#bdc9ad; }
+.reference-help strong { color:#e2eccf; font-weight:500; }

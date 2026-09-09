@@ -46,7 +46,7 @@ test('workflow drafts persist, reset is scoped, and mode controls work', async (
   await page.screenshot({ path: test.info().outputPath('generate-desktop.png'), fullPage: true });
   await page.getByLabel('Workflow').selectOption('image-to-image');
   await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toHaveCount(0);
-  await expect(page.getByText('Source image', { exact: true })).toBeVisible();
+  await expect(page.getByText('Input Images', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   await page.reload();
@@ -122,7 +122,10 @@ test('thumbnail dropbox opens a reusable viewer with info, roles, download and d
     { name: 'scene.png', mimeType: 'image/png', buffer: image },
     { name: 'person.png', mimeType: 'image/png', buffer: image },
   ]);
+  await expect(page.getByText('max: 2', { exact: true })).not.toBeVisible();
+  await page.getByLabel('Asset limits').click();
   await expect(page.getByText('max: 2', { exact: true })).toBeVisible();
+  await page.getByLabel('Asset limits').click();
   await expect(page.getByText('scene.png', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Preview person.png' }).click();
   const viewer = page.getByRole('dialog', { name: 'Media preview' });

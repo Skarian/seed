@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { MediaPreview } from './media-preview.js';
+import { MediaPreview, Glyph } from './media-preview.js';
 export type MediaKind = 'image' | 'video' | 'audio';
 export type Reference = { id: string; name: string; url: string; kind: MediaKind; type: string; width?: number; height?: number; duration?: number; start: number; end: number; role: string };
 type Group = 'edit' | 'video';
@@ -88,9 +88,8 @@ export function ReferenceInputs({ group, state }: { group: Group; state: ReturnT
   return <section className="references" aria-label={group === 'edit' ? 'Image inputs' : 'Video references'}>
     <input ref={input} aria-label="Choose reference files" className="file-picker" type="file" accept={group === 'edit' ? 'image/*' : 'image/*,video/*,audio/*'} multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; void state.add(group, files); }} />
     <div className={`reference-dropbox ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); void state.add(group, Array.from(event.dataTransfer.files)); }}>
-      <div className="reference-bar"><div className="reference-label"><span>{group === 'edit' ? 'Source image' : 'References'}</span><span className="reference-count">{items.length} {items.length === 1 ? 'file' : 'files'} <span className="reference-max">max: {group === 'edit' ? 2 : 12}</span></span></div><button type="button" className="reference-add" aria-label="Add references" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? '…' : '+'}</button></div>
+      <div className="reference-bar"><div className="reference-label"><span>{group === 'edit' ? 'Input Images' : 'References'}</span><details className="reference-help"><summary aria-label="Asset limits"><Glyph name="info" /></summary><div><span>{items.length} {items.length === 1 ? 'file' : 'files'} selected</span><strong>max: {group === 'edit' ? 2 : 12}</strong><span>{group === 'edit' ? 'One source image and an optional subject image.' : 'Up to 9 images, 3 videos and 3 audio files; 12 files combined.'}</span></div></details></div><button type="button" className="reference-add" aria-label="Add references" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? '…' : '+'}</button></div>
       <div>
-        {group === 'video' && <p className="reference-limits">Up to 9 images · 3 videos · 3 audio files</p>}
         {items.length ? <div className="reference-thumbnails">{items.map(item => <button type="button" className="reference-thumb" key={item.id} aria-label={`Preview ${item.name}`} onClick={() => setSelected(item.id)}>
           {item.kind === 'image' ? <img src={item.url} alt="" /> : item.kind === 'video' ? <><video src={item.url} muted preload="metadata" /><span className="media-symbol" aria-hidden="true">▶</span></> : <span className="audio-symbol" aria-hidden="true">♫</span>}
         </button>)}</div> : <button type="button" className="reference-empty" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? 'Reading files…' : group === 'edit' ? 'Drop images here or browse' : 'Drop images, video or audio here or browse'}</button>}

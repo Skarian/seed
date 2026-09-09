@@ -37,8 +37,8 @@ Generated outputs and terminal manifests live in a temporary per-job network-vol
 
 ## Current upload UI review slice
 
-Owner revision: one always-open drop box contains a file count, visible maximum, small thumbnails
-and Add control. Selecting a thumbnail opens the reusable full-screen MediaPreview:
+Owner revision: one always-open drop box contains small thumbnails
+and Add control. Counts/limits appear under an Info icon beside the title: Input Images for editing, References for video. Selecting a thumbnail opens the reusable full-screen MediaPreview:
 media fits the available viewport, with dark backdrop, top-right delete/info/download
 and role or clip-range controls below. Metadata appears only under Info. Replace
 and the on-form preview notice are removed; frame buttons are centered.
