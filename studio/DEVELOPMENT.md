@@ -160,3 +160,23 @@ Latest upload UI: collapsible thumbnail drop box and reusable full-screen dialog
 in web/media-preview.tsx. Metadata is under Info, downloads retrieve the original,
 and role/range controls sit beneath media. The viewer restores scrolling/focus on
 close. Replace and the temporary notice are removed; files remain browser-local.
+
+## RunPod credential setup
+
+`seed setup` checks RUNPOD_API_KEY in the environment, then the saved
+credentials.json in the standard config directory, then RUNPOD_API_KEY in a .env
+file in the current directory. Missing keys prompt through @inquirer/password
+with masked input. Noninteractive/quiet setup fails clearly if no key is available.
+The chosen key is saved atomically in the per-user config directory (mode 0600 on
+systems supporting POSIX permissions), separate from ordinary settings and npm files.
+Windows uses the existing per-user directory ACL; this is not OS-vault encryption.
+Setup never prints the key or copies unrelated .env values. Reruns reuse it; an
+explicit environment key can replace it. Malformed credentials are not overwritten.
+The browser/worker never receives this key; CLI launch strips it from the web
+server environment. The web server does not load credentials.json or .env.
+Saving a key is not validation of provider access; that remains an infrastructure
+preflight step. No RunPod requests, provisioning or spending happen during this check.
+
+Eleven server/CLI/credential tests pass, covering prompt/save/reuse, dotenv import,
+environment rotation, missing unattended credentials, cancellation, malformed files,
+and removal from the web process environment. Tests use isolated fixture keys.

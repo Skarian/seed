@@ -55,3 +55,7 @@ The unscoped npm name `seed` already exists. `@skarian/seed` is the candidate
 package name in this private package; scope ownership and publishing access still
 need validation. Do not install the unrelated `seed` package expecting this app.
 See [development](studio/DEVELOPMENT.md) for the current source launch path.
+
+`seed setup` reuses your saved RunPod API key or asks for it with masked input.
+It also accepts `RUNPOD_API_KEY` from the environment or a local `.env`; the key is
+stored in your per-user configuration, never the npm package or browser.

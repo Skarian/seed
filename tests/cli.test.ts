@@ -12,7 +12,7 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
   const probe = createServer(); await new Promise<void>(resolve => probe.listen(0, '127.0.0.1', resolve));
   const port = (probe.address() as import('node:net').AddressInfo).port;
   await new Promise<void>(resolve => probe.close(() => resolve()));
-  const env: NodeJS.ProcessEnv = { ...process.env, STUDIO_DEV_ROOT: root, APPDATA: path.join(root, 'fake Windows profile') };
+  const env: NodeJS.ProcessEnv = { ...process.env, STUDIO_DEV_ROOT: root, RUNPOD_API_KEY: 'fixture-runpod-key', APPDATA: path.join(root, 'fake Windows profile') };
   delete env.STUDIO_PORT; delete env.STUDIO_PREVIEW_ADDRESS; delete env.SEED_MANAGED;
   const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
   try {
