@@ -113,3 +113,82 @@ test('batch and seed settings persist per workflow and validate the full seed ra
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('batch-advanced-mobile.png'), fullPage: true });
 });
+
+test('reference selection previews, replacement, local rejection and workflow isolation', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto('/');
+  const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
+  await page.getByLabel('Workflow').selectOption('image-to-image');
+  await page.getByLabel('Choose reference files').setInputFiles({ name: 'scene.png', mimeType: 'image/png', buffer: image });
+  await expect(page.getByRole('img', { name: 'scene.png', exact: true })).toBeVisible();
+  await page.getByLabel('Choose reference files').setInputFiles({ name: 'person.png', mimeType: 'image/png', buffer: image });
+  await expect(page.getByLabel('Role for person.png')).toHaveValue('subject');
+  await page.getByRole('button', { name: 'Replace scene.png' }).click();
+  await page.getByLabel('Choose reference files').setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: image });
+  await expect(page.getByRole('img', { name: 'scene.png', exact: true })).toHaveCount(0);
+  await expect(page.getByLabel('Role for replacement.png')).toHaveValue('source');
+  await page.getByLabel('Choose reference files').setInputFiles({ name: 'third.png', mimeType: 'image/png', buffer: image });
+  await expect(page.getByRole('alert')).toContainText('optional subject');
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
+  await page.getByLabel('Choose reference files').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not media') });
+  await expect(page.getByRole('alert')).toContainText('choose an image, video or audio');
+  await page.getByLabel('Choose reference files').setInputFiles({ name: 'anchor.png', mimeType: 'image/png', buffer: image });
+  await expect(page.getByLabel('Role for anchor.png')).toHaveValue('first_frame');
+  await page.getByLabel('Role for anchor.png').selectOption('last_frame');
+  await page.getByRole('button', { name: 'Library', exact: true }).click();
+  await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await expect(page.getByLabel('Role for anchor.png')).toHaveValue('last_frame');
+  await page.getByRole('button', { name: 'Reset form', exact: true }).click();
+  await expect(page.getByRole('img', { name: 'anchor.png', exact: true })).toHaveCount(0);
+  await page.getByLabel('Workflow').selectOption('image-to-image');
+  await expect(page.getByRole('img', { name: 'person.png', exact: true })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('upload-mobile.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Remove person.png' }).click();
+  await expect(page.getByRole('img', { name: 'person.png', exact: true })).toHaveCount(0);
+});
+
+test('audio and video previews expose source duration and editable clip ranges', async ({ page }) => {
+  await page.goto('/');
+  const videoBytes = await page.evaluate(async () => {
+    const canvas = document.createElement('canvas'); canvas.width = 320; canvas.height = 180;
+    const context = canvas.getContext('2d')!;
+    const stream = canvas.captureStream(24);
+    const chunks: Blob[] = []; const recorder = new MediaRecorder(stream, { mimeType: 'video/webm' });
+    recorder.ondataavailable = event => chunks.push(event.data);
+    const finished = new Promise<void>(resolve => { recorder.onstop = () => resolve(); });
+    recorder.start();
+    const draw = setInterval(() => { context.fillStyle = '#658542'; context.fillRect(0, 0, 320, 180); }, 40);
+    await new Promise(resolve => setTimeout(resolve, 2500));
+    recorder.stop(); await finished; clearInterval(draw); stream.getTracks().forEach(track => track.stop());
+    return Array.from(new Uint8Array(await new Blob(chunks).arrayBuffer()));
+  });
+  const samples = 8000 * 20; const wav = Buffer.alloc(44 + samples * 2);
+  wav.write('RIFF'); wav.writeUInt32LE(wav.length - 8, 4); wav.write('WAVEfmt ', 8);
+  wav.writeUInt32LE(16, 16); wav.writeUInt16LE(1, 20); wav.writeUInt16LE(1, 22);
+  wav.writeUInt32LE(8000, 24); wav.writeUInt32LE(16000, 28); wav.writeUInt16LE(2, 32); wav.writeUInt16LE(16, 34);
+  wav.write('data', 36); wav.writeUInt32LE(samples * 2, 40);
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
+  await page.getByLabel('Choose reference files').setInputFiles([
+    { name: 'motion.webm', mimeType: 'video/webm', buffer: Buffer.from(videoBytes) },
+    { name: 'sound.wav', mimeType: 'audio/wav', buffer: wav },
+  ]);
+  await expect(page.locator('video')).toBeVisible();
+  await expect(page.locator('audio')).toBeVisible();
+  await page.locator('video').evaluate(element => (element as HTMLVideoElement).play());
+  await expect.poll(() => page.locator('video').evaluate(element => (element as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
+  await page.locator('video').evaluate(element => (element as HTMLVideoElement).pause());
+  await page.locator('audio').evaluate(element => (element as HTMLAudioElement).play());
+  await expect.poll(() => page.locator('audio').evaluate(element => (element as HTMLAudioElement).currentTime)).toBeGreaterThan(0);
+  await page.locator('audio').evaluate(element => (element as HTMLAudioElement).pause());
+  await expect(page.getByLabel('End for sound.wav')).toHaveValue('15');
+  await page.getByLabel('Start for sound.wav').fill('10');
+  await page.getByLabel('End for sound.wav').fill('20');
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.getByLabel('End for sound.wav').fill('25');
+  await expect(page.getByRole('alert')).toContainText('within the source');
+  await page.getByLabel('End for sound.wav').fill('20');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('video-references-mobile.png'), fullPage: true });
+});

@@ -1,6 +1,6 @@
 # Asset preparation
 
-Revision 5, planning only. The experience is select media, preview, generate. Do not add arbitrary byte/megapixel limits or expose internal sizing presets.
+Revision 6. Browser selection/preview review slice implemented; durable uploads, automatic preparation and model preflight remain planned. The experience is select media, preview, generate. Do not add arbitrary byte/megapixel limits or expose internal sizing presets.
 
 ## Selection before transfer
 
@@ -34,3 +34,24 @@ Tus streams to local PC disk and resumes after disconnect. Reserve against actua
 Only prepared derivatives needed for the job are transferred to ComfyUI. First test native `/upload/image` with prepared MP4/WAV despite the route name. Upstream buffers that upload, so measure the bounded derivative memory cost. Stream results back. A narrow private streaming route is a fallback only if this test fails, not another default service.
 
 Generated outputs and terminal manifests live in a temporary per-job network-volume spool. Transfer closed files to the PC; commit durable files and database records before acknowledging receipt. Worker copies remain until acknowledgment. Replacement on the same volume can resume pending transfers; volume loss can lose untransferred output. Never regenerate to repair a copy. Cleanup failures after saving remain distinct. Local Library supports authenticated Range playback; external remote hosting is owner-managed; test generic proxy compatibility without requiring a specific tunnel. Backup requires a consistent database snapshot and media files; persistence is not backup.
+
+## Current upload UI review slice
+
+Image editing accepts a source scene plus an optional subject image. Reference
+video offers image/audio/video selection, previews, image roles, removal and
+replacement. Selections survive workflow/Library navigation within the tab;
+Reset clears only the active workflow. Reloading clears file selections. Blob
+URLs are released on removal/reset/unmount; no media is written to localStorage
+or sent to the server. This is explicitly labelled preview-only in the UI.
+
+Browser metadata checks reject unreadable files locally. Planned model file-count
+limits and 2–15 second clip ranges are represented for interaction review, with
+no arbitrary byte/dimension cap. Long sources remain selectable, showing an
+editable range. Playback currently plays the source, not a trimmed derivative.
+Native grid alignment, paired-video audio budget, codec conversion, first/last
+frame influence and server capability binding remain integration gates. A browser
+preview is not proof of model acceptance. No actual GPU submissions are enabled.
+
+Browser tests cover replacement, role preservation, per-workflow isolation,
+local file rejection, mobile layout, generated audio/video playback and clip-range
+feedback. Owner phone review is the next product checkpoint.

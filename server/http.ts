@@ -31,7 +31,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.addHook('onSend', async (request, reply, payload) => {
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');
-    reply.header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+    reply.header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
     if (request.url.startsWith('/api/')) reply.header('Cache-Control', 'no-store');
     return payload;
   });

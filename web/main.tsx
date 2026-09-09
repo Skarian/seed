@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { LibraryAsset, StudioSnapshot, WorkflowId } from '../shared/studio.js';
 import './style.css';
+import { ReferenceInputs, useReferences } from './references.js';
 
 const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
   'text-to-image': { title: 'Text to image', placeholder: 'Describe your image…' },
@@ -45,6 +46,7 @@ function Icon({ name }: { name: 'reset' | 'jobs' | 'pod' | 'resize' | 'close' })
 }
 
 function App() {
+  const references = useReferences();
   const [page, setPage] = useState(location.pathname === '/library' ? 'library' : 'generate');
   const [workflow, setWorkflow] = useState<WorkflowId>('text-to-image');
   const [drafts, setDrafts] = useState(loadDrafts);
@@ -84,7 +86,7 @@ function App() {
   const video = workflow.endsWith('video');
   const seedValid = draft.randomSeed || (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) && BigInt(draft.seed) + BigInt(draft.count - 1) <= 9007199254740991n);
   const jobCount = studio ? studio.queue.active + studio.queue.waiting : null;
-  function reset() { setDrafts(current => ({ ...current, [workflow]: emptyDraft() })); setPromptHeight(240); setAdvancedOpen(false); }
+  function reset() { if (workflow === 'image-to-image') references.reset('edit'); if (workflow === 'reference-to-video') references.reset('video'); setDrafts(current => ({ ...current, [workflow]: emptyDraft() })); setPromptHeight(240); setAdvancedOpen(false); }
 
   return <div className="studio-shell">
     <header className="topbar">
@@ -116,7 +118,7 @@ function App() {
             <button className="resize-handle" aria-label="Resize prompt" title="Drag to resize; use arrow keys for small adjustments" onPointerDown={event => { drag.current = { y: event.clientY, height: promptHeight }; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (drag.current) setPromptHeight(Math.max(140, Math.min(800, drag.current.height + event.clientY - drag.current.y))); }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setPromptHeight(height => Math.max(140, Math.min(800, height + (event.key === 'ArrowDown' ? 20 : -20)))); } }}><Icon name="resize" /></button>
           </div>
           {draftError && <p role="alert">Draft could not be saved. Keep a copy before closing.</p>}
-          {(workflow === 'image-to-image' || workflow === 'reference-to-video') && <div className="reference-placeholder"><strong>{video ? 'Images, video & audio' : 'Source image'}</strong><span>Uploads unavailable</span></div>}
+          {(workflow === 'image-to-image' || workflow === 'reference-to-video') && <ReferenceInputs key={workflow} group={workflow === 'image-to-image' ? 'edit' : 'video'} state={references} />}
           <div className="output-settings"><fieldset><legend>Frame</legend><div className="frame-options">{(['16:9', '9:16'] as const).map(aspect => <button key={aspect} className="frame-option" aria-pressed={draft.aspect === aspect} aria-label={`${aspect === '16:9' ? 'Landscape' : 'Portrait'} ${aspect}`} onClick={() => updateDraft({ aspect })}><span className={`frame-shape ${aspect === '9:16' ? 'portrait' : 'landscape'}`} /><span>{aspect === '16:9' ? 'Landscape' : 'Portrait'}<small>{aspect}</small></span></button>)}</div></fieldset>
             {video && <fieldset><legend>Length</legend><div className="duration-options">{(['5', '10', '15'] as const).map(duration => <button key={duration} aria-pressed={draft.duration === duration} onClick={() => updateDraft({ duration })}>{duration}s</button>)}</div></fieldset>}
           </div>

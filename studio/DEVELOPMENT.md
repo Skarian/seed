@@ -2,7 +2,7 @@
 
 The first implementation slice is a disconnected studio shell: Generate/Library,
 four workflow forms, browser workflow drafts, standard storage directories, SQLite,
-and a loopback HTTP server. Pairing, transfers and generation are not implemented.
+and a loopback HTTP server. Browser reference selection and previews work; pairing, durable uploads, transfers and generation are not implemented.
 The npm CLI lifecycle is implemented; the source and packaged launch paths follow.
 
 ## Run and verify
@@ -141,3 +141,17 @@ install, running status, stop/restart, reinstall and uninstall with preserved
 media/database. CLI integration tests cover concurrent start, unauthenticated
 stop rejection, repeated startup setup and the generated Windows entry, all in
 isolated test directories. No startup setting was enabled for the owner's account.
+
+## Owner portal and upload review
+
+The locally packed npm package is now installed in the owner's normal npm prefix.
+The CLI-managed portal uses standard app directories and the configured LAN URL
+`http://192.168.1.212:4310`. Sign-in startup remains disabled by default. Use
+`seed status/start/stop` from a normal terminal; rerun `seed setup` to choose
+sign-in startup. The old isolated developer preview data remains preserved.
+
+Refresh the page for the upload UI. Image-to-image and reference-to-video support
+browser-local file previews, roles, replacement/removal, and editable source clip
+ranges. Reload loses these file selections; no durable upload or generation is
+claimed. Text-to-image/text-to-video have no reference picker. Six browser tests
+pass, including mobile and actual audio/video playback; seven server/CLI tests pass.
