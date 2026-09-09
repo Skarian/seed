@@ -1,0 +1,62 @@
+{
+  "schema_version": 1,
+  "status": "planning-example-not-active",
+  "revision": "owner-config-001",
+  "assets": [],
+  "asset_entry_example": {
+    "id": "owner-chosen-lora",
+    "kind": "lora",
+    "source": {
+      "provider": "civitai",
+      "model_version_id": "REPLACE_WITH_VERSION_ID",
+      "file_id": "REPLACE_WITH_FILE_ID"
+    },
+    "compatible_workflows": [
+      "h3-reference-video"
+    ],
+    "base_family": "minimax-h3-ref2va",
+    "filename": "owner-chosen-lora.safetensors",
+    "default_strength_model": 0.8,
+    "trigger_words": [],
+    "notes": "Example strength only. Use this exact asset author's guidance and validate on our runtime."
+  },
+  "presets": {
+    "krea-create": {
+      "sfw": {
+        "content_loras": []
+      },
+      "nsfw": null
+    },
+    "krea-identity-edit": {
+      "sfw": {
+        "content_loras": []
+      },
+      "nsfw": null
+    },
+    "h3-frame-video": {
+      "sfw": {
+        "content_loras": []
+      },
+      "nsfw": null
+    },
+    "h3-reference-video": {
+      "sfw": {
+        "content_loras": []
+      },
+      "nsfw": null
+    }
+  },
+  "content_lora_binding_example": {
+    "asset_id": "owner-chosen-lora",
+    "strength_model": 0.8
+  },
+  "notes": [
+    "Copy and edit as an ignored local manifest, proposed path studio.local.json.",
+    "Example entries are documentation, not acquisition targets. Only assets[] is downloaded.",
+    "null means unavailable; never silently substitute another mode.",
+    "Mandatory identity and turbo LoRAs are retained by the workflow adapter separately.",
+    "Empty content_loras means base behavior; SFW is a preset name, not a content guarantee.",
+    "Civitai tokens belong in a separate runtime secret, not this file.",
+    "No sync implementation exists yet; this file establishes the proposed format."
+  ]
+}

@@ -4,6 +4,12 @@ A personal image and video studio powered by ComfyUI on Runpod. Start a GPU when
 
 Includes MiniMax H3 video workflows, Krea 2 image generation and identity editing, and Phr00t Qwen Image Edit Rapid AIO.
 
+Next-stage planning: [media studio MVP](STUDIO-MVP.md) — a local Windows studio,
+manual RunPod deployment and pairing, expressive workflows, and permanent media
+on your PC. See the [implementation plan](studio/EXECUTION-PLAN.md) for access,
+milestones, reviews and commit policy. This frontend is planned, not deployed. [LLM choices](notes/DEFERRED-LLM.md)
+are saved for a later phase.
+
 ## Use the studio
 
 Follow [Start here](deployment/START-HERE.md) for the saved pod and sign-in instructions. The [operating guide](deployment/LEAN-SETUP.md) covers normal Start/Connect/Stop, unavailable GPUs, replacement deployment and future changes.
