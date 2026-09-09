@@ -1,0 +1,172 @@
+{
+  "text-portrait-5": {
+    "prompt_id": "ca3dfc49-672d-49fe-b8ec-29bb8fbe8be6",
+    "number": 0,
+    "node_errors": {},
+    "status": "success",
+    "outputs": {
+      "14": {
+        "gifs": [
+          {
+            "filename": "01 - Create a video_00001-audio.mp4",
+            "subfolder": "MiniMax",
+            "type": "output",
+            "format": "video/h264-mp4",
+            "frame_rate": 24.0,
+            "workflow": "01 - Create a video_00001.png",
+            "fullpath": "/ComfyUI/output/MiniMax/01 - Create a video_00001-audio.mp4"
+          }
+        ]
+      }
+    },
+    "media_probe": {
+      "programs": [],
+      "streams": [
+        {
+          "codec_type": "video",
+          "width": 720,
+          "height": 1280,
+          "r_frame_rate": "24/1",
+          "duration": "5.000000",
+          "nb_frames": "120"
+        },
+        {
+          "codec_type": "audio",
+          "r_frame_rate": "0/0",
+          "duration": "4.992000",
+          "nb_frames": "157"
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    }
+  },
+  "image-landscape-15": {
+    "prompt_id": "3a21c63c-3361-4de4-afa2-d0509bdbd350",
+    "number": 1,
+    "node_errors": {},
+    "status": "success",
+    "outputs": {
+      "14": {
+        "gifs": [
+          {
+            "filename": "image-landscape-15_00001-audio.mp4",
+            "subfolder": "MiniMax/Acceptance",
+            "type": "output",
+            "format": "video/h264-mp4",
+            "frame_rate": 24.0,
+            "workflow": "image-landscape-15_00001.png",
+            "fullpath": "/ComfyUI/output/MiniMax/Acceptance/image-landscape-15_00001-audio.mp4"
+          }
+        ]
+      }
+    },
+    "media_probe": {
+      "programs": [],
+      "streams": [
+        {
+          "codec_type": "video",
+          "width": 1280,
+          "height": 720,
+          "r_frame_rate": "24/1",
+          "duration": "15.000000",
+          "nb_frames": "360"
+        },
+        {
+          "codec_type": "audio",
+          "r_frame_rate": "0/0",
+          "duration": "14.976000",
+          "nb_frames": "469"
+        }
+      ],
+      "format": {
+        "duration": "15.000000"
+      }
+    }
+  },
+  "text-portrait-10": {
+    "prompt_id": "260f0d6a-9657-40e9-ba86-1a02cb8d6b32",
+    "number": 2,
+    "node_errors": {},
+    "status": "success",
+    "outputs": {
+      "14": {
+        "gifs": [
+          {
+            "filename": "text-portrait-10_00001-audio.mp4",
+            "subfolder": "MiniMax/Acceptance",
+            "type": "output",
+            "format": "video/h264-mp4",
+            "frame_rate": 24.0,
+            "workflow": "text-portrait-10_00001.png",
+            "fullpath": "/ComfyUI/output/MiniMax/Acceptance/text-portrait-10_00001-audio.mp4"
+          }
+        ]
+      }
+    },
+    "media_probe": {
+      "programs": [],
+      "streams": [
+        {
+          "codec_type": "video",
+          "width": 720,
+          "height": 1280,
+          "r_frame_rate": "24/1",
+          "duration": "10.000000",
+          "nb_frames": "240"
+        },
+        {
+          "codec_type": "audio",
+          "r_frame_rate": "0/0",
+          "duration": "9.984000",
+          "nb_frames": "313"
+        }
+      ],
+      "format": {
+        "duration": "10.000000"
+      }
+    }
+  },
+  "image-portrait-5-browser": {
+    "prompt_id": "443c42bf-ca66-48ff-9e93-7db28a6dc254",
+    "status": "success",
+    "outputs": {
+      "14": {
+        "gifs": [
+          {
+            "filename": "02 - Animate an image_00001-audio.mp4",
+            "subfolder": "MiniMax",
+            "type": "output",
+            "format": "video/h264-mp4",
+            "frame_rate": 24.0,
+            "workflow": "02 - Animate an image_00001.png",
+            "fullpath": "/ComfyUI/output/MiniMax/02 - Animate an image_00001-audio.mp4"
+          }
+        ]
+      }
+    },
+    "media_probe": {
+      "programs": [],
+      "streams": [
+        {
+          "codec_type": "video",
+          "width": 720,
+          "height": 1280,
+          "r_frame_rate": "24/1",
+          "duration": "5.000000",
+          "nb_frames": "120"
+        },
+        {
+          "codec_type": "audio",
+          "r_frame_rate": "0/0",
+          "duration": "4.992000",
+          "nb_frames": "157"
+        }
+      ],
+      "format": {
+        "duration": "5.000000"
+      }
+    }
+  }
+}

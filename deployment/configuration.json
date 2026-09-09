@@ -1,6 +1,6 @@
 {
-  "status": "stopped",
-  "name": "neil-comfyui-replacement",
+  "status": "running",
+  "name": "marvellous_cyan_egret",
   "image": "ghcr.io/skarian/runpod-studio@sha256:5b01d3f62ce157792bd6aab4bef0b7c6b4c95b1b37ed4d9e3454f898e1bcca15",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
   "gpuCount": 1,
@@ -22,7 +22,7 @@
   "browserUsername": null,
   "bootstrapFile": "lean/start.sh",
   "notes": "Attach existing volume f7vnixgws1 at /workspace. Use LEAN-SETUP.md. Only one pod may run against this workspace. Existing Jupyter token protects 8080 and 8888; raw ComfyUI stays on loopback.",
-  "podId": "s1bsc8hbjh0vqx",
+  "podId": "m6k75q8bdelebh",
   "networkVolumeId": "f7vnixgws1",
   "templateId": "7522irqo4q",
   "previousPodId": "uuwayipczbkwcd",
