@@ -62,6 +62,19 @@ The owner supplies product judgment; the assistant owns engineering execution an
 
 Keep each check-in focused: what is ready to inspect, the decision needed, the recommendation, and what follows. Prefer one meaningful question over a broad questionnaire. If feedback is required, pause only the dependent work and continue independent tasks; silence is not approval. A previously agreed direction stays settled unless evidence or owner feedback changes it. Do not create alternatives just to fill a review ritual.
 
+### Owner access for reviews and portal use
+
+Owner confirmed same-Wi-Fi access on 2026-09-09. Default to a clickable home-LAN
+URL for UI tests, demos and portal access; do not assume the owner is at the PC.
+Start/check the appropriate portal, verify its current assigned LAN address and
+HTTP response, and share that address. The working address was
+`http://192.168.1.212:4310`; recheck rather than assuming DHCP never changes it.
+Reuse the working LAN approach without asking permission again. Keep automated
+browser tests isolated from the owner's portal data. This is a delivery preference,
+not approval of the UI design or a request for internet exposure. The installed
+portal still needs a persistent LAN configuration during Windows packaging; the
+current opt-in development preview is not that completed installation.
+
 ### Engineering review and communication
 
 At each milestone review the diff for scope, correctness, data loss/duplication, credential handling and regressions. Use focused independent reviewers for the worker/transfer contracts and after M3/M4, as previously requested. Reviewers report concrete defects and missing evidence, not confidence percentages. Address findings before promoting the affected work. Use unit/contract tests for pure logic, browser tests for actual flows, and live GPU tests for model/transfer behavior. Do not write tests that only mirror trivial implementation.
@@ -95,7 +108,7 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 - **2026-09-09, implemented:** React/Vite Generate/Library shell and four workflow selectors, per-workflow browser prompt drafts, loopback Fastify server, standard env-paths layout and SQLite migration. Pairing/uploads/generation intentionally unavailable. Preview runs on port 4310 using isolated `.local/preview` data. [Development guide](DEVELOPMENT.md) records code boundaries and commands.
 - **Verified:** TypeScript check and production build; six storage/API tests; two browser tests covering draft reload, workflow controls, navigation and 390 px mobile layout. Desktop/mobile screenshots inspected. Dependency audit reported zero vulnerabilities. Node 22.13 crashed in SQLite; official Node 22.23.2 ZIP was checksum-verified and native SQLite works. Runtime minimum and `.node-version` now match tested version. Independent code review found no further blocking issues for this disconnected foundation. Browser-test teardown required normal Windows process permissions; rerun passed and exited cleanly.
 - **Owner checkpoint pending:** try Generate/Library and the workflow selector; assess layout/wording before UI expansion. Question sent with preview URL. No approval or preference inferred yet.
-- **2026-09-09, owner-requested LAN preview:** separate isolated preview listens on the PC's assigned address `192.168.1.212:4310`; Host/Origin protections remain enabled and normal startup remains loopback. Local health request returned 200. A firewall rule restricted to the home subnet could not be created because Windows denied access; mobile reachability awaits owner test. No router or public exposure changes.
+- **2026-09-09, owner-requested LAN preview:** separate isolated preview listens on the PC's assigned address `192.168.1.212:4310`; Host/Origin protections remain enabled and normal startup remains loopback. Local health request returned 200. A firewall rule restricted to the home subnet could not be created because Windows denied access; the owner subsequently confirmed access from the same Wi-Fi. No firewall modification was needed to establish that successful access. No router or public exposure changes.
 - **Next unattended slice:** Windows packaging, launcher reuse/stop/logging and optional sign-in startup; then worker implementation once M0 access gates are met. M1 is not complete until real fresh/repeat setup, duplicate launch and preservation/update tests pass. Public proxy support and richer media/library contracts remain future implementation, not claimed by this shell.
 
 #### M2 — Not started: setup and worker connection

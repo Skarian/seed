@@ -56,7 +56,10 @@ preview directory before starting. The default stays loopback. Host/Origin check
 match the selected address exactly; this does not enable general public hosting.
 On 9 September the preview was started at `http://192.168.1.212:4310` using
 `.local/lan-preview`. The local HTTP check passed. Creating a subnet-restricted
-Windows Firewall rule failed with access denied; phone access is not yet verified.
+Windows Firewall rule failed with access denied; the owner subsequently confirmed
+that the LAN link is accessible. Use this approach for future UI reviews and
+portal access, verifying the current LAN IP each time. Keep test data isolated;
+persistent LAN launch configuration remains Windows packaging work.
 
 - `server/storage.ts`: standard paths and directory creation, no media deletion.
 - `server/db.ts`: transactional migrations, WAL, FULL synchronous durability and
