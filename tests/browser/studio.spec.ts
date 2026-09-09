@@ -114,38 +114,50 @@ test('batch and seed settings persist per workflow and validate the full seed ra
   await page.screenshot({ path: test.info().outputPath('batch-advanced-mobile.png'), fullPage: true });
 });
 
-test('reference selection previews, replacement, local rejection and workflow isolation', async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto('/');
+test('thumbnail dropbox opens a reusable viewer with info, roles, download and deletion', async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/');
   const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
   await page.getByLabel('Workflow').selectOption('image-to-image');
-  await page.getByLabel('Choose reference files').setInputFiles({ name: 'scene.png', mimeType: 'image/png', buffer: image });
-  await expect(page.getByRole('img', { name: 'scene.png', exact: true })).toBeVisible();
-  await page.getByLabel('Choose reference files').setInputFiles({ name: 'person.png', mimeType: 'image/png', buffer: image });
+  await page.getByLabel('Choose reference files').setInputFiles([
+    { name: 'scene.png', mimeType: 'image/png', buffer: image },
+    { name: 'person.png', mimeType: 'image/png', buffer: image },
+  ]);
+  await expect(page.getByText('2 files', { exact: true })).toBeVisible();
+  await expect(page.getByText('scene.png', { exact: true })).toHaveCount(0);
+  await page.getByRole('button', { name: 'Preview person.png' }).click();
+  const viewer = page.getByRole('dialog', { name: 'Media preview' });
+  await expect(viewer).toBeVisible();
   await expect(page.getByLabel('Role for person.png')).toHaveValue('subject');
-  await page.getByRole('button', { name: 'Replace scene.png' }).click();
-  await page.getByLabel('Choose reference files').setInputFiles({ name: 'replacement.png', mimeType: 'image/png', buffer: image });
-  await expect(page.getByRole('img', { name: 'scene.png', exact: true })).toHaveCount(0);
-  await expect(page.getByLabel('Role for replacement.png')).toHaveValue('source');
-  await page.getByLabel('Choose reference files').setInputFiles({ name: 'third.png', mimeType: 'image/png', buffer: image });
-  await expect(page.getByRole('alert')).toContainText('optional subject');
+  await page.getByLabel('File information').click();
+  await expect(viewer.getByText('person.png', { exact: true })).toBeVisible();
+  await expect(viewer.getByText('image/png', { exact: true })).toBeVisible();
+  const downloaded = page.waitForEvent('download');
+  await page.getByRole('link', { name: 'Download file' }).click();
+  expect((await downloaded).suggestedFilename()).toBe('person.png');
+  await page.keyboard.press('Escape'); await expect(viewer).toHaveCount(0);
+  await page.getByRole('button', { name: /Source image 2 files/ }).click();
+  await expect(page.getByRole('button', { name: 'Preview person.png' })).not.toBeVisible();
+  await page.getByRole('button', { name: /Source image 2 files/ }).click();
   await page.getByLabel('Workflow').selectOption('reference-to-video');
   await page.getByLabel('Choose reference files').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not media') });
   await expect(page.getByRole('alert')).toContainText('choose an image, video or audio');
   await page.getByLabel('Choose reference files').setInputFiles({ name: 'anchor.png', mimeType: 'image/png', buffer: image });
-  await expect(page.getByLabel('Role for anchor.png')).toHaveValue('first_frame');
+  await page.getByRole('button', { name: 'Preview anchor.png' }).click();
   await page.getByLabel('Role for anchor.png').selectOption('last_frame');
+  await page.getByRole('button', { name: 'Close preview' }).click();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
+  await page.getByRole('button', { name: 'Preview anchor.png' }).click();
   await expect(page.getByLabel('Role for anchor.png')).toHaveValue('last_frame');
-  await page.getByRole('button', { name: 'Reset form', exact: true }).click();
-  await expect(page.getByRole('img', { name: 'anchor.png', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('viewer-mobile.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Delete file' }).click();
+  await expect(viewer).toHaveCount(0);
   await page.getByLabel('Workflow').selectOption('image-to-image');
-  await expect(page.getByRole('img', { name: 'person.png', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Preview person.png' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-  await page.screenshot({ path: test.info().outputPath('upload-mobile.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Remove person.png' }).click();
-  await expect(page.getByRole('img', { name: 'person.png', exact: true })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('thumbnail-dropbox-mobile.png'), fullPage: true });
+  await page.getByRole('button', { name: 'Reset form', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'Preview person.png' })).toHaveCount(0);
 });
 
 test('audio and video previews expose source duration and editable clip ranges', async ({ page }) => {
@@ -173,11 +185,14 @@ test('audio and video previews expose source duration and editable clip ranges',
     { name: 'motion.webm', mimeType: 'video/webm', buffer: Buffer.from(videoBytes) },
     { name: 'sound.wav', mimeType: 'audio/wav', buffer: wav },
   ]);
-  await expect(page.locator('video')).toBeVisible();
+  await page.getByRole('button', { name: 'Preview motion.webm' }).click();
+  await expect(page.locator('.viewer-canvas video')).toBeVisible();
+  await page.locator('.viewer-canvas video').evaluate(element => (element as HTMLVideoElement).play());
+  await expect.poll(() => page.locator('.viewer-canvas video').evaluate(element => (element as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
+  await page.locator('.viewer-canvas video').evaluate(element => (element as HTMLVideoElement).pause());
+  await page.getByRole('button', { name: 'Close preview' }).click();
+  await page.getByRole('button', { name: 'Preview sound.wav' }).click();
   await expect(page.locator('audio')).toBeVisible();
-  await page.locator('video').evaluate(element => (element as HTMLVideoElement).play());
-  await expect.poll(() => page.locator('video').evaluate(element => (element as HTMLVideoElement).currentTime)).toBeGreaterThan(0);
-  await page.locator('video').evaluate(element => (element as HTMLVideoElement).pause());
   await page.locator('audio').evaluate(element => (element as HTMLAudioElement).play());
   await expect.poll(() => page.locator('audio').evaluate(element => (element as HTMLAudioElement).currentTime)).toBeGreaterThan(0);
   await page.locator('audio').evaluate(element => (element as HTMLAudioElement).pause());

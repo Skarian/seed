@@ -151,7 +151,12 @@ The CLI-managed portal uses standard app directories and the configured LAN URL
 sign-in startup. The old isolated developer preview data remains preserved.
 
 Refresh the page for the upload UI. Image-to-image and reference-to-video support
-browser-local file previews, roles, replacement/removal, and editable source clip
+browser-local file previews, roles, deletion/download, and editable source clip
 ranges. Reload loses these file selections; no durable upload or generation is
 claimed. Text-to-image/text-to-video have no reference picker. Six browser tests
 pass, including mobile and actual audio/video playback; seven server/CLI tests pass.
+
+Latest upload UI: collapsible thumbnail drop box and reusable full-screen dialog
+in web/media-preview.tsx. Metadata is under Info, downloads retrieve the original,
+and role/range controls sit beneath media. The viewer restores scrolling/focus on
+close. Replace and the temporary notice are removed; files remain browser-local.

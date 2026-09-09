@@ -37,21 +37,26 @@ Generated outputs and terminal manifests live in a temporary per-job network-vol
 
 ## Current upload UI review slice
 
-Image editing accepts a source scene plus an optional subject image. Reference
-video offers image/audio/video selection, previews, image roles, removal and
-replacement. Selections survive workflow/Library navigation within the tab;
-Reset clears only the active workflow. Reloading clears file selections. Blob
-URLs are released on removal/reset/unmount; no media is written to localStorage
-or sent to the server. This is explicitly labelled preview-only in the UI.
+Owner revision: one collapsible drop box contains a file count, small thumbnails
+and Add control. Selecting a thumbnail opens the reusable full-screen MediaPreview:
+media fits the available viewport, with dark backdrop, top-right delete/info/download
+and role or clip-range controls below. Metadata appears only under Info. Replace
+and the on-form preview notice are removed; frame buttons are centered.
 
-Browser metadata checks reject unreadable files locally. Planned model file-count
-limits and 2–15 second clip ranges are represented for interaction review, with
-no arbitrary byte/dimension cap. Long sources remain selectable, showing an
-editable range. Playback currently plays the source, not a trimmed derivative.
-Native grid alignment, paired-video audio budget, codec conversion, first/last
-frame influence and server capability binding remain integration gates. A browser
-preview is not proof of model acceptance. No actual GPU submissions are enabled.
+Image editing accepts source plus optional subject images. Reference video accepts
+images, video and audio. MIME category and browser decode checks apply, without an
+arbitrary byte or image-resolution cap. Planned model file-count/range limits remain
+represented for review. Codec conversion, paired-video audio budget, native frame
+grid alignment and capability binding remain integration work.
 
-Browser tests cover replacement, role preservation, per-workflow isolation,
-local file rejection, mobile layout, generated audio/video playback and clip-range
-feedback. Owner phone review is the next product checkpoint.
+Selections survive workflow/Library navigation in the tab. Reset clears only the
+active workflow; reload clears file selections. Object URLs are released on
+removal/reset/unmount. No original files are uploaded or saved by this slice.
+Download retrieves the selected original through its object URL. Playback plays
+the source, while range controls edit the selection. Removing the preview notice
+does not change these implementation limits.
+
+Browser tests cover counts/collapse, viewer controls, info/download, roles, deletion,
+workflow retention, client rejection, mobile layout and audio/video playback.
+Reuse web/media-preview.tsx for future Library/output previews through optional
+controls and deletion props; those integrations are not yet implemented.
