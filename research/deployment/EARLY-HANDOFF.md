@@ -1,6 +1,8 @@
+> Historical deployment measurements and handoff. Pod IDs, URLs and status below are obsolete. Use [the operating guide](../../deployment/LEAN-SETUP.md) for operation.
+
 > Current user session: pod `uuwayipczbkwcd` (**neil-comfyui-active**), https://uuwayipczbkwcd-8080.proxy.runpod.net/ . Prior pod could not resume; the same persistent volume is attached.
 
-> Current pod and image workflows (8 September): see [KREA2-START-HERE.md](KREA2-START-HERE.md). The active pod is `zrmxmmtfr13znw`; older pod URLs below are historical. Storage is now 120 GB ($8.40/month).
+> Current pod and image workflows (8 September): see [KREA2-START-HERE.md](../../deployment/KREA2-START-HERE.md). The active pod is `zrmxmmtfr13znw`; older pod URLs below are historical. Storage is now 120 GB ($8.40/month).
 
 # Your MiniMax H3 setup
 

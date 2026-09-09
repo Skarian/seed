@@ -3,7 +3,7 @@
 9 September 2026. Research shortlist, not a deployment decision or tested ranking.
 See ../STUDIO-MVP.md for scope.
 
-**Current decision:** See [STUDIO-MODEL-DECISION.md](STUDIO-MODEL-DECISION.md).
+**Current decision:** See [STUDIO-MODEL-DECISION.md](MODEL-DECISION.md).
 The comprehensive follow-up recommends a 31B LLMfan46 Gemma Heretic director
 plus a 12B LLMfan46 Gemma Heretic audiovisual reviewer, with a bounded 12B-only
 trial first to honor the single-model preference. Google documents a five-minute

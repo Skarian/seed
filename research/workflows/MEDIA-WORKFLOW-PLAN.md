@@ -1,6 +1,6 @@
 # Workflow evidence and decisions
 
-Revision 2, 9 September 2026. Research/planning only. Product and contracts: [MVP](../STUDIO-MVP.md), [graphs](../studio/COMFYUI-CHANGES.md), [media preparation](../studio/ASSET-PREPARATION.md). Implementation documents define behavior; upstream maxima are not runtime acceptance evidence.
+Revision 2, 9 September 2026. Research/planning only. Product and contracts: [MVP](../../STUDIO-MVP.md), [graphs](../../studio/COMFYUI-CHANGES.md), [media preparation](../../studio/ASSET-PREPARATION.md). Implementation documents define behavior; upstream maxima are not runtime acceptance evidence.
 
 ## H3 native envelope
 
@@ -27,7 +27,7 @@ Keep limits explicit without arbitrary upload limits. Count paired tracks in act
 | `deployment/test-ref2va-api.json` | One-image reference test, not mixed-media verification; needs same finishing path |
 | `deployment/minimax_app_nodes.py` | Explicit native/export frame counts and trim behavior; ending anchor issue above |
 
-Identity is the initial image-to-image engine, not a promise of general inpainting. [Identity node maintainer](https://github.com/lbouaraba/comfyui-krea2edit), [Krea ComfyUI guide](https://docs.comfy.org/tutorials/image/krea/krea-2), [existing Krea research](krea2/RECOMMENDATION.md). Remove standalone Qwen Rapid checkpoint during implementation only; preserve unrelated Qwen encoder/VAEs. No dependency on an unreleased image editor.
+Identity is the initial image-to-image engine, not a promise of general inpainting. [Identity node maintainer](https://github.com/lbouaraba/comfyui-krea2edit), [Krea ComfyUI guide](https://docs.comfy.org/tutorials/image/krea/krea-2), [existing Krea research](../krea2/RECOMMENDATION.md). Remove standalone Qwen Rapid checkpoint during implementation only; preserve unrelated Qwen encoder/VAEs. No dependency on an unreleased image editor.
 
 ## Community software choices
 
@@ -45,4 +45,4 @@ Do not install a giant community workflow merely to expose inputs the native eng
 
 Local owner manifest specifies exact Civitai file/version IDs, compatible base/route and content LoRA strengths/triggers. Popularity does not establish compatibility. Required turbo/identity assets remain separate. A complete validated revision activates atomically; queued jobs retain snapshots. SFW names configured behavior, not a guaranteed classifier. The requested poop comparison can be one fixed-seed probe, but base models may also render it; use ordinary prompts to detect general degradation.
 
-Record functional completion separately from perceptual quality: reference identity, motion, framing, final-frame influence, audio alignment, exact duration/dimensions and mode comparison. Required cases include all four workflows; source+subject edit; first/last/both; multi-image; standaloneaudio; video with/without sound; image+video+audio; anchors+references; maximum counts/15s stress; image↔video switching. Recovery and browser gates are in [execution](../studio/EXECUTION-PLAN.md).
+Record functional completion separately from perceptual quality: reference identity, motion, framing, final-frame influence, audio alignment, exact duration/dimensions and mode comparison. Required cases include all four workflows; source+subject edit; first/last/both; multi-image; standaloneaudio; video with/without sound; image+video+audio; anchors+references; maximum counts/15s stress; image↔video switching. Recovery and browser gates are in [execution](../../studio/EXECUTION-PLAN.md).

@@ -55,21 +55,4 @@ studio.local.json
 backups/
 
 # Downloaded LLM reference snapshots; curated research notes remain versioned
-/research/gemma-comparison/
-/research/gemma12-audit/
-/research/app.py
-/research/coder3101-model-page.html
-/research/gemma12-audit.json
-/research/gemma4-processor.py
-/research/hf-gemma4-blog.md
-/research/llmfan12-community.json
-/research/llmfan46-model-page.html
-/research/model-community-snapshot.json
-/research/model-detailed-snapshot.json
-/research/qwen3-omni-processor.py
-/research/ugi-leaderboard-data.csv
-/research/unified-feature-extractor.py
-/research/unified-processor.py
-/research/vllm-gemma4-unified.py
-/research/vllm-supported-models.md
-/research/vllm-toolcalling.md
+/research/llm/snapshots/

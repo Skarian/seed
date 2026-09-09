@@ -17,4 +17,4 @@ For H3, open **Workflows → Neil H3** and select a Turbo 8 preset. Defaults are
 
 Models, uploads, outputs, workflows and settings live under `/workspace/ComfyUI`. Keep personal workflow variants in the Neil folders; upstream refreshes some of its example/troubleshooting files at startup.
 
-Earlier H3 measurements and deployment history are preserved in [START-HERE-HISTORY.md](START-HERE-HISTORY.md); its old pod URLs, storage figures and operating instructions are historical.
+Earlier H3 measurements and deployment history are preserved in [START-HERE-HISTORY.md](../research/deployment/EARLY-HANDOFF.md); its old pod URLs, storage figures and operating instructions are historical.

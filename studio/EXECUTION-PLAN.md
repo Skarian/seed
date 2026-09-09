@@ -21,17 +21,17 @@ Generate the pairing secret during setup; the owner does not need to supply it. 
 
 At this checkpoint confirm the proposed Generate/Library custom frontend baseline or any result of the owner's SwarmUI evaluation. This is a product implementation choice, not a prerequisite for independent setup/transport work.
 
-## 1. Preserve and organize the checkout
+## 1. Checkout baseline — completed
 
-Current inspected baseline: branch main; modified README/.gitignore; many untracked plans, research snapshots and helper scripts. An earlier ignored backup exists but predates current edits. Do not confuse a clean Git status with preservation of all local work.
+Implementation branch: `feat/studio-mvp`. The initial local baseline is `332a0a0`;
+subsequent curation removes obsolete plans/reviewer reports and fixed-run helpers.
+Current deployment code, workflows, active specifications and LLM research are
+retained. Research is organized through [the topic index](../research/README.md).
 
-Before reorganizing, inventory tracked changes, untracked files and relevant ignored/private assets without printing secrets. Create a fresh local backup including tracked diffs and untracked authored work; record inventory and verify archive readability/content before moving files. Keep private material in ignored local storage, never Git. Preserve the existing working deployment scripts/configuration as rollback reference.
-
-Select files individually: commit active plans, reusable source and useful curated notes; retain raw downloaded snapshots, generated inventories, personal test media and private configuration in ignored local storage. Archive superseded authored notes with clear historical labels when useful. Do not run git clean, reset --hard, blanket git add, or delete unknown files. Adjust ignore rules narrowly, without hiding new source/tests or required fixtures.
-
-Correct active documentation links/obsolete descriptions. Review the exact staged diff and scan staged content for credentials/private URLs before any commit. Create an implementation branch from the preserved baseline. If unrelated tracked edits must remain, use an isolated worktree after explicitly preserving/copying the required planned files; do not discard user work to force a clean checkout.
-
-Create a local planning/baseline commit once reviewed. Record its hash and which assets remain intentionally ignored. No implementation changes on main by default. Cleanup means organizing/preserving work, not erasing the history of experiments.
+Verified backups remain in ignored local `backups/`, including private material;
+never publish them. No remote push, deployment, installation or paid resource
+change is part of this cleanup. Credential verification and remaining M0 contract
+work are still pending. Review named-file diffs before subsequent local commits.
 
 ## 2. Milestones
 

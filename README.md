@@ -7,7 +7,7 @@ Includes MiniMax H3 video workflows, Krea 2 image generation and identity editin
 Next-stage planning: [media studio MVP](STUDIO-MVP.md) — a local Windows studio,
 manual RunPod deployment and pairing, expressive workflows, and permanent media
 on your PC. See the [implementation plan](studio/EXECUTION-PLAN.md) for access,
-milestones, reviews and commit policy. This frontend is planned, not deployed. [LLM choices](notes/DEFERRED-LLM.md)
+milestones, reviews and commit policy. This frontend is planned, not deployed. [LLM choices](research/llm/README.md)
 are saved for a later phase.
 
 ## Use the studio
@@ -25,10 +25,10 @@ The current setup uses a pinned Hearmeman image, a small startup script and the 
 | `deployment/configuration.json` | Non-secret deployment configuration and resource IDs |
 | `deployment/LEAN-SETUP.md` | Operating and maintenance instructions |
 | `deployment/LEAN-ACCEPTANCE.md` | Restart/replacement validation and evidence |
-| `deployment/*.py` | Setup, maintenance and acceptance utilities; many are one-off historical scripts |
-| `research/` | Research notes and upstream reference snapshots |
+| `deployment/*.py` | Existing setup, maintenance and acceptance utilities |
+| [Research index](research/README.md) | LLM, model, workflow, UI and deployment research |
 
-Older planning documents remain as history. Use the lean operating guide for the implemented setup. Read maintenance scripts before running them: some modify remote resources, and older scripts refer to earlier deployments.
+Use the lean operating guide for the implemented setup and the MVP documents for upcoming work. Superseded plans and obsolete one-off scripts have been removed; Git history retains them. Read maintenance scripts before running them: some modify remote resources, and acceptance utilities may rely on saved test evidence.
 
 ## Local development and credentials
 

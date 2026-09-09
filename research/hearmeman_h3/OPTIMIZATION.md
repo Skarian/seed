@@ -1,3 +1,5 @@
+> Historical optimization research; candidates below are not enabled defaults.
+
 # H3 optimization decisions — September 7, 2026
 
 User preference: preserve good quality, accepting a modest visible loss (approximately 10%) if speed improves dramatically. No GPU deployed or settings changed. These are research-backed candidates, not measured results from this installation.

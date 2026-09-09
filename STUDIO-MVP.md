@@ -27,7 +27,7 @@ No arbitrary upload byte or megapixel cap. The browser checks media requirements
 
 There is no Balanced/Detailed control: these were proposed labels for real internal ComfyUI `match`/`max` settings, not established model quality tiers. Start with versioned automatic `match` sizing and compare fidelity before changing it. Preserve originals. Browser inspection cannot establish perfect file integrity or support every codec; ordinary unsupported selections fail locally, later corruption remains an integrity error. Details: [asset preparation](studio/ASSET-PREPARATION.md).
 
-Official H3 limits and installed-node timing rules are distinct. The UI validates the entire selected set and shows effective clip ranges. It never silently drops inputs, changes their roles or lowers requested quality after an error. See [workflow evidence](research/MEDIA-WORKFLOW-PLAN.md).
+Official H3 limits and installed-node timing rules are distinct. The UI validates the entire selected set and shows effective clip ranges. It never silently drops inputs, changes their roles or lowers requested quality after an error. See [workflow evidence](research/workflows/MEDIA-WORKFLOW-PLAN.md).
 
 ## Windows setup
 

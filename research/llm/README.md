@@ -14,8 +14,8 @@ acceptance tests have run here. Rankings are a dated snapshot. Preserve exact
 processor, vision/audio components, chat template, quantization and serving-engine
 requirements; parent-model benchmarks do not verify modified checkpoints.
 
-[Full decision and evidence](../research/STUDIO-MODEL-DECISION.md).
-[Historical comparisons](../research/STUDIO-LLM-SELECTION.md).
+[Full decision and evidence](MODEL-DECISION.md).
+[Historical comparisons](SELECTION.md).
 
 The media API will retain assets and exact settings so these models can invoke
 the same actions later without replacing the generation system.

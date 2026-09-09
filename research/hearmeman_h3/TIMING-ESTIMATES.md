@@ -1,6 +1,6 @@
 # Stock Hearmeman decision and timing estimates
 
-**Storage update: user selected 100 GB ($7/month), replacing the earlier 120 GB proposal. See [LATEST-PLAN.md](LATEST-PLAN.md). Generation timing estimates below are unchanged.**
+> Historical research from 7 September 2026. Storage/pricing proposals below are superseded; use [the operating guide](../../deployment/LEAN-SETUP.md) for the implemented setup. Timing figures are dated research, not current performance guarantees.
 
 September 7, 2026. User selected the stock Hearmeman bundle, allowing only low-risk operational improvements. This supersedes proposals to swap encoders or add experimental optimizations at initial deployment. No cloud deployment performed.
 
