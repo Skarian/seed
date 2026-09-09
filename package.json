@@ -12,7 +12,8 @@
     "start": "node dist/server/main.js",
     "dev": "npm run build && npm start",
     "test": "vitest run",
-    "test:browser": "playwright test"
+    "test:browser": "playwright test",
+    "prepack": "npm run build"
   },
   "dependencies": {
     "@fastify/static": "10.1.3",
@@ -31,5 +32,13 @@
     "typescript": "7.0.2",
     "vite": "8.2.2",
     "vitest": "5.0.0"
-  }
+  },
+  "bin": {
+    "seed": "dist/server/cli.js"
+  },
+  "files": [
+    "dist/server/",
+    "dist/shared/",
+    "dist/web/"
+  ]
 }

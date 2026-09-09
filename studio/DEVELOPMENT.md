@@ -3,7 +3,7 @@
 The first implementation slice is a disconnected studio shell: Generate/Library,
 four workflow forms, browser workflow drafts, standard storage directories, SQLite,
 and a loopback HTTP server. Pairing, transfers and generation are not implemented.
-npm CLI setup/startup is still M1 work; this is the developer launch path.
+The npm CLI lifecycle is implemented; the source and packaged launch paths follow.
 
 ## Run and verify
 
@@ -26,13 +26,11 @@ npm start
 For another checkout, install the pinned system runtime from the
 [official Node distribution](https://nodejs.org/dist/v26.8.2/). This is the Current
 release line. The future npm package uses system Node; it does not bundle a runtime
-or silently upgrade Node. `seed setup/start/status/stop` are planned, not yet
-implemented or published. Setup will detect Windows and ask whether to start
-automatically on sign-in; other platforms skip that Windows-specific step.
+or silently upgrade Node. `seed setup/start/status/stop` are implemented, but not published. Setup detects Windows and asks whether to start automatically on sign-in; other platforms skip that step.
 
 Open `http://127.0.0.1:4310`. Stop the foreground process with Ctrl+C. A second
 server cannot bind the same port; it exits instead of starting a second listener.
-CLI-based reuse of the existing instance is still to be implemented.
+The CLI start command reuses its managed instance. A server launched directly with npm start is a foreground developer process, not CLI-managed.
 `STUDIO_PORT` is an optional developer override. Without `STUDIO_DEV_ROOT`, storage
 uses `env-paths('RunpodStudio', {suffix:''})`; on Windows, durable data is under
 `%LOCALAPPDATA%\RunpodStudio\Data`. Rebuilding does not delete these directories.
@@ -59,7 +57,7 @@ On 9 September the preview was started at `http://192.168.1.212:4310` using
 Windows Firewall rule failed with access denied; the owner subsequently confirmed
 that the LAN link is accessible. Use this approach for future UI reviews and
 portal access, verifying the current LAN IP each time. Keep test data isolated;
-persistent LAN launch configuration remains CLI setup work.
+Use `seed setup --host 192.168.1.212` to persist this address. If DHCP changes it, rerun setup with the new address.
 
 - `server/storage.ts`: standard paths and directory creation, no media deletion.
 - `server/db.ts`: transactional migrations, WAL, FULL synchronous durability and
@@ -115,3 +113,31 @@ These controls currently edit drafts; they do not execute jobs. Future execution
 expands a submission into individually tracked, sequential generations as defined
 in [the API contract](API-CONTRACT.md). No simultaneous model batch or new queue
 system is introduced.
+
+## CLI and package verification
+
+After building, use `node dist/server/cli.js setup`, then `start`, `status`, or
+`stop`. Windows interactive setup asks about sign-in startup; noninteractive
+setup preserves its saved choice. Explicit `--startup`/`--no-startup` changes it.
+No startup setting is automatically enabled by npm installation. Setup takes
+`--host` (loopback or an assigned private IPv4) and `--port`; stop before changing
+settings. Existing `STUDIO_*` developer overrides remain supported.
+
+`npm pack` builds the artifact. Install the resulting tarball using
+`npm install -g ./skarian-seed-0.1.0.tgz`; this registers the `seed` command.
+The npm registry package is not published. Stop seed before updating/uninstalling;
+uninstall does not delete media or configuration. Before uninstalling, run
+`seed setup --no-startup` to remove an enabled sign-in entry. An update at the same
+global prefix keeps its startup path valid; rerun setup if Node or package paths move.
+
+Logs: `server.log` under the standard log directory (rotated once above 5 MB on
+start). CLI control metadata is private app configuration, never browser data.
+The generated per-user `seed.vbs` launches system Node directly with quoted paths
+and a hidden window. Windows Script Host must be enabled. Real sign-in acceptance
+is still pending; isolated execution of the actual entry passes.
+
+Verification: typecheck/build, seven storage/API/CLI tests; clean global tarball
+install, running status, stop/restart, reinstall and uninstall with preserved
+media/database. CLI integration tests cover concurrent start, unauthenticated
+stop rejection, repeated startup setup and the generated Windows entry, all in
+isolated test directories. No startup setting was enabled for the owner's account.
