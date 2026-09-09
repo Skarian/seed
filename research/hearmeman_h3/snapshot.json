@@ -1,0 +1,12 @@
+{
+  "template": {
+    "repo": "Hearmeman24/comfyui-minimax",
+    "revision": "41be57ddc95b0612a47ff2b19b2508b1fb368a57",
+    "files": 21
+  },
+  "runtime": {
+    "repo": "Hearmeman24/comfyui-runtime",
+    "revision": "0ea1f919c5b8102e7ab9cadf322995b480fd2e4e",
+    "files": 45
+  }
+}

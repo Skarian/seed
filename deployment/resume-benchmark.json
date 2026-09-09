@@ -1,0 +1,45 @@
+{
+  "start_requested_epoch": 1788837827.982,
+  "events": {
+    "comfy_ready": {
+      "elapsed_seconds": 41.64,
+      "detail": null
+    },
+    "generation_submitted": {
+      "elapsed_seconds": 42.45,
+      "detail": null
+    },
+    "sampler_node_entered": {
+      "elapsed_seconds": 138.16,
+      "detail": null
+    },
+    "first_sampling_progress": {
+      "elapsed_seconds": 191.69,
+      "detail": {
+        "value": 1,
+        "max": 8,
+        "prompt_id": "233d7ff6-be3e-48c7-be9a-a5fe68d2c7eb",
+        "node": "11"
+      }
+    },
+    "video_completed": {
+      "elapsed_seconds": 249.89,
+      "detail": {
+        "14": {
+          "gifs": [
+            {
+              "filename": "Resume_Turbo8_00001-audio.mp4",
+              "subfolder": "H3_Benchmark",
+              "type": "output",
+              "format": "video/h264-mp4",
+              "frame_rate": 24.0,
+              "workflow": "Resume_Turbo8_00001.png",
+              "fullpath": "/ComfyUI/output/H3_Benchmark/Resume_Turbo8_00001-audio.mp4"
+            }
+          ]
+        }
+      }
+    }
+  },
+  "prompt_id": "233d7ff6-be3e-48c7-be9a-a5fe68d2c7eb"
+}

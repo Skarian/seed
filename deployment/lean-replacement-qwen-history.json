@@ -1,0 +1,176 @@
+{
+  "571ad272-2204-4a6e-b2d5-17894e9114dd": {
+    "prompt": [
+      2,
+      "571ad272-2204-4a6e-b2d5-17894e9114dd",
+      {
+        "1": {
+          "class_type": "CheckpointLoaderSimple",
+          "inputs": {
+            "ckpt_name": "Qwen-Rapid-AIO-NSFW-v19.safetensors"
+          }
+        },
+        "6": {
+          "class_type": "SaveImage",
+          "inputs": {
+            "images": [
+              "5",
+              0
+            ],
+            "filename_prefix": "LeanAcceptance/replacement-qwen"
+          }
+        },
+        "5": {
+          "class_type": "VAEDecode",
+          "inputs": {
+            "samples": [
+              "2",
+              0
+            ],
+            "vae": [
+              "1",
+              2
+            ]
+          }
+        },
+        "9": {
+          "class_type": "EmptyLatentImage",
+          "inputs": {
+            "width": 1024,
+            "height": 1024,
+            "batch_size": 1
+          }
+        },
+        "2": {
+          "class_type": "KSampler",
+          "inputs": {
+            "model": [
+              "1",
+              0
+            ],
+            "positive": [
+              "3",
+              0
+            ],
+            "negative": [
+              "4",
+              0
+            ],
+            "latent_image": [
+              "9",
+              0
+            ],
+            "seed": 20260908,
+            "steps": 4,
+            "cfg": 1.0,
+            "sampler_name": "euler_ancestral",
+            "scheduler": "beta",
+            "denoise": 1.0
+          }
+        },
+        "4": {
+          "class_type": "Phr00tTextEncodeQwenImageEditPlus",
+          "inputs": {
+            "clip": [
+              "1",
+              1
+            ],
+            "vae": [
+              "1",
+              2
+            ],
+            "target_latent": [
+              "9",
+              0
+            ],
+            "prompt": ""
+          }
+        },
+        "3": {
+          "class_type": "Phr00tTextEncodeQwenImageEditPlus",
+          "inputs": {
+            "clip": [
+              "1",
+              1
+            ],
+            "vae": [
+              "1",
+              2
+            ],
+            "image1": [
+              "7",
+              0
+            ],
+            "target_latent": [
+              "9",
+              0
+            ],
+            "prompt": "Change her blue jacket to a bright red jacket. Preserve her face, hair, pose, white shirt, lighting and background."
+          }
+        },
+        "7": {
+          "class_type": "LoadImage",
+          "inputs": {
+            "image": "krea2-identity-reference.png"
+          }
+        }
+      },
+      {
+        "client_id": "lean-deployment-test",
+        "create_time": 1788917497493
+      },
+      [
+        "6"
+      ]
+    ],
+    "outputs": {
+      "6": {
+        "images": [
+          {
+            "filename": "replacement-qwen_00001_.png",
+            "subfolder": "LeanAcceptance",
+            "type": "output"
+          }
+        ]
+      }
+    },
+    "status": {
+      "status_str": "success",
+      "completed": true,
+      "messages": [
+        [
+          "execution_start",
+          {
+            "prompt_id": "571ad272-2204-4a6e-b2d5-17894e9114dd",
+            "timestamp": 1788917805296
+          }
+        ],
+        [
+          "execution_cached",
+          {
+            "nodes": [
+              "7"
+            ],
+            "prompt_id": "571ad272-2204-4a6e-b2d5-17894e9114dd",
+            "timestamp": 1788917805327
+          }
+        ],
+        [
+          "execution_success",
+          {
+            "prompt_id": "571ad272-2204-4a6e-b2d5-17894e9114dd",
+            "timestamp": 1788917918726
+          }
+        ]
+      ]
+    },
+    "meta": {
+      "6": {
+        "node_id": "6",
+        "display_node": "6",
+        "parent_node": null,
+        "real_node_id": "6"
+      }
+    }
+  }
+}

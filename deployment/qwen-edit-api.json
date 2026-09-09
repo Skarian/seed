@@ -1,0 +1,112 @@
+{
+  "1": {
+    "class_type": "CheckpointLoaderSimple",
+    "inputs": {
+      "ckpt_name": "Qwen-Rapid-AIO-NSFW-v19.safetensors"
+    }
+  },
+  "6": {
+    "class_type": "SaveImage",
+    "inputs": {
+      "images": [
+        "5",
+        0
+      ],
+      "filename_prefix": "QwenRapid/identity-edit-v19"
+    }
+  },
+  "5": {
+    "class_type": "VAEDecode",
+    "inputs": {
+      "samples": [
+        "2",
+        0
+      ],
+      "vae": [
+        "1",
+        2
+      ]
+    }
+  },
+  "9": {
+    "class_type": "EmptyLatentImage",
+    "inputs": {
+      "width": 1024,
+      "height": 1024,
+      "batch_size": 1
+    }
+  },
+  "2": {
+    "class_type": "KSampler",
+    "inputs": {
+      "model": [
+        "1",
+        0
+      ],
+      "positive": [
+        "3",
+        0
+      ],
+      "negative": [
+        "4",
+        0
+      ],
+      "latent_image": [
+        "9",
+        0
+      ],
+      "seed": 20260908,
+      "steps": 4,
+      "cfg": 1.0,
+      "sampler_name": "euler_ancestral",
+      "scheduler": "beta",
+      "denoise": 1.0
+    }
+  },
+  "4": {
+    "class_type": "Phr00tTextEncodeQwenImageEditPlus",
+    "inputs": {
+      "clip": [
+        "1",
+        1
+      ],
+      "vae": [
+        "1",
+        2
+      ],
+      "target_latent": [
+        "9",
+        0
+      ],
+      "prompt": ""
+    }
+  },
+  "3": {
+    "class_type": "Phr00tTextEncodeQwenImageEditPlus",
+    "inputs": {
+      "clip": [
+        "1",
+        1
+      ],
+      "vae": [
+        "1",
+        2
+      ],
+      "image1": [
+        "7",
+        0
+      ],
+      "target_latent": [
+        "9",
+        0
+      ],
+      "prompt": "Change her blue jacket to a bright red jacket. Preserve her face, hair, pose, white shirt, lighting and background."
+    }
+  },
+  "7": {
+    "class_type": "LoadImage",
+    "inputs": {
+      "image": "krea2-identity-reference.png"
+    }
+  }
+}

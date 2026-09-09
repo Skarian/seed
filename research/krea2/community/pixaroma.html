@@ -1,0 +1,389 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Pixaroma Workflows - Free ComfyUI Workflows</title>
+  <meta name="description" content="Free, ready-to-run ComfyUI workflow files for every episode of the Pixaroma course." />
+  <link rel="icon" type="image/svg+xml" href="pixaroma.svg" />
+<style>
+  :root{
+    --bg:#0e0f13; --bg2:#14161d; --panel:#171a22; --panel2:#1d212b;
+    --border:#262a35; --text:#e8eaf0; --muted:#9aa1b0;
+    --brand:#F66744; --brand-press:#e2553a; --brand-soft:rgba(246,103,68,.14);
+    --shadow:0 6px 24px rgba(0,0,0,.35); --radius:14px;
+  }
+  [data-theme="light"]{
+    --bg:#f5f6f8; --bg2:#ffffff; --panel:#ffffff; --panel2:#f2f4f7;
+    --border:#e3e7ef; --text:#1a1d24; --muted:#5c6470;
+    --brand:#F66744; --brand-press:#e2553a; --brand-soft:rgba(246,103,68,.12);
+    --shadow:0 6px 22px rgba(20,22,45,.10);
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0}
+  body{
+    background:radial-gradient(1200px 600px at 80% -10%, var(--brand-soft), transparent 60%), var(--bg);
+    color:var(--text); font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial,sans-serif;
+    -webkit-font-smoothing:antialiased; min-height:100vh;
+  }
+  a{color:inherit; text-decoration:none}
+  .wrap{max-width:1120px; margin:0 auto; padding:0 20px}
+
+  /* header */
+  .site-header{position:sticky; top:0; z-index:20; backdrop-filter:blur(10px);
+    background:color-mix(in srgb, var(--bg) 78%, transparent); border-bottom:1px solid var(--border)}
+  /* header: the same rules on every page. It keeps its OWN width (the shared site width) so the
+     logo sits in the same spot everywhere, even on help, whose body reads in a narrower column. */
+  .header-in{max-width:1120px; margin:0 auto; padding:10px 20px; display:flex; align-items:center;
+    gap:12px 16px; min-height:62px; flex-wrap:wrap}
+  .brand{display:flex; align-items:center; gap:10px; font-weight:700}
+  .logo{width:30px; height:30px; flex:0 0 auto}
+  .logo path{fill:var(--brand)}
+  .brand-name{font-size:18px; letter-spacing:.2px}
+  .brand-sub{font-size:13px; color:var(--muted); font-weight:600; padding:2px 8px; border:1px solid var(--border); border-radius:999px}
+  .links{margin-left:auto; display:flex; gap:6px; flex-wrap:wrap; align-items:center}
+  .links a{padding:7px 11px; border-radius:9px; color:var(--muted); font-weight:600; font-size:13.5px}
+  .links a:hover{color:var(--text); background:var(--panel2)}
+  .links a.here{color:var(--brand)}
+  .links .seg{margin-left:4px}
+
+  /* intro */
+  .intro{padding:34px 0 10px}
+  .intro h1{margin:0 0 8px; font-size:30px; letter-spacing:-.3px}
+  .intro h1 b{color:var(--brand)}
+  .intro p{margin:0; color:var(--muted); max-width:60ch}
+
+  .note{margin:16px 0 0; padding:10px 12px; border:1px dashed var(--border); border-radius:10px;
+    color:var(--muted); font-size:13px; background:var(--panel)}
+  .note b{color:var(--text)}
+
+  /* toolbar */
+  .toolbar{position:sticky; top:62px; z-index:10; padding:16px 0 12px;
+    background:color-mix(in srgb, var(--bg) 92%, transparent)}
+  .search{position:relative}
+  .search input{width:100%; padding:13px 14px 13px 42px; border-radius:12px; border:1px solid var(--border);
+    background:var(--bg2); color:var(--text); font-size:15px; outline:none; transition:border-color .15s, box-shadow .15s}
+  .search input::placeholder{color:var(--muted)}
+  .search input:hover{border-color:color-mix(in srgb, var(--border) 50%, var(--muted))}
+  .search input:focus{border-color:var(--brand); box-shadow:0 0 0 3px var(--brand-soft)}
+  .search svg{position:absolute; left:14px; top:50%; transform:translateY(-50%); width:18px; height:18px; color:var(--muted)}
+  .controls{display:flex; align-items:center; gap:10px 14px; flex-wrap:wrap; margin-top:12px}
+  .chips{display:flex; gap:7px; flex-wrap:wrap}
+  .chip{padding:6px 12px; border-radius:999px; border:1px solid var(--border); background:var(--panel);
+    color:var(--muted); font-weight:600; font-size:13px; cursor:pointer; user-select:none}
+  .chip:hover{color:var(--text)}
+  .chip.active{background:var(--brand); border-color:var(--brand); color:#fff}
+  .spacer{margin-left:auto}
+  .seg{display:inline-flex; background:var(--panel); border:1px solid var(--border); border-radius:10px; padding:3px}
+  .seg button{border:0; background:transparent; color:var(--muted); font:inherit; font-weight:600; font-size:13px;
+    padding:6px 11px; border-radius:7px; cursor:pointer}
+  .seg button.active{background:var(--brand-soft); color:var(--brand)}
+  .seg.theme button.active{background:var(--panel2); color:var(--text)}
+  .count{color:var(--muted); font-size:13px; padding:6px 0 16px; display:flex; justify-content:space-between; align-items:center; gap:10px; flex-wrap:wrap}
+  .count .pending{color:var(--brand); font-weight:600; display:inline-flex; align-items:center; gap:6px}
+  .count .pending::before{content:""; width:7px; height:7px; border-radius:50%; background:var(--brand); animation:pulse 1.6s ease-in-out infinite}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:.3}}
+
+  /* category accents */
+  [data-cat="Basics"]{--c:#5aa2ff}
+  [data-cat="Image"]{--c:#F66744}
+  [data-cat="Video"]{--c:#c07bff}
+  [data-cat="Audio"]{--c:#2bd4a0}
+  [data-cat="Text/LLM"]{--c:#f0b13a}
+  [data-cat="Nodes"]{--c:#ff79b0}
+  .cat-tag{display:inline-flex; align-items:center; gap:6px; font-size:12px; font-weight:700; color:var(--c)}
+  .cat-tag::before{content:""; width:8px; height:8px; border-radius:50%; background:var(--c)}
+
+  /* buttons */
+  .btn{display:inline-flex; align-items:center; justify-content:center; gap:7px; font-weight:700; font-size:14px;
+    padding:10px 14px; border-radius:10px; cursor:pointer; border:1px solid transparent; white-space:nowrap}
+  .btn.primary{background:var(--brand); color:#fff}
+  .btn.primary:hover{background:var(--brand-press)}
+  .btn.ghost{background:transparent; border-color:var(--border); color:var(--text)}
+  .btn.ghost:hover{border-color:var(--muted)}
+  .btn.soon{background:transparent; border:1px dashed var(--border); color:var(--muted); cursor:default}
+  .btn svg{width:16px; height:16px}
+
+  /* CARDS layout */
+  .grid{display:grid; grid-template-columns:repeat(auto-fill, minmax(300px,1fr)); gap:16px; padding-bottom:50px}
+  .card{background:var(--panel); border:1px solid var(--border); border-radius:var(--radius); padding:16px 16px 14px;
+    display:flex; flex-direction:column; gap:12px; box-shadow:var(--shadow); position:relative; overflow:hidden}
+  .card::before{content:""; position:absolute; left:0; top:0; bottom:0; width:4px; background:var(--c)}
+  .card-top{display:flex; align-items:center; justify-content:space-between}
+  .epnum{font-weight:800; letter-spacing:.5px; color:var(--brand); font-size:15px}
+  .epnum b{font-size:24px}
+  .card-title{margin:0; font-size:16.5px; line-height:1.35; min-height:44px}
+  .meta{display:flex; gap:8px 10px; flex-wrap:wrap; align-items:center; color:var(--muted); font-size:12.5px; margin-top:-2px}
+  .pill{padding:3px 8px; border-radius:999px; background:var(--panel2); border:1px solid var(--border); font-weight:600}
+  details.wf{border-top:1px solid var(--border); padding-top:10px}
+  details.wf summary{cursor:pointer; color:var(--muted); font-size:13px; font-weight:600; list-style:none}
+  details.wf summary::-webkit-details-marker{display:none}
+  details.wf summary::before{content:"\0025b8\0000a0"; color:var(--brand)}
+  details.wf[open] summary::before{content:"\0025be\0000a0"}
+  details.wf ul{margin:9px 0 2px; padding-left:18px; color:var(--text)}
+  details.wf li{font-size:13px; margin:3px 0; color:var(--muted)}
+  .actions{display:flex; gap:9px; margin-top:auto}
+  .actions .btn{flex:1}
+
+  /* LIST layout */
+  .list{display:flex; flex-direction:column; gap:10px; padding-bottom:50px}
+  .row{display:flex; align-items:center; gap:16px; background:var(--panel); border:1px solid var(--border);
+    border-left:4px solid var(--c); border-radius:12px; padding:12px 16px}
+  .row-num{font-weight:800; color:var(--brand); font-size:22px; min-width:64px}
+  .row-num span{display:block; font-size:11px; color:var(--muted); font-weight:700}
+  .row-main{flex:1; min-width:0}
+  .row-title{font-weight:700; font-size:15.5px; margin-bottom:3px}
+  .row-actions{display:flex; gap:9px}
+  @media (max-width:680px){
+    .row{flex-wrap:wrap}
+    .row-actions{width:100%}
+    .row-actions .btn{flex:1}
+  }
+
+  /* FEATURED layout */
+  .featured{padding-bottom:14px}
+  .feat{position:relative; overflow:hidden; background:
+      linear-gradient(120deg, var(--brand-soft), transparent 55%), var(--panel);
+    border:1px solid var(--border); border-radius:18px; padding:26px; box-shadow:var(--shadow)}
+  .feat .epnum b{font-size:34px}
+  .feat h2{margin:6px 0 8px; font-size:24px; line-height:1.25; max-width:24ch}
+  .feat .meta{font-size:13.5px}
+  .feat .actions{margin-top:18px; max-width:420px}
+  .section-h{font-size:14px; color:var(--muted); text-transform:uppercase; letter-spacing:.12em;
+    margin:26px 0 12px; font-weight:700}
+
+  footer{border-top:1px solid var(--border); margin-top:30px; padding:24px 0 50px; color:var(--muted); font-size:13px}
+  footer .links{margin:10px 0 0}
+  .empty{color:var(--muted); padding:40px 0; text-align:center}
+
+  /* the nav carries nine destinations plus the theme toggle, so it tightens once,
+     then takes a full-width row of its own before anything is squeezed */
+  @media (max-width:1080px){
+    .links a{padding:7px 8px; font-size:13px}
+    .links .seg button{padding:6px 9px; font-size:12.5px}
+  }
+  @media (max-width:960px){
+    .links{margin-left:0; width:100%}
+  }
+  @media (max-width:600px){
+    .site-header{position:static}
+    .header-in{min-height:0; padding:12px 20px; gap:8px 14px}
+    .brand{width:100%; justify-content:center}
+    .links{margin-left:0; width:100%; justify-content:center}
+    .toolbar{top:0}
+  }
+</style>
+<script>
+  /* the saved theme is applied before the first paint, so no page flashes the wrong one */
+  try{ var t = localStorage.getItem("pixaroma-theme");
+       if (t === "light" || t === "dark") document.documentElement.dataset.theme = t; }catch(e){}
+</script>
+</head>
+<body>
+  <header class="site-header">
+    <div class="header-in">
+      <span class="brand">
+        <svg class="logo" viewBox="0 0 64 64" aria-hidden="true"><path d="M60.371,62.705H3.629c10.359,0,20.393-3.617,28.371-10.224,7.978,6.609,18.012,10.224,28.371,10.224ZM31.998,47.399c6.54,0,10.788-3.42,12.478-5.221l7.687-32.507-5.934,5.935c-.922.923-1.169,2.309-.664,3.513,1.327,3.161-.402,7.411-1.223,10.715l-4.449-4.062c-1.025-.937-1.288-2.453-.626-3.673.964-1.775,1.806-4.66.146-7.89l-6.64-12.915v12.244c0,.735.34,1.42.901,1.895.592.502.956,1.263.916,2.109-.063,1.333-1.24,2.459-2.574,2.468h-.037c-1.334-.009-2.511-1.135-2.574-2.468-.04-.845.324-1.608.916-2.109.561-.475.901-1.16.901-1.895V1.295l-6.64,12.915c-1.661,3.229-.818,6.115.146,7.89.662,1.22.401,2.736-.626,3.673l-4.449,4.062c-.822-3.305-2.55-7.555-1.223-10.715.505-1.204.259-2.589-.664-3.513l-5.934-5.935,7.687,32.507c1.69,1.8,5.936,5.221,12.476,5.221Z"/></svg>
+        <span class="brand-name">Pixaroma</span>
+        <span class="brand-sub">Workflows</span>
+      </span>
+      <nav class="links">
+        <a href="https://pixaroma.com/">Home</a>
+        <a href="./" class="here">Workflows</a>
+        <a href="cloud/">Cloud</a>
+        <a href="gems/">Gems</a>
+        <a href="members/">Members</a>
+        <a href="help/">Help</a>
+        <a href="https://www.youtube.com/@pixaroma" target="_blank" rel="noopener">YouTube</a>
+        <a href="https://www.youtube.com/playlist?list=PL-pohOSaL8P-FhSw1Iwf0pBGzXdtv4DZC" target="_blank" rel="noopener">Course</a>
+        <a href="https://discord.gg/gggpkVgBf3" target="_blank" rel="noopener">Discord</a>
+        <span class="seg theme" id="themeSeg">
+          <button data-theme="dark" class="active">Dark</button>
+          <button data-theme="light">Light</button>
+        </span>
+      </nav>
+    </div>
+  </header>
+
+  <main class="wrap">
+    <section class="intro">
+      <h1>ComfyUI <b>Workflows</b></h1>
+      <p>Free, ready-to-run workflow files for every episode of the Pixaroma ComfyUI course. A new episode lands almost every week.</p>
+    </section>
+
+    <section class="toolbar">
+      <div class="search">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="M21 21l-4.3-4.3"/></svg>
+        <input id="search" type="search" placeholder="Search episode number, title, or model (e.g. ep18, flux, tts, controlnet)" autocomplete="off" />
+      </div>
+      <div class="controls">
+        <div class="chips" id="chips"></div>
+        <div class="spacer"></div>
+        <div class="seg" id="layoutSeg">
+          <button data-layout="cards">Cards</button>
+          <button data-layout="list" class="active">List</button>
+        </div>
+      </div>
+    </section>
+
+    <div class="count" id="count"></div>
+    <section id="results"></section>
+  </main>
+
+  <footer class="wrap">
+    <span class="brand"><svg class="logo" viewBox="0 0 64 64" style="width:22px;height:22px"><path d="M60.371,62.705H3.629c10.359,0,20.393-3.617,28.371-10.224,7.978,6.609,18.012,10.224,28.371,10.224ZM31.998,47.399c6.54,0,10.788-3.42,12.478-5.221l7.687-32.507-5.934,5.935c-.922.923-1.169,2.309-.664,3.513,1.327,3.161-.402,7.411-1.223,10.715l-4.449-4.062c-1.025-.937-1.288-2.453-.626-3.673.964-1.775,1.806-4.66.146-7.89l-6.64-12.915v12.244c0,.735.34,1.42.901,1.895.592.502.956,1.263.916,2.109-.063,1.333-1.24,2.459-2.574,2.468h-.037c-1.334-.009-2.511-1.135-2.574-2.468-.04-.845.324-1.608.916-2.109.561-.475.901-1.16.901-1.895V1.295l-6.64,12.915c-1.661,3.229-.818,6.115.146,7.89.662,1.22.401,2.736-.626,3.673l-4.449,4.062c-.822-3.305-2.55-7.555-1.223-10.715.505-1.204.259-2.589-.664-3.513l-5.934-5.935,7.687,32.507c1.69,1.8,5.936,5.221,12.476,5.221Z"/></svg> Pixaroma</span>
+    <p>Free ComfyUI workflows from the Pixaroma course.</p>
+  </footer>
+
+<script src="episodes.js"></script>
+<script>
+  const EP = (window.EPISODES || []).slice().sort((a,b)=>b.number-a.number);
+  const PLAYLIST = "https://www.youtube.com/playlist?list=PL-pohOSaL8P-FhSw1Iwf0pBGzXdtv4DZC";
+  const maxNum = EP.length ? Math.max(...EP.map(e=>e.number)) : 0;
+  const CATS = ["All","Basics","Image","Video","Audio","Text/LLM","Nodes"];
+  const state = { layout:"list", cat:"All", q:"" };
+
+  const $ = s => document.querySelector(s);
+  const results = $("#results"), countEl = $("#count");
+
+  function esc(s){ return String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;","\"":"&quot;"}[c])); }
+  function fmtSize(b){ return b>=1048576 ? (b/1048576).toFixed(1)+" MB" : Math.max(1,Math.round(b/1024))+" KB"; }
+  function epLabel(n){ return "EP"+String(n).padStart(2,"0"); }
+  function wfLabel(e){ return e.workflowCount>0 ? e.workflowCount+(e.workflowCount===1?" workflow":" workflows") : "Example files"; }
+  function dl(e){ return encodeURI(e.downloadPath); }
+  const VIDEO_SOON_LABEL = "Video coming soon"; // shown when an episode's video is not public yet
+  function watch(e){
+    if(e.comingSoon) return {soon:true, label:VIDEO_SOON_LABEL};
+    if(e.youtube) return {href:e.youtube, label:"Watch", soon:false};
+    return null;
+  }
+  const ICON_DL = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 3v12m0 0l-4-4m4 4l4-4M5 21h14"/></svg>';
+  const ICON_PLAY = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>';
+
+  function actions(e){
+    const dlBtn = '<a class="btn primary" href="'+dl(e)+'" download>'+ICON_DL+'Download</a>';
+    const w = watch(e);
+    if(!w) return dlBtn;
+    const watchBtn = w.soon
+      ? '<span class="btn soon" title="The workflows are ready now. The video usually goes public within a few hours, and this becomes a Watch button automatically.">'+w.label+'</span>'
+      : '<a class="btn ghost" href="'+w.href+'" target="_blank" rel="noopener">'+ICON_PLAY+w.label+'</a>';
+    return dlBtn + watchBtn;
+  }
+  // Library files (prompt tags, presets) ship in the same zip but are data for a node,
+  // not runnable workflows, so they are listed apart and never counted as workflows.
+  function libs(e){ return e.extras || []; }
+  function libPill(e){ return libs(e).length ? '<span class="pill">'+(libs(e).length===1?"Library":"Libraries")+'</span>' : ''; }
+  // Some zips also ship the exact images and audio used in the video, so the workflows run as-is.
+  function mediaPill(e){ return e.mediaCount ? '<span class="pill">Media inputs</span>' : ''; }
+  function wfList(e){
+    const wfs = e.workflows || [];
+    if(!wfs.length && !libs(e).length) return "";
+    const items = wfs.concat(libs(e)).map(w=>'<li>'+esc(w.name)+'</li>').join("");
+    return '<details class="wf"><summary>'+wfLabel(e)+'</summary><ul>'+items+'</ul></details>';
+  }
+  function metaLine(e){
+    const help = e.hasHelp ? '<span class="pill">Help &amp; resources</span>' : '';
+    return '<div class="meta"><span class="cat-tag">'+esc(e.category)+'</span><span>'+wfLabel(e)+'</span><span>'+fmtSize(e.zipSizeBytes)+'</span>'+libPill(e)+mediaPill(e)+help+'</div>';
+  }
+
+  function cardHTML(e){
+    return '<article class="card" data-cat="'+esc(e.category)+'">'
+      +'<div class="card-top"><span class="epnum">EP<b>'+e.number+'</b></span><span class="cat-tag">'+esc(e.category)+'</span></div>'
+      +'<h3 class="card-title">'+esc(e.title)+'</h3>'
+      +'<div class="meta"><span>'+wfLabel(e)+'</span><span>'+fmtSize(e.zipSizeBytes)+'</span>'+libPill(e)+mediaPill(e)+(e.hasHelp?'<span class="pill">Help &amp; resources</span>':'')+'</div>'
+      +wfList(e)
+      +'<div class="actions">'+actions(e)+'</div>'
+      +'</article>';
+  }
+  function rowHTML(e){
+    return '<div class="row" data-cat="'+esc(e.category)+'">'
+      +'<div class="row-num">'+e.number+'<span>EP</span></div>'
+      +'<div class="row-main"><div class="row-title">'+esc(e.title)+'</div>'+metaLine(e)+'</div>'
+      +'<div class="row-actions">'+actions(e)+'</div>'
+      +'</div>';
+  }
+  function featHTML(e){
+    return '<div class="feat" data-cat="'+esc(e.category)+'">'
+      +'<span class="epnum">EP<b>'+e.number+'</b></span>'
+      +'<h2>'+esc(e.title)+'</h2>'
+      +metaLine(e)
+      +'<div class="actions">'+actions(e)+'</div>'
+      +'</div>';
+  }
+
+  function matches(e){
+    if(state.cat!=="All" && e.category!==state.cat) return false;
+    const q = state.q.trim().toLowerCase();
+    if(!q) return true;
+    const names = (e.workflows||[]).concat(libs(e)).map(w=>w.name).join(" ");
+    const hay = (e.title+" "+e.category+" "+names+" ep"+e.number+" "+epLabel(e.number)+" "+e.number).toLowerCase();
+    return hay.includes(q);
+  }
+
+  function render(){
+    const list = EP.filter(matches);
+    const pending = EP.filter(e=>e.comingSoon).length;
+    countEl.innerHTML = '<span>'+list.length+" of "+EP.length+" episodes"+(state.cat!=="All"?" in "+esc(state.cat):"")+'</span>'
+      + (pending ? '<span class="pending" title="The newest video is publishing. The Watch button appears automatically once it is public.">Newest video publishing soon</span>' : '');
+    if(!list.length){ results.innerHTML = '<div class="empty">No episodes match that search.</div>'; return; }
+
+    if(state.layout==="cards"){
+      results.className=""; results.innerHTML = '<div class="grid">'+list.map(cardHTML).join("")+'</div>';
+    } else if(state.layout==="list"){
+      results.className=""; results.innerHTML = '<div class="list">'+list.map(rowHTML).join("")+'</div>';
+    } else {
+      const [hero,...rest] = list;
+      results.innerHTML = '<div class="featured">'+featHTML(hero)+'</div>'
+        + (rest.length ? '<div class="section-h">Earlier episodes</div><div class="grid">'+rest.map(cardHTML).join("")+'</div>' : '');
+    }
+  }
+
+  // Auto-detect when a "coming soon" episode's video becomes public.
+  // YouTube oEmbed allows cross-origin calls: 200 means public, 401/404 means not yet.
+  function videoId(u){ const m=/[?&]v=([\w-]{11})/.exec(u||""); return m?m[1]:null; }
+  async function isPublic(id){
+    try{ const r=await fetch("https://www.youtube.com/oembed?format=json&url=https://www.youtube.com/watch?v="+id); return r.ok; }
+    catch(e){ return false; }
+  }
+  async function verifyComingSoon(){
+    const pend = EP.filter(e=>e.comingSoon && videoId(e.youtube));
+    if(!pend.length) return;
+    let changed=false;
+    for(const e of pend){ if(await isPublic(videoId(e.youtube))){ e.comingSoon=false; changed=true; } }
+    if(changed) render();
+  }
+
+  // chips
+  const chipsEl = $("#chips");
+  chipsEl.innerHTML = CATS.map(c=>'<span class="chip'+(c==="All"?" active":"")+'" data-cat="'+c+'">'+c+'</span>').join("");
+  chipsEl.addEventListener("click", ev=>{
+    const t = ev.target.closest(".chip"); if(!t) return;
+    state.cat = t.dataset.cat;
+    [...chipsEl.children].forEach(c=>c.classList.toggle("active", c.dataset.cat===state.cat));
+    render();
+  });
+  $("#search").addEventListener("input", e=>{ state.q=e.target.value; render(); });
+  $("#layoutSeg").addEventListener("click", ev=>{
+    const b=ev.target.closest("button"); if(!b) return;
+    state.layout=b.dataset.layout;
+    [...ev.currentTarget.children].forEach(x=>x.classList.toggle("active",x===b));
+    render();
+  });
+  // theme: one site-wide choice, remembered between pages (the <head> script paints it first)
+  var themeSeg = document.getElementById("themeSeg");
+  function setTheme(t){
+    document.documentElement.dataset.theme = t;
+    [].forEach.call(themeSeg.children, function(b){ b.classList.toggle("active", b.dataset.theme === t); });
+    try { localStorage.setItem("pixaroma-theme", t); } catch(e){}
+  }
+  setTheme(document.documentElement.dataset.theme || "dark");
+  themeSeg.addEventListener("click", function(ev){
+    var b = ev.target.closest("button"); if (b) setTheme(b.dataset.theme);
+  });
+
+  render();
+  verifyComingSoon();
+  setInterval(verifyComingSoon, 5*60*1000);
+</script>
+</body>
+</html>

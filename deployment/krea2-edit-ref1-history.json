@@ -1,0 +1,242 @@
+{
+  "ca76c864-2ac8-4dbb-a0ef-ef00a11f1d48": {
+    "prompt": [
+      2,
+      "ca76c864-2ac8-4dbb-a0ef-ef00a11f1d48",
+      {
+        "1": {
+          "class_type": "UNETLoader",
+          "inputs": {
+            "unet_name": "krea2_turbo_int8_convrot.safetensors",
+            "weight_dtype": "default"
+          }
+        },
+        "2": {
+          "class_type": "CLIPLoader",
+          "inputs": {
+            "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+            "type": "krea2",
+            "device": "default"
+          }
+        },
+        "3": {
+          "class_type": "VAELoader",
+          "inputs": {
+            "vae_name": "qwen_image_vae.safetensors"
+          }
+        },
+        "4": {
+          "class_type": "Krea2EditGroundedEncode",
+          "inputs": {
+            "clip": [
+              "2",
+              0
+            ],
+            "image": [
+              "10",
+              0
+            ],
+            "prompt": "Change her blue jacket to a bright red jacket. Preserve her face, hair, pose, white shirt, lighting and background.",
+            "grounding_px": 768,
+            "system_prompt": ""
+          }
+        },
+        "5": {
+          "class_type": "Krea2EditGroundedEncode",
+          "inputs": {
+            "clip": [
+              "2",
+              0
+            ],
+            "image": [
+              "10",
+              0
+            ],
+            "prompt": "",
+            "grounding_px": 768,
+            "system_prompt": ""
+          }
+        },
+        "6": {
+          "class_type": "EmptySD3LatentImage",
+          "inputs": {
+            "width": 1024,
+            "height": 1024,
+            "batch_size": 1
+          }
+        },
+        "7": {
+          "class_type": "KSampler",
+          "inputs": {
+            "model": [
+              "13",
+              0
+            ],
+            "positive": [
+              "4",
+              0
+            ],
+            "negative": [
+              "5",
+              0
+            ],
+            "latent_image": [
+              "6",
+              0
+            ],
+            "seed": 20260908,
+            "steps": 10,
+            "cfg": 1.0,
+            "sampler_name": "euler",
+            "scheduler": "simple",
+            "denoise": 1.0
+          }
+        },
+        "8": {
+          "class_type": "VAEDecode",
+          "inputs": {
+            "samples": [
+              "7",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ]
+          }
+        },
+        "9": {
+          "class_type": "SaveImage",
+          "inputs": {
+            "images": [
+              "8",
+              0
+            ],
+            "filename_prefix": "Krea2/identity-edit-ref1"
+          }
+        },
+        "10": {
+          "class_type": "LoadImage",
+          "inputs": {
+            "image": "krea2-identity-reference.png"
+          }
+        },
+        "11": {
+          "class_type": "VAEEncode",
+          "inputs": {
+            "pixels": [
+              "10",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ]
+          }
+        },
+        "12": {
+          "class_type": "LoraLoaderModelOnly",
+          "inputs": {
+            "model": [
+              "1",
+              0
+            ],
+            "lora_name": "krea2_identity_edit_v1_2.safetensors",
+            "strength_model": 1.0
+          }
+        },
+        "13": {
+          "class_type": "Krea2EditModelPatch",
+          "inputs": {
+            "model": [
+              "12",
+              0
+            ],
+            "source_latent": [
+              "11",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ],
+            "source_image": [
+              "10",
+              0
+            ],
+            "target_latent": [
+              "6",
+              0
+            ],
+            "ref_boost": 1.0,
+            "ref_boost_a": 1.0,
+            "fit_mode": "fit"
+          }
+        }
+      },
+      {
+        "create_time": 1788905048446
+      },
+      [
+        "9"
+      ]
+    ],
+    "outputs": {
+      "9": {
+        "images": [
+          {
+            "filename": "identity-edit-ref1_00001_.png",
+            "subfolder": "Krea2",
+            "type": "output"
+          }
+        ]
+      }
+    },
+    "status": {
+      "status_str": "success",
+      "completed": true,
+      "messages": [
+        [
+          "execution_start",
+          {
+            "prompt_id": "ca76c864-2ac8-4dbb-a0ef-ef00a11f1d48",
+            "timestamp": 1788905048446
+          }
+        ],
+        [
+          "execution_cached",
+          {
+            "nodes": [
+              "1",
+              "2",
+              "3",
+              "4",
+              "5",
+              "6",
+              "10",
+              "11",
+              "12"
+            ],
+            "prompt_id": "ca76c864-2ac8-4dbb-a0ef-ef00a11f1d48",
+            "timestamp": 1788905048456
+          }
+        ],
+        [
+          "execution_success",
+          {
+            "prompt_id": "ca76c864-2ac8-4dbb-a0ef-ef00a11f1d48",
+            "timestamp": 1788905054538
+          }
+        ]
+      ]
+    },
+    "meta": {
+      "9": {
+        "node_id": "9",
+        "display_node": "9",
+        "parent_node": null,
+        "real_node_id": "9"
+      }
+    }
+  }
+}

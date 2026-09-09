@@ -1,0 +1,51 @@
+
+# Credentials and private backups
+*.private.*
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Local dependencies and Python caches
+deployment/vendor/
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# Generated media, model weights and archives remain local/on the volume
+deployment/samples/
+deployment/reference.png
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.mp4
+*.webm
+*.mov
+*.wav
+*.mp3
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.zip
+*.tar
+*.tar.gz
+
+# Large, reproducible API inventories and downloaded application trees
+deployment/object_info.json
+deployment/*-object-info.json
+research/krea2/rebalance/live-object-info.json
+research/app-mode/tree.json
+research/hearmeman_h3/runtime/
+research/hearmeman_h3/template/
+
+# Local editor/OS files
+.DS_Store
+Thumbs.db
+desktop.ini

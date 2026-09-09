@@ -1,0 +1,408 @@
+{
+  "_id": "6a4d0d278c389e303e201c52",
+  "id": "conradlocke/krea2-identity-edit",
+  "private": false,
+  "tags": [
+    "image-editing",
+    "lora",
+    "comfyui",
+    "krea-2",
+    "base_model:krea/Krea-2-Raw",
+    "base_model:adapter:krea/Krea-2-Raw",
+    "license:other",
+    "region:us"
+  ],
+  "downloads": 0,
+  "likes": 753,
+  "modelId": "conradlocke/krea2-identity-edit",
+  "author": "conradlocke",
+  "sha": "89e9e7a09ee2e5c9331e952063d79b1b8a703280",
+  "lastModified": "2026-07-29T16:32:13.000Z",
+  "gated": false,
+  "disabled": false,
+  "model-index": null,
+  "config": {},
+  "cardData": {
+    "license": "other",
+    "license_name": "krea-2-community-license",
+    "license_link": "https://krea.ai/krea-2-licensing",
+    "base_model": "krea/Krea-2-Raw",
+    "tags": [
+      "image-editing",
+      "lora",
+      "comfyui",
+      "krea-2"
+    ]
+  },
+  "siblings": [
+    {
+      "rfilename": ".gitattributes",
+      "blobId": "13fcba2d5623ffd32bf0636590c40143a868c7a9",
+      "size": 2614
+    },
+    {
+      "rfilename": "LICENSE.pdf",
+      "blobId": "78cb4aa4bb89da0b52b0619663b485a918d7d596",
+      "size": 137711,
+      "lfs": {
+        "sha256": "b82a2805162bde714a4eb27b9063c4fc3345d08a30be055134a6160e5430ba74",
+        "size": 137711,
+        "pointerSize": 131
+      }
+    },
+    {
+      "rfilename": "NOTICE",
+      "blobId": "0cbc5ac342c282d6e42de3910e29f602b90f92f9",
+      "size": 729
+    },
+    {
+      "rfilename": "README.md",
+      "blobId": "e65d753223143d726bbe685f4588a8e8c9da78c8",
+      "size": 10249
+    },
+    {
+      "rfilename": "krea2_identity_edit_v1.safetensors",
+      "blobId": "15aed6d93af1058b3bbbc64dc8b105fb8bb744f4",
+      "size": 1828256864,
+      "lfs": {
+        "sha256": "5bccb332b682c4db7ec176b857b0bd0c3c97edeed9b4564d9ec8d3a3b4556346",
+        "size": 1828256864,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "krea2_identity_edit_v1_1.safetensors",
+      "blobId": "4c38f53514ff87459c1e5268ec9c778642210851",
+      "size": 1828256432,
+      "lfs": {
+        "sha256": "89fe1ebdc6e9d0399d161103f7696adfd71ce613696aeac5962aa7f20e163ff6",
+        "size": 1828256432,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "krea2_identity_edit_v1_1_r128.safetensors",
+      "blobId": "79f9bd4c9c93135a7a97f4118bd08135b14090e0",
+      "size": 914159744,
+      "lfs": {
+        "sha256": "78b403a45024d51c24b618046ec1176c346416951f8f4c6c707d1b337ae1d40f",
+        "size": 914159744,
+        "pointerSize": 134
+      }
+    },
+    {
+      "rfilename": "krea2_identity_edit_v1_1_r64.safetensors",
+      "blobId": "67631ae02d2af76091a6ea5bcb8ea3a035468ed1",
+      "size": 457111048,
+      "lfs": {
+        "sha256": "f20684520077d8463dbbc5f892ac319b4cf4307d0299da2dbf6bf5d69ad0ab1d",
+        "size": 457111048,
+        "pointerSize": 134
+      }
+    },
+    {
+      "rfilename": "krea2_identity_edit_v1_2.safetensors",
+      "blobId": "adad3703805b59b635800881abb6c6b7450d74c5",
+      "size": 1828256432,
+      "lfs": {
+        "sha256": "6adf9a69cc9502d286db7b69964d37da7e9cfe4b05b4d004bc275f087d3fd3cf",
+        "size": 1828256432,
+        "pointerSize": 135
+      }
+    },
+    {
+      "rfilename": "krea2_identity_edit_v1_2_r128.safetensors",
+      "blobId": "06bab1da40845aae823085b44377cb7f1ab5e57c",
+      "size": 914159744,
+      "lfs": {
+        "sha256": "f53db0bb4b081d638f196865cbc9f055379704fafb788336784fc1ccde18d825",
+        "size": 914159744,
+        "pointerSize": 134
+      }
+    },
+    {
+      "rfilename": "krea2_identity_edit_v1_2_r64.safetensors",
+      "blobId": "b3b5cae2c35301df1f4961fefea1a9f6a8028f81",
+      "size": 457111048,
+      "lfs": {
+        "sha256": "f794b47142555c929cf536a2f1e4f335174b9aedbb08572b07d45814d4242423",
+        "size": 457111048,
+        "pointerSize": 134
+      }
+    },
+    {
+      "rfilename": "showcase/release_1.png",
+      "blobId": "b3fa3c18c93bdaddbfe37f7afeea324ec5aee419",
+      "size": 5209412,
+      "lfs": {
+        "sha256": "5c63410767aa74a55deaa5b7107972612fa575cf65e4509e1b1f9895ec9fb671",
+        "size": 5209412,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_2.png",
+      "blobId": "ed2c4795392482f82c337cf65536e9e138199d5d",
+      "size": 3712056,
+      "lfs": {
+        "sha256": "4f75be83675d14bbfdb54be114914f0aa7f9566c43e3c24bd999b4f33b5564f3",
+        "size": 3712056,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_3.png",
+      "blobId": "00fc08262f47012ebddcef0bc4982b6ef774bcab",
+      "size": 3124103,
+      "lfs": {
+        "sha256": "be16f8fb947eaea304c1e25d708a02a3321fe664f65b29d3b649fcf708c78ff3",
+        "size": 3124103,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_4.png",
+      "blobId": "b7bf15f95b6f9fa4cc3ae7d7c468313c866b74da",
+      "size": 4052445,
+      "lfs": {
+        "sha256": "0a882843f6bd5969f5c308e121b715f1053cbab4b0c764f77a3aff1c9996a86e",
+        "size": 4052445,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_5.png",
+      "blobId": "4b1d2e5c41cd4d75f55ce09d3d5c751692d010d6",
+      "size": 3387636,
+      "lfs": {
+        "sha256": "0603d1bf517d6c5bd8ecc6625c347bc2924fc8d1911aeeeef6ef55a544963c30",
+        "size": 3387636,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_6.png",
+      "blobId": "db1d3a94b399048ddf066cc2b6e15c42189c42bc",
+      "size": 3098993,
+      "lfs": {
+        "sha256": "0af22a01b811da33fc7898f125801317bab36beb14306a5e9aa57ba703933a6a",
+        "size": 3098993,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_7.png",
+      "blobId": "284e491ed2de70f9b22847dd0f07d7b53be1dfb2",
+      "size": 3694200,
+      "lfs": {
+        "sha256": "363491fc914fcd816347a8c3181e9c8644e236d817517e0aac5cdf13ef427a07",
+        "size": 3694200,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_1.png",
+      "blobId": "14fa9e85910b01b3fb276e0d24ca88924fe9830b",
+      "size": 4866599,
+      "lfs": {
+        "sha256": "6cc81f896a94d685aa9b41bdf00e6c0210d7f90135910d72aa94621f01fa3072",
+        "size": 4866599,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_2.png",
+      "blobId": "b78c27d7dc2a268504d69a4d9d54971f4d02193e",
+      "size": 3333759,
+      "lfs": {
+        "sha256": "9c32b706f1617513122cf125972ef02318023d2330baf86fb71559da0cd2b18d",
+        "size": 3333759,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_3.png",
+      "blobId": "928722b013d66906af7dec291c6812ebab39e7d8",
+      "size": 3036410,
+      "lfs": {
+        "sha256": "eb8377e143d3c0f3061dba1463ce58d41be758e255004259bc9de32f5e533561",
+        "size": 3036410,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_4.png",
+      "blobId": "191e26676722fcbb92a4083ba122ece40e4bca27",
+      "size": 2890419,
+      "lfs": {
+        "sha256": "dea4d5c9cb698731f496aa560c10f637ee032fed1e4f9db5f65e2b26c661ab8f",
+        "size": 2890419,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_5.png",
+      "blobId": "aed29f11026264242254aa9374397fbbeeb25ab0",
+      "size": 3024423,
+      "lfs": {
+        "sha256": "18a098e5c8ecfaefc2e26c74567e7c6da471d9e7762350578d74ee446ef26942",
+        "size": 3024423,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_6.png",
+      "blobId": "e76d89232e03d181e10cb35e6d533bb0b3a62486",
+      "size": 2927928,
+      "lfs": {
+        "sha256": "df1ba1427f8795b6d6b39563fbbca3198d875548899c78407546aac2ae836e45",
+        "size": 2927928,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_7.png",
+      "blobId": "401e4211fdc955a5ed071088f878da1fc88d877d",
+      "size": 3359254,
+      "lfs": {
+        "sha256": "f9e08e0c31f96f1960afc61c4a735078242315e53110b54dc25423e235a3e0f1",
+        "size": 3359254,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_8.png",
+      "blobId": "d0610336089bab9a7623e4cb84ed07303a8656b8",
+      "size": 2682955,
+      "lfs": {
+        "sha256": "3c202f50b437bda714bf450f49f8c0da4f09630dc2a08e0a58b59a6983a46779",
+        "size": 2682955,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_9.png",
+      "blobId": "36d42b74aeb8d2e2b8d606b1493bf07953c6f455",
+      "size": 3775841,
+      "lfs": {
+        "sha256": "b638ba2cdce7dbbb48f71651b3741f406e5add21b1cee64d7dc57907bf5f8547",
+        "size": 3775841,
+        "pointerSize": 132
+      }
+    },
+    {
+      "rfilename": "showcase/release_v11_thumb.png",
+      "blobId": "4128aa945b6b0a7d290acd9ffbe719547fcb1964",
+      "size": 1968519,
+      "lfs": {
+        "sha256": "6daa7731fe9501549e4cb90822615e58b86ae03eddd276b8cbeb30e39accae3d",
+        "size": 1968519,
+        "pointerSize": 132
+      }
+    }
+  ],
+  "spaces": [
+    "ravenrose996688/Krea-2-Turbo_I2I",
+    "conradlocke/krea2-identity-edit",
+    "RioShiina/ImageGen",
+    "misukisu/Krea-2-Turbo_I2I",
+    "metaloz/Krea-2-Turbo_I2I",
+    "CoderLim/krea2-identity-edit",
+    "opparco/krea2-identity-edit",
+    "Fataj/TtC",
+    "aidemosbap/Krea-2-Turbo_I2I_bapsy",
+    "PP12546/Krea-2-Turbo_I2I",
+    "nairobisdrive/Krea-2-Turbo_I2I",
+    "rajinder786/Krea-2-Turbo_I2I",
+    "pici68/Krea-2-Turbo_I2I",
+    "wank3r/krea2-identity-edit-Change-Uni",
+    "baka999/ImageGen",
+    "FoxLoverAI/TurboCustomImageEditing",
+    "thewhiterider27/krea2-identity-edit",
+    "GuiAworld/krea2-identity-edit",
+    "AAIIINTT/krea2-identity-edit",
+    "prat143/pratik-image-editor",
+    "sizzlebop/krea2-identity-edit",
+    "zapak/krea2-identity-edit",
+    "desirel/ImageGen",
+    "shrekisbeatif/krea2-identity-edit",
+    "Rabger666/ImageGen",
+    "Dekonstruktio/Red",
+    "BlueSkyXN/ImageGen-Studio",
+    "kkkkk26/krea2-identity-edit",
+    "Gay4Daddys/Krea-2-Turbo_I2I",
+    "ddededstger/Krea-2-Turbo_I2I",
+    "MvgnuM56/Krea-2-Turbo_I2I",
+    "Phar2020/Krea-2-Turbo_I2I",
+    "thekrocot/Krea-2-Turbo_I2I",
+    "bobbyr667/Krea-2-Turbo_bbr",
+    "badsys/Krea-2-Turbo_PornMaster",
+    "Nzomne/Krea-2-Turbo_I2I",
+    "sherwin217/krea2-identity-edit",
+    "deneme0948/Krea-2-Turbo_I2I",
+    "ThomasPantau/Krea-2-Turbo_I2I",
+    "Xfess/Krea-2-Turbo_I2I",
+    "Fataj/Krea-2-Turbo_I2I",
+    "Bgpop88/Krea-2-Turbo_I2I",
+    "wv420/Krea-2-Turbo_I2I",
+    "amibeamer/Krea-2-Turbo_I2I",
+    "BWC4WIFE/Krea-2-Turbo_I2I",
+    "GoaUld1984/Krea-2-Turbo_I2I",
+    "elfret/Krea-2-Turbo_I2I",
+    "Diablotrazos/Krea-2-Turbo_I2I",
+    "Kylarstar633/MeKrea-2-Turbo_I2I",
+    "vlad523/Krea-2-Turbo_I2I",
+    "kmsun523/Krea-2-Turbo_I2I",
+    "Naught010/Krea-2-Turbo_I2I",
+    "AlexSinHF/Krea-2-identity-loras",
+    "Lampyy/piceditorandcreator",
+    "3417DilligaF/Krea-2-Turbo_I2I",
+    "Casey27/Krea-2-Turbo_I2I",
+    "hitman911/Krea-2-Turbo_I2I",
+    "oui0108/Krea-2-Turbo_I2I",
+    "Thekidd0329/Kreayaaa",
+    "Aifun123/Krea-2-Turbo_I2I",
+    "KETAB01/Krea-2-Turbo_I2I",
+    "sno-w/Krea-2-Turbo_I2I",
+    "hjgkgkgk/Krea-2-Turbo_I2I_clone",
+    "CirujanoRetro/Krea-2-Turbo_I2I",
+    "aq1hunnit/Krea-2-Turbo_I2I",
+    "Sopow/Krea-2-Turbo_I2I",
+    "KeyBattle/Krea-2-Turbo_I2I",
+    "DASBK25/Krea-2-Turbo_I2I",
+    "DavidStrippgen/Krea-2-Turbo_I2I",
+    "Ullalla1311/Krea-2-Turbo_I2I",
+    "Vyrox888/Krea-2-Turbo_I2I",
+    "cygnus26/Krea-2-Turbo_I2I",
+    "arcticmonster/Krea-2-Turbo_I2I",
+    "Tyupy/Krea-2-Turbo_I2I",
+    "Unknownmen097/Krea-2-Turbo_I2I",
+    "royovi/Krea-2-Turbo_I2I",
+    "Kianedition/Kian_Krea-2-Turbo_I2I",
+    "DomFodder/Krea-2-Turbo_I2I",
+    "Mrwzs/Krea-2-Turbo_I2I",
+    "tibsza/Krea-2-Turbo_I2I",
+    "amitr24/Krea-2-Turbo_I2I",
+    "Dps2005/Krea-2-Turbo_I2I",
+    "Paulinv/Krea-2-Turbo_I2I",
+    "dinamerasaldana/JardinInfantilMandarina",
+    "rl74/Krea-2-Turbo_I2I",
+    "JAYTEKH/Krea-2-Turbo_I2I",
+    "Kashapps/Krea-2-Turbo_I2I",
+    "Helohihihi/Krea-2-Turbo_I2I",
+    "PhiNgoc/Krea-2-Turbo_I2I",
+    "hfdhdhfkuuuuu/Krea-2-Turbo_I2I",
+    "Warmerplace/Krea-2-Turbo_I2I",
+    "Sudhiprasad987/Krea-2-Turbo_I2I",
+    "PUTHU007/Krea-2-Turbo_I2I",
+    "mohdhuzafa/Krea-2-Turbo_I2I",
+    "balinotaku/Krea-2-Turbo_I2I",
+    "daniel-deluce/Krea-2-Turbo_I2I",
+    "Robtko/Krea-2-Turbo_I2I",
+    "jp123454321/Krea-2-Turbo_I2I",
+    "Goatman65/Krea-2-Turbo_I2I",
+    "Tiles12459/Krea-2-Turbo_I2I"
+  ],
+  "createdAt": "2026-07-07T14:28:55.000Z",
+  "usedStorage": 8285593975
+}

@@ -1,0 +1,1183 @@
+{
+  "id": "c5beec59-2b88-4f3f-ba35-7640a58a9ba6",
+  "revision": 0,
+  "last_node_id": 236,
+  "last_link_id": 302,
+  "nodes": [
+    {
+      "id": 207,
+      "type": "ComfyUI-Krea2T-Enhancer",
+      "pos": [
+        -581.4692332125478,
+        -4.197800901859795
+      ],
+      "size": [
+        263.08694658746447,
+        106
+      ],
+      "flags": {},
+      "order": 8,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 248
+        }
+      ],
+      "outputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "links": [
+            284
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-Krea2T-Enhancer",
+        "ver": "cf8895005540680306cd46e1faaf75f8902db794",
+        "Node name for S&R": "ComfyUI-Krea2T-Enhancer"
+      },
+      "widgets_values": [
+        true,
+        0.1,
+        false
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 199,
+      "type": "PixaromaPreview",
+      "pos": [
+        394.8124460319333,
+        490.60640149315645
+      ],
+      "size": [
+        412.5428542900415,
+        533.0700217936404
+      ],
+      "flags": {},
+      "order": 17,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "link": 237
+        }
+      ],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-Pixaroma",
+        "ver": "bc54fc907b91358a3b7f1e214dc46ed2ef2be53c",
+        "Node name for S&R": "PixaromaPreview",
+        "pixaromaFrames": [
+          {
+            "filename": "img_00039_.png",
+            "subfolder": "",
+            "type": "output"
+          }
+        ],
+        "pixaromaSelected": 0,
+        "pixaromaExpanded": false
+      },
+      "widgets_values": [
+        "img",
+        "save"
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 194,
+      "type": "UNETLoader",
+      "pos": [
+        -1032.3327979409496,
+        217.83035566381673
+      ],
+      "size": [
+        416.43276058073934,
+        82
+      ],
+      "flags": {},
+      "order": 0,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            248
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.76",
+        "Node name for S&R": "UNETLoader"
+      },
+      "widgets_values": [
+        "krea2\\krea2_turbo_int8_convrot.safetensors",
+        "default"
+      ],
+      "color": "#f66744",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 195,
+      "type": "CLIPLoader",
+      "pos": [
+        -1032.3327979409496,
+        354.60640149315645
+      ],
+      "size": [
+        416.43276058073934,
+        106
+      ],
+      "flags": {},
+      "order": 1,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": [
+            272,
+            278
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.76",
+        "Node name for S&R": "CLIPLoader"
+      },
+      "widgets_values": [
+        "qwen3-vl-4b-heretic_int8.safetensors",
+        "krea2",
+        "default"
+      ],
+      "color": "#f66744",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 196,
+      "type": "VAELoader",
+      "pos": [
+        -1032.3327979409496,
+        515.3824473224962
+      ],
+      "size": [
+        416.43276058073934,
+        58
+      ],
+      "flags": {},
+      "order": 2,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "VAE",
+          "type": "VAE",
+          "links": [
+            236,
+            289,
+            292
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.76",
+        "Node name for S&R": "VAELoader"
+      },
+      "widgets_values": [
+        "qwen_image_vae.safetensors"
+      ],
+      "color": "#f66744",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 230,
+      "type": "PixaromaCompare",
+      "pos": [
+        -99.50283734159976,
+        496.41697855701136
+      ],
+      "size": [
+        478.1133606679137,
+        533.0700217936404
+      ],
+      "flags": {},
+      "order": 18,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "image1",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 298
+        },
+        {
+          "name": "image2",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 282
+        }
+      ],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "ComfyUI-Pixaroma",
+        "ver": "147bdacb76af7d30ce60d6269dc93f5bbc0ebe4b",
+        "Node name for S&R": "PixaromaCompare",
+        "compareState": {
+          "mode": 0,
+          "showWhich": 0,
+          "opacity": 0.5,
+          "images": [
+            {
+              "filename": "pixaroma_compare_pixcmp_waqbn_00017_.png",
+              "subfolder": "",
+              "type": "temp"
+            },
+            {
+              "filename": "pixaroma_compare_pixcmp_waqbn_00018_.png",
+              "subfolder": "",
+              "type": "temp"
+            }
+          ]
+        }
+      },
+      "widgets_values": [],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 163,
+      "type": "KSampler",
+      "pos": [
+        194.53002023799226,
+        178.5798996967037
+      ],
+      "size": [
+        300,
+        262
+      ],
+      "flags": {},
+      "order": 15,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 286
+        },
+        {
+          "name": "positive",
+          "type": "CONDITIONING",
+          "link": 280
+        },
+        {
+          "name": "negative",
+          "type": "CONDITIONING",
+          "link": 281
+        },
+        {
+          "name": "latent_image",
+          "type": "LATENT",
+          "link": 186
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            257
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.27",
+        "Node name for S&R": "KSampler"
+      },
+      "widgets_values": [
+        977891729974479,
+        "randomize",
+        10,
+        1,
+        "er_sde",
+        "simple",
+        1
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 164,
+      "type": "VAEDecode",
+      "pos": [
+        531.0838731769541,
+        178.5798996967037
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {
+        "collapsed": false
+      },
+      "order": 16,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "samples",
+          "type": "LATENT",
+          "link": 257
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 236
+        }
+      ],
+      "outputs": [
+        {
+          "name": "IMAGE",
+          "type": "IMAGE",
+          "links": [
+            237,
+            282
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.32",
+        "Node name for S&R": "VAEDecode"
+      },
+      "widgets_values": [],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 223,
+      "type": "PixaromaNote",
+      "pos": [
+        -1623.2039253894616,
+        217.83035566381673
+      ],
+      "size": [
+        555.0371059837885,
+        945.6358820925641
+      ],
+      "flags": {},
+      "order": 3,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "ComfyUI-Pixaroma",
+        "ver": "1227d9898f9d5137533df750611ca97e8c738f3d",
+        "Node name for S&R": "PixaromaNote"
+      },
+      "widgets_values": [
+        "{\"version\":1,\"content\":\"<h1>MODELS AND NODES USED IN THIS WORKFLOW</h1><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #b8b8b8\\\"><p>\\n\\n</p><h2><span data-ic=\\\"model-v1\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Load Diffusion Model</h2><p>\\n\\n</p><p>\\n<span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-dl\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_int8_convrot.safetensors\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Download krea2_turbo_int8_convrot.safetensors<span class=\\\"pix-note-btnsize\\\">12.2 GB</span></a></span>&nbsp;\\n<br>OR<br>\\n<span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-dl\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/Comfy-Org/Krea-2/resolve/main/diffusion_models/krea2_turbo_fp8_scaled.safetensors\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Download krea2_turbo_fp8_scaled.safetensors<span class=\\\"pix-note-btnsize\\\">12.2 GB</span></a></span>&nbsp;\\n</p><p>\\n\\n</p><div class=\\\"pix-note-folderhint\\\" style=\\\"color: #f66744\\\">Place in: ComfyUI/models/diffusion_models/krea2</div><p>\\n\\n</p><p>Create the <code>krea2</code> folder if it does not exist.</p><p>\\n\\n</p><p>\\n<span class=\\\"pix-note-btnblock\\\">\\n<a class=\\\"pix-note-rm\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/Comfy-Org/Krea-2/tree/main/diffusion_models\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">More versions</a>\\n</span>&nbsp;\\n</p><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #b8b8b8\\\"><p>\\n\\n</p><h2><span data-ic=\\\"CLIP\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Load CLIP</h2><p>\\n\\n</p><p>\\n<span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-dl\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/DreamFast/Qwen3-VL-4b-Heretic-ComfyUI/resolve/main/qwen3-vl-4b-heretic_int8.safetensors\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Download qwen3-vl-4b-heretic_int8<span class=\\\"pix-note-btnsize\\\">4.5 GB</span></a></span>&nbsp;\\n</p><p>\\n\\n</p><div class=\\\"pix-note-folderhint\\\" style=\\\"color: #f66744\\\">Place in: ComfyUI/models/text_encoders</div><p>\\n\\n</p><p>\\n<span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-vp\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/DreamFast/Qwen3-VL-4b-Heretic-ComfyUI/tree/main\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">More Versions</a></span>&nbsp;\\n</p><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #b8b8b8\\\"><p>\\n\\n</p><h2><span data-ic=\\\"LORA\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;LoRA Loader</h2><p>\\n\\n</p><p>\\n<span class=\\\"pix-note-btnblock\\\"><a class=\\\"pix-note-dl\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/AliveAi/Krea-2-Edit-Outfit-Transfer/resolve/main/krea_outfittransfer.safetensors\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Download krea_outfittransfer.safetensors<span class=\\\"pix-note-btnsize\\\">1.14 GB</span></a></span>&nbsp;\\n</p><p>\\n\\n</p><div class=\\\"pix-note-folderhint\\\" style=\\\"color: #f66744\\\">Place in: ComfyUI/models/loras/krea2</div><p>\\n\\n</p><p>Create the <code>krea2</code> folder if it does not exist.</p><p>\\n\\n</p><p>\\n<span class=\\\"pix-note-btnblock\\\">\\n<a class=\\\"pix-note-rm\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/conradlocke/krea2-identity-edit/tree/main\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">More LoRAs</a>\\n</span>&nbsp;\\n</p><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #b8b8b8\\\"><p>\\n\\n</p><h2><span data-ic=\\\"VAE\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Load VAE</h2><p>\\n\\n</p><p>\\n<span class=\\\"pix-note-btnblock\\\">\\n<a class=\\\"pix-note-dl\\\" style=\\\"background-color: #f66744\\\" href=\\\"https://huggingface.co/Comfy-Org/Krea-2/resolve/main/vae/qwen_image_vae.safetensors\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Download qwen_image_vae.safetensors<span class=\\\"pix-note-btnsize\\\">242 MB</span></a>\\n</span>&nbsp;\\n</p><p>\\n\\n</p><div class=\\\"pix-note-folderhint\\\" style=\\\"color: #f66744\\\">Place in: ComfyUI/models/vae</div><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #b8b8b8\\\"><p>\\n\\n</p><p><span data-ic=\\\"warning-v1\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;After placing the files, restart ComfyUI or refresh model lists using the <b>R</b> shortcut.</p><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #b8b8b8\\\"><p>\\n\\n</p><h2><span data-ic=\\\"nodes-installed\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Nodes Installed from Manager</h2><p>\\n\\n</p><ul>\\n<li>Pixaroma</li>\\n<li>ComfyUI-Krea2T-Enhancer</li>\\n<li>Krea 2 Identity Edit</li>\\n</ul><p>\\n\\n</p><hr class=\\\"pix-note-hr-solid\\\" style=\\\"color: #b8b8b8\\\"><p>\\n\\n</p><h2><span data-ic=\\\"pixaroma\\\" class=\\\"pix-note-ic\\\" contenteditable=\\\"false\\\" style=\\\"color: #f66744\\\"></span>&nbsp;Resources</h2><p>\\n\\n</p><p>\\n<a class=\\\"pix-note-discord\\\" href=\\\"https://discord.com/invite/gggpkVgBf3\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Join Discord</a>&nbsp;\\n<a class=\\\"pix-note-yt\\\" href=\\\"https://www.youtube.com/@pixaroma\\\" target=\\\"_blank\\\" rel=\\\"noopener noreferrer\\\">Pixaroma YouTube Channel</a>&nbsp;\\n</p>\",\"buttonColor\":\"#f66744\",\"lineColor\":\"#f66744\",\"width\":555.0371059837885,\"height\":945.6358820925641,\"backgroundColor\":\"#2a2a2a\"}",
+        ""
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 228,
+      "type": "Krea2EditGroundedEncode",
+      "pos": [
+        -569.7574433440622,
+        273.8303556638167
+      ],
+      "size": [
+        400,
+        206.00000000000006
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 10,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 278
+        },
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 296
+        },
+        {
+          "name": "image_b",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            281
+          ]
+        }
+      ],
+      "title": "Krea2 Edit - Negative - Empty",
+      "properties": {
+        "cnr_id": "comfyui-krea2edit",
+        "ver": "1.2.3",
+        "Node name for S&R": "Krea2EditGroundedEncode"
+      },
+      "widgets_values": [
+        "",
+        768,
+        ""
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 231,
+      "type": "PixaromaLoraLoader",
+      "pos": [
+        -290.459219199519,
+        -4.920100303296294
+      ],
+      "size": [
+        336,
+        128
+      ],
+      "flags": {},
+      "order": 13,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 284
+        },
+        {
+          "name": "clip",
+          "shape": 7,
+          "type": "CLIP",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            287
+          ]
+        },
+        {
+          "name": "CLIP",
+          "type": "CLIP",
+          "links": null
+        },
+        {
+          "name": "triggers",
+          "type": "STRING",
+          "links": null
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-Pixaroma",
+        "ver": "147bdacb76af7d30ce60d6269dc93f5bbc0ebe4b",
+        "Node name for S&R": "PixaromaLoraLoader",
+        "loraLoaderState": "{\"version\":1,\"loras\":[{\"id\":\"le37e06d8\",\"name\":\"krea2\\\\krea_outfittransfer.safetensors\",\"on\":true,\"sm\":1,\"sc\":1,\"triggers\":[],\"custom\":[]}],\"sep\":\", \",\"step\":0.05,\"defStrength\":1,\"linkStrength\":true,\"civitai\":true,\"thumbs\":true,\"hideExt\":true,\"accent\":null,\"cacheMode\":\"last\"}"
+      },
+      "widgets_values": [
+        {
+          "version": 1,
+          "loras": [
+            {
+              "id": "le37e06d8",
+              "name": "krea2\\krea_outfittransfer.safetensors",
+              "on": true,
+              "sm": 1,
+              "sc": 1,
+              "triggers": [],
+              "custom": []
+            }
+          ],
+          "sep": ", ",
+          "step": 0.05,
+          "defStrength": 1,
+          "linkStrength": true,
+          "civitai": true,
+          "thumbs": true,
+          "hideExt": true,
+          "accent": null,
+          "cacheMode": "last"
+        }
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 224,
+      "type": "Krea2EditGroundedEncode",
+      "pos": [
+        -569.7574433440622,
+        217.83035566381673
+      ],
+      "size": [
+        400,
+        206
+      ],
+      "flags": {
+        "collapsed": true
+      },
+      "order": 12,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "clip",
+          "type": "CLIP",
+          "link": 272
+        },
+        {
+          "name": "image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 295
+        },
+        {
+          "name": "image_b",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        },
+        {
+          "name": "prompt",
+          "type": "STRING",
+          "widget": {
+            "name": "prompt"
+          },
+          "link": 302
+        }
+      ],
+      "outputs": [
+        {
+          "name": "CONDITIONING",
+          "type": "CONDITIONING",
+          "links": [
+            280
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-krea2edit",
+        "ver": "1.2.3",
+        "Node name for S&R": "Krea2EditGroundedEncode"
+      },
+      "widgets_values": [
+        "",
+        768,
+        ""
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 232,
+      "type": "Krea2EditModelPatch",
+      "pos": [
+        -99.50283734159976,
+        178.5798996967037
+      ],
+      "size": [
+        270,
+        226
+      ],
+      "flags": {},
+      "order": 14,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "model",
+          "type": "MODEL",
+          "link": 287
+        },
+        {
+          "name": "source_latent",
+          "type": "LATENT",
+          "link": 290
+        },
+        {
+          "name": "source_latent_b",
+          "shape": 7,
+          "type": "LATENT",
+          "link": null
+        },
+        {
+          "name": "ref_boost_mask",
+          "shape": 7,
+          "type": "MASK",
+          "link": null
+        },
+        {
+          "name": "vae",
+          "shape": 7,
+          "type": "VAE",
+          "link": 292
+        },
+        {
+          "name": "source_image",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": 297
+        },
+        {
+          "name": "source_image_b",
+          "shape": 7,
+          "type": "IMAGE",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "MODEL",
+          "type": "MODEL",
+          "links": [
+            286
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfyui-krea2edit",
+        "ver": "1.2.3",
+        "Node name for S&R": "Krea2EditModelPatch"
+      },
+      "widgets_values": [
+        4,
+        1,
+        "fit"
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 235,
+      "type": "PixaromaResolution",
+      "pos": [
+        -659.7146429795575,
+        705.6482967100987
+      ],
+      "size": [
+        240,
+        435
+      ],
+      "flags": {},
+      "order": 4,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "links": [
+            300
+          ]
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "links": [
+            301
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "ComfyUI-Pixaroma",
+        "ver": "147bdacb76af7d30ce60d6269dc93f5bbc0ebe4b",
+        "Node name for S&R": "PixaromaResolution",
+        "resolutionState": "{\"mode\":\"preset\",\"ratio\":\"9:16\",\"w\":720,\"h\":1280,\"custom_w\":1024,\"custom_h\":1024,\"custom_ratio_w\":4,\"custom_ratio_h\":3,\"snap\":16}"
+      },
+      "widgets_values": [
+        {
+          "mode": "preset",
+          "ratio": "9:16",
+          "w": 720,
+          "h": 1280,
+          "custom_w": 1024,
+          "custom_h": 1024,
+          "custom_ratio_w": 4,
+          "custom_ratio_h": 3,
+          "snap": 16
+        }
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 233,
+      "type": "VAEEncode",
+      "pos": [
+        -388.38228662508334,
+        705.6482967100987
+      ],
+      "size": [
+        140,
+        46
+      ],
+      "flags": {},
+      "order": 11,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "pixels",
+          "type": "IMAGE",
+          "link": 299
+        },
+        {
+          "name": "vae",
+          "type": "VAE",
+          "link": 289
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "links": [
+            290
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.28.3",
+        "Node name for S&R": "VAEEncode"
+      },
+      "widgets_values": [],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 162,
+      "type": "EmptySD3LatentImage",
+      "pos": [
+        -388.38228662508334,
+        799.7646614025532
+      ],
+      "size": [
+        210,
+        108.38363530754555
+      ],
+      "flags": {},
+      "order": 9,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "width",
+          "type": "INT",
+          "widget": {
+            "name": "width"
+          },
+          "link": 300
+        },
+        {
+          "name": "height",
+          "type": "INT",
+          "widget": {
+            "name": "height"
+          },
+          "link": 301
+        }
+      ],
+      "outputs": [
+        {
+          "name": "LATENT",
+          "type": "LATENT",
+          "slot_index": 0,
+          "links": [
+            186
+          ]
+        }
+      ],
+      "properties": {
+        "cnr_id": "comfy-core",
+        "ver": "0.3.32",
+        "Node name for S&R": "EmptySD3LatentImage"
+      },
+      "widgets_values": [
+        1024,
+        1024,
+        1
+      ],
+      "color": "#342339",
+      "bgcolor": "#593359"
+    },
+    {
+      "id": 226,
+      "type": "PixaromaLoadImageMini",
+      "pos": [
+        -1032.3327979409496,
+        628.3836353075455
+      ],
+      "size": [
+        328.36857173491626,
+        379.51076472960676
+      ],
+      "flags": {},
+      "order": 5,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [
+        {
+          "name": "image",
+          "type": "IMAGE",
+          "links": [
+            295,
+            296,
+            297,
+            298,
+            299
+          ]
+        },
+        {
+          "name": "image_info",
+          "type": "PIX_IMAGE_INFO",
+          "links": []
+        }
+      ],
+      "title": "Load Outfit Image",
+      "properties": {
+        "cnr_id": "ComfyUI-Pixaroma",
+        "ver": "147bdacb76af7d30ce60d6269dc93f5bbc0ebe4b",
+        "Node name for S&R": "PixaromaLoadImageMini",
+        "loadImagePixState": "{\"version\":1,\"mode\":\"max_mp\",\"max_mp\":1,\"longest_side\":1024,\"scale_factor\":1,\"fit_w\":1024,\"fit_h\":1024,\"cover_w\":1024,\"cover_h\":1024,\"ratio_preset\":\"1:1\",\"ratio_w\":1,\"ratio_h\":1,\"ratio_action\":\"crop\",\"pad_color\":\"#808080\",\"pad_top\":0,\"pad_bottom\":0,\"pad_left\":0,\"pad_right\":0,\"crop_anchor\":\"center\",\"crop_scale\":true,\"snap\":16,\"resample\":\"auto\",\"allow_upscale\":true}"
+      },
+      "widgets_values": [
+        "OutfitBlueDress.jpg",
+        "image",
+        ""
+      ],
+      "color": "#1d1d1d",
+      "bgcolor": "#2a2a2a"
+    },
+    {
+      "id": 236,
+      "type": "PixaromaTextJoinTwo",
+      "pos": [
+        -581.4692332125478,
+        330.2341225018759
+      ],
+      "size": [
+        439.4521624762216,
+        305.2550552015704
+      ],
+      "flags": {},
+      "order": 6,
+      "mode": 0,
+      "inputs": [
+        {
+          "name": "text_1",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        },
+        {
+          "name": "text_2",
+          "shape": 7,
+          "type": "STRING",
+          "link": null
+        }
+      ],
+      "outputs": [
+        {
+          "name": "text",
+          "type": "STRING",
+          "links": [
+            302
+          ]
+        }
+      ],
+      "title": "Prompt (Describe Character) + Trigger Words",
+      "properties": {
+        "cnr_id": "ComfyUI-Pixaroma",
+        "ver": "4298d62625f190bed6ff17524cbc9266bd686990",
+        "Node name for S&R": "PixaromaTextJoinTwo",
+        "textJoinState": "{\"sep\":\"comma\",\"customSep\":\"\",\"skipEmpty\":true,\"labels\":[\"Prompt\",\"Trigger Words\"]}"
+      },
+      "widgets_values": [
+        "a woman with black hair posing for the camera she is in a minimalist studio, morning light",
+        "transfer the outfit, copying only the clothing actually meant to be worn from image 1 onto the character. Do not copy the hanger, mannequin, hooks, stands, packaging, labels, or any display props. Preserve the clothing details, colors, patterns, and fit while keeping the character identity, body, pose, and scene unchanged."
+      ],
+      "color": "#1e3323",
+      "bgcolor": "#36543d"
+    },
+    {
+      "id": 198,
+      "type": "PixaromaLabel",
+      "pos": [
+        -1616.6853723975673,
+        96.78537035512358
+      ],
+      "size": [
+        454,
+        51
+      ],
+      "flags": {
+        "no_title": true
+      },
+      "order": 7,
+      "mode": 0,
+      "inputs": [],
+      "outputs": [],
+      "properties": {
+        "cnr_id": "ComfyUI-Pixaroma",
+        "ver": "80b307e8d1882fd933959cb0ea94a26d143557b5",
+        "Node name for S&R": "PixaromaLabel",
+        "aux_id": "pixaroma/ComfyUI-Pixaroma"
+      },
+      "widgets_values": [
+        "{\"text\":\"Krea 2 + One Image Outfit Lora\",\"fontSize\":31,\"fontFamily\":\"Arial\",\"fontColor\":\"#ffffff\",\"textAlign\":\"left\",\"backgroundColor\":\"#f66744\",\"padding\":10,\"borderRadius\":0,\"opacity\":1,\"fontWeight\":\"normal\",\"lineHeight\":1}"
+      ],
+      "color": "rgba(0,0,0,0)",
+      "bgcolor": "rgba(0,0,0,0)"
+    }
+  ],
+  "links": [
+    [
+      186,
+      162,
+      0,
+      163,
+      3,
+      "LATENT"
+    ],
+    [
+      236,
+      196,
+      0,
+      164,
+      1,
+      "VAE"
+    ],
+    [
+      237,
+      164,
+      0,
+      199,
+      0,
+      "IMAGE"
+    ],
+    [
+      248,
+      194,
+      0,
+      207,
+      0,
+      "MODEL"
+    ],
+    [
+      257,
+      163,
+      0,
+      164,
+      0,
+      "LATENT"
+    ],
+    [
+      272,
+      195,
+      0,
+      224,
+      0,
+      "CLIP"
+    ],
+    [
+      278,
+      195,
+      0,
+      228,
+      0,
+      "CLIP"
+    ],
+    [
+      280,
+      224,
+      0,
+      163,
+      1,
+      "CONDITIONING"
+    ],
+    [
+      281,
+      228,
+      0,
+      163,
+      2,
+      "CONDITIONING"
+    ],
+    [
+      282,
+      164,
+      0,
+      230,
+      1,
+      "IMAGE"
+    ],
+    [
+      284,
+      207,
+      0,
+      231,
+      0,
+      "MODEL"
+    ],
+    [
+      286,
+      232,
+      0,
+      163,
+      0,
+      "MODEL"
+    ],
+    [
+      287,
+      231,
+      0,
+      232,
+      0,
+      "MODEL"
+    ],
+    [
+      289,
+      196,
+      0,
+      233,
+      1,
+      "VAE"
+    ],
+    [
+      290,
+      233,
+      0,
+      232,
+      1,
+      "LATENT"
+    ],
+    [
+      292,
+      196,
+      0,
+      232,
+      4,
+      "VAE"
+    ],
+    [
+      295,
+      226,
+      0,
+      224,
+      1,
+      "IMAGE"
+    ],
+    [
+      296,
+      226,
+      0,
+      228,
+      1,
+      "IMAGE"
+    ],
+    [
+      297,
+      226,
+      0,
+      232,
+      5,
+      "IMAGE"
+    ],
+    [
+      298,
+      226,
+      0,
+      230,
+      0,
+      "IMAGE"
+    ],
+    [
+      299,
+      226,
+      0,
+      233,
+      0,
+      "IMAGE"
+    ],
+    [
+      300,
+      235,
+      0,
+      162,
+      0,
+      "INT"
+    ],
+    [
+      301,
+      235,
+      1,
+      162,
+      1,
+      "INT"
+    ],
+    [
+      302,
+      236,
+      0,
+      224,
+      3,
+      "STRING"
+    ]
+  ],
+  "groups": [],
+  "config": {},
+  "extra": {
+    "ds": {
+      "scale": 0.6934334949441707,
+      "offset": [
+        1912.6741285928545,
+        288.8895952436424
+      ]
+    },
+    "frontendVersion": "1.48.7",
+    "node_versions": {
+      "ComfyUI-GGUF": "8098c7149fa4ff14991eb3347a5585051ceeafbe",
+      "comfy-core": "v0.3.10-37-gd055325",
+      "rgthree-comfy": "5d771b8b56a343c24a26e8cea1f0c87c3d58102f"
+    },
+    "VHS_latentpreview": false,
+    "VHS_latentpreviewrate": 0,
+    "VHS_MetadataImage": true,
+    "VHS_KeepIntermediate": true,
+    "workflowRendererVersion": "LG"
+  },
+  "version": 0.4
+}

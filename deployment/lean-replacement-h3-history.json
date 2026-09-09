@@ -1,0 +1,234 @@
+{
+  "b6fcccfc-60df-4ca4-a1e5-2523fc8e287a": {
+    "prompt": [
+      0,
+      "b6fcccfc-60df-4ca4-a1e5-2523fc8e287a",
+      {
+        "1": {
+          "class_type": "UNETLoader",
+          "inputs": {
+            "unet_name": "minimax_h3_fl2va_pruned_int8_convrot.safetensors",
+            "weight_dtype": "default"
+          }
+        },
+        "2": {
+          "class_type": "CLIPLoader",
+          "inputs": {
+            "clip_name": "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+            "type": "minimax",
+            "device": "default"
+          }
+        },
+        "3": {
+          "class_type": "VAELoader",
+          "inputs": {
+            "vae_name": "minimax_h3_video_vae_fp16.safetensors"
+          }
+        },
+        "4": {
+          "class_type": "VAELoader",
+          "inputs": {
+            "vae_name": "minimax_h3_audio_vae_fp32.safetensors"
+          }
+        },
+        "5": {
+          "class_type": "LoraLoaderModelOnly",
+          "inputs": {
+            "model": [
+              "1",
+              0
+            ],
+            "lora_name": "minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors",
+            "strength_model": 0.8
+          }
+        },
+        "6": {
+          "class_type": "MiniMaxH3ImageToVideo",
+          "inputs": {
+            "clip": [
+              "2",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ],
+            "prompt": "A small red toy sailboat floats on a calm garden pond. Gentle ripples spread across the water. A slow cinematic camera push in, warm afternoon sunlight, realistic reflections. Audio: soft water ripples and birds chirping in the distance.",
+            "width": 1344,
+            "height": 768,
+            "length": 124
+          }
+        },
+        "7": {
+          "class_type": "BasicGuider",
+          "inputs": {
+            "model": [
+              "5",
+              0
+            ],
+            "conditioning": [
+              "6",
+              0
+            ]
+          }
+        },
+        "8": {
+          "class_type": "RandomNoise",
+          "inputs": {
+            "noise_seed": 42
+          }
+        },
+        "9": {
+          "class_type": "KSamplerSelect",
+          "inputs": {
+            "sampler_name": "euler"
+          }
+        },
+        "10": {
+          "class_type": "BasicScheduler",
+          "inputs": {
+            "model": [
+              "5",
+              0
+            ],
+            "scheduler": "simple",
+            "steps": 8,
+            "denoise": 1.0
+          }
+        },
+        "11": {
+          "class_type": "SamplerCustomAdvanced",
+          "inputs": {
+            "noise": [
+              "8",
+              0
+            ],
+            "guider": [
+              "7",
+              0
+            ],
+            "sampler": [
+              "9",
+              0
+            ],
+            "sigmas": [
+              "10",
+              0
+            ],
+            "latent_image": [
+              "6",
+              1
+            ]
+          }
+        },
+        "12": {
+          "class_type": "VAEDecode",
+          "inputs": {
+            "samples": [
+              "11",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ]
+          }
+        },
+        "13": {
+          "class_type": "VAEDecodeAudio",
+          "inputs": {
+            "samples": [
+              "11",
+              0
+            ],
+            "vae": [
+              "4",
+              0
+            ]
+          }
+        },
+        "14": {
+          "class_type": "VHS_VideoCombine",
+          "inputs": {
+            "images": [
+              "12",
+              0
+            ],
+            "audio": [
+              "13",
+              0
+            ],
+            "frame_rate": 24.0,
+            "loop_count": 0,
+            "filename_prefix": "LeanAcceptance/replacement-h3",
+            "format": "video/h264-mp4",
+            "pix_fmt": "yuv420p",
+            "crf": 18,
+            "save_metadata": true,
+            "trim_to_audio": false,
+            "pingpong": false,
+            "save_output": true
+          }
+        }
+      },
+      {
+        "client_id": "lean-deployment-test",
+        "create_time": 1788917490154
+      },
+      [
+        "14"
+      ]
+    ],
+    "outputs": {
+      "14": {
+        "gifs": [
+          {
+            "filename": "replacement-h3_00001-audio.mp4",
+            "subfolder": "LeanAcceptance",
+            "type": "output",
+            "format": "video/h264-mp4",
+            "frame_rate": 24.0,
+            "workflow": "replacement-h3_00001.png",
+            "fullpath": "/ComfyUI/output/LeanAcceptance/replacement-h3_00001-audio.mp4"
+          }
+        ]
+      }
+    },
+    "status": {
+      "status_str": "success",
+      "completed": true,
+      "messages": [
+        [
+          "execution_start",
+          {
+            "prompt_id": "b6fcccfc-60df-4ca4-a1e5-2523fc8e287a",
+            "timestamp": 1788917490156
+          }
+        ],
+        [
+          "execution_cached",
+          {
+            "nodes": [],
+            "prompt_id": "b6fcccfc-60df-4ca4-a1e5-2523fc8e287a",
+            "timestamp": 1788917490172
+          }
+        ],
+        [
+          "execution_success",
+          {
+            "prompt_id": "b6fcccfc-60df-4ca4-a1e5-2523fc8e287a",
+            "timestamp": 1788917727222
+          }
+        ]
+      ]
+    },
+    "meta": {
+      "14": {
+        "node_id": "14",
+        "display_node": "14",
+        "parent_node": null,
+        "real_node_id": "14"
+      }
+    }
+  }
+}

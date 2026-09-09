@@ -1,0 +1,43 @@
+{
+  "/ComfyUI": {
+    "commit": "12d5279438bfefc058a269eae805ceab6047777f"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-HearmemanAI-Upscale": {
+    "commit": "3ca96fddf8ba07094895d5aecec2438c85bb41ba"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-LoRABlockSurgeon": {
+    "commit": "545223fad70182d78dc7456f6b0d03aa61b36685"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-OpenRouter-Simple": {
+    "commit": "3d1a03e1348b174392289266b2e5978475240590"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-CivitAI-Publisher": {
+    "commit": "73e75aa6cac328f54dd0b69a2a16f17c0b05a1ca"
+  },
+  "/ComfyUI/custom_nodes/Comfyui_Minimax_h3_latent_Upscaler": {
+    "commit": "d7c01b9011f2e8439493f6c02c29995a27df276f"
+  },
+  "/ComfyUI/custom_nodes/rgthree-comfy": {
+    "commit": "35c9f1e186603ba312d3b15350e89aa50b860ee6"
+  },
+  "/ComfyUI/custom_nodes/comfyui-manager": {
+    "commit": "f39cbd56fecae0b27a446c0cd450cd591f3a8bea"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-KJNodes": {
+    "commit": "e8e88f7c88e3f6205b122f5de87e69a09fbce5ac"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-MiniMaxRefPack": {
+    "commit": "7012734eabf6f98063d6eaf8ce1f9264ee803664"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-Openrouter_node": {
+    "commit": "45c67f94e335b978577773f05752e17ffe63a09e"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-Spectrum-MiniMax-H3": {
+    "commit": "24353c01ce6423a4dba3ddefcc4a53e0541ee875"
+  },
+  "/ComfyUI/custom_nodes/ComfyUI-VideoHelperSuite": {
+    "commit": "115de7a9d9e34410cffb9ecfd268e993b11a50fb"
+  },
+  "gpu": "name, driver_version, memory.total [MiB]\nNVIDIA RTX PRO 6000 Blackwell Server Edition, 595.91.07, 97887 MiB\n",
+  "python": "3.12.3 (main, Jul 15 2026, 23:46:41) [GCC 13.3.0]"
+}

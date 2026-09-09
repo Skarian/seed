@@ -1,0 +1,710 @@
+{
+  "apps": [
+    {
+      "app": "06 - Krea 2 - Text to image.json",
+      "id": "06e4b9ab-1638-49b6-98a8-1ceb7b2ed776",
+      "inputs": [
+        [
+          "06e4b9ab-1638-49b6-98a8-1ceb7b2ed776:4:text",
+          "text"
+        ],
+        [
+          "06e4b9ab-1638-49b6-98a8-1ceb7b2ed776:6:width",
+          "width"
+        ],
+        [
+          "06e4b9ab-1638-49b6-98a8-1ceb7b2ed776:6:height",
+          "height"
+        ],
+        [
+          "06e4b9ab-1638-49b6-98a8-1ceb7b2ed776:7:seed",
+          "seed"
+        ]
+      ],
+      "original_unchanged": true
+    },
+    {
+      "app": "07 - Krea 2 - Identity Edit.json",
+      "id": "f573f9cc-89c0-4d74-802b-304f0e5e9289",
+      "inputs": [
+        [
+          "f573f9cc-89c0-4d74-802b-304f0e5e9289:10:image",
+          "image"
+        ],
+        [
+          "f573f9cc-89c0-4d74-802b-304f0e5e9289:4:prompt",
+          "prompt"
+        ],
+        [
+          "f573f9cc-89c0-4d74-802b-304f0e5e9289:6:width",
+          "width"
+        ],
+        [
+          "f573f9cc-89c0-4d74-802b-304f0e5e9289:6:height",
+          "height"
+        ],
+        [
+          "f573f9cc-89c0-4d74-802b-304f0e5e9289:7:seed",
+          "seed"
+        ]
+      ],
+      "original_unchanged": true
+    },
+    {
+      "app": "08 - Krea 2 - Text to image - Rebalanced.json",
+      "id": "563c7efe-458f-4088-b528-5403fedf15ba",
+      "inputs": [
+        [
+          "563c7efe-458f-4088-b528-5403fedf15ba:4:text",
+          "text"
+        ],
+        [
+          "563c7efe-458f-4088-b528-5403fedf15ba:6:width",
+          "width"
+        ],
+        [
+          "563c7efe-458f-4088-b528-5403fedf15ba:6:height",
+          "height"
+        ],
+        [
+          "563c7efe-458f-4088-b528-5403fedf15ba:7:seed",
+          "seed"
+        ]
+      ],
+      "original_unchanged": true
+    }
+  ],
+  "runs": [
+    {
+      "id": "bef00084-6888-4ddb-806a-1288833205f1",
+      "seed": 20260981,
+      "status": {
+        "status_str": "success",
+        "completed": true,
+        "messages": [
+          [
+            "execution_start",
+            {
+              "prompt_id": "bef00084-6888-4ddb-806a-1288833205f1",
+              "timestamp": 1788912305302
+            }
+          ],
+          [
+            "execution_cached",
+            {
+              "nodes": [
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "6"
+              ],
+              "prompt_id": "bef00084-6888-4ddb-806a-1288833205f1",
+              "timestamp": 1788912305303
+            }
+          ],
+          [
+            "execution_success",
+            {
+              "prompt_id": "bef00084-6888-4ddb-806a-1288833205f1",
+              "timestamp": 1788912307430
+            }
+          ]
+        ]
+      },
+      "outputs": {
+        "9": {
+          "images": [
+            {
+              "filename": "text-to-image_00007_.png",
+              "subfolder": "Krea2",
+              "type": "output"
+            }
+          ]
+        }
+      },
+      "prompt": {
+        "1": {
+          "inputs": {
+            "unet_name": "krea2_turbo_int8_convrot.safetensors",
+            "weight_dtype": "default"
+          },
+          "class_type": "UNETLoader",
+          "_meta": {
+            "title": "Load Diffusion Model"
+          }
+        },
+        "2": {
+          "inputs": {
+            "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+            "type": "krea2",
+            "device": "default"
+          },
+          "class_type": "CLIPLoader",
+          "_meta": {
+            "title": "Load CLIP"
+          }
+        },
+        "3": {
+          "inputs": {
+            "vae_name": "qwen_image_vae.safetensors"
+          },
+          "class_type": "VAELoader",
+          "_meta": {
+            "title": "Load VAE"
+          }
+        },
+        "4": {
+          "inputs": {
+            "text": "Editorial portrait photograph of an adult woman with short curly auburn hair, freckles, green eyes, wearing a plain blue cotton jacket over a white shirt. Waist-up, looking at the camera, relaxed smile. Soft daylight, neutral gray studio background, realistic skin texture, sharp photograph.",
+            "clip": [
+              "2",
+              0
+            ]
+          },
+          "class_type": "CLIPTextEncode",
+          "_meta": {
+            "title": "CLIP Text Encode (Prompt)"
+          }
+        },
+        "5": {
+          "inputs": {
+            "text": "",
+            "clip": [
+              "2",
+              0
+            ]
+          },
+          "class_type": "CLIPTextEncode",
+          "_meta": {
+            "title": "CLIP Text Encode (Prompt)"
+          }
+        },
+        "6": {
+          "inputs": {
+            "width": 1024,
+            "height": 1024,
+            "batch_size": 1
+          },
+          "class_type": "EmptySD3LatentImage",
+          "_meta": {
+            "title": "EmptySD3LatentImage"
+          }
+        },
+        "7": {
+          "inputs": {
+            "seed": 20260981,
+            "steps": 8,
+            "cfg": 1.0,
+            "sampler_name": "euler",
+            "scheduler": "simple",
+            "denoise": 1.0,
+            "model": [
+              "1",
+              0
+            ],
+            "positive": [
+              "4",
+              0
+            ],
+            "negative": [
+              "5",
+              0
+            ],
+            "latent_image": [
+              "6",
+              0
+            ]
+          },
+          "class_type": "KSampler",
+          "_meta": {
+            "title": "KSampler"
+          }
+        },
+        "8": {
+          "inputs": {
+            "samples": [
+              "7",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ]
+          },
+          "class_type": "VAEDecode",
+          "_meta": {
+            "title": "VAE Decode"
+          }
+        },
+        "9": {
+          "inputs": {
+            "filename_prefix": "Krea2/text-to-image",
+            "images": [
+              "8",
+              0
+            ]
+          },
+          "class_type": "SaveImage",
+          "_meta": {
+            "title": "Save Image"
+          }
+        }
+      }
+    },
+    {
+      "id": "57026c93-65cb-41a8-b3b8-116b1d65c9bc",
+      "seed": 20260982,
+      "status": {
+        "status_str": "success",
+        "completed": true,
+        "messages": [
+          [
+            "execution_start",
+            {
+              "prompt_id": "57026c93-65cb-41a8-b3b8-116b1d65c9bc",
+              "timestamp": 1788912483381
+            }
+          ],
+          [
+            "execution_cached",
+            {
+              "nodes": [
+                "1",
+                "2",
+                "3",
+                "6",
+                "12"
+              ],
+              "prompt_id": "57026c93-65cb-41a8-b3b8-116b1d65c9bc",
+              "timestamp": 1788912483396
+            }
+          ],
+          [
+            "execution_success",
+            {
+              "prompt_id": "57026c93-65cb-41a8-b3b8-116b1d65c9bc",
+              "timestamp": 1788912496537
+            }
+          ]
+        ]
+      },
+      "outputs": {
+        "9": {
+          "images": [
+            {
+              "filename": "identity-edit_00010_.png",
+              "subfolder": "Krea2",
+              "type": "output"
+            }
+          ]
+        }
+      },
+      "prompt": {
+        "1": {
+          "inputs": {
+            "unet_name": "krea2_turbo_int8_convrot.safetensors",
+            "weight_dtype": "default"
+          },
+          "class_type": "UNETLoader",
+          "_meta": {
+            "title": "Load Diffusion Model"
+          }
+        },
+        "2": {
+          "inputs": {
+            "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+            "type": "krea2",
+            "device": "default"
+          },
+          "class_type": "CLIPLoader",
+          "_meta": {
+            "title": "Load CLIP"
+          }
+        },
+        "3": {
+          "inputs": {
+            "vae_name": "qwen_image_vae.safetensors"
+          },
+          "class_type": "VAELoader",
+          "_meta": {
+            "title": "Load VAE"
+          }
+        },
+        "4": {
+          "inputs": {
+            "prompt": "Change her blue jacket to a bright red jacket. Preserve her face, hair, pose, white shirt, lighting and background.",
+            "grounding_px": 768,
+            "system_prompt": "",
+            "clip": [
+              "2",
+              0
+            ],
+            "image": [
+              "10",
+              0
+            ]
+          },
+          "class_type": "Krea2EditGroundedEncode",
+          "_meta": {
+            "title": "Krea2 Edit (grounded encode)"
+          }
+        },
+        "5": {
+          "inputs": {
+            "prompt": "",
+            "grounding_px": 768,
+            "system_prompt": "",
+            "clip": [
+              "2",
+              0
+            ],
+            "image": [
+              "10",
+              0
+            ]
+          },
+          "class_type": "Krea2EditGroundedEncode",
+          "_meta": {
+            "title": "Krea2 Edit (grounded encode)"
+          }
+        },
+        "6": {
+          "inputs": {
+            "width": 1024,
+            "height": 1024,
+            "batch_size": 1
+          },
+          "class_type": "EmptySD3LatentImage",
+          "_meta": {
+            "title": "EmptySD3LatentImage"
+          }
+        },
+        "7": {
+          "inputs": {
+            "seed": 20260982,
+            "steps": 10,
+            "cfg": 1.0,
+            "sampler_name": "euler",
+            "scheduler": "simple",
+            "denoise": 1.0,
+            "model": [
+              "13",
+              0
+            ],
+            "positive": [
+              "4",
+              0
+            ],
+            "negative": [
+              "5",
+              0
+            ],
+            "latent_image": [
+              "6",
+              0
+            ]
+          },
+          "class_type": "KSampler",
+          "_meta": {
+            "title": "KSampler"
+          }
+        },
+        "8": {
+          "inputs": {
+            "samples": [
+              "7",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ]
+          },
+          "class_type": "VAEDecode",
+          "_meta": {
+            "title": "VAE Decode"
+          }
+        },
+        "9": {
+          "inputs": {
+            "filename_prefix": "Krea2/identity-edit",
+            "images": [
+              "8",
+              0
+            ]
+          },
+          "class_type": "SaveImage",
+          "_meta": {
+            "title": "Save Image"
+          }
+        },
+        "10": {
+          "inputs": {
+            "image": "app-upload-reference.png"
+          },
+          "class_type": "LoadImage",
+          "_meta": {
+            "title": "Load Image"
+          }
+        },
+        "11": {
+          "inputs": {
+            "pixels": [
+              "10",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ]
+          },
+          "class_type": "VAEEncode",
+          "_meta": {
+            "title": "VAE Encode"
+          }
+        },
+        "12": {
+          "inputs": {
+            "lora_name": "krea2_identity_edit_v1_2.safetensors",
+            "strength_model": 1.0,
+            "model": [
+              "1",
+              0
+            ]
+          },
+          "class_type": "LoraLoaderModelOnly",
+          "_meta": {
+            "title": "Load LoRA"
+          }
+        },
+        "13": {
+          "inputs": {
+            "ref_boost": 4.0,
+            "ref_boost_a": 1.0,
+            "fit_mode": "fit",
+            "model": [
+              "12",
+              0
+            ],
+            "source_latent": [
+              "11",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ],
+            "source_image": [
+              "10",
+              0
+            ],
+            "target_latent": [
+              "6",
+              0
+            ]
+          },
+          "class_type": "Krea2EditModelPatch",
+          "_meta": {
+            "title": "Krea2 Edit (source patch)"
+          }
+        }
+      }
+    },
+    {
+      "id": "257a26a7-bfa1-4136-b4c9-e06b936af9d2",
+      "seed": 20260983,
+      "status": {
+        "status_str": "success",
+        "completed": true,
+        "messages": [
+          [
+            "execution_start",
+            {
+              "prompt_id": "257a26a7-bfa1-4136-b4c9-e06b936af9d2",
+              "timestamp": 1788912541685
+            }
+          ],
+          [
+            "execution_cached",
+            {
+              "nodes": [
+                "1",
+                "2",
+                "3",
+                "4",
+                "5",
+                "10"
+              ],
+              "prompt_id": "257a26a7-bfa1-4136-b4c9-e06b936af9d2",
+              "timestamp": 1788912541687
+            }
+          ],
+          [
+            "execution_success",
+            {
+              "prompt_id": "257a26a7-bfa1-4136-b4c9-e06b936af9d2",
+              "timestamp": 1788912545990
+            }
+          ]
+        ]
+      },
+      "outputs": {
+        "9": {
+          "images": [
+            {
+              "filename": "rebalanced-t2i_00005_.png",
+              "subfolder": "Krea2",
+              "type": "output"
+            }
+          ]
+        }
+      },
+      "prompt": {
+        "1": {
+          "inputs": {
+            "unet_name": "krea2_turbo_int8_convrot.safetensors",
+            "weight_dtype": "default"
+          },
+          "class_type": "UNETLoader",
+          "_meta": {
+            "title": "Load Diffusion Model"
+          }
+        },
+        "2": {
+          "inputs": {
+            "clip_name": "qwen3vl_4b_fp8_scaled.safetensors",
+            "type": "krea2",
+            "device": "default"
+          },
+          "class_type": "CLIPLoader",
+          "_meta": {
+            "title": "Load CLIP"
+          }
+        },
+        "3": {
+          "inputs": {
+            "vae_name": "qwen_image_vae.safetensors"
+          },
+          "class_type": "VAELoader",
+          "_meta": {
+            "title": "Load VAE"
+          }
+        },
+        "4": {
+          "inputs": {
+            "text": "Editorial portrait photograph of an adult woman with short curly auburn hair, freckles, green eyes, wearing a plain blue cotton jacket over a white shirt. Waist-up, looking at the camera, relaxed smile. Soft daylight, neutral gray studio background, realistic skin texture, sharp photograph.",
+            "clip": [
+              "2",
+              0
+            ]
+          },
+          "class_type": "CLIPTextEncode",
+          "_meta": {
+            "title": "PROMPT - Describe your image"
+          }
+        },
+        "5": {
+          "inputs": {
+            "text": "",
+            "clip": [
+              "2",
+              0
+            ]
+          },
+          "class_type": "CLIPTextEncode",
+          "_meta": {
+            "title": "CLIP Text Encode (Prompt)"
+          }
+        },
+        "6": {
+          "inputs": {
+            "width": 1152,
+            "height": 896,
+            "batch_size": 1
+          },
+          "class_type": "EmptySD3LatentImage",
+          "_meta": {
+            "title": "EmptySD3LatentImage"
+          }
+        },
+        "7": {
+          "inputs": {
+            "seed": 20260983,
+            "steps": 8,
+            "cfg": 1.0,
+            "sampler_name": "euler",
+            "scheduler": "simple",
+            "denoise": 1.0,
+            "model": [
+              "1",
+              0
+            ],
+            "positive": [
+              "10",
+              0
+            ],
+            "negative": [
+              "5",
+              0
+            ],
+            "latent_image": [
+              "6",
+              0
+            ]
+          },
+          "class_type": "KSampler",
+          "_meta": {
+            "title": "KSampler"
+          }
+        },
+        "8": {
+          "inputs": {
+            "samples": [
+              "7",
+              0
+            ],
+            "vae": [
+              "3",
+              0
+            ]
+          },
+          "class_type": "VAEDecode",
+          "_meta": {
+            "title": "VAE Decode"
+          }
+        },
+        "9": {
+          "inputs": {
+            "filename_prefix": "Krea2/rebalanced-t2i",
+            "images": [
+              "8",
+              0
+            ]
+          },
+          "class_type": "SaveImage",
+          "_meta": {
+            "title": "Save Image"
+          }
+        },
+        "10": {
+          "inputs": {
+            "preset": "custom",
+            "per_layer_weights": "1, 1, 1, 1, 1, 1, 1, 2.5, 5.0, 1.1, 4.0, 1.0",
+            "multiplier": 2.0,
+            "renormalize": false,
+            "conditioning": [
+              "4",
+              0
+            ]
+          },
+          "class_type": "ConditioningKrea2Rebalance",
+          "_meta": {
+            "title": "POST-PROMPT REBALANCER - Weights and multiplier"
+          }
+        }
+      }
+    }
+  ]
+}

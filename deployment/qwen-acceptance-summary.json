@@ -1,0 +1,10 @@
+{
+  "status": "success",
+  "prompt_id": "3e889aa1-d122-45b1-a83b-1b910123ac41",
+  "seconds": 63.713,
+  "size_verified": true,
+  "sha256_verified": false,
+  "hash_note": "Skipped at user request",
+  "volumeGB": 150,
+  "workflow": "Neil Qwen Rapid/10 - Qwen Rapid AIO v19 - Image Edit.json"
+}
