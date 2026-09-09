@@ -1,7 +1,7 @@
 {
   "status": "stopped",
   "name": "neil-comfyui-replacement",
-  "image": "hearmeman/comfyui-minimax-template@sha256:5b01d3f62ce157792bd6aab4bef0b7c6b4c95b1b37ed4d9e3454f898e1bcca15",
+  "image": "ghcr.io/skarian/runpod-studio@sha256:5b01d3f62ce157792bd6aab4bef0b7c6b4c95b1b37ed4d9e3454f898e1bcca15",
   "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
   "gpuCount": 1,
   "cloudType": "SECURE",

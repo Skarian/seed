@@ -1,6 +1,8 @@
 # ComfyUI: daily use and replacement
 
-The deployed setup uses the existing Hearmeman image, a small startup script, and the existing 150 GB network volume. No image build or local computer is needed to start it.
+The saved template uses our public GitHub Container Registry mirror of the pinned Hearmeman image, a small startup script, and the existing 150 GB network volume. No image build or local computer is needed to start it. See [registry publishing and rollback](GHCR.md).
+
+The template was switched to GHCR on 8 September 2026 (Chicago) after Docker Hub connection timeouts. Existing pods retain their old image reference; deploy from the updated template or explicitly update the existing pod before restarting. Public registry access and image digest were verified; a GPU startup from GHCR has not yet been tested.
 
 ## Daily use
 
