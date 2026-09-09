@@ -9,8 +9,8 @@ const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
   'text-to-video': { title: 'Text to video', placeholder: 'Describe the scene, movement and sound…' },
   'reference-to-video': { title: 'Reference to video', placeholder: 'Describe the scene using your references…' },
 };
-type Draft = { prompt: string; aspect: '16:9' | '9:16'; duration: '5' | '10' | '15'; mode: 'sfw' | 'nsfw' };
-const emptyDraft = (): Draft => ({ prompt: '', aspect: '16:9', duration: '5', mode: 'sfw' });
+type Draft = { prompt: string; aspect: '16:9' | '9:16'; duration: '5' | '10' | '15'; mode: 'sfw' | 'nsfw'; count: number; randomSeed: boolean; seed: string };
+const emptyDraft = (): Draft => ({ prompt: '', aspect: '16:9', duration: '5', mode: 'sfw', count: 1, randomSeed: true, seed: '0' });
 function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
   try {
     const saved = JSON.parse(localStorage.getItem('studio.drafts.v2') ?? '{}');
@@ -23,6 +23,9 @@ function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
         aspect: entry?.aspect === '9:16' ? '9:16' : '16:9',
         duration: entry?.duration === '10' || entry?.duration === '15' ? entry.duration : '5',
         mode: entry?.mode === 'nsfw' ? 'nsfw' : 'sfw',
+        count: Number.isInteger(entry?.count) && entry.count >= 1 && entry.count <= 16 ? entry.count : 1,
+        randomSeed: entry?.randomSeed !== false,
+        seed: typeof entry?.seed === 'string' ? entry.seed : '0',
       };
     }
     return result;
@@ -46,6 +49,7 @@ function App() {
   const [workflow, setWorkflow] = useState<WorkflowId>('text-to-image');
   const [drafts, setDrafts] = useState(loadDrafts);
   const [promptHeight, setPromptHeight] = useState(240);
+  const [advancedOpen, setAdvancedOpen] = useState(false);
   const drag = useRef<{ y: number; height: number } | null>(null);
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
@@ -78,8 +82,9 @@ function App() {
   }, []);
   function navigate(next: string) { setPage(next); history.pushState(null, '', next === 'library' ? '/library' : '/'); }
   const video = workflow.endsWith('video');
+  const seedValid = draft.randomSeed || (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) && BigInt(draft.seed) + BigInt(draft.count - 1) <= 9007199254740991n);
   const jobCount = studio ? studio.queue.active + studio.queue.waiting : null;
-  function reset() { setDrafts(current => ({ ...current, [workflow]: emptyDraft() })); setPromptHeight(240); }
+  function reset() { setDrafts(current => ({ ...current, [workflow]: emptyDraft() })); setPromptHeight(240); setAdvancedOpen(false); }
 
   return <div className="studio-shell">
     <header className="topbar">
@@ -102,7 +107,7 @@ function App() {
     </section>
     <main>
       {page === 'generate' ? <>
-        <div className="workflow-bar"><label className="workflow-select"><span>Workflow</span><select value={workflow} onChange={event => { setWorkflow(event.target.value as WorkflowId); setPromptHeight(240); }}>{Object.entries(workflows).map(([id, value]) => <option key={id} value={id}>{value.title}</option>)}</select></label>
+        <div className="workflow-bar"><label className="workflow-select"><span>Workflow</span><select value={workflow} onChange={event => { setWorkflow(event.target.value as WorkflowId); setPromptHeight(240); setAdvancedOpen(false); }}>{Object.entries(workflows).map(([id, value]) => <option key={id} value={id}>{value.title}</option>)}</select></label>
           {workflow !== 'image-to-image' && <div className="mode-group" aria-label="Content mode"><span>Mode</span><div className="segmented">{(['sfw', 'nsfw'] as const).map(mode => <button key={mode} aria-pressed={draft.mode === mode} onClick={() => updateDraft({ mode })}>{mode.toUpperCase()}</button>)}</div></div>}
         </div>
         <section className="composer" aria-label={workflows[workflow].title}>
@@ -115,7 +120,12 @@ function App() {
           <div className="output-settings"><fieldset><legend>Frame</legend><div className="frame-options">{(['16:9', '9:16'] as const).map(aspect => <button key={aspect} className="frame-option" aria-pressed={draft.aspect === aspect} aria-label={`${aspect === '16:9' ? 'Landscape' : 'Portrait'} ${aspect}`} onClick={() => updateDraft({ aspect })}><span className={`frame-shape ${aspect === '9:16' ? 'portrait' : 'landscape'}`} /><span>{aspect === '16:9' ? 'Landscape' : 'Portrait'}<small>{aspect}</small></span></button>)}</div></fieldset>
             {video && <fieldset><legend>Length</legend><div className="duration-options">{(['5', '10', '15'] as const).map(duration => <button key={duration} aria-pressed={draft.duration === duration} onClick={() => updateDraft({ duration })}>{duration}s</button>)}</div></fieldset>}
           </div>
-          <button className="generate-button" disabled title="Connect a worker to enable generation">Create {video ? 'video' : 'image'} <span>↗</span></button>
+          <div className="generation-options"><label className="batch-field">Generations<select aria-label="Generations" value={draft.count} onChange={event => updateDraft({ count: Number(event.target.value) })}>{Array.from({ length: 16 }, (_, index) => index + 1).map(count => <option key={count} value={count}>{count}</option>)}</select></label><button className="advanced-toggle" aria-expanded={advancedOpen} aria-controls="advanced-options" onClick={() => setAdvancedOpen(open => !open)}>Advanced <span aria-hidden="true">{advancedOpen ? '−' : '+'}</span></button></div>
+          {advancedOpen && <section id="advanced-options" className="advanced-options" aria-label="Advanced settings"><label className="seed-switch"><input type="checkbox" checked={draft.randomSeed} onChange={event => updateDraft({ randomSeed: event.target.checked })} />Random seed</label>
+            {draft.randomSeed ? <p>Different seed for each generation.</p> : <><label className="seed-field" htmlFor="seed">Starting seed<input id="seed" type="text" inputMode="numeric" maxLength={16} value={draft.seed} aria-invalid={!seedValid} aria-describedby="seed-help" onChange={event => updateDraft({ seed: event.target.value })} /></label><p id="seed-help">{seedValid ? 'For batches, each seed increases by 1.' : 'Use a whole number from 0 to 9007199254740991, leaving room for the batch.'}</p></>}
+          </section>}
+          {!advancedOpen && !seedValid && <p role="alert">Check the starting seed in Advanced.</p>}
+          <button className="generate-button" disabled title="Connect a worker to enable generation">Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></button>
         </section>
       </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><StudioMark /></div><p>No saved files yet.</p></div> : <ul>{assets.map(asset => <li key={asset.id}>{asset.name} · {asset.kind}</li>)}</ul>}</section>}
       <footer>Studio</footer>

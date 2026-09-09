@@ -101,3 +101,16 @@ Only show an output panel once a real job is submitted; there is none in the
 current disconnected shell. Loading output should use the simple frame logo,
 without tagline/placeholder paragraphs. No new jobs page or backend operation is
 introduced by these UI changes.
+
+## Batch and Advanced controls
+
+Each workflow draft includes generation count (1–16, default 1), random seed
+(default), and a fixed starting seed. Advanced is collapsed initially. Controls
+persist across reloads; Reset restores one generation/random seed and collapses
+Advanced. Fixed seed validation accounts for the full batch range. Only add
+additional Advanced controls when the model actually supports them.
+
+These controls currently edit drafts; they do not execute jobs. Future execution
+expands a submission into individually tracked, sequential generations as defined
+in [the API contract](API-CONTRACT.md). No simultaneous model batch or new queue
+system is introduced.

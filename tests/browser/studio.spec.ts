@@ -62,3 +62,37 @@ test('mobile layout, popovers and prompt resize are usable', async ({ page }) =>
   await page.getByRole('button', { name: 'Reset form', exact: true }).click();
   expect((await page.getByLabel('Prompt', { exact: true }).boundingBox())!.height).toBe(240);
 });
+
+test('batch and seed settings persist per workflow and validate the full seed range', async ({ page }) => {
+  await page.goto('/');
+  for (const workflow of ['text-to-image', 'image-to-image', 'text-to-video', 'reference-to-video']) {
+    await page.getByLabel('Workflow').selectOption(workflow);
+    await page.getByLabel('Generations', { exact: true }).selectOption('4');
+    if (await page.getByRole('button', { name: 'Advanced', exact: false }).getAttribute('aria-expanded') === 'false') {
+      await page.getByRole('button', { name: 'Advanced', exact: false }).click();
+    }
+    await page.getByLabel('Random seed', { exact: true }).uncheck();
+    await page.getByLabel('Starting seed', { exact: true }).fill('42');
+    await expect(page.getByRole('button', { name: /^Create 4/ })).toBeDisabled();
+  }
+  await page.reload();
+  await expect(page.getByLabel('Generations', { exact: true })).toHaveValue('4');
+  await page.getByRole('button', { name: 'Advanced', exact: false }).click();
+  await expect(page.getByLabel('Starting seed', { exact: true })).toHaveValue('42');
+  await page.getByLabel('Starting seed', { exact: true }).fill('9007199254740991');
+  await expect(page.getByLabel('Starting seed', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  await page.getByLabel('Generations', { exact: true }).selectOption('1');
+  await expect(page.getByLabel('Starting seed', { exact: true })).toHaveAttribute('aria-invalid', 'false');
+  await page.getByRole('button', { name: 'Reset form', exact: true }).click();
+  await expect(page.getByLabel('Generations', { exact: true })).toHaveValue('1');
+  await expect(page.getByRole('button', { name: 'Advanced', exact: false })).toHaveAttribute('aria-expanded', 'false');
+  await page.getByRole('button', { name: 'Advanced', exact: false }).click();
+  await expect(page.getByLabel('Random seed', { exact: true })).toBeChecked();
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
+  await expect(page.getByLabel('Generations', { exact: true })).toHaveValue('4');
+  await page.getByRole('button', { name: 'Advanced', exact: false }).click();
+  await expect(page.getByLabel('Starting seed', { exact: true })).toHaveValue('42');
+  await page.setViewportSize({ width: 390, height: 844 });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+  await page.screenshot({ path: test.info().outputPath('batch-advanced-mobile.png'), fullPage: true });
+});

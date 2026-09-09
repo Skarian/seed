@@ -17,7 +17,7 @@ Revision 6. Contract specified; implementation and live validation pending. Priv
 | `GET /assets` | Asset inventory for Library; first local slice returns up to 50 rows and `next_cursor:null`. Cursor pagination is required before media-library acceptance. |
 | `GET /assets/{id}` | Upload/preparation/readiness metadata, derivatives, provenance and errors |
 | `GET /assets/{id}/content` | Authenticated streaming with Range, correct type and download disposition |
-| `POST /jobs` | Request below + Idempotency-Key; 202 durable job; 409 when engine unavailable, reconciliation blocked or maintenance active |
+| `POST /jobs` | Request below + Idempotency-Key; 202 durable submission with a jobs array; 409 when engine unavailable, reconciliation blocked or maintenance active |
 | `GET /jobs` | Cursor pagination, workflow/state filters; Library and queue |
 | `GET /jobs/{id}` | Latest progress, frozen settings, effective inputs, outputs/error |
 | `POST /jobs/{id}/cancel` | `{}`; 202 cancellation request; terminal job returns unchanged snapshot |
@@ -43,6 +43,41 @@ Optional `model` must be enabled; `mode:'sfw'|'nsfw'` is required where selectab
 `advanced` accepts only advertised fields: initially tested identity reference strengths and supported LoRA strength overrides with configured bounds. Add native ratios/duration/export and engine settings after meaningful-effect tests. No ignored negative prompt/CFG controls. Unknown fields fail explicitly. One plain prompt only; no `prompt_fields` alternative.
 
 Text-to-image and text-to-video accept no conditioning references. Image-to-image needs one source and optionally one subject. Reference-to-video needs at least one image/audio/video reference or anchor. Asset readiness, role combinations, effective clip ranges and complete budgets must pass before submission.
+
+## Multiple generations per submission
+
+Owner requested batch creation on 2026-09-09. Add optional `count` (default 1).
+Initial UI range is 1–16 for both images and videos; this is a product batch bound,
+not a model capability or simultaneous GPU batch size. Advertise the bound through
+capabilities and validate it on both sides. Advanced contains random/fixed starting
+seed now; add model-specific options only when supported and meaningful.
+
+`POST /jobs` returns `{submission_id,jobs:[...]}` for every count, including 1.
+Validate the entire request first, then atomically persist all child jobs and
+resolved seeds in one SQLite transaction before any external call. Add
+`submission_id` and `submission_index` to jobs with a unique pair; no batch table,
+separate queue or new public batch endpoint is needed. Each job contains its own
+frozen settings, status, outputs and cancellation state. Native Comfy graph batch
+size remains one; the existing dispatcher processes these jobs sequentially.
+
+With `seed:'random'`, resolve a distinct random seed for every child and persist
+it once. With a fixed starting seed, child index i uses seed+i (zero-based).
+Reject a fixed-seed range exceeding 9007199254740991 before accepting the batch;
+never wrap silently or send identical fixed seeds for every variation. The UI
+explains the increment. Fixed seed supports repeatable settings, not a guarantee
+of bit-identical output across runtime/model changes.
+
+One Idempotency-Key covers the entire submission, including count and seed policy.
+Same key/body returns the original child IDs/seeds; changed count/body is 409.
+A lost response cannot enqueue the batch twice. Cancel and recover individual
+jobs through existing routes. Ordinary terminal failure does not erase the other
+children; ambiguous execution still blocks dispatch under the existing rules.
+Do not rerun a completed sibling when retrying a failed generation. Header job
+count reflects individual active/waiting generations, not submission count.
+
+The current UI stores batch/seed choices in drafts only. Transactional batch
+expansion, seed resolution, queue execution and end-to-end cancellation/recovery
+remain implementation/test requirements for M3/M4.
 
 ## Prompt labels and snapshots
 
