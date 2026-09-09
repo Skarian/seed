@@ -1,6 +1,6 @@
 # Implementation plan, checkpoints and acceptance
 
-Revision 6, planning only. This defines how implementation will run; it does not start paid resources, install software, publish images or make commits now. Product scope is [STUDIO-MVP](../STUDIO-MVP.md). Technical references remain [architecture](ARCHITECTURE.md), [API](API-CONTRACT.md), [worker](POD-BOOTSTRAP.md), [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) and [workflows](COMFYUI-CHANGES.md).
+Revision 7. Checkout preparation is complete; application implementation and live validation are pending. This is the working execution plan and milestone journal. Product scope is [STUDIO-MVP](../STUDIO-MVP.md). Technical references remain [architecture](ARCHITECTURE.md), [API](API-CONTRACT.md), [worker](POD-BOOTSTRAP.md), [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) and [workflows](COMFYUI-CHANGES.md).
 
 ## 0. Owner-present kickoff: obtain all access first
 
@@ -48,13 +48,65 @@ Each milestone produces a demonstrable result and a short evidence record. Local
 
 M2/M3 paid work begins only after kickoff authorization. Test risky media transfer paths early, comparing native Comfy locally, worker proxy and RunPod outer endpoint. Do not build all UI/workflows around an unproven transfer path. Milestones are dependency order, not speculative calendar promises.
 
-## 3. Review and communication cadence
+## 3. How we collaborate
+
+The owner supplies product judgment; the assistant owns engineering execution and brings concrete choices back at the right time. Check in when feedback could materially change the result, before investing heavily in that direction. Milestone demos are the minimum checkpoints, not the only opportunities to collaborate. Do not turn routine implementation into a sequence of permission requests.
+
+| Situation | Assistant action | Owner involvement |
+|---|---|---|
+| UI layout, controls, terminology or interaction is uncertain | Show a working preview or two small alternatives with the same example task. Explain the tradeoff and recommend one. | Ask the owner to try the task and describe what feels clearer or awkward; record preference and observed friction. This is informal A/B usability comparison, not a statistical experiment. |
+| API behavior affects the user or future agent workflows | Use the visualize skill for a small HTML explanation when interaction helps, or a static diagram when sufficient. Walk through a concrete request, status changes, result and one failure/recovery case. Include sample JSON only where useful. | Review behavior and tradeoffs, rather than requiring the owner to design routes or schemas. Keep routine implementation details with the assistant. |
+| A bounded engineering slice is ready | State the outcome, scope, tests, completion criteria and next demo/check-in. Implement, debug, review and make coherent local commits within existing authorization. | No response needed unless the owner wants to steer. Clearly say when the work can proceed unattended. |
+| Output quality or workflow expressiveness needs judgment | Present representative image/video results with the relevant settings and, where helpful, a controlled comparison. | Owner judges usefulness, quality and control; automated checks establish technical correctness separately. |
+| Access, scope, cost or a destructive action exceeds authorization | Prepare the concrete proposal and explain the blocker and consequence. | Obtain the missing decision or authorization before dependent work. |
+
+Keep each check-in focused: what is ready to inspect, the decision needed, the recommendation, and what follows. Prefer one meaningful question over a broad questionnaire. If feedback is required, pause only the dependent work and continue independent tasks; silence is not approval. A previously agreed direction stays settled unless evidence or owner feedback changes it. Do not create alternatives just to fill a review ritual.
+
+### Engineering review and communication
 
 At each milestone review the diff for scope, correctness, data loss/duplication, credential handling and regressions. Use focused independent reviewers for the worker/transfer contracts and after M3/M4, as previously requested. Reviewers report concrete defects and missing evidence, not confidence percentages. Address findings before promoting the affected work. Use unit/contract tests for pure logic, browser tests for actual flows, and live GPU tests for model/transfer behavior. Do not write tests that only mirror trivial implementation.
 
 Send concise progress updates during work and a milestone note covering what changed, what was tested, costs/compute state and remaining issues. Owner review is for visible UX/results and material scope changes; ordinary engineering choices and fixes proceed autonomously within authorization. If the owner is away, continue independent work and leave a concrete demo/check-in queued. Do not treat silence as approval for scope expansion or spending above the agreed limit. Never leave compute running while waiting for feedback.
 
 Do not repeatedly request credentials or permission already established at kickoff. Interrupt for a real access blocker, unavoidable change to agreed behavior, destructive action outside scope or spending beyond authorization. No automatic restart of ambiguous paid generation.
+
+### Durable notes, not conversation archaeology
+
+Before starting or resuming a slice, read its milestone entry and the relevant technical sections. Update them after a meaningful decision, review, test result or handoff, and before ending a work session. The documents must let another session continue without reconstructing chat history.
+
+- Keep current behavior and implementation details in the owning document: architecture for modules/libraries, API for contracts and examples, bootstrap for worker startup, and workflow documents for model/control mappings. Replace superseded specifications in place; retain a short dated decision and reason under the relevant section when that history helps.
+- Keep milestone progress below: date, state, accepted decisions and rationale, code/spec links, tests and outcomes, unresolved questions, and the next action/check-in. Include commit references when available and verified compute state for paid sessions. Link to detailed evidence instead of copying logs.
+- Distinguish proposed, owner-agreed, implemented and verified. Record failed tests, untested assumptions and explicit deferrals as clearly as successes. Do not mark a milestone complete merely because code was written.
+- Use research buckets for exploratory material. Keep screenshots/demos that explain a decision accessible through a linked artifact; record the conclusion in text so a temporary preview is not the only record. Never put credentials, private media or raw sensitive logs in these notes.
+- Keep this lean: no daily transcript, duplicate decision database or new report per review wave. Consolidate resolved notes as work progresses, leaving enough rationale to avoid reopening settled choices.
+
+### Milestone journal
+
+#### M0 — In progress: baseline, access and contracts
+
+- **2026-09-09, completed:** checkout backed up and curated on `feat/studio-mvp`; local commits `332a0a0` and `014db4e`. Obsolete plans and fixed-run helpers removed; LLM research retained in topic buckets. Current documentation links checked, 49 maintenance Python files parsed without execution, and credential scan passed. Two pre-existing missing assets in copied upstream research remain outside the active specifications. No pods were operated or remote changes made.
+- **2026-09-09, owner-agreed:** collaborate on UX, output quality and consequential API behavior using concrete previews/comparisons; hand off bounded engineering and tests for unattended execution. Keep decisions and implementation evidence in the relevant milestone/specification sections.
+- **Next:** verify required access/operational limits and finish the worker contract. Bring a concrete pairing → generation → durable-save example for review where behavior needs a decision. Local cleanup does not establish credentials or paid-work authorization.
+
+#### M1 — Not started: local application
+
+Next owner checkpoint: try the Windows setup and Generate/Library shell; compare alternatives only for unresolved interactions. Record launch/storage implementation and usability findings here as they occur.
+
+#### M2 — Not started: setup and worker connection
+
+Next owner checkpoint: demonstrate manual deploy → pair during preparation. Record startup/pairing contracts, actual test evidence and any unavoidable extra steps.
+
+#### M3 — Not started: durable image round trip
+
+Next owner checkpoint: inspect a saved generation and interrupted-transfer/replacement recovery. Record receipt/recovery behavior and the evidence behind the termination indicator.
+
+#### M4 — Not started: expressive workflows
+
+Next owner checkpoint: try image/video controls and compare representative outputs. Record chosen defaults, reference handling and quality feedback separately from technical test results.
+
+#### M5 — Not started: acceptance and handover
+
+Next owner checkpoint: perform the daily start/pair/generate/save/terminate flow and review remaining limitations. Record acceptance evidence, release/rollback references and verified final compute state.
 
 ## 4. Commit and publication policy
 
