@@ -26,7 +26,7 @@ Older planning documents remain as history. Use the lean operating guide for the
 
 ## Local development and credentials
 
-This is a local Git repository. No remote hosting or publication is configured. A local repository has no hosted public/private visibility setting; privacy depends on access to this folder. If a remote is added later, create it as private.
+The GitHub remote is [Skarian/runpod](https://github.com/Skarian/runpod), a private repository. Local maintenance uses the checkout at `C:\projects\runpod`. Git pushes require GitHub authentication on the machine running Git; the connected GitHub app has separate credentials.
 
 Credentials (`*.private.*`, `.env` files), private backups, generated media, model weights and local dependencies are ignored. They remain on disk or the Runpod volume and are not part of Git history. This repository is not a backup of your generated outputs or models.
 
