@@ -37,7 +37,7 @@ Generated outputs and terminal manifests live in a temporary per-job network-vol
 
 ## Current upload UI review slice
 
-Owner revision: one collapsible drop box contains a file count, small thumbnails
+Owner revision: one always-open drop box contains a file count, visible maximum, small thumbnails
 and Add control. Selecting a thumbnail opens the reusable full-screen MediaPreview:
 media fits the available viewport, with dark backdrop, top-right delete/info/download
 and role or clip-range controls below. Metadata appears only under Info. Replace
@@ -56,7 +56,7 @@ Download retrieves the selected original through its object URL. Playback plays
 the source, while range controls edit the selection. Removing the preview notice
 does not change these implementation limits.
 
-Browser tests cover counts/collapse, viewer controls, info/download, roles, deletion,
+Browser tests cover counts/limits, viewer controls, info/download, roles, deletion,
 workflow retention, client rejection, mobile layout and audio/video playback.
 Reuse web/media-preview.tsx for future Library/output previews through optional
 controls and deletion props; those integrations are not yet implemented.

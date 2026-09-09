@@ -122,7 +122,7 @@ test('thumbnail dropbox opens a reusable viewer with info, roles, download and d
     { name: 'scene.png', mimeType: 'image/png', buffer: image },
     { name: 'person.png', mimeType: 'image/png', buffer: image },
   ]);
-  await expect(page.getByText('2 files', { exact: true })).toBeVisible();
+  await expect(page.getByText('max: 2', { exact: true })).toBeVisible();
   await expect(page.getByText('scene.png', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Preview person.png' }).click();
   const viewer = page.getByRole('dialog', { name: 'Media preview' });
@@ -135,9 +135,6 @@ test('thumbnail dropbox opens a reusable viewer with info, roles, download and d
   await page.getByRole('link', { name: 'Download file' }).click();
   expect((await downloaded).suggestedFilename()).toBe('person.png');
   await page.keyboard.press('Escape'); await expect(viewer).toHaveCount(0);
-  await page.getByRole('button', { name: /Source image 2 files/ }).click();
-  await expect(page.getByRole('button', { name: 'Preview person.png' })).not.toBeVisible();
-  await page.getByRole('button', { name: /Source image 2 files/ }).click();
   await page.getByLabel('Workflow').selectOption('reference-to-video');
   await page.getByLabel('Choose reference files').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not media') });
   await expect(page.getByRole('alert')).toContainText('choose an image, video or audio');

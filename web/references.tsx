@@ -71,7 +71,6 @@ export function useReferences() {
 export function ReferenceInputs({ group, state }: { group: Group; state: ReturnType<typeof useReferences> }) {
   const input = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<string | null>(null);
-  const [expanded, setExpanded] = useState(true);
   const items = state.groups[group];
   const [dragging, setDragging] = useState(false);
   const issues: string[] = [];
@@ -87,10 +86,11 @@ export function ReferenceInputs({ group, state }: { group: Group; state: ReturnT
     {errors.length > 0 && <ul className="reference-errors" role="alert">{errors.map((message, index) => <li key={index}>{message}</li>)}</ul>}
   </>;
   return <section className="references" aria-label={group === 'edit' ? 'Image inputs' : 'Video references'}>
-    <input ref={input} aria-label="Choose reference files" className="file-picker" type="file" accept={group === 'edit' ? 'image/*' : 'image/*,video/*,audio/*'} multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; setExpanded(true); void state.add(group, files); }} />
-    <div className={`reference-dropbox ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); setExpanded(true); void state.add(group, Array.from(event.dataTransfer.files)); }}>
-      <div className="reference-bar"><button type="button" className="reference-collapse" aria-expanded={expanded} aria-controls={`reference-thumbs-${group}`} onClick={() => setExpanded(value => !value)}><span>{group === 'edit' ? 'Source image' : 'References'}</span><span className="reference-count">{items.length} {items.length === 1 ? 'file' : 'files'}</span><span aria-hidden="true">{expanded ? '⌃' : '⌄'}</span></button><button type="button" className="reference-add" aria-label="Add references" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? '…' : '+'}</button></div>
-      <div id={`reference-thumbs-${group}`} hidden={!expanded}>
+    <input ref={input} aria-label="Choose reference files" className="file-picker" type="file" accept={group === 'edit' ? 'image/*' : 'image/*,video/*,audio/*'} multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; void state.add(group, files); }} />
+    <div className={`reference-dropbox ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); void state.add(group, Array.from(event.dataTransfer.files)); }}>
+      <div className="reference-bar"><div className="reference-label"><span>{group === 'edit' ? 'Source image' : 'References'}</span><span className="reference-count">{items.length} {items.length === 1 ? 'file' : 'files'} <span className="reference-max">max: {group === 'edit' ? 2 : 12}</span></span></div><button type="button" className="reference-add" aria-label="Add references" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? '…' : '+'}</button></div>
+      <div>
+        {group === 'video' && <p className="reference-limits">Up to 9 images · 3 videos · 3 audio files</p>}
         {items.length ? <div className="reference-thumbnails">{items.map(item => <button type="button" className="reference-thumb" key={item.id} aria-label={`Preview ${item.name}`} onClick={() => setSelected(item.id)}>
           {item.kind === 'image' ? <img src={item.url} alt="" /> : item.kind === 'video' ? <><video src={item.url} muted preload="metadata" /><span className="media-symbol" aria-hidden="true">▶</span></> : <span className="audio-symbol" aria-hidden="true">♫</span>}
         </button>)}</div> : <button type="button" className="reference-empty" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? 'Reading files…' : group === 'edit' ? 'Drop images here or browse' : 'Drop images, video or audio here or browse'}</button>}
