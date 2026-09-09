@@ -1,30 +1,58 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { LibraryAsset, StudioSnapshot, WorkflowId } from '../shared/studio.js';
 import './style.css';
 
-const workflows: Record<WorkflowId, { title: string; heading: string; description: string; placeholder: string }> = {
-  'text-to-image': { title: 'Text to image', heading: 'Start with an idea.', description: 'Describe the image you have in mind.', placeholder: 'A place, a character, a little detail. What do you want to make?' },
-  'image-to-image': { title: 'Image to image', heading: 'Give it a new direction.', description: 'Edit an image while keeping the details that matter.', placeholder: 'Describe what should change, and what should stay the same.' },
-  'text-to-video': { title: 'Text to video', heading: 'Set the scene in motion.', description: 'Describe the scene, movement and sound.', placeholder: 'What happens in the scene? Describe the camera, action and sound.' },
-  'reference-to-video': { title: 'Reference to video', heading: 'Bring your references to life.', description: 'Build a scene around images, video and audio.', placeholder: 'Describe how your references come together in the scene.' },
+const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
+  'text-to-image': { title: 'Text to image', placeholder: 'Describe your image…' },
+  'image-to-image': { title: 'Image to image', placeholder: 'Describe what to change…' },
+  'text-to-video': { title: 'Text to video', placeholder: 'Describe the scene, movement and sound…' },
+  'reference-to-video': { title: 'Reference to video', placeholder: 'Describe the scene using your references…' },
 };
+type Draft = { prompt: string; aspect: '16:9' | '9:16'; duration: '5' | '10' | '15'; mode: 'sfw' | 'nsfw' };
+const emptyDraft = (): Draft => ({ prompt: '', aspect: '16:9', duration: '5', mode: 'sfw' });
+function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
+  try {
+    const saved = JSON.parse(localStorage.getItem('studio.drafts.v2') ?? '{}');
+    const legacy = JSON.parse(localStorage.getItem('studio.drafts.v1') ?? '{}');
+    const result: Partial<Record<WorkflowId, Draft>> = {};
+    for (const id of Object.keys(workflows) as WorkflowId[]) {
+      const entry = saved?.[id];
+      result[id] = {
+        prompt: typeof entry?.prompt === 'string' ? entry.prompt : typeof legacy?.[id] === 'string' ? legacy[id] : '',
+        aspect: entry?.aspect === '9:16' ? '9:16' : '16:9',
+        duration: entry?.duration === '10' || entry?.duration === '15' ? entry.duration : '5',
+        mode: entry?.mode === 'nsfw' ? 'nsfw' : 'sfw',
+      };
+    }
+    return result;
+  } catch { return {}; }
+}
+function StudioMark() {
+  return <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="7" y="5" width="19" height="22" rx="3" transform="rotate(12 16 16)" /><rect x="6" y="5" width="19" height="22" rx="3" transform="rotate(-12 16 16)" /></svg>;
+}
+function Icon({ name }: { name: 'reset' | 'jobs' | 'pod' | 'resize' | 'close' }) {
+  return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+    {name === 'reset' && <><path d="M4 10a8 8 0 1 1 1 7M4 4v6h6" /></>}
+    {name === 'jobs' && <><rect x="4" y="5" width="16" height="15" rx="3" /><path d="M8 3v4m8-4v4M8 11h8m-8 4h5" /></>}
+    {name === 'pod' && <><rect x="4" y="4" width="16" height="7" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" /><path d="M8 7.5h.01M8 17h.01m5-9.5h3m-3 9.5h3" /></>}
+    {name === 'resize' && <path d="m8 18 10-10m-4 10 4-4" />}
+    {name === 'close' && <path d="m6 6 12 12M6 18 18 6" />}
+  </svg>;
+}
 
 function App() {
   const [page, setPage] = useState(location.pathname === '/library' ? 'library' : 'generate');
   const [workflow, setWorkflow] = useState<WorkflowId>('text-to-image');
-  const [prompts, setPrompts] = useState<Record<string, string>>(() => {
-    try { const value = JSON.parse(localStorage.getItem('studio.drafts.v1') ?? '{}') as unknown;
-      return value && typeof value === 'object' && !Array.isArray(value)
-        ? Object.fromEntries(Object.entries(value).filter(([key, text]) => key in workflows && typeof text === 'string')) : {};
-    } catch { return {}; }
-  });
-  const [aspect, setAspect] = useState('16:9');
-  const [duration, setDuration] = useState('5');
+  const [drafts, setDrafts] = useState(loadDrafts);
+  const [promptHeight, setPromptHeight] = useState(240);
+  const drag = useRef<{ y: number; height: number } | null>(null);
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [error, setError] = useState('');
   const [draftError, setDraftError] = useState(false);
+  const draft = drafts[workflow] ?? emptyDraft();
+  const updateDraft = (change: Partial<Draft>) => setDrafts(current => ({ ...current, [workflow]: { ...(current[workflow] ?? emptyDraft()), ...change } }));
   useEffect(() => {
     let disposed = false;
     const controller = new AbortController();
@@ -34,45 +62,63 @@ function App() {
         if (responses.some(response => !response.ok)) throw new Error('Unavailable');
         const [status, library] = await Promise.all(responses.map(response => response.json()));
         if (!disposed) { setStudio(status); setAssets(library.items); setError(''); }
-      } catch { if (!disposed) setError('The local studio is unavailable. Your saved files remain on this PC.'); }
+      } catch { if (!disposed) setError('The local studio is unavailable.'); }
     }
     void refresh();
     const timer = setInterval(() => { void refresh(); }, 10_000);
     return () => { disposed = true; controller.abort(); clearInterval(timer); };
   }, []);
   useEffect(() => {
-    try { localStorage.setItem('studio.drafts.v1', JSON.stringify(prompts)); setDraftError(false); }
+    try { localStorage.setItem('studio.drafts.v2', JSON.stringify(drafts)); setDraftError(false); }
     catch { setDraftError(true); }
-  }, [prompts]);
+  }, [drafts]);
   useEffect(() => {
     const onPopState = () => setPage(location.pathname === '/library' ? 'library' : 'generate');
     addEventListener('popstate', onPopState); return () => removeEventListener('popstate', onPopState);
   }, []);
   function navigate(next: string) { setPage(next); history.pushState(null, '', next === 'library' ? '/library' : '/'); }
-  const choice = workflows[workflow];
   const video = workflow.endsWith('video');
+  const jobCount = studio ? studio.queue.active + studio.queue.waiting : null;
+  function reset() { setDrafts(current => ({ ...current, [workflow]: emptyDraft() })); setPromptHeight(240); }
 
   return <div className="studio-shell">
     <header className="topbar">
-      <a className="brand" href="/" onClick={event => { event.preventDefault(); navigate('generate'); }}><span className="brand-mark" aria-hidden="true">r/</span> runpod <span className="brand-sub">studio</span></a>
+      <a className="brand" href="/" onClick={event => { event.preventDefault(); navigate('generate'); }}><span className="brand-mark"><StudioMark /></span>Studio</a>
       <nav aria-label="Main navigation">{['generate', 'library'].map(item => <button key={item} aria-current={page === item ? 'page' : undefined} onClick={() => navigate(item)}>{item === 'generate' ? 'Generate' : 'Library'}</button>)}</nav>
-      <span className="local-badge">On your PC</span>
+      <div className="header-status">
+        <button className="pod-button" popoverTarget="pod-details" aria-label="Pod connection"><Icon name="pod" /><span className="status-dot" /><span className="pod-label">{error ? 'Unavailable' : 'Disconnected'}</span></button>
+        <button className="jobs-button" popoverTarget="job-details" aria-label={`Jobs${jobCount === null ? '' : `, ${jobCount}`}`}><Icon name="jobs" /><span className="job-count">{jobCount ?? '–'}</span></button>
+      </div>
     </header>
+    <section id="pod-details" popover="auto" className="status-popover" aria-labelledby="pod-title">
+      <div className="popover-title"><h2 id="pod-title">Pod connection</h2><button className="icon-button" popoverTarget="pod-details" popoverTargetAction="hide" aria-label="Close pod details"><Icon name="close" /></button></div>
+      <p className="popover-status"><span className="status-dot" />{error || 'No pod connected'}</p>
+      <a className="popover-link" href="https://console.runpod.io/pods" target="_blank" rel="noreferrer">Open RunPod ↗</a>
+      <p className="popover-note">Pairing is not available yet.</p>
+    </section>
+    <section id="job-details" popover="auto" className="status-popover" aria-labelledby="jobs-title">
+      <div className="popover-title"><h2 id="jobs-title">Jobs</h2><button className="icon-button" popoverTarget="job-details" popoverTargetAction="hide" aria-label="Close jobs"><Icon name="close" /></button></div>
+      {error ? <p role="status">Job status unavailable.</p> : <><div className="job-summary"><span>Active <strong>{studio?.queue.active ?? '–'}</strong></span><span>Waiting <strong>{studio?.queue.waiting ?? '–'}</strong></span></div><p className="popover-note">{studio ? 'No jobs yet.' : 'Loading…'}</p><span className="queue-state">{studio?.queue.paused ? 'Queue paused' : ''}</span></>}
+    </section>
     <main>
-      <div className="connection-strip" role="status"><span className="status-dot" /> <strong>{error ? 'Studio unavailable' : 'No pod connected'}</strong><span className="connection-detail">{error || 'Draft here. Connect a GPU when you’re ready to create.'}</span><a href="https://console.runpod.io/pods" target="_blank" rel="noreferrer">Open RunPod ↗</a></div>
       {page === 'generate' ? <>
-        <div className="workflow-bar"><label className="workflow-select"><span>Workflow</span><select value={workflow} onChange={event => setWorkflow(event.target.value as WorkflowId)}>{Object.entries(workflows).map(([id, value]) => <option key={id} value={id}>{value.title}</option>)}</select></label>
-          {workflow !== 'image-to-image' && <div className="mode-group" aria-label="Content mode"><span>Mode</span><div className="segmented"><button aria-pressed="true">SFW</button><button disabled title="Choose and validate a LoRA preset before enabling NSFW.">NSFW</button></div></div>}
+        <div className="workflow-bar"><label className="workflow-select"><span>Workflow</span><select value={workflow} onChange={event => { setWorkflow(event.target.value as WorkflowId); setPromptHeight(240); }}>{Object.entries(workflows).map(([id, value]) => <option key={id} value={id}>{value.title}</option>)}</select></label>
+          {workflow !== 'image-to-image' && <div className="mode-group" aria-label="Content mode"><span>Mode</span><div className="segmented">{(['sfw', 'nsfw'] as const).map(mode => <button key={mode} aria-pressed={draft.mode === mode} onClick={() => updateDraft({ mode })}>{mode.toUpperCase()}</button>)}</div></div>}
         </div>
-        <div className="workspace"><section className="composer"><p className="eyebrow">YOUR NEXT CREATION</p><h1>{choice.heading}</h1><p className="intro">{choice.description}</p>
-          <label className="prompt-label" htmlFor="prompt">Prompt <span>Saved on this browser</span></label><textarea id="prompt" value={prompts[workflow] ?? ''} onChange={event => setPrompts({ ...prompts, [workflow]: event.target.value })} placeholder={choice.placeholder} rows={7} />
-          {draftError && <p role="alert">This browser could not save the draft. Keep a copy before closing.</p>}
-          {(workflow === 'image-to-image' || workflow === 'reference-to-video') && <div className="reference-placeholder"><strong>{video ? 'Images, video & audio' : 'Source image'}</strong><p>Reference uploads will be available when this workflow is connected.</p></div>}
-          <div className="output-settings"><label>Frame<select value={aspect} onChange={event => setAspect(event.target.value)}><option value="16:9">Landscape · 16:9</option><option value="9:16">Portrait · 9:16</option></select></label>{video && <label>Length<select value={duration} onChange={event => setDuration(event.target.value)}>{['5', '10', '15'].map(value => <option key={value} value={value}>{value} seconds</option>)}</select></label>}<div className="resolution"><span>Output</span><strong>{video ? '720p' : '1 megapixel'}</strong></div></div>
-          <button className="generate-button" disabled>Create {video ? 'video' : 'image'} <span>↗</span></button><p className="preview-note">Interface preview · Pairing and generation are the next steps.</p>
-        </section><section className="preview-panel" aria-label="Output preview"><div className="preview-top"><span>Preview</span><span>{video ? 'VIDEO' : 'IMAGE'}</span></div><div className="empty-preview"><div className="frame-art" aria-hidden="true"><div /></div><h2>A little space for your next idea.</h2><p>Your result will appear here.<br />Saved creations stay in your Library.</p></div><div className="preview-bottom"><span>Originals & results, kept on your PC</span><span>↙</span></div></section></div>
-      </> : <section className="library"><p className="eyebrow">YOUR COLLECTION</p><h1>A home for what you make.</h1><p className="intro">Your images, videos and source files stay with you.</p>{assets.length === 0 ? <div className="library-empty"><span aria-hidden="true">▧</span><h2>Your Library is ready.</h2><p>Saved creations will appear here, even when your GPU is disconnected.</p><button onClick={() => navigate('generate')}>Go to Generate ↗</button></div> : <ul>{assets.map(asset => <li key={asset.id}>{asset.name} · {asset.kind}</li>)}</ul>}</section>}
-      <footer><span>Runpod Studio <span className="footer-separator">/</span> An idea, then an image.</span><span>{studio?.queue.paused ? 'Queue paused' : 'Loading studio…'}</span></footer>
+        <section className="composer" aria-label={workflows[workflow].title}>
+          <div className="prompt-heading"><label htmlFor="prompt">Prompt</label><button className="icon-button" onClick={reset} aria-label="Reset form" title="Reset this workflow"><Icon name="reset" /></button></div>
+          <div className="prompt-editor"><textarea id="prompt" value={draft.prompt} onChange={event => updateDraft({ prompt: event.target.value })} placeholder={workflows[workflow].placeholder} style={{ height: promptHeight }} />
+            <button className="resize-handle" aria-label="Resize prompt" title="Drag to resize; use arrow keys for small adjustments" onPointerDown={event => { drag.current = { y: event.clientY, height: promptHeight }; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (drag.current) setPromptHeight(Math.max(140, Math.min(800, drag.current.height + event.clientY - drag.current.y))); }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setPromptHeight(height => Math.max(140, Math.min(800, height + (event.key === 'ArrowDown' ? 20 : -20)))); } }}><Icon name="resize" /></button>
+          </div>
+          {draftError && <p role="alert">Draft could not be saved. Keep a copy before closing.</p>}
+          {(workflow === 'image-to-image' || workflow === 'reference-to-video') && <div className="reference-placeholder"><strong>{video ? 'Images, video & audio' : 'Source image'}</strong><span>Uploads unavailable</span></div>}
+          <div className="output-settings"><fieldset><legend>Frame</legend><div className="frame-options">{(['16:9', '9:16'] as const).map(aspect => <button key={aspect} className="frame-option" aria-pressed={draft.aspect === aspect} aria-label={`${aspect === '16:9' ? 'Landscape' : 'Portrait'} ${aspect}`} onClick={() => updateDraft({ aspect })}><span className={`frame-shape ${aspect === '9:16' ? 'portrait' : 'landscape'}`} /><span>{aspect === '16:9' ? 'Landscape' : 'Portrait'}<small>{aspect}</small></span></button>)}</div></fieldset>
+            {video && <fieldset><legend>Length</legend><div className="duration-options">{(['5', '10', '15'] as const).map(duration => <button key={duration} aria-pressed={draft.duration === duration} onClick={() => updateDraft({ duration })}>{duration}s</button>)}</div></fieldset>}
+          </div>
+          <button className="generate-button" disabled title="Connect a worker to enable generation">Create {video ? 'video' : 'image'} <span>↗</span></button>
+        </section>
+      </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><StudioMark /></div><p>No saved files yet.</p></div> : <ul>{assets.map(asset => <li key={asset.id}>{asset.name} · {asset.kind}</li>)}</ul>}</section>}
+      <footer>Studio</footer>
     </main>
   </div>;
 }

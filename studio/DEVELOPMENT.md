@@ -1,7 +1,7 @@
 # Local development
 
 The first implementation slice is a disconnected studio shell: Generate/Library,
-four workflow forms, browser prompt drafts, standard storage directories, SQLite,
+four workflow forms, browser workflow drafts, standard storage directories, SQLite,
 and a loopback HTTP server. Pairing, transfers and generation are not implemented.
 Windows packaging/startup is still M1 work; this is the developer launch path.
 
@@ -68,9 +68,10 @@ persistent LAN launch configuration remains Windows packaging work.
   queue pause; resume rejects until worker integration exists. Only `dist/web`
   is served. Host, Origin and browser fetch-site checks protect loopback access;
   this slice does not yet support an external reverse proxy.
-- `web/`: responsive forms/navigation and versioned browser prompt drafts.
+- `web/`: responsive forms/navigation and versioned browser workflow drafts.
   Output controls are a UI preview; they do not submit requests or claim a
-  validated capability. NSFW remains unavailable until a preset is configured.
+  validated capability. SFW/NSFW can be selected in the UI draft for review; generation stays disabled
+  and mode selection does not activate a LoRA. Real submission must validate presets.
 - `tests/`: storage preservation/cache separation, host/origin rejection,
   disconnected safety, private-file denial, drafts/navigation and mobile layout.
 
@@ -85,3 +86,18 @@ slice; asset listing currently returns at most 50 rows without cursor support.
 Pagination and media content routes must be implemented before real libraries are
 accepted. Queue and pending-output counts are empty-foundation values, not a live
 GPU observation. Termination safety remains unknown.
+
+## First UI review decisions
+
+Display name: **Studio** (internal app identifier/storage locations unchanged).
+Use a compact prompt-first form, shape-based frame choices and a reset-current-form
+button. Draft schema v2 saves prompt, mode, aspect and duration per workflow;
+existing v1 prompts are migrated when loading. Reset restores that workflow's
+fields and prompt height, without touching other workflows or Library data.
+A bottom-right handle resizes the prompt with pointer/touch or arrow keys.
+
+Pod and job icons in the top-right open native light-dismiss/Escape popovers.
+Only show an output panel once a real job is submitted; there is none in the
+current disconnected shell. Loading output should use the simple frame logo,
+without tagline/placeholder paragraphs. No new jobs page or backend operation is
+introduced by these UI changes.

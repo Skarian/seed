@@ -1,33 +1,64 @@
 import { test, expect } from '@playwright/test';
 
-test('drafts survive reload and workflows expose their own controls', async ({ page }) => {
+test('workflow drafts persist, reset is scoped, and mode controls work', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await expect(page.getByText('No pod connected')).toBeVisible();
-  await page.screenshot({ path: test.info().outputPath('generate-desktop.png'), fullPage: true });
-  await page.getByLabel('Prompt', { exact: false }).fill('An observatory above the clouds');
+  await page.getByRole('button', { name: 'NSFW', exact: true }).click();
+  await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Portrait 9:16' }).click();
+  await page.getByLabel('Prompt', { exact: true }).fill('An observatory above the clouds');
   await page.reload();
-  await expect(page.getByLabel('Prompt', { exact: false })).toHaveValue('An observatory above the clouds');
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('An observatory above the clouds');
+  await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Portrait 9:16' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('Workflow').selectOption('text-to-video');
-  await expect(page.getByLabel('Length')).toBeVisible();
-  await page.getByLabel('Length').selectOption('15');
+  await page.getByRole('button', { name: '15s', exact: true }).click();
+  await page.getByLabel('Prompt', { exact: true }).fill('A rolling cloud');
   await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
-  await expect(page.getByRole('button', { name: 'NSFW' })).toBeDisabled();
+  await page.getByRole('button', { name: 'Reset form', exact: true }).click();
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('button', { name: '5s', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByLabel('Workflow').selectOption('text-to-image');
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('An observatory above the clouds');
+  await page.getByRole('button', { name: 'Reset form', exact: true }).click();
+  await page.reload();
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('');
+  await expect(page.getByRole('button', { name: 'SFW', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Landscape 16:9' })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('region', { name: 'Output preview' })).toHaveCount(0);
+  await page.screenshot({ path: test.info().outputPath('generate-desktop.png'), fullPage: true });
   await page.getByLabel('Workflow').selectOption('image-to-image');
-  await expect(page.getByRole('button', { name: 'NSFW' })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toHaveCount(0);
   await expect(page.getByText('Source image', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Your Library is ready.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'Your Library is ready.' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   expect(errors).toEqual([]);
 });
 
-test('mobile shell fits the viewport and navigation remains usable', async ({ page }) => {
+test('mobile layout, popovers and prompt resize are usable', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/');
   await expect(page.getByLabel('Workflow')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('generate-mobile.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Library', exact: true }).click();
-  await expect(page.getByRole('heading', { name: 'Your Library is ready.' })).toBeVisible();
+  await page.getByRole('button', { name: 'Pod connection', exact: true }).click();
+  await expect(page.getByText('No pod connected', { exact: true })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByText('No pod connected', { exact: true })).not.toBeVisible();
+  await page.getByRole('button', { name: /^Jobs/ }).click();
+  await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close jobs', exact: true }).click();
+  await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).not.toBeVisible();
+  const before = await page.getByLabel('Prompt', { exact: true }).boundingBox();
+  await page.getByRole('button', { name: 'Resize prompt', exact: true }).focus();
+  await page.keyboard.press('ArrowDown');
+  const after = await page.getByLabel('Prompt', { exact: true }).boundingBox();
+  expect(after!.height).toBe(before!.height + 20);
+  const handle = await page.getByRole('button', { name: 'Resize prompt', exact: true }).boundingBox();
+  await page.mouse.move(handle!.x + 12, handle!.y + 12); await page.mouse.down();
+  await page.mouse.move(handle!.x + 12, handle!.y + 72); await page.mouse.up();
+  expect((await page.getByLabel('Prompt', { exact: true }).boundingBox())!.height).toBe(after!.height + 60);
+  await page.getByRole('button', { name: 'Reset form', exact: true }).click();
+  expect((await page.getByLabel('Prompt', { exact: true }).boundingBox())!.height).toBe(240);
 });
