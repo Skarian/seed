@@ -50,6 +50,14 @@ server teardown during the first run; the normal-permission run exits cleanly.
 
 ## Current boundaries
 
+For an explicitly requested home-network preview, set `STUDIO_PREVIEW_ADDRESS`
+to an assigned private IPv4 address and set `STUDIO_DEV_ROOT` to a separate
+preview directory before starting. The default stays loopback. Host/Origin checks
+match the selected address exactly; this does not enable general public hosting.
+On 9 September the preview was started at `http://192.168.1.212:4310` using
+`.local/lan-preview`. The local HTTP check passed. Creating a subnet-restricted
+Windows Firewall rule failed with access denied; phone access is not yet verified.
+
 - `server/storage.ts`: standard paths and directory creation, no media deletion.
 - `server/db.ts`: transactional migrations, WAL, FULL synchronous durability and
   initial asset/job/dispatcher tables. Setup/reopen preserves existing data.

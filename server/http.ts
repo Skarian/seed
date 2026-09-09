@@ -8,11 +8,11 @@ import { listAssets, openDatabase } from './db.js';
 import { prepareStorage, type StudioPaths } from './storage.js';
 import type { StudioSnapshot } from '../shared/studio.js';
 
-export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string }) {
+export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string }) {
   prepareStorage(options.paths);
   const db = openDatabase(options.paths.data);
   const app = Fastify({ logger: false, bodyLimit: 16 * 1024, trustProxy: false, ajv: { customOptions: { removeAdditional: false } } });
-  const allowedHost = `127.0.0.1:${options.port}`;
+  const allowedHost = `${options.host ?? '127.0.0.1'}:${options.port}`;
   const origin = `http://${allowedHost}`;
   const instanceId = randomUUID();
   const fail = (reply: import('fastify').FastifyReply, status: number, code: string, message: string, requestId: string) =>
