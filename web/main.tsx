@@ -13,7 +13,7 @@ type Draft = { prompt: string; aspect: '16:9' | '9:16'; duration: '5' | '10' | '
 const emptyDraft = (): Draft => ({ prompt: '', aspect: '16:9', duration: '5', mode: 'sfw', count: 1, randomSeed: true, seed: '0' });
 function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
   try {
-    const saved = JSON.parse(localStorage.getItem('studio.drafts.v2') ?? '{}');
+    const saved = JSON.parse(localStorage.getItem('seed.drafts.v2') ?? localStorage.getItem('studio.drafts.v2') ?? '{}');
     const legacy = JSON.parse(localStorage.getItem('studio.drafts.v1') ?? '{}');
     const result: Partial<Record<WorkflowId, Draft>> = {};
     for (const id of Object.keys(workflows) as WorkflowId[]) {
@@ -31,7 +31,7 @@ function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
     return result;
   } catch { return {}; }
 }
-function StudioMark() {
+function SeedMark() {
   return <svg viewBox="0 0 32 32" fill="none" aria-hidden="true"><rect x="7" y="5" width="19" height="22" rx="3" transform="rotate(12 16 16)" /><rect x="6" y="5" width="19" height="22" rx="3" transform="rotate(-12 16 16)" /></svg>;
 }
 function Icon({ name }: { name: 'reset' | 'jobs' | 'pod' | 'resize' | 'close' }) {
@@ -66,14 +66,14 @@ function App() {
         if (responses.some(response => !response.ok)) throw new Error('Unavailable');
         const [status, library] = await Promise.all(responses.map(response => response.json()));
         if (!disposed) { setStudio(status); setAssets(library.items); setError(''); }
-      } catch { if (!disposed) setError('The local studio is unavailable.'); }
+      } catch { if (!disposed) setError('seed is unavailable.'); }
     }
     void refresh();
     const timer = setInterval(() => { void refresh(); }, 10_000);
     return () => { disposed = true; controller.abort(); clearInterval(timer); };
   }, []);
   useEffect(() => {
-    try { localStorage.setItem('studio.drafts.v2', JSON.stringify(drafts)); setDraftError(false); }
+    try { localStorage.setItem('seed.drafts.v2', JSON.stringify(drafts)); setDraftError(false); }
     catch { setDraftError(true); }
   }, [drafts]);
   useEffect(() => {
@@ -88,7 +88,7 @@ function App() {
 
   return <div className="studio-shell">
     <header className="topbar">
-      <a className="brand" href="/" onClick={event => { event.preventDefault(); navigate('generate'); }}><span className="brand-mark"><StudioMark /></span>Studio</a>
+      <a className="brand" href="/" onClick={event => { event.preventDefault(); navigate('generate'); }}><span className="brand-mark"><SeedMark /></span>seed</a>
       <nav aria-label="Main navigation">{['generate', 'library'].map(item => <button key={item} aria-current={page === item ? 'page' : undefined} onClick={() => navigate(item)}>{item === 'generate' ? 'Generate' : 'Library'}</button>)}</nav>
       <div className="header-status">
         <button className="pod-button" popoverTarget="pod-details" aria-label="Pod connection"><Icon name="pod" /><span className="status-dot" /><span className="pod-label">{error ? 'Unavailable' : 'Disconnected'}</span></button>
@@ -127,8 +127,8 @@ function App() {
           {!advancedOpen && !seedValid && <p role="alert">Check the starting seed in Advanced.</p>}
           <button className="generate-button" disabled title="Connect a worker to enable generation">Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></button>
         </section>
-      </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><StudioMark /></div><p>No saved files yet.</p></div> : <ul>{assets.map(asset => <li key={asset.id}>{asset.name} · {asset.kind}</li>)}</ul>}</section>}
-      <footer>Studio</footer>
+      </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <ul>{assets.map(asset => <li key={asset.id}>{asset.name} · {asset.kind}</li>)}</ul>}</section>}
+      <footer>seed</footer>
     </main>
   </div>;
 }

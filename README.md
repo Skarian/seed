@@ -1,6 +1,6 @@
-# runpod
+# seed
 
-A personal image and video studio powered by ComfyUI on Runpod. Start a GPU when you need it, open the studio in your browser, and stop compute when you're done. Models, workflows and outputs stay on a persistent network volume.
+**seed** is a personal image and video studio powered by ComfyUI on Runpod. Start a GPU when you need it, open the studio in your browser, and stop compute when you're done. Models, workflows and outputs stay on a persistent network volume.
 
 Includes MiniMax H3 video workflows, Krea 2 image generation and identity editing, and Phr00t Qwen Image Edit Rapid AIO.
 
@@ -8,10 +8,10 @@ Next-stage planning: [media studio MVP](STUDIO-MVP.md) — a local Windows studi
 manual RunPod deployment and pairing, expressive workflows, and permanent media
 on your PC. See the [implementation plan](studio/EXECUTION-PLAN.md) for access,
 milestones, reviews and commit policy. A local frontend foundation is implemented;
-GPU pairing/generation and Windows packaging are pending. See [local development](studio/DEVELOPMENT.md). [LLM choices](research/llm/README.md)
+GPU pairing/generation and npm CLI installation are pending. See [local development](studio/DEVELOPMENT.md). [LLM choices](research/llm/README.md)
 are saved for a later phase.
 
-## Use the studio
+## Existing RunPod deployment
 
 Follow [Start here](deployment/START-HERE.md) for the saved pod and sign-in instructions. The [operating guide](deployment/LEAN-SETUP.md) covers normal Start/Connect/Stop, unavailable GPUs, replacement deployment and future changes.
 
@@ -42,3 +42,16 @@ The maintenance utilities read `deployment/access.private.json` locally and use 
 Edit startup releases under `deployment/lean/`, copy a new release to the persistent volume and test it before changing the template/current pod startup command. Committing a change does not deploy it.
 
 Upstream code and model references retain their respective licenses; this repository does not grant additional model usage rights.
+
+## seed CLI direction
+
+The local app will be installed from npm and serve this browser UI. No desktop
+wrapper or bundled Node runtime. Planned commands: `seed setup`, `seed start`,
+`seed status`, `seed stop`. Setup detects Windows and asks whether to start seed
+automatically at sign-in; it is optional and can be changed by rerunning setup.
+These commands are not implemented or published yet.
+
+The unscoped npm name `seed` already exists. `@skarian/seed` is the candidate
+package name in this private package; scope ownership and publishing access still
+need validation. Do not install the unrelated `seed` package expecting this app.
+See [development](studio/DEVELOPMENT.md) for the current source launch path.

@@ -1,4 +1,4 @@
-# Studio API contract
+# seed API contract
 
 Revision 6. Contract specified; implementation and live validation pending. Private same-origin `/api/v1`. No provider credentials, model paths or raw graphs accepted from browsers.
 

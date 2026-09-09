@@ -1,11 +1,11 @@
-# Architecture and implementation boundaries
+# seed architecture and implementation boundaries
 
-Revision 6. Local foundation implemented; worker integration and Windows packaging pending. One application will submit media jobs; the owner manages Runpod manually.
+Revision 6. Local foundation implemented; worker integration and npm CLI packaging pending. One application will submit media jobs; the owner manages Runpod manually.
 
 ## Custom stack and implementation status
 
 The first local slice uses React/Vite, Fastify, better-sqlite3 and env-paths with
-Node 22.23.2. Exact package versions and the lockfile are committed. Native SQLite
+Node 26.8.2 (current compatibility target). Exact package versions and the lockfile are committed. Native SQLite
 crashed on this PC's older Node 22.13; the pinned runtime passed tests. See
 [development](DEVELOPMENT.md) for running it, module coverage and limitations.
 The table below includes later modules: it is not a claim they are all implemented.
@@ -26,7 +26,7 @@ SwarmUI exploration is a deferred alternative, not a blocker for this slice.
 | `cli/` | Small runpod-setup utility, preset configuration and backup/restore |
 | `deployment/studio/pod/` | Pinned runtime, early pairing/status page, authenticated engine/file API and HF preparation; separate Jupyter |
 | Existing Comfy custom-node package | Narrow process-session guard and network-volume spool receipt/manifest hooks; no extra service |
-| PC deployment | Local Node.js app with bundled runtime/dependencies and media tools; Windows setup/launcher; standard per-user app directories; no Docker requirement |
+| PC deployment | npm-installed CLI using system Node; seed setup/start/status/stop, optional Windows sign-in startup, standard per-user directories; no desktop wrapper or Docker requirement |
 | Verification | Vitest for pure contracts/recovery decisions; Playwright for real browser flows; live graph/output checks |
 
 Pin exact maintained package/runtime versions and lockfile during implementation after compatibility checks. Do not claim unspecified future package versions tested. Avoid a UI component platform, global state library, rich-text editor, generated admin console or extra server process unless concrete evidence requires one.
@@ -69,17 +69,19 @@ Manual lifecycle stays outside the app. Keep waiting jobs, preset snapshots and 
 
 Deliver the local app and persistent data-directory configuration. The owner supplies any tunnel, domain, TLS and external browser authentication. No relay infrastructure or tunnel SDK belongs in this project. Support explicit public-origin/trusted-proxy configuration, loopback by default, streamed/Range media and resumable uploads. Worker pairing/authentication stays in scope.
 
-## Windows application packaging
+## npm CLI packaging and platform setup
 
-Preferred implementation is Node.js/TypeScript, matching the existing candidate API/UI stack. Deliver a Windows app directory with a compatible Node runtime, built frontend/backend, native dependencies and FFmpeg/ffprobe. Setup is one reusable PowerShell entry point; it does not require users to maintain a separate global Node installation. Exact runtime/package versions and Windows distribution must be tested. A single executable or Rust rewrite is not an MVP requirement; native libraries/media executables still need packaging either way.
+Owner-approved direction: **seed** is an npm-installed Node.js CLI serving the browser UI. The command name is `seed`; candidate package name is `@skarian/seed` because unscoped `seed` is taken. Verify scope ownership before publishing. Keep the package private until publishing is authorized and ready. Source installation is not proof that a clean global npm install works.
 
-Setup creates the standard app directories and a Start menu shortcut automatically. Its app-installation preference question is exactly: "Would you like this to start automatically when logged in?" (Yes/No). It does not ask for folder locations. If enabled, use a per-user Startup shortcut to a background launcher; no Windows service or administrator requirement solely for autostart. Startup starts the server without opening a browser; the normal shortcut starts/reuses the server and opens the local UI. Re-running setup updates the same shortcuts, preserves settings/data and can disable autostart. Do not silently spawn multiple app/dispatcher instances. Include a stop command, file logs and explicit update/restart instructions. Sign-in startup is not pre-login boot startup. See [Windows startup documentation](https://support.microsoft.com/en-us/windows/experience/startup-boot/configure-startup-applications-in-windows).
+Use system Node and pin compatible native dependencies in the lockfile. Node 26.8.2 plus better-sqlite3 13.0.3 passed an isolated native compatibility check. Verify build, database persistence, browser tests and a clean package install on that runtime. Do not bundle another Node copy or silently upgrade Node during npm install/setup. Detect unsupported Node versions and give an actionable message. Resolve FFmpeg/ffprobe binaries through explicit setup with verified downloads or a suitable maintained package; media tooling distribution still needs validation.
 
-Keep the RunPod container image; only the PC application loses the container requirement. RunPod setup credentials stay outside the normal app environment. No router/tunnel setup in this installer.
+Planned commands: `seed setup`, `seed start`, `seed status`, `seed stop`. Start/reuse one background server and print verified loopback/LAN URLs. Keep logs, settings and media outside the global npm installation. Stop targets only the verified seed instance; upgrading/uninstalling the npm package does not delete media. Do not add a desktop window or separate Windows installer.
+
+`seed setup` checks `process.platform`. On Windows, ask exactly: "Would you like seed to start automatically when you sign in?" (Yes/No). Create/update/remove a single per-user Startup entry accordingly, launching seed quietly without opening a browser. No service, scheduled task or administrator rights solely for sign-in startup. Preserve preferences on noninteractive reruns; interactive reruns can change them. Other OSes skip Windows integration. Test enabled/disabled/repeated setup and the actual startup entry, including paths with spaces and npm updates. This remains implementation work.
 
 ## Standard application directories
 
-Use [env-paths](https://github.com/sindresorhus/env-paths) with a stable application identifier, proposed `RunpodStudio` and empty suffix. Create the returned directories automatically. The identifier stays stable across display-name changes and upgrades. No directory picker or manual folder setup in the ordinary installation flow.
+Use [env-paths](https://github.com/sindresorhus/env-paths) with a stable application identifier, existing `RunpodStudio` and empty suffix. Create the returned directories automatically. Retain this internal identifier, `studio.sqlite` and existing protocol paths during the seed rename so existing data is not stranded; a future path migration must be explicit and tested. No directory picker or manual folder setup in the ordinary installation flow.
 
 | Library path | Contents |
 |---|---|

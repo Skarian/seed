@@ -3,18 +3,16 @@
 The first implementation slice is a disconnected studio shell: Generate/Library,
 four workflow forms, browser workflow drafts, standard storage directories, SQLite,
 and a loopback HTTP server. Pairing, transfers and generation are not implemented.
-Windows packaging/startup is still M1 work; this is the developer launch path.
+npm CLI setup/startup is still M1 work; this is the developer launch path.
 
 ## Run and verify
 
-Use **Node 22.23.2**, pinned in [`.node-version`](../.node-version), and the committed
-lockfile. The system's older Node 22.13 crashed when opening better-sqlite3 on this
-PC. Node 22.23.2 passed native SQLite and application tests. Software versions are
-pinned in [package.json](../package.json); no global tool upgrade is required.
+Use **Node 26.8.2**, pinned in [`.node-version`](../.node-version), and the committed
+lockfile. The system Node installation on this PC was upgraded to that version.
+The existing better-sqlite3 13.0.3 works with it (SQLite 3.53.4). Node 22.13 had
+previously crashed opening SQLite; that historical workaround is no longer needed.
 
 ```powershell
-# On this checkout, the verified portable runtime is already available here.
-$env:PATH = (Resolve-Path .local/tools/node-v22.23.2-win-x64).Path + ';' + $env:PATH
 npm ci
 npm run typecheck
 npm run build
@@ -25,14 +23,16 @@ $env:STUDIO_DEV_ROOT = "$PWD/.local/preview"
 npm start
 ```
 
-For another checkout, install the pinned runtime from the
-[official Node distribution](https://nodejs.org/dist/v22.23.2/), checking the ZIP
-against its published `SHASUMS256.txt`. The eventual Windows release will bundle
-the tested runtime and dependencies.
+For another checkout, install the pinned system runtime from the
+[official Node distribution](https://nodejs.org/dist/v26.8.2/). This is the Current
+release line. The future npm package uses system Node; it does not bundle a runtime
+or silently upgrade Node. `seed setup/start/status/stop` are planned, not yet
+implemented or published. Setup will detect Windows and ask whether to start
+automatically on sign-in; other platforms skip that Windows-specific step.
 
 Open `http://127.0.0.1:4310`. Stop the foreground process with Ctrl+C. A second
 server cannot bind the same port; it exits instead of starting a second listener.
-Shortcut-based reuse of the existing instance is still to be implemented.
+CLI-based reuse of the existing instance is still to be implemented.
 `STUDIO_PORT` is an optional developer override. Without `STUDIO_DEV_ROOT`, storage
 uses `env-paths('RunpodStudio', {suffix:''})`; on Windows, durable data is under
 `%LOCALAPPDATA%\RunpodStudio\Data`. Rebuilding does not delete these directories.
@@ -59,7 +59,7 @@ On 9 September the preview was started at `http://192.168.1.212:4310` using
 Windows Firewall rule failed with access denied; the owner subsequently confirmed
 that the LAN link is accessible. Use this approach for future UI reviews and
 portal access, verifying the current LAN IP each time. Keep test data isolated;
-persistent LAN launch configuration remains Windows packaging work.
+persistent LAN launch configuration remains CLI setup work.
 
 - `server/storage.ts`: standard paths and directory creation, no media deletion.
 - `server/db.ts`: transactional migrations, WAL, FULL synchronous durability and
@@ -89,10 +89,11 @@ GPU observation. Termination safety remains unknown.
 
 ## First UI review decisions
 
-Display name: **Studio** (internal app identifier/storage locations unchanged).
+Display name: **seed** (internal app identifier/storage locations unchanged).
 Use a compact prompt-first form, shape-based frame choices and a reset-current-form
 button. Draft schema v2 saves prompt, mode, aspect and duration per workflow;
-existing v1 prompts are migrated when loading. Reset restores that workflow's
+existing `studio.drafts.v2` drafts and v1 prompts are read as fallbacks. New writes
+use `seed.drafts.v2`. Reset restores that workflow's
 fields and prompt height, without touching other workflows or Library data.
 A bottom-right handle resizes the prompt with pointer/touch or arrow keys.
 

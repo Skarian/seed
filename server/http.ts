@@ -20,7 +20,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
 
   app.addHook('onRequest', async (request, reply) => {
     // A loopback bind alone does not protect against DNS rebinding or hostile websites.
-    if (request.headers.host !== allowedHost) return fail(reply, 403, 'untrusted_host', 'Open the studio using its local address.', request.id);
+    if (request.headers.host !== allowedHost) return fail(reply, 403, 'untrusted_host', 'Open seed using its local address.', request.id);
     const site = request.headers['sec-fetch-site'];
     if (site && site !== 'same-origin' && site !== 'none') return fail(reply, 403, 'untrusted_origin', 'Cross-site access is not allowed.', request.id);
     if (request.headers.origin && request.headers.origin !== origin) return fail(reply, 403, 'untrusted_origin', 'Cross-site access is not allowed.', request.id);
@@ -38,10 +38,10 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.setErrorHandler((error, request, reply) => {
     const statusCode = error instanceof Error && 'statusCode' in error ? error.statusCode : undefined;
     const status = typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 ? statusCode : 500;
-    return fail(reply, status, status === 500 ? 'internal_error' : 'invalid_request', status === 500 ? 'The studio could not complete this request.' : 'Check the request and try again.', request.id);
+    return fail(reply, status, status === 500 ? 'internal_error' : 'invalid_request', status === 500 ? 'seed could not complete this request.' : 'Check the request and try again.', request.id);
   });
   app.addHook('onClose', async () => { db.close(); });
-  app.get('/api/v1/health', async () => ({ application: 'runpod-studio', version: '0.1.0', instance_id: instanceId }));
+  app.get('/api/v1/health', async () => ({ application: 'seed', version: '0.1.0', instance_id: instanceId }));
   app.get('/api/v1/studio', async (): Promise<StudioSnapshot> => {
     const state = db.prepare('SELECT paused FROM dispatcher_state WHERE id = 1').get() as { paused: number };
     return {

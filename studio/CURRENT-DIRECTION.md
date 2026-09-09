@@ -1,4 +1,4 @@
-# Current studio direction
+# Current seed direction
 
 Revision 5 product direction, 9 September 2026. The [local application foundation](DEVELOPMENT.md) has started; GPU infrastructure/runtime changes remain pending. This replaces the Terraform, exe.dev hosting, GHCR model-artifact and PC model-packaging proposals. Current implementation evidence is in the [milestone journal](EXECUTION-PLAN.md).
 
@@ -14,7 +14,7 @@ Revision 5 product direction, 9 September 2026. The [local application foundatio
 
 ## PC application setup
 
-No local Docker requirement. Preferred stack: a packaged Node.js app with bundled dependencies/media tools, started from a Windows shortcut. A reusable setup script automatically creates standard per-user directories via env-paths, creates the shortcut, and asks only the app-startup preference: "Would you like this to start automatically when logged in?" (Yes/No). It creates/removes the per-user startup item accordingly and preserves user data on reruns. RunPod resource/access setup still collects the separately required credentials and volume choices. Docker is allowed as optional developer tooling for the worker image, not required to run the app. No model artifacts are built. Rust/single-executable packaging is optional, not a new requirement. Hosting/router/tunnel configuration remains owner-managed.
+Owner revision, 9 September 2026: the app is **seed**, installed as a Node.js CLI from npm, serving the existing browser UI. Use the system Node runtime and a compatible pinned SQLite dependency; no desktop wrapper, bundled Node or separate Windows installer. `seed setup` detects the OS and offers Windows users an optional "Would you like seed to start automatically when you sign in?" prompt. Reruns update/remove one per-user startup entry without touching data. Other OSes skip that Windows step. `seed start/status/stop` manage one background local server; start prints local/LAN URLs and reuses a running instance. Keep media/config outside the npm package. Normal setup does not silently upgrade system Node. Owner explicitly requested this PC's Node upgrade separately. Hosting/router/tunnel remains owner-managed.
 
 ## Preferred model-source revision
 

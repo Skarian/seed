@@ -19,10 +19,10 @@ const app = await createApp({ paths: resolvePaths(process.env.STUDIO_DEV_ROOT), 
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void app.close(); });
 try {
   await app.listen({ host, port });
-  console.log(`Runpod Studio: http://${host}:${port}`);
+  console.log(`seed: http://${host}:${port}`);
 } catch (error) {
   await app.close();
-  if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') console.error(`Port ${port} is already in use. Use the existing studio or choose another port.`);
-  else console.error('The studio could not start. Check its installation and data directory.');
+  if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') console.error(`Port ${port} is already in use. Use the existing seed instance or choose another port.`);
+  else console.error('seed could not start. Check its installation and data directory.');
   process.exitCode = 1;
 }

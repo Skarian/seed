@@ -1,4 +1,4 @@
-# Setup, software release and model sources
+# seed setup, software release and model sources
 
 Revision 5, planning only. See [current direction](CURRENT-DIRECTION.md). Terraform, provider modules, OCI model artifacts and PC model-packaging are removed from the preferred plan.
 
@@ -48,7 +48,7 @@ Use the [Civitai REST API](https://github.com/civitai/civitai/wiki/REST-API-Refe
 
 ## GitHub publication layout
 
-GHCR is GitHub Container Registry, part of the GitHub publishing setup. Use the GitHub repository for source/plans, GitHub Releases for the downloadable Windows application/setup package, and a public GHCR package for the RunPod worker container. A release ZIP is not a container-registry image reference. Public worker images allow anonymous pulls, so a deployment does not need a private GHCR pull credential; publishing still needs authorized GitHub access.
+GHCR is GitHub Container Registry, part of the GitHub publishing setup. Use the GitHub repository for source/plans, npm for the seed CLI package (GitHub Releases may carry release notes), and a public GHCR package for the RunPod worker container. The npm CLI package is not a container-registry image reference. Public worker images allow anonymous pulls, so a deployment does not need a private GHCR pull credential; publishing still needs authorized GitHub access.
 
 The owner is comfortable with public software artifacts. Repository visibility is separate from package visibility: retain current repository visibility until its source/history and private operational material have been reviewed as part of the publication decision. Do not publish personal media, credentials, local configuration or model weights. This note does not change remote visibility or publish anything.
 

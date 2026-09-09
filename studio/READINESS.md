@@ -1,4 +1,8 @@
-# Current readiness review
+# Historical readiness review
+
+This is a preimplementation snapshot. Current decisions and runtime evidence are in
+[the milestone journal](EXECUTION-PLAN.md); npm CLI packaging supersedes the earlier
+Windows package discussion below.
 
 Fresh static review after standard app directories and optional startup were agreed, 9 September 2026. Nine core documents reviewed; no runtime tests or infrastructure actions. Earlier read-through findings are historical where these decisions resolve them.
 

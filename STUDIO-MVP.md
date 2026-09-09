@@ -1,10 +1,10 @@
-# Personal media studio MVP
+# seed MVP
 
 Scope revision 5, 9 September 2026. The [local application foundation](studio/DEVELOPMENT.md) is implemented; full MVP integration and deployment remain pending. This replaces the earlier LLM-first design. Existing operational instructions remain in [LEAN-SETUP](deployment/LEAN-SETUP.md).
 
 ## Product
 
-One persistent studio on the owner's PC, delivered as a local application without requiring Docker. Remote hosting and browser access are owner-managed, outside this project. The working display name is **Studio**. Top navigation is **Generate / Library**, with pod connection and a counted jobs icon at the top-right, each opening a popover; Open RunPod belongs inside connection details. Generate places the workflow selector on the left and SFW/NSFW on the right. Technical graph names, pod addresses and credentials stay behind the API. All workflows include a generation count (default one) and a collapsed Advanced section for random/fixed seed and later supported controls. Multiple generations run as individually tracked sequential jobs. Forms lead with the prompt, include a visible resize handle and reset-current-form control, and use shape-based aspect choices. Omit introductory/tagline copy and fixed output-resolution labels. Show the output panel only after submission, with a logo-only loading placeholder.
+One persistent studio on the owner's PC, delivered as a local application without requiring Docker. Remote hosting and browser access are owner-managed, outside this project. The application name is **seed**. Top navigation is **Generate / Library**, with pod connection and a counted jobs icon at the top-right, each opening a popover; Open RunPod belongs inside connection details. Generate places the workflow selector on the left and SFW/NSFW on the right. Technical graph names, pod addresses and credentials stay behind the API. All workflows include a generation count (default one) and a collapsed Advanced section for random/fixed seed and later supported controls. Multiple generations run as individually tracked sequential jobs. Forms lead with the prompt, include a visible resize handle and reset-current-form control, and use shape-based aspect choices. Omit introductory/tagline copy and fixed output-resolution labels. Show the output panel only after submission, with a logo-only loading placeholder.
 
 Exactly four workflows:
 
@@ -31,7 +31,7 @@ Official H3 limits and installed-node timing rules are distinct. The UI validate
 
 ## Windows setup
 
-One reusable setup script installs/configures the app, automatically uses standard per-user data/config/cache directories and creates a shortcut. The preference question is: "Would you like this to start automatically when logged in?" (Yes/No). No folder selection is required. Preferred packaging is a Node.js application with its runtime and media dependencies supplied. Autostart runs quietly; the normal shortcut opens the browser UI. Re-running setup preserves data and avoids duplicate startup entries. RunPod still uses its published container image. Docker may be used to build that image on this PC, but the studio runs without it.
+Install seed from npm and use the system Node.js runtime. No desktop wrapper, bundled Node runtime or Windows application installer. `seed setup` initializes standard per-user data/config/cache locations and detects Windows; on Windows it asks "Would you like seed to start automatically when you sign in?" (Yes/No). Rerunning setup can enable/disable one per-user Startup entry and preserves data. Non-Windows setup skips Windows startup integration. `seed start` runs/reuses a background server and prints local/LAN URLs; `seed status` and `seed stop` manage that local process. Sign-in startup stays quiet. Package dependencies must work with the tested supported Node release; setup reports incompatible versions rather than silently changing system Node. RunPod still uses its container image; Docker is not needed to run seed. CLI/package publication remains to be implemented.
 
 ## Deployment and storage
 

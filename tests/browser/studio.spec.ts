@@ -1,5 +1,22 @@
 import { test, expect } from '@playwright/test';
 
+test('seed keeps drafts created before the rename', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(() => {
+    localStorage.removeItem('seed.drafts.v2');
+    localStorage.setItem('studio.drafts.v2', JSON.stringify({
+      'text-to-image': { prompt: 'A preserved idea', count: 3, randomSeed: false, seed: '42' },
+    }));
+  });
+  await page.reload();
+  await expect(page).toHaveTitle('seed');
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('A preserved idea');
+  await expect(page.getByLabel('Generations', { exact: true })).toHaveValue('3');
+  await page.getByLabel('Prompt', { exact: true }).fill('An updated idea');
+  await page.reload();
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('An updated idea');
+});
+
 test('workflow drafts persist, reset is scoped, and mode controls work', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
