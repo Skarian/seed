@@ -61,8 +61,10 @@ export class Media {
     }
   });this.chain=task.catch(()=>{});return task;}
   async prepare(ref:InputReference,aspect:string,seconds:number):Promise<PreparedReference>{
-    const item=this.get(ref.asset_id);if(!item||item.metadata.state!=='ready'||item.kind!==ref.kind)throw new Error('Wait for references to finish uploading.');
+    const item=this.get(ref.asset_id);if(!item||(item.metadata.state??'ready')!=='ready'||item.kind!==ref.kind)throw new Error('Wait for references to finish uploading.');
     const original=path.resolve(this.paths.data,item.relative_path);if(!original.startsWith(path.resolve(this.paths.data)+path.sep))throw new Error('Invalid input path');
+    // Saved generations predate upload metadata; probe their duration when reused.
+    if(ref.kind!=='image'&&!item.metadata.duration)item.metadata.duration=(await probe(original)).duration;
     const key=createHash('sha256').update(JSON.stringify({ref,aspect,seconds,source:item.metadata.sha256,recipe:2})).digest('hex');
     const extension=ref.kind==='image'?'.png':ref.kind==='video'?'.mp4':'.wav';const filename=key+extension,file=path.join(this.paths.data,'media/prepared',filename);
     const [width,height]=aspect==='16:9'?[1344,768]:[768,1344];

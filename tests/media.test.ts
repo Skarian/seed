@@ -57,3 +57,14 @@ it('routes anchors through FL and mixed references through Ref, matching content
   expect(()=>imageRequest({...request,prompt:'Use [removed reference]'})).toThrow('reference mentions');
   expect(imageRequest({...request,prompt:'Use <Picture 1>'}).prompt).toBe('Use <Picture 1>');
 });
+
+it('prepares a saved generation that has no upload state metadata',async()=>{
+  const root=mkdtempSync(path.resolve('.local/tests/gallery-')),paths=resolvePaths(root);prepareStorage(paths);const db=openDatabase(paths.data),media=new Media(db,paths);
+  try{
+    const file=path.join(paths.data,'media/outputs/saved.png');mkdirSync(path.dirname(file),{recursive:true});
+    await sharp({create:{width:64,height:48,channels:3,background:'green'}}).png().toFile(file);
+    db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('saved','image','Saved image','media/outputs/saved.png',JSON.stringify({sha256:'b'.repeat(64),mime_type:'image/png',job_id:'old-job'}),new Date().toISOString());
+    const prepared=await media.prepare({id:'ref',asset_id:'saved',kind:'image',role:'reference'},'16:9',5);
+    expect((await sharp(prepared.file).metadata()).format).toBe('png');
+  }finally{await media.close();db.close();rmSync(root,{recursive:true,force:true});}
+});

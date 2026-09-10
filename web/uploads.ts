@@ -4,11 +4,11 @@ const completed=new Map<string,string>();
 export async function uploadReferences(references:Reference[],mode:string,progress:(message:string)=>void){
   const result=[];
   for(const ref of references){
-    let id=completed.get(ref.id);
+    let id=ref.asset_id ?? completed.get(ref.id);
     if(!id){
       progress('Uploading '+ref.name+'…');
       id=await new Promise<string>((resolve,reject)=>{
-        const upload=new Upload(ref.file,{endpoint:'/api/v1/uploads',chunkSize:8*1024*1024,retryDelays:[0,1000,3000,5000],removeFingerprintOnSuccess:true,metadata:{filename:ref.name,filetype:ref.type,kind:ref.kind,mode},onProgress:(sent,total)=>progress(`Uploading ${ref.name} · ${Math.round(sent/total*100)}%`),onError:reject,onSuccess:()=>resolve(upload.url!.split('/').pop()!)});
+        const upload=new Upload(ref.file!,{endpoint:'/api/v1/uploads',chunkSize:8*1024*1024,retryDelays:[0,1000,3000,5000],removeFingerprintOnSuccess:true,metadata:{filename:ref.name,filetype:ref.type,kind:ref.kind,mode},onProgress:(sent,total)=>progress(`Uploading ${ref.name} · ${Math.round(sent/total*100)}%`),onError:reject,onSuccess:()=>resolve(upload.url!.split('/').pop()!)});
         upload.findPreviousUploads().then(previous=>{if(previous[0])upload.resumeFromPreviousUpload(previous[0]);upload.start();}).catch(reject);
       });
       progress('Checking '+ref.name+'…');

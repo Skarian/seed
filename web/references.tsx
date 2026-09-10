@@ -1,14 +1,24 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { GalleryPicker } from './gallery-picker.js';
+import type { LibraryAsset } from '../shared/studio.js';
 import { MediaPreview, Glyph } from './media-preview.js';
 export type MediaKind = 'image' | 'video' | 'audio';
-export type Reference = { file: File; include_audio?: boolean; framing?: 'fit'|'fill'; id: string; name: string; url: string; kind: MediaKind; type: string; width?: number; height?: number; duration?: number; start: number; end: number; role: string };
+export type Reference = { file?: File; asset_id?: string; include_audio?: boolean; framing?: 'fit'|'fill'; id: string; name: string; url: string; kind: MediaKind; type: string; width?: number; height?: number; duration?: number; start: number; end: number; role: string };
 type Group = 'edit' | 'video';
 let nextReferenceId = 0;
-async function inspect(file: File): Promise<Reference> {
-  const kind = file.type.split('/')[0] as MediaKind;
+async function inspect(file: File | LibraryAsset): Promise<Reference> {
+  const saved = 'id' in file;
+  let type: string;
+  if (saved) {
+    const response = await fetch(`/api/v1/assets/${file.id}`);
+    if (!response.ok) throw Error(`${file.name}: this file is no longer available.`);
+    const metadata = await response.json();
+    type = metadata.mime_type ?? `${file.kind}/*`;
+  } else type = file.type;
+  const kind = type.split('/')[0] as MediaKind;
   if (!['image', 'video', 'audio'].includes(kind)) throw new Error(`${file.name}: choose an image, video or audio file.`);
-  if(kind==='image'&&!['image/jpeg','image/png','image/webp','image/gif','image/avif','image/heic','image/heif','image/tiff'].includes(file.type))throw new Error(`${file.name}: choose a supported raster image, such as JPEG, PNG or WebP.`);
-  const url = URL.createObjectURL(file);
+  if(!saved&&kind==='image'&&!['image/jpeg','image/png','image/webp','image/gif','image/avif','image/heic','image/heif','image/tiff'].includes(type))throw new Error(`${file.name}: choose a supported raster image, such as JPEG, PNG or WebP.`);
+  const url = saved ? `/api/v1/assets/${file.id}/content` : URL.createObjectURL(file);
   try {
     const metadata = await new Promise<{ width?: number; height?: number; duration?: number }>((resolve, reject) => {
       const element = kind === 'image' ? new Image() : document.createElement(kind);
@@ -32,7 +42,7 @@ async function inspect(file: File): Promise<Reference> {
       }
       element.src = url;
     });
-    return { file, id: `reference-${++nextReferenceId}`, name: file.name, url, kind, type: file.type, ...metadata, start: 0, end: Math.min(15, metadata.duration ?? 0), role: 'reference' };
+    return { ...(saved ? { asset_id: file.id } : { file }), id: `reference-${++nextReferenceId}`, name: file.name, url, kind, type, ...metadata, start: 0, end: Math.min(15, metadata.duration ?? 0), role: 'reference' };
   } catch (error) { URL.revokeObjectURL(url); throw new Error(`${file.name}: ${(error as Error).message}`); }
 }
 export function useReferences(onVideoChange?: (before: Reference[], after: Reference[]) => void) {
@@ -45,7 +55,7 @@ export function useReferences(onVideoChange?: (before: Reference[], after: Refer
   useEffect(() => () => { for (const list of Object.values(latest.current)) for (const item of list) URL.revokeObjectURL(item.url); }, []);
   function change(group: Group, list: Reference[]) { if (group === 'video') onVideoChange?.(latest.current[group], list); latest.current = { ...latest.current, [group]: list }; setGroups(latest.current); }
   function reset(group: Group) { epochs.current[group]++; for (const item of latest.current[group]) URL.revokeObjectURL(item.url); change(group, []); setErrors(previous => ({ ...previous, [group]: [] })); }
-  async function add(group: Group, files: File[]) {
+  async function add(group: Group, files: (File | LibraryAsset)[]) {
     if (pending.current) return;
     pending.current = true; setBusy(true); const epoch = epochs.current[group]; const messages: string[] = [];
     try {
@@ -99,6 +109,7 @@ export function referencePromptIssue(prompt: string, items: Reference[]) {
 }
 export function ReferenceInputs({ group, state, seconds=5, onInsert }: { group: Group; state: ReturnType<typeof useReferences>; seconds?:number; onInsert?:(label:string)=>void }) {
   const input = useRef<HTMLInputElement>(null);
+  const [gallery, setGallery] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
   const items = state.groups[group];
   const labels=referenceLabels(items);
@@ -117,7 +128,7 @@ export function ReferenceInputs({ group, state, seconds=5, onInsert }: { group: 
   return <section className="references" aria-label={group === 'edit' ? 'Image inputs' : 'Video references'}>
     <input ref={input} aria-label="Choose reference files" className="file-picker" type="file" accept={group === 'edit' ? 'image/*' : 'image/*,video/*,audio/*'} multiple onChange={event => { const files = Array.from(event.target.files ?? []); event.target.value = ''; void state.add(group, files); }} />
     <div className={`reference-dropbox ${dragging ? 'dragging' : ''}`} onDragOver={event => { event.preventDefault(); setDragging(true); }} onDragLeave={() => setDragging(false)} onDrop={event => { event.preventDefault(); setDragging(false); void state.add(group, Array.from(event.dataTransfer.files)); }}>
-      <div className="reference-bar"><div className="reference-label"><span>{group === 'edit' ? 'Input Images' : 'References'}</span><details className="reference-help"><summary aria-label="Asset limits"><Glyph name="info" /></summary><div><span>{items.length} {items.length === 1 ? 'file' : 'files'} selected</span><strong>max: {group === 'edit' ? 2 : 12}</strong><span>{group === 'edit' ? 'One source image and an optional subject image.' : 'Up to 9 images, 3 videos and 3 audio files; 12 files combined.'}</span></div></details></div><button type="button" className="reference-add" aria-label="Add references" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? '…' : '+'}</button></div>
+      <div className="reference-bar"><div className="reference-label"><span>{group === 'edit' ? 'Input Images' : 'References'}</span><details className="reference-help"><summary aria-label="Asset limits"><Glyph name="info" /></summary><div><span>{items.length} {items.length === 1 ? 'file' : 'files'} selected</span><strong>max: {group === 'edit' ? 2 : 12}</strong><span>{group === 'edit' ? 'One source image and an optional subject image.' : 'Up to 9 images, 3 videos and 3 audio files; 12 files combined.'}</span></div></details></div><button type="button" className="gallery-open" disabled={state.busy} onClick={() => setGallery(true)}>Gallery</button><button type="button" className="reference-add" aria-label="Add references" disabled={state.busy} onClick={() => input.current?.click()}>{state.busy ? '…' : '+'}</button></div>
       <div>
         {items.length ? <div className="reference-thumbnails">{items.map(item => <button type="button" className="reference-thumb" key={item.id} aria-label={`Preview ${item.name}`} onClick={() => setSelected(item.id)}>
           {item.kind === 'image' ? <img src={item.url} alt="" /> : item.kind === 'video' ? <><video src={item.url} muted preload="metadata" /><span className="media-symbol" aria-hidden="true">▶</span></> : <span className="audio-symbol" aria-hidden="true">♫</span>}
@@ -126,6 +137,7 @@ export function ReferenceInputs({ group, state, seconds=5, onInsert }: { group: 
     </div>
     {!active && errors.length > 0 && <ul className="reference-errors" role="alert">{errors.map((message, index) => <li key={index}>{message}</li>)}</ul>}
     {group==='video'&&items.some(item=>item.role==='reference')&&<div className="reference-labels" aria-label="Insert reference in prompt">{items.filter(item=>item.role==='reference').map(item=><button type="button" key={item.id} onClick={()=>onInsert?.(labels.get(item.id)!)} title={'Insert '+labels.get(item.id)+' in prompt'}>{labels.get(item.id)}</button>)}</div>}
+    {gallery && <GalleryPicker group={group} existing={items} onClose={() => setGallery(false)} onSelect={async assets => { await state.add(group, assets); setGallery(false); }} />}
     {active && <MediaPreview key={active.id} media={active} onClose={() => setSelected(null)} onDelete={() => { state.remove(group, active.id); setSelected(null); }} controls={controls} />}
   </section>;
 }
