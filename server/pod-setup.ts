@@ -6,15 +6,18 @@ import models from '../worker/models.json' with { type: 'json' };
 
 export const workerRelease = {
   image: 'ghcr.io/skarian/seed-worker@sha256:50c326db76108e4619131c180ec29bdea29fdc2a85c2f8db8f57d34c72148674',
-  template: 'tt0cmuwu3t',
-  templateUrl: 'https://console.runpod.io/deploy?template=tt0cmuwu3t',
 };
 type Volume = { id: string; name: string; size: number; dataCenter: string; type: string };
-type Deployment = { version: 1; pairingSecret: string; jupyterToken: string; volumeId?: string };
+type Deployment = { version: 1; pairingSecret: string; jupyterToken: string; volumeId?: string; templateId?: string };
+type Template = { id: string; name: string; public: boolean };
+type TemplateConfig = { name: string; public: false; image: string; disk: number; ports: string[]; args: string; env: Record<string,string>; category: 'NVIDIA'; startJupyter: false; startSsh: false; allowedCudaVersions: string[] };
 type Intent = { name: string; size: number; dataCenter: string; type: 'STANDARD' };
 const matchesIntent = (volume: Volume, intent: Intent) => volume.name === intent.name && volume.dataCenter === intent.dataCenter && volume.size === intent.size && volume.type === intent.type;
 export type OperatorIO = { question?: (message: string) => Promise<string>; say: (message: string) => void };
 export type Provider = {
+  templates(): Promise<Template[]>;
+  createTemplate(config: TemplateConfig): Promise<Template>;
+  updateTemplate(id: string, config: TemplateConfig): Promise<Template>;
   volumes(): Promise<Volume[]>;
   datacenters(): Promise<{ id: string; name: string; networkVolumeTypes: string[] }[]>;
   createVolume(intent: Intent): Promise<Volume>;
@@ -67,14 +70,17 @@ export async function preflightModels(paths: StudioPaths, request: typeof fetch 
 export function runpodProvider(paths: StudioPaths): Provider {
   const credentials = read<{ runpodApiKey?: string }>(path.join(paths.config, 'credentials.json'));
   if (!credentials?.runpodApiKey) throw new Error('Run seed setup to save your RunPod API key.');
-  async function request(route: string, body?: unknown): Promise<any> {
+  async function request(route: string, body?: unknown, method = body ? 'POST' : 'GET'): Promise<any> {
     let response: Response;
-    try { response = await fetch('https://api.runpod.io/v2/' + route, { method: body ? 'POST' : 'GET', redirect: 'error', signal: AbortSignal.timeout(30000), headers: { Authorization: `Bearer ${credentials!.runpodApiKey}`, 'Content-Type': 'application/json', 'User-Agent': 'seed/0.1' }, ...(body ? { body: JSON.stringify(body) } : {}) }); }
+    try { response = await fetch('https://api.runpod.io/v2/' + route, { method, redirect: 'error', signal: AbortSignal.timeout(30000), headers: { Authorization: `Bearer ${credentials!.runpodApiKey}`, 'Content-Type': 'application/json', 'User-Agent': 'seed/0.1' }, ...(body ? { body: JSON.stringify(body) } : {}) }); }
     catch { throw new Error('RunPod request did not complete. Check connectivity and rerun setup; an uncertain storage creation will not be repeated automatically.'); }
     if (!response.ok) throw new Error(`RunPod returned HTTP ${response.status}. Check access and your account in the console.`);
     return response.json();
   }
   return {
+    templates: async () => Promise.all((await request('templates')).templates.map((item: {id:string}) => request('templates/' + encodeURIComponent(item.id)))),
+    createTemplate: config => request('templates', config),
+    updateTemplate: (id, config) => request('templates/' + encodeURIComponent(id), config, 'PATCH'),
     volumes: async () => (await request('network-volumes')).networkVolumes,
     datacenters: async () => (await request('catalog/datacenters?networkVolumeTypes=STANDARD')).dataCenters,
     createVolume: intent => request('network-volumes', intent),
@@ -87,6 +93,27 @@ export function runpodProvider(paths: StudioPaths): Provider {
       return rate;
     },
   };
+}
+
+export async function setupTemplate(paths: StudioPaths, provider = runpodProvider(paths)) {
+  const saved = deploymentSettings(paths);
+  const templates = await provider.templates();
+  const candidates = templates.filter(item => item.public === false && (saved.templateId ? item.id === saved.templateId : item.name === 'seed'));
+  if (candidates.length > 1) throw new Error('Multiple private seed templates found. Choose one in pod-deployment.json using templateId.');
+  if (saved.templateId && !candidates.length) throw new Error('Saved private template is missing or public. Repair its templateId before continuing. No credentials were sent.');
+  const config: TemplateConfig = { name: 'seed', public: false, image: workerRelease.image, disk: 30, ports: ['8080/http','8888/http'], args: '/opt/venv/bin/python -m worker.run', env: podEnvironment(paths), category: 'NVIDIA', startJupyter: false, startSsh: false, allowedCudaVersions: ['13.0','13.2','13.3'] };
+  const intent = path.join(paths.config, 'pod-template-intent.json');
+  let template = candidates[0];
+  if (template) template = await provider.updateTemplate(template.id, config);
+  else {
+    if (read(intent)) throw new Error('Previous template creation is unresolved. Check RunPod templates before retrying; no duplicate was created.');
+    writeFileSync(intent, JSON.stringify({name:'seed'}), {flag:'wx',mode:0o600});
+    template = await provider.createTemplate(config);
+  }
+  if (!template?.id || template.public !== false) throw new Error('RunPod did not confirm a private template. Check the console.');
+  save(path.join(paths.config, 'pod-deployment.json'), {...saved, templateId: template.id});
+  rmSync(intent, {force:true});
+  return template;
 }
 
 export async function setupPod(paths: StudioPaths, options: OperatorIO & { volumeId?: string; create?: boolean }, provider = runpodProvider(paths)) {
@@ -139,6 +166,7 @@ export async function setupPod(paths: StudioPaths, options: OperatorIO & { volum
   const outstanding = read<Intent>(intentFile);
   if (outstanding && matchesIntent(volume, outstanding)) rmSync(intentFile);
   else if (outstanding) options.say('A separate storage creation is still unresolved. Its intent record has been preserved; inspect RunPod Storage before creating anything else.');
-  options.say(`Volume: ${volume.name} (${volume.id}), ${volume.size} GB, ${volume.dataCenter}\nTemplate: ${workerRelease.templateUrl}\nSelect this network volume and ONE available compatible GPU in ${volume.dataCenter}.\nUse seed pod-setup --show-secrets to display the private environment values for deployment.\nAfter deployment, open HTTP port 8080, unlock with SEED_PAIRING_SECRET, copy the connection code into seed.\nNo pod was started. Reuse this volume for subsequent deployments.`);
+  const template = await setupTemplate(paths, provider);
+  options.say(`Volume: ${volume.name} (${volume.id}), ${volume.size} GB, ${volume.dataCenter}\nPrivate template: seed\nhttps://console.runpod.io/deploy?template=${template.id}\nCredentials and worker settings are already filled in. Select this network volume and ONE available compatible GPU in ${volume.dataCenter}.\nAfter deployment, open HTTP port 8080, unlock with your pairing secret, and copy the connection code into seed.\nNo pod was started. Rerun this command to update your private template.`);
   return volume;
 }

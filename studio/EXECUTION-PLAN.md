@@ -239,3 +239,9 @@ Progress release deployed: commit 8c61603, GitHub Actions run 34442245918, worke
 Progress visibility follow-up: owner reported no percentage during generation. Latest completed job had received 37%, confirming telemetry reached the PC, but UI suppressed the percentage before the first sampling event. Running jobs now show 0% until sampling reports a value. Frontend-only files updated without restarting services; refresh required. This is a sampling indicator, so model loading/prompt preparation remain at 0%. No new generation run.
 
 Owner wording refinement: jobs show "Model loading…" before a positive sampling update, then "Generating N%". This initial label covers model loading and prompt preparation; it is not a separately measured model-loading phase. Frontend-only update applied without restarting the app or pod.
+
+### Private RunPod templates (2026-09-10; supersedes public-template deployment)
+
+`seed pod-setup` creates or updates an account-private template named seed, populated from locally saved worker credentials. The GHCR image remains public. Setup persists templateId beside volumeId, reuses it, updates the image and credentials on rerun, and reconciles uncertain template creation before issuing another create. Template list results omit visibility, so individual GETs confirm privacy. The RunPod API key is never included in worker environment.
+
+Terminated failed pod swyoff3etls55g per owner request; network volume f7vnixgws1 retained. Converted template tt0cmuwu3t to private and renamed it seed before adding saved credentials. No replacement pod started. Eight setup tests pass, including private credential population and lost-response reconciliation. Next launch: select seed, attach the existing volume, choose one GPU, deploy, then pair through port 8080.

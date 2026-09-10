@@ -8,7 +8,9 @@ function fixture() {
   mkdirSync('.local/tests', { recursive: true });
   const paths = resolvePaths(mkdtempSync(path.resolve('.local/tests/pod-setup-'))); prepareStorage(paths);
   const existing = { id: 'fixture-volume', name: 'models', size: 150, dataCenter: 'EU-TEST-1', type: 'STANDARD' };
-  const provider: Provider = { volumes: vi.fn(async () => [existing]), datacenters: vi.fn(async () => [{ id: 'EU-TEST-1', name: 'Fixture', networkVolumeTypes: ['STANDARD'] }]), createVolume: vi.fn(), storageRate: vi.fn(async () => 0.07) };
+  writeFileSync(path.join(paths.config, 'credentials.json'), JSON.stringify({huggingFaceToken:'fixture-hf'}));
+  const template = {id:'fixture-template',name:'seed',public:false};
+  const provider: Provider = { templates:vi.fn(async()=>[template]), createTemplate:vi.fn(), updateTemplate:vi.fn(async()=>template), volumes: vi.fn(async () => [existing]), datacenters: vi.fn(async () => [{ id: 'EU-TEST-1', name: 'Fixture', networkVolumeTypes: ['STANDARD'] }]), createVolume: vi.fn(), storageRate: vi.fn(async () => 0.07) };
   return { paths, provider, existing, say: vi.fn() };
 }
 test('reuse persists secrets and selected volume without creating paid resources or leaking secrets', async () => {
@@ -67,4 +69,28 @@ test('model preflight checks pinned size/digest without following credential-bea
   });
   expect((await preflightModels(paths, request)).files).toBe(models.length);
   await expect(preflightModels(paths, vi.fn(async () => new Response(null, { status: 401 })))).rejects.toThrow('access/integrity');
+});
+
+test('private template is reused and contains worker credentials but never the RunPod API key', async () => {
+  const {paths,provider,say}=fixture();
+  await setupPod(paths,{say},provider);await setupPod(paths,{say},provider);
+  expect(provider.createTemplate).not.toHaveBeenCalled();
+  expect(provider.updateTemplate).toHaveBeenCalledTimes(2);
+  const config=vi.mocked(provider.updateTemplate).mock.calls[0]![1];
+  expect(config).toMatchObject({name:'seed',public:false,ports:['8080/http','8888/http']});
+  expect(config.env.HF_TOKEN).toBe('fixture-hf');
+  expect(config.env).not.toHaveProperty('RUNPOD_API_KEY');
+  expect(deploymentSettings(paths).templateId).toBe('fixture-template');
+  expect(say.mock.calls.flat().join('\n')).not.toContain('fixture-hf');
+});
+
+test('uncertain template creation reconciles by private name instead of creating duplicates', async () => {
+  const {paths,provider,say}=fixture();let created=false;
+  provider.templates=vi.fn(async()=>created?[{id:'new-private',name:'seed',public:false}]:[]);
+  provider.createTemplate=vi.fn(async()=>{created=true;throw Error('response lost');});
+  provider.updateTemplate=vi.fn(async()=>({id:'new-private',name:'seed',public:false}));
+  await expect(setupPod(paths,{say},provider)).rejects.toThrow('response lost');
+  await setupPod(paths,{say},provider);
+  expect(provider.createTemplate).toHaveBeenCalledTimes(1);
+  expect(deploymentSettings(paths).templateId).toBe('new-private');
 });

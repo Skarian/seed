@@ -83,7 +83,7 @@ Package: [seed-worker](https://github.com/Skarian/runpod/pkgs/container/seed-wor
 
 Candidate: `ghcr.io/skarian/seed-worker@sha256:50c326db76108e4619131c180ec29bdea29fdc2a85c2f8db8f57d34c72148674`.
 [Build and publication](https://github.com/Skarian/runpod/actions/runs/34436686831)
-succeeded; anonymous registry access was verified. The shared template pins
+succeeded; anonymous registry access was verified. The private seed template pins
 this candidate; the older lean deployment template is unchanged. See [bootstrap](studio/POD-BOOTSTRAP.md) for required
 private variables and [milestone journal](studio/EXECUTION-PLAN.md) for test evidence.
 
@@ -91,3 +91,5 @@ Run `seed pod-setup` to verify model access and reuse network storage. Use
 `seed pod-setup --show-secrets` in a private terminal for deployment values.
 [Setup and deployment instructions](studio/RELEASE-AND-INFRASTRUCTURE.md#operator-setup-commands-m2)
 include first-time storage creation and returning with a replacement pod.
+
+Current deployment: `seed pod-setup` creates or updates your private **seed** template with saved credentials and a pinned worker image. Choose that template and the existing network volume when launching; no credential copying is needed. The GHCR image remains public. `--show-secrets` is for recovery, not routine launches.

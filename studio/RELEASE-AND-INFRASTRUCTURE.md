@@ -98,3 +98,5 @@ connection popover. JUPYTER_TOKEN is only for administration on 8888.
 Keep the network volume when terminating a pod. A replacement uses the same
 setup values and volume but requires a fresh connection code. Setup does not
 start, stop, migrate or terminate compute.
+
+Current launch procedure (supersedes public-template instructions): run `seed pod-setup` to create/update your private seed template and reuse the model volume. Credentials are populated automatically. Launch that template with the saved network volume and one GPU. The image is public; the template is private. Rerun setup after credential or worker-version changes. `--show-secrets` remains available for recovery only.
