@@ -53,3 +53,12 @@ GHCR is GitHub Container Registry, part of the GitHub publishing setup. Use the 
 The owner is comfortable with public software artifacts. Repository visibility is separate from package visibility: retain current repository visibility until its source/history and private operational material have been reviewed as part of the publication decision. Do not publish personal media, credentials, local configuration or model weights. This note does not change remote visibility or publish anything.
 
 References: [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry), [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
+
+## Worker package name
+
+New seed worker releases use `ghcr.io/skarian/seed-worker` to match the application
+name and distinguish the GPU worker from the local npm CLI. The source repository
+remains `Skarian/runpod`. `ghcr.io/skarian/runpod-studio` is retained for the old
+pod template and the immutable base image used by the worker Dockerfile; do not
+rewrite those historical references or remove their package. Candidate publication
+must be followed by an anonymous pull check before recording a usable release.
