@@ -185,9 +185,9 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 
 Next owner checkpoint: inspect the saved SFW/NSFW images and Library viewer on mobile/desktop. Agree on quality/defaults before M4. Remaining M3 acceptance: pod replacement with a pending output, additional quality prompts and owner review; do not convert successful protocol checks into a blanket quality claim.
 
-#### M4 — Not started: expressive workflows
+#### M4 — In progress: video workflows first
 
-Next owner checkpoint: try image/video controls and compare representative outputs. Record chosen defaults, reference handling and quality feedback separately from technical test results.
+Owner priority update: text-to-video and reference-to-video precede image-to-image. Close the Krea variety concern at the owner's request. Implement the shared upload/video output path, FL and Ref graphs, required technical adapters and route-specific content presets; validate live and commit coherent slices. Next owner checkpoint: test video controls/uploads, play and download saved clips, and compare representative results. Image-to-image follows this checkpoint. Record chosen defaults, reference handling and quality feedback separately from technical test results.
 
 #### M5 — Not started: acceptance and handover
 
