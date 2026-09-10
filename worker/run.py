@@ -1,5 +1,6 @@
 """Container supervisor: early pairing, model preparation, then private ComfyUI."""
 import asyncio
+import errno
 import json
 import multiprocessing
 import os
@@ -7,15 +8,48 @@ import queue
 import tempfile
 from pathlib import Path
 from aiohttp import web
-from worker.app import HTTP, PREPARATION, create_app
+from worker.app import HTTP, PREPARATION, atomic_json, create_app
 from worker.prepare import prepare
 
 
-def prepare_process(workspace, manifest, token, messages):
+def preparation_failure(exc):
+    status, number = None, None
+    cause = exc
+    for _ in range(8):
+        status = status or getattr(getattr(cause, 'response', None), 'status_code', None)
+        number = number or getattr(cause, 'errno', None)
+        cause = cause.__cause__ or cause.__context__
+        if cause is None: break
+    if number in (errno.ENOSPC, errno.EDQUOT):
+        message = 'Model storage is full or its volume quota was reached. Increase the volume capacity or remove unused models, then restart to resume.'
+    elif status in (401, 403):
+        message = 'Hugging Face denied this model download. Check HF_TOKEN and your account access to the model, then restart to resume.'
+    elif status == 404:
+        message = 'A pinned model file is unavailable at Hugging Face. Check the model manifest before retrying.'
+    elif status == 429:
+        message = 'Hugging Face rate-limited this download. Wait before restarting to resume.'
+    elif isinstance(exc, (TimeoutError, ConnectionError)) or 'timeout' in type(exc).__name__.lower() or 'connect' in type(exc).__name__.lower():
+        message = 'The model download connection was interrupted. Restart the pod to resume the staged download.'
+    else:
+        message = f'Model preparation failed ({type(exc).__name__}). Inspect the private preparation-error.json record through Jupyter before retrying.'
+    return message, {'exception': type(exc).__name__, 'http_status': status if isinstance(status, int) else None, 'errno': number if isinstance(number, int) else None}
+
+
+def prepare_process(workspace, manifest, token, messages, diagnostics=None):
+    current = {}
+    def report(**value):
+        current.update(value)
+        messages.put(value)
     try:
-        prepare(workspace, manifest, token, report=lambda **value: messages.put(value))
+        prepare(workspace, manifest, token, report=report)
     except Exception as exc:
-        messages.put({'phase': 'preparation failed', 'error': {'message': f'Model preparation failed ({type(exc).__name__}). Check storage and model access, then restart the pod.'}})
+        message, details = preparation_failure(exc)
+        # Never persist raw exception strings: provider errors can contain signed
+        # URLs or credentials. Keep safe codes and the last manifest phase only.
+        if diagnostics:
+            try: atomic_json(diagnostics, {**details, 'phase': current.get('phase'), 'message': message})
+            except OSError: pass
+        messages.put({'phase': current.get('phase', 'preparation failed'), 'error': {'message': message}})
         raise SystemExit(1)
 
 
@@ -82,7 +116,7 @@ def main():
                 manifest = json.loads((Path(__file__).parent/'models.json').read_text())
                 context = multiprocessing.get_context('spawn')
                 messages = context.Queue()
-                preparation_process = context.Process(target=prepare_process, args=(workspace, manifest, token, messages), daemon=True)
+                preparation_process = context.Process(target=prepare_process, args=(workspace, manifest, token, messages, runtime/'preparation-error.json'), daemon=True)
                 preparation_process.start()
                 while True:
                     if jupyter.returncode is not None:
