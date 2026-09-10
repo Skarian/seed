@@ -283,3 +283,12 @@ sampling/aggregation and durable job storage; version 2 explicitly labels Comfy'
 reclaimable-cache accounting. Removed GPU activity percentage. Native versions
 allowlisted; raw argv not retained. Fifteen engine/spool tests, seven local job
 tests and typecheck passed. Publish update without starting compute.
+
+
+Native metrics release: worker commit 07d68f0, GitHub build 34539333848,
+image ghcr.io/skarian/seed-worker@sha256:f7f4453a199ae43aacfdfcd62f089b31cd42f3967e0dc5f3f2bb3bfd4977d054.
+Anonymous manifest digest verified; private seed template and existing stopped pod
+updated with credentials/mounts preserved. No pod started. Native API submissions
+now carry client_id so Comfy emits execution_start even without a browser socket.
+Local app accepts both metric versions. 22 targeted tests passed; GPU validation
+remains deferred to the owner's next run.

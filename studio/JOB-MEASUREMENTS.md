@@ -64,3 +64,8 @@ September 10: switched to native Comfy statistics/history after reviewing the
 pinned upstream implementation. Version 1 records remain readable; new records
 use version 2. Live validation still requires a user-started pod. Release pin
 for this revision is recorded in EXECUTION-PLAN.md.
+
+Current native-metrics image:
+`ghcr.io/skarian/seed-worker@sha256:f7f4453a199ae43aacfdfcd62f089b31cd42f3967e0dc5f3f2bb3bfd4977d054`.
+Private template and stopped pod updated; no GPU run performed. This supersedes
+the version-1 image recorded above.
