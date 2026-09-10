@@ -73,8 +73,8 @@ Use `seed setup --host 192.168.1.212` to persist this address. If DHCP changes i
 - `tests/`: storage preservation/cache separation, host/origin rejection,
   disconnected safety, private-file denial, drafts/navigation and mobile layout.
 
-The app never loads `.env` or calls RunPod's control plane. `.env.example` is for
-the future standalone setup utility; fill real values only in the ignored `.env`.
+The web app never loads credentials or calls RunPod's control plane. Use seed setup
+to save required credentials in the per-user configuration.
 Public model access may not need HF credentials; exact asset access still needs
 preflight. Do not put secrets into browser drafts, screenshots or Git.
 
@@ -167,15 +167,14 @@ close. Replace and the temporary notice are removed; files remain browser-local.
 Civitai token (Enter skips). HF covers base models and other HF assets, not only
 LoRAs. Gated model terms still need account approval. All three live in the same
 per-user config/credentials.json, separate from ordinary settings and npm files.
-Setup prints that path, never the token values. The repository .env is not written.
+Setup prints that path, never the token values. No .env file or template is shipped in the repo. Optional .env import remains supported.
 
-For each token, precedence is environment, saved credential, then the current
-folder's optional .env import. Names: RUNPOD_API_KEY, HF_TOKEN, CIVITAI_API_TOKEN.
+For each token, precedence is environment, saved credential, then an optional .env file in the current directory. Names: RUNPOD_API_KEY, HF_TOKEN, CIVITAI_API_TOKEN.
 Masked prompts ask only for missing tokens. Noninteractive setup fails if either
 required token is absent; Civitai remains optional. Existing RunPod-only files are
 reused and the new prompts fill remaining fields. Entered tokens are saved as each
 step completes, so cancellation does not erase earlier entries. An explicit
-environment value can rotate a saved token. Saved values override stale .env copies.
+environment value can rotate a saved token.
 
 This is per-user file storage, not OS-vault encryption; mode 0600 on POSIX and
 existing per-user directory ACLs on Windows. All three tokens are removed from the
@@ -183,4 +182,3 @@ spawned web-server environment. Browser routes never load credentials.json/.env.
 Future worker setup receives only necessary model-download credentials privately,
 never the RunPod control-plane key. No live provider verification or spending is
 implied by saving tokens. Twelve server/CLI/credential tests pass using fixtures.
-

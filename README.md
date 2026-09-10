@@ -58,7 +58,9 @@ See [development](studio/DEVELOPMENT.md) for the current source launch path.
 
 `seed setup` reuses saved credentials and uses masked prompts for missing ones:
 RunPod and Hugging Face are required; Civitai is optional (Enter skips). All tokens
-save to the per-user config/credentials.json path printed by setup. The repo .env
-is an optional import source, not a file setup populates. Environment variables
+save to the per-user config/credentials.json path printed by setup. Environment variables
 RUNPOD_API_KEY, HF_TOKEN and CIVITAI_API_TOKEN are also accepted. No tokens are
 sent to the browser, and the RunPod key never goes to the GPU worker.
+
+For unattended/container setup, environment variables are supported, with an optional
+.env file as a fallback import. No .env or example is shipped, and setup never writes one.
