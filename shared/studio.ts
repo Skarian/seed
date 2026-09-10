@@ -16,4 +16,5 @@ export interface LibraryAsset {
   kind: 'image' | 'video' | 'audio';
   name: string;
   created_at: string;
+  mode?: 'sfw' | 'nsfw';
 }

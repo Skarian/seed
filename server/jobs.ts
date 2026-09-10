@@ -180,7 +180,7 @@ export class Jobs {
         this.db.transaction(() => {
           for (const output of outputs) {
             const id = job.id + '-' + output.id;
-            this.db.prepare('INSERT OR IGNORE INTO assets(id,kind,name,relative_path,metadata_json,created_at) VALUES (?,\'image\',?,?,?,?)').run(id, 'Image · ' + job.request.mode.toUpperCase(), 'media/outputs/' + id + '.png', JSON.stringify({ job_id: job.id, sha256: output.sha256, size: output.size }), new Date().toISOString());
+            this.db.prepare('INSERT OR IGNORE INTO assets(id,kind,name,relative_path,metadata_json,created_at) VALUES (?,\'image\',?,?,?,?)').run(id, 'Image · ' + job.request.mode.toUpperCase(), 'media/outputs/' + id + '.png', JSON.stringify({ job_id: job.id, mode: job.request.mode, sha256: output.sha256, size: output.size }), new Date().toISOString());
           }
           job.outputs = outputs.map(o => job.id + '-' + o.id); job.state = 'completed'; job.output_save_state = 'saved'; job.cleanup_state = 'pending'; job.error = null; this.save(job);
         })();

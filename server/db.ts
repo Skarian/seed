@@ -51,5 +51,5 @@ export function openDatabase(dataDirectory: string) {
 }
 
 export function listAssets(db: Database.Database, cursor = '', limit = 50): LibraryAsset[] {
-  return db.prepare('SELECT id, kind, name, created_at FROM assets WHERE (? = \'\' OR (created_at,id) < (SELECT created_at,id FROM assets WHERE id=?)) ORDER BY created_at DESC, id DESC LIMIT ?').all(cursor, cursor, limit) as LibraryAsset[];
+  return db.prepare(`SELECT id, kind, name, created_at, COALESCE(json_extract(metadata_json, '$.mode'), (SELECT json_extract(snapshot_json, '$.request.mode') FROM jobs WHERE jobs.id=json_extract(assets.metadata_json, '$.job_id')), CASE WHEN name = 'Image · NSFW' THEN 'nsfw' ELSE 'sfw' END) AS mode FROM assets WHERE (? = \'\' OR (created_at,id) < (SELECT created_at,id FROM assets WHERE id=?)) ORDER BY created_at DESC, id DESC LIMIT ?`).all(cursor, cursor, limit) as LibraryAsset[];
 }

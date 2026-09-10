@@ -179,6 +179,8 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 
 - **Generate deletion follow-up:** the same floating red × and confirmation now appear on saved results beneath Create. Deletion updates both views, removes the result card, and keeps failures visible. Both generation and Library browser tests passed; mobile result layout visually checked. Updated the installed PC app without modifying the pod.
 
+- **Library NSFW opt-in:** added Show NSFW, off by default and reset on reload. Uses saved generation mode (including existing job metadata); hidden items do not render thumbnails. Nine focused server tests and two Library browser tests passed. Installed app updated; graceful shutdown stalled after jobs were saved, requiring termination of the verified seed process only. Investigate shutdown latency separately; no GPU change.
+
 Next owner checkpoint: inspect the saved SFW/NSFW images and Library viewer on mobile/desktop. Agree on quality/defaults before M4. Remaining M3 acceptance: pod replacement with a pending output, additional quality prompts and owner review; do not convert successful protocol checks into a blanket quality claim.
 
 #### M4 â€” Not started: expressive workflows

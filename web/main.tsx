@@ -61,6 +61,8 @@ function App() {
   const drag = useRef<{ y: number; height: number } | null>(null);
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
+  const [showNsfw, setShowNsfw] = useState(false);
+  const visibleAssets = assets.filter(asset => showNsfw || asset.mode !== 'nsfw');
   const [assetCursor, setAssetCursor] = useState<string | null>(null);
   const loadedMore = useRef(false);
   const deletedAssets = useRef(new Set<string>());
@@ -232,7 +234,7 @@ function App() {
           {deleteError && <p role="alert">{deleteError}</p>}
           {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <div className="library-item" key={asset}><button className="library-preview" onClick={() => setViewAsset(asset)}><img src={`/api/v1/assets/${asset}/content`} alt="Generated image" /></button><button className="library-delete" aria-label="Delete generated image" title="Delete" disabled={deletingAsset !== null} onClick={() => void deleteAsset({ id: asset, kind: 'image' })}><Icon name="close" /></button></div>) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
         </section>
-      </> : <section className="library"><h1>Library</h1>{deleteError && <p role="alert">{deleteError}</p>}{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <div className="library-grid">{assets.map(asset => <div className="library-item" key={asset.id}><button className="library-preview" onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button><button className="library-delete" aria-label={`Delete ${asset.name}`} title="Delete" disabled={deletingAsset !== null} onClick={() => void deleteAsset(asset)}><Icon name="close" /></button></div>)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
+      </> : <section className="library"><div className="library-heading"><h1>Library</h1><label className="library-nsfw"><input type="checkbox" checked={showNsfw} onChange={event => setShowNsfw(event.target.checked)} />Show NSFW</label></div>{deleteError && <p role="alert">{deleteError}</p>}{visibleAssets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>{assets.length ? 'No visible files. Enable Show NSFW to see hidden items.' : 'No saved files yet.'}</p></div> : <div className="library-grid">{visibleAssets.map(asset => <div className="library-item" key={asset.id}><button className="library-preview" onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button><button className="library-delete" aria-label={`Delete ${asset.name}`} title="Delete" disabled={deletingAsset !== null} onClick={() => void deleteAsset(asset)}><Icon name="close" /></button></div>)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
       <footer>seed</footer>
     </main>
     {viewAsset && <SavedImage id={viewAsset} close={() => setViewAsset(null)} />}
