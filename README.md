@@ -7,8 +7,8 @@ Includes MiniMax H3 video workflows, Krea 2 image generation and identity editin
 Next-stage planning: [media studio MVP](STUDIO-MVP.md) — a local Windows studio,
 manual RunPod deployment and pairing, expressive workflows, and permanent media
 on your PC. See the [implementation plan](studio/EXECUTION-PLAN.md) for access,
-milestones, reviews and commit policy. A local frontend foundation is implemented;
-GPU pairing/generation are pending; local npm package installation and CLI lifecycle work. See [local development](studio/DEVELOPMENT.md). [LLM choices](research/llm/README.md)
+milestones, reviews and commit policy. A local frontend foundation is implemented.
+Pairing/status work locally and the worker candidate is published; live GPU integration and generation remain pending. Local npm package installation and CLI lifecycle work. See [local development](studio/DEVELOPMENT.md). [LLM choices](research/llm/README.md)
 are saved for a later phase.
 
 ## Existing RunPod deployment
@@ -64,3 +64,17 @@ sent to the browser, and the RunPod key never goes to the GPU worker.
 
 For unattended/container setup, environment variables are supported, with an optional
 .env file as a fallback import. No .env or example is shipped, and setup never writes one.
+
+## M2 worker candidate
+
+The new worker is a separate candidate from the existing lean deployment above.
+It has an early connection page, single-use pairing, authenticated status and
+model preparation with integrity checks. Local container tests passed; live GPU validation
+and the reusable setup command remain unfinished. Generation is still disabled
+in the local portal.
+
+Candidate: `ghcr.io/skarian/runpod-studio@sha256:f98b36acf39888fb6dab4491f5945abc6173c3899d2bb8e180010497bd98e306`.
+[Build and publication](https://github.com/Skarian/runpod/actions/runs/34424605550)
+succeeded; anonymous registry access was verified. This does not update the
+existing pod template. See [bootstrap](studio/POD-BOOTSTRAP.md) for required
+private variables and [milestone journal](studio/EXECUTION-PLAN.md) for test evidence.
