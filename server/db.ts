@@ -12,9 +12,8 @@ export function openDatabase(dataDirectory: string) {
     db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
     db.transaction(() => {
       const latest = db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number | null };
-      if ((latest.version ?? 0) > 1) throw new Error('This database requires a newer studio version.');
-      if (latest.version === 1) return;
-      db.exec(`
+      if ((latest.version ?? 0) > 2) throw new Error('This database requires a newer studio version.');
+      if (!latest.version) { db.exec(`
         CREATE TABLE assets (
           id TEXT PRIMARY KEY,
           kind TEXT NOT NULL CHECK (kind IN ('image', 'video', 'audio')),
@@ -35,6 +34,14 @@ export function openDatabase(dataDirectory: string) {
         INSERT INTO dispatcher_state (id, paused) VALUES (1, 1);
       `);
       db.prepare('INSERT INTO schema_migrations VALUES (1, ?)').run(new Date().toISOString());
+      }
+      if ((latest.version ?? 0) < 2) {
+        db.exec(`CREATE TABLE submissions (id TEXT PRIMARY KEY, idempotency_key TEXT NOT NULL UNIQUE, body_json TEXT NOT NULL);
+          ALTER TABLE jobs ADD COLUMN submission_id TEXT;
+          ALTER TABLE jobs ADD COLUMN submission_index INTEGER;
+          CREATE UNIQUE INDEX jobs_submission_index ON jobs(submission_id, submission_index);`);
+        db.prepare('INSERT INTO schema_migrations VALUES (2, ?)').run(new Date().toISOString());
+      }
     })();
     return db;
   } catch (error) {

@@ -17,7 +17,7 @@ describe('local studio boundary', () => {
   it('reports disconnected and unknown safety, never provider-off or ready', async () => {
     const result = await app.inject({ url: '/api/v1/studio', headers: { host } });
     expect(result.statusCode).toBe(200);
-    expect(result.json()).toMatchObject({ worker: { state: 'disconnected', stale: true }, safe_to_terminate: null, checked_at: null, queue: { paused: true }, implementation: { generation: false } });
+    expect(result.json()).toMatchObject({ worker: { state: 'disconnected', stale: true }, safe_to_terminate: null, checked_at: null, queue: { paused: true }, implementation: { generation: true } });
     expect(result.headers['cache-control']).toBe('no-store');
   });
   it('rejects rebinding hosts, hostile origins and cross-site reads', async () => {

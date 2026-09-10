@@ -28,7 +28,7 @@ describe('persistent local storage', () => {
       expect(readFileSync(file, 'utf8')).toBe('unique original');
       expect(listAssets(reopened)).toEqual([{ id: 'asset-1', kind: 'image', name: 'My original', created_at: '2026-09-09T00:00:00Z' }]);
       expect(reopened.prepare('SELECT paused FROM dispatcher_state').get()).toEqual({ paused: 0 });
-      expect(reopened.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 1 });
+      expect(reopened.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 2 });
       expect(reopened.pragma('synchronous', { simple: true })).toBe(2);
     } finally { reopened.close(); }
   });

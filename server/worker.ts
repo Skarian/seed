@@ -45,6 +45,23 @@ export class WorkerConnection {
     } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Saved worker connection is invalid. Remove worker-connection.json to reconnect.'); }
   }
   get connected() { return this.connection !== null; }
+  get identity() { return this.connection ? { workspace_id: this.connection.workspace_id, worker_instance_id: this.connection.worker_instance_id } : null; }
+  async request(route: string, options: { method?: string; body?: unknown; session?: string; range?: number } = {}) {
+    const connection = this.connection;
+    if (!connection) throw new Error('Connect a pod first.');
+    if (!/^\/(comfy\/(session|queue|capabilities|prompt|cancel)|worker\/v1\/jobs(?:[/?].*)?)$/.test(route)) throw new Error('Unsupported worker operation.');
+    return fetch(connection.endpoint + route, { method: options.method ?? 'GET', redirect: 'error', signal: AbortSignal.timeout(options.range !== undefined ? 600000 : 65000),
+      headers: { Authorization: `Bearer ${connection.worker_credential}`, ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(options.session ? { 'X-Studio-Engine-Session': options.session } : {}), ...(options.range ? { Range: `bytes=${options.range}-` } : {}) },
+      ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }) });
+  }
+  async json(route: string, options: { method?: string; body?: unknown; session?: string } = {}) {
+    const response = await this.request(route, options);
+    if (!response.ok) { await response.body?.cancel(); throw new Error(`Worker returned HTTP ${response.status}.`); }
+    const reader = response.body!.getReader(); const chunks: Uint8Array[] = []; let size = 0;
+    try { while (true) { const next = await reader.read(); if (next.done) break; size += next.value.length; if (size > 1024 * 1024) throw new Error('Worker response too large.'); chunks.push(next.value); } }
+    finally { await reader.cancel(); }
+    return JSON.parse(Buffer.concat(chunks).toString('utf8'));
+  }
   async pair(encoded: string) {
     if (this.changing) throw new Error('A connection change is already in progress.');
     this.changing = true;

@@ -52,7 +52,7 @@ it('keeps credentials out of the browser API and leaves dispatch paused after pa
     const paired = await app.inject({ method: 'PUT', url: '/api/v1/connection', headers, payload: { connection_code: code() } });
     expect(paired.json()).toEqual({ connected: true });
     const status = await app.inject({ url: '/api/v1/studio', headers });
-    expect(status.json()).toMatchObject({ worker: { state: 'ready', connected: true }, safe_to_terminate: null, outputs: { pending: null }, queue: { paused: true }, implementation: { generation: false } });
+    expect(status.json()).toMatchObject({ worker: { state: 'ready', connected: true }, safe_to_terminate: null, outputs: { pending: 0 }, queue: { paused: true }, implementation: { generation: true } });
     expect(status.body).not.toContain(credential);
     expect(status.body).not.toContain(origin);
     const removed = await app.inject({ method: 'DELETE', url: '/api/v1/connection', headers });

@@ -21,14 +21,14 @@ jobs:
           sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
           df -h /
       - name: Build candidate
-        run: docker build --platform linux/amd64 --tag "ghcr.io/skarian/seed-worker:seed-m2-${GITHUB_SHA}" --file worker/Dockerfile worker
+        run: docker build --platform linux/amd64 --tag "ghcr.io/skarian/seed-worker:seed-m3-${GITHUB_SHA}" --file worker/Dockerfile worker
       - name: Authenticate to GHCR
         env:
           GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
       - name: Publish candidate without changing the pod template
         run: |
-          image="ghcr.io/skarian/seed-worker:seed-m2-${GITHUB_SHA}"
+          image="ghcr.io/skarian/seed-worker:seed-m3-${GITHUB_SHA}"
           docker push "$image"
           digest=$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')
           printf 'Candidate image: `%s`\n' "$digest" >> "$GITHUB_STEP_SUMMARY"

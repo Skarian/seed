@@ -15,3 +15,6 @@ async def studio_session(request):
 
 NODE_CLASS_MAPPINGS = {}
 NODE_DISPLAY_NAME_MAPPINGS = {}
+
+from .jobs import install
+install(PromptServer.instance, os.environ['SEED_WORKSPACE'], WORKSPACE_ID, ENGINE_SESSION_ID)

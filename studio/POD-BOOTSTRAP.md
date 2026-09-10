@@ -1,6 +1,6 @@
 # GPU runtime bootstrap and pairing
 
-Revision 8. Pairing/status, GPU startup and replacement are verified on the existing prepared volume. Cold downloads hit Hugging Face CDN HTTP 429 from the tested pods, so empty-volume preparation and interrupted-download recovery remain open. Job spool/transfer routes and preset activation are not implemented. [Current direction](CURRENT-DIRECTION.md) and [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) define the scope.
+Revision 9. Pairing/status, GPU startup and replacement are verified on the existing prepared volume. Cold downloads hit Hugging Face CDN HTTP 429 from the tested pods; owner deferred rate-limit changes while M3 progresses. Job spool/transfer routes, narrow Comfy submission/cancel adapter and operator preset activation are implemented locally with tests; live M3 verification remains required. Full local CLI preset sync is not implemented. [Current direction](CURRENT-DIRECTION.md) and [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) define the scope.
 
 1. Owner deploys the published template with the selected network volume and private pairing/download credentials. No provider API credential in the pod.
 2. Start the small worker connection page on port 8080 immediately, before downloads. Keep raw ComfyUI private. Jupyter remains separately authenticated administration.

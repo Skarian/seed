@@ -1,6 +1,6 @@
 # seed API contract
 
-Revision 6. Contract specified; implementation and live validation pending. Private same-origin `/api/v1`. No provider credentials, model paths or raw graphs accepted from browsers.
+Revision 7. Text-to-image jobs, mode capabilities, queue controls, cancellation, saved image content and local dispatcher are implemented; live M3 verification pending. Uploads, other generation workflows, full preset sync and complete Library pagination remain planned. Private same-origin `/api/v1`. No provider credentials, model paths or raw graphs accepted from browsers. Explicit Create accepts a durable submission and resumes the local waiting queue; it never starts compute. Detailed historical field descriptions below describe the target contract; consult execution notes for acceptance evidence.
 
 ## Routes
 

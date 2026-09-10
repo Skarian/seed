@@ -1,6 +1,6 @@
 # ComfyUI changes
 
-Revision 5, planning only. Four explicit adapter functions clone trusted API JSON, bind known fields and add small reference/LoRA chains. Keep editable legacy graphs for rollback; no generic graph DSL or App export generator. Validate every node/input/link against pinned live object_info before promotion. Do not import old deployment scripts with mutation side effects.
+Revision 6. Text-to-image now has a native graph builder in server/workflows.ts, based on the official Comfy INT8 Turbo template: EmptyLatentImage, ConditioningZeroOut, eight Euler/simple steps at CFG1. SFW uses base weights; NSFW adds the selected model-only content adapter. Portrait/landscape canvases are720×1280/1280×720, approximately1MP. Other adapters below remain planned. Keep editable legacy graphs for rollback; no generic graph DSL or App export generator. Validate every node/input/link against pinned live object_info before promotion. Do not import old deployment scripts with mutation side effects. [M3 source comparison](../research/workflows/krea2-m3.md).
 
 ## Image adapters
 

@@ -5,10 +5,10 @@ export interface StudioSnapshot {
   worker: { state: 'disconnected' | 'preparing' | 'ready' | 'busy'; observed_at: string | null; stale: boolean; connected?: boolean; preparation?: { phase: string; bytes_done?: number; bytes_total?: number; error: { message: string } | null } };
   queue: { paused: boolean; waiting: number; active: number };
   outputs: { pending: number | null };
-  safe_to_terminate: null;
-  checked_at: null;
+  safe_to_terminate: boolean | null;
+  checked_at: string | null;
   reasons: string[];
-  implementation: { pairing: boolean; generation: false };
+  implementation: { pairing: boolean; generation: boolean };
 }
 
 export interface LibraryAsset {

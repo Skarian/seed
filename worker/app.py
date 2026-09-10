@@ -85,7 +85,7 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
         response.headers['Content-Security-Policy'] = "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'"
         return response
 
-    app = web.Application(middlewares=[security], client_max_size=16*1024)
+    app = web.Application(middlewares=[security], client_max_size=1024*1024)
     app[PREPARATION] = preparation
 
     def authenticated(request, allow_cookie=False):
@@ -190,6 +190,8 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
     app.router.add_post('/worker/v1/pairing-codes', mint)
     app.router.add_post('/worker/v1/exchange', exchange)
     app.router.add_get('/worker/v1/status', status)
+    from worker.jobs import install
+    install(app, workspace, comfy_url, authenticated)
     return app
 
 if __name__ == '__main__':

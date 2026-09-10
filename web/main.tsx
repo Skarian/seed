@@ -45,6 +45,12 @@ function Icon({ name }: { name: 'reset' | 'jobs' | 'pod' | 'resize' | 'close' })
   </svg>;
 }
 
+function SavedImage({ id, close }: { id: string; close: () => void }) {
+  const dialog = useRef<HTMLDialogElement>(null);
+  useEffect(() => { dialog.current?.showModal(); return () => dialog.current?.close(); }, []);
+  return <dialog ref={dialog} className="saved-viewer" aria-label="Saved image" onCancel={close} onClose={close}><div><a href={`/api/v1/assets/${id}/content`} download>Download</a><button onClick={close} aria-label="Close saved image"><Icon name="close" /></button></div><img src={`/api/v1/assets/${id}/content`} alt="Saved generation" /></dialog>;
+}
+
 function App() {
   const references = useReferences();
   const [page, setPage] = useState(location.pathname === '/library' ? 'library' : 'generate');
@@ -55,6 +61,13 @@ function App() {
   const drag = useRef<{ y: number; height: number } | null>(null);
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
+  const [jobs, setJobs] = useState<Array<{ id: string; state: string; outputs: string[]; error: string | null }>>([]);
+  const [capability, setCapability] = useState<{ revision: string | null; workflows: Record<string, { enabled: boolean; modes: string[] }> } | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+  const [generationError, setGenerationError] = useState('');
+  const [submission, setSubmission] = useState<string[]>([]);
+  const pendingSubmission = useRef<{ key: string; body: string } | null>(null);
+  const [viewAsset, setViewAsset] = useState<string | null>(null);
   const [error, setError] = useState('');
   const [connectionCode, setConnectionCode] = useState('');
   const [connectionError, setConnectionError] = useState('');
@@ -69,10 +82,10 @@ function App() {
     const controller = new AbortController();
     async function refresh() {
       try {
-        const responses = await Promise.all(['/api/v1/studio', '/api/v1/assets'].map(url => fetch(url, { signal: controller.signal })));
+        const responses = await Promise.all(['/api/v1/studio', '/api/v1/assets', '/api/v1/jobs', '/api/v1/capabilities'].map(url => fetch(url, { signal: controller.signal })));
         if (responses.some(response => !response.ok)) throw new Error('Unavailable');
-        const [status, library] = await Promise.all(responses.map(response => response.json()));
-        if (!disposed) { setStudio(status); setAssets(library.items); setError(''); }
+        const [status, library, history, capabilities] = await Promise.all(responses.map(response => response.json()));
+        if (!disposed) { setStudio(status); setAssets(library.items); setJobs(history.items); setCapability(capabilities); setError(''); }
       } catch { if (!disposed) setError('seed is unavailable.'); }
     }
     void refresh();
@@ -91,6 +104,24 @@ function App() {
   const video = workflow.endsWith('video');
   const seedValid = draft.randomSeed || (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) && BigInt(draft.seed) + BigInt(draft.count - 1) <= 9007199254740991n);
   const jobCount = studio ? studio.queue.active + studio.queue.waiting : null;
+  const canGenerate = workflow === 'text-to-image' && capability?.workflows[workflow]?.enabled && capability.workflows[workflow].modes.includes(draft.mode) && studio?.worker.connected && !studio.worker.stale && seedValid && Boolean(draft.prompt.trim());
+  async function generate() {
+    setSubmitting(true); setGenerationError('');
+    const body = JSON.stringify({ workflow, capabilities_revision: capability?.revision, prompt: draft.prompt, mode: draft.mode, output: { aspect: draft.aspect, size: '1mp' }, seed: draft.randomSeed ? 'random' : draft.seed, count: draft.count });
+    if (pendingSubmission.current?.body !== body) pendingSubmission.current = { key: Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join(''), body };
+    try {
+      const response = await fetch('/api/v1/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': pendingSubmission.current!.key }, body });
+      const result = await response.json();
+      if (!response.ok) { if (response.status < 500) pendingSubmission.current = null; throw new Error(result.error?.message ?? 'Could not submit generation.'); }
+      setSubmission(result.jobs.map((j: { id: string }) => j.id)); pendingSubmission.current = null; setConnectionRevision(x => x + 1);
+    } catch (failure) { setGenerationError((failure as Error).message + (pendingSubmission.current ? ' Retry uses the same submission key.' : '')); }
+    finally { setSubmitting(false); }
+  }
+  async function jobAction(url: string) {
+    try { const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!response.ok) { const body = await response.json(); throw new Error(body.error?.message ?? 'Operation failed.'); } setConnectionRevision(x => x + 1); }
+    catch (failure) { setGenerationError((failure as Error).message); }
+  }
+  const jobLabel = (state: string) => ({ queued: 'Queued', submitting: 'Sending to GPU', running: 'Generating', copying: 'Saving to your PC', copy_pending: 'Waiting to resume transfer', completed: 'Saved', cancelled: 'Cancelled', cancel_requested: 'Cancelling', failed: 'Failed', needs_attention: 'Needs attention' }[state] ?? state);
   async function changeConnection(remove = false) {
     setConnecting(true); setConnectionError('');
     const code = connectionCode.trim(); setConnectionCode('');
@@ -141,7 +172,11 @@ function App() {
     </section>
     <section id="job-details" popover="auto" className="status-popover" aria-labelledby="jobs-title">
       <div className="popover-title"><h2 id="jobs-title">Jobs</h2><button className="icon-button" popoverTarget="job-details" popoverTargetAction="hide" aria-label="Close jobs"><Icon name="close" /></button></div>
-      {error ? <p role="status">Job status unavailable.</p> : <><div className="job-summary"><span>Active <strong>{studio?.queue.active ?? '–'}</strong></span><span>Waiting <strong>{studio?.queue.waiting ?? '–'}</strong></span></div><p className="popover-note">{studio ? 'No jobs yet.' : 'Loading…'}</p><span className="queue-state">{studio?.queue.paused ? 'Queue paused' : ''}</span></>}
+      {error ? <p role="status">Job status unavailable.</p> : <><div className="job-summary"><span>Active <strong>{studio?.queue.active ?? '–'}</strong></span><span>Waiting <strong>{studio?.queue.waiting ?? '–'}</strong></span></div>
+        <div className="job-list">{jobs.length === 0 ? <p className="popover-note">No jobs yet.</p> : jobs.map(job => <div key={job.id}><span>{jobLabel(job.state)}</span>{!['completed', 'failed', 'cancelled', 'needs_attention'].includes(job.state) && <button onClick={() => void jobAction(`/api/v1/jobs/${job.id}/cancel`)}>Cancel</button>}{job.error && <p>{job.error}</p>}</div>)}</div>
+        <button className="queue-control" onClick={() => void jobAction(`/api/v1/queue/${studio?.queue.paused ? 'resume' : 'pause'}`)}>{studio?.queue.paused ? 'Resume queue' : 'Pause queue'}</button>
+        {studio?.safe_to_terminate === true && <p className="popover-note">Safe to stop the pod.</p>}
+      </>}
     </section>
     <main>
       {page === 'generate' ? <>
@@ -163,11 +198,15 @@ function App() {
             {draft.randomSeed ? <p>Different seed for each generation.</p> : <><label className="seed-field" htmlFor="seed">Starting seed<input id="seed" type="text" inputMode="numeric" maxLength={16} value={draft.seed} aria-invalid={!seedValid} aria-describedby="seed-help" onChange={event => updateDraft({ seed: event.target.value })} /></label><p id="seed-help">{seedValid ? 'For batches, each seed increases by 1.' : 'Use a whole number from 0 to 9007199254740991, leaving room for the batch.'}</p></>}
           </section>}
           {!advancedOpen && !seedValid && <p role="alert">Check the starting seed in Advanced.</p>}
-          <button className="generate-button" disabled title="Generation is not available yet">Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></button>
+          {workflow === 'text-to-image' && draft.mode === 'nsfw' && capability?.workflows[workflow]?.enabled && !capability.workflows[workflow].modes.includes('nsfw') && <p className="popover-note">The NSFW LoRA is not available on this pod.</p>}
+          <button className="generate-button" disabled={!canGenerate || submitting} onClick={() => void generate()} title={canGenerate ? undefined : 'Connect a compatible pod and enter a prompt to generate.'}>{submitting ? 'Submitting…' : <>Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></>}</button>
+          {generationError && <p role="alert">{generationError}</p>}
+          {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <button key={asset} onClick={() => setViewAsset(asset)}><img src={`/api/v1/assets/${asset}/content`} alt="Generated image" /></button>) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
         </section>
-      </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <ul>{assets.map(asset => <li key={asset.id}>{asset.name} · {asset.kind}</li>)}</ul>}</section>}
+      </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <div className="library-grid">{assets.map(asset => <button key={asset.id} onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button>)}</div>}</section>}
       <footer>seed</footer>
     </main>
+    {viewAsset && <SavedImage id={viewAsset} close={() => setViewAsset(null)} />}
   </div>;
 }
 
