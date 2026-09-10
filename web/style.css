@@ -232,3 +232,13 @@ footer { color: #8a977a; font-size: 11px; padding: 24px 0; margin-top: 45px; bor
 .library-heading h1 { margin: 0; }
 .library-nsfw { display: flex; align-items: center; gap: 8px; font-size: 13px; cursor: pointer; white-space: nowrap; }
 .library-nsfw input { width: 18px; height: 18px; accent-color: #c3d88d; }
+
+.media-preview { position: relative; display: block; min-height: 160px; }
+.media-preview img { opacity: 0; transition: opacity .2s ease; }
+.media-ready img { opacity: 1; }
+.media-preview.media-ready { min-height: 0; }
+.media-preview .media-loading, .media-error { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; gap: 10px; padding: 24px; }
+.media-loading { display: flex; align-items: center; gap: 10px; padding: 24px 0; color: #abb99c; font-size: 13px; }
+.media-spinner { width: 20px; height: 20px; flex: 0 0 auto; border: 2px solid #526044; border-top-color: #d0e7a1; border-radius: 50%; animation: connection-spin .8s linear infinite; }
+.media-error { color: #e8b0aa; font-size: 13px; }
+@media (prefers-reduced-motion: reduce) { .media-spinner { animation: none; } .media-preview img { transition: none; } }

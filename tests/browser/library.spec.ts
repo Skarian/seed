@@ -25,3 +25,18 @@ test('NSFW Library images require opt-in and reset on reload', async ({page}) =>
   await page.reload();
   await expect(page.getByRole('img',{name:'Hidden image'})).toHaveCount(0);
 });
+test('Library renders before pod status and shows a spinner until an image arrives', async ({page}) => {
+  let releaseImage!:()=>void, releasePod!:()=>void;
+  const imageGate=new Promise<void>(resolve=>releaseImage=resolve), podGate=new Promise<void>(resolve=>releasePod=resolve);
+  await page.route('**/api/v1/studio',async r=>{await podGate;await r.fulfill({json:{worker:{state:'disconnected'},queue:{active:0,waiting:0}}});});
+  await page.route('**/api/v1/assets',r=>r.fulfill({json:{items:[{id:'slow',kind:'image',mode:'sfw',name:'Slow image'}]}}));
+  await page.route('**/api/v1/assets/slow/content',async r=>{await imageGate;await r.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII=','base64')});});
+  await page.goto('/library',{waitUntil:'domcontentloaded'});
+  await expect(page.getByRole('status')).toHaveText('Loading image…');
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:'.local/library-loading.png'});
+  releaseImage();
+  await expect(page.locator('.media-ready')).toHaveCount(1);
+  await expect(page.getByRole('status')).toHaveCount(0);
+  releasePod();
+});

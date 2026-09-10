@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { createRoot } from 'react-dom/client';
 import type { LibraryAsset, StudioSnapshot, WorkflowId } from '../shared/studio.js';
 import './style.css';
+import { MediaCard, LoadingIndicator } from './media-card.js';
 import { ReferenceInputs, useReferences } from './references.js';
 
 const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
@@ -61,6 +62,8 @@ function App() {
   const drag = useRef<{ y: number; height: number } | null>(null);
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
+  const [libraryLoaded, setLibraryLoaded] = useState(false);
+  const [libraryError, setLibraryError] = useState('');
   const [showNsfw, setShowNsfw] = useState(false);
   const visibleAssets = assets.filter(asset => showNsfw || asset.mode !== 'nsfw');
   const [assetCursor, setAssetCursor] = useState<string | null>(null);
@@ -89,14 +92,26 @@ function App() {
     const controller = new AbortController();
     async function refresh() {
       try {
-        const responses = await Promise.all(['/api/v1/studio', '/api/v1/assets', '/api/v1/jobs', '/api/v1/capabilities'].map(url => fetch(url, { signal: controller.signal })));
+        const responses = await Promise.all(['/api/v1/studio', '/api/v1/jobs', '/api/v1/capabilities'].map(url => fetch(url, { signal: controller.signal })));
         if (responses.some(response => !response.ok)) throw new Error('Unavailable');
-        const [status, library, history, capabilities] = await Promise.all(responses.map(response => response.json()));
-        if (!disposed) { setStudio(status); library.items = library.items.filter((asset: LibraryAsset) => !deletedAssets.current.has(asset.id)); setAssets(current => loadedMore.current ? [...library.items, ...current.filter(asset => !library.items.some((fresh: LibraryAsset) => fresh.id === asset.id))] : library.items); if (!loadedMore.current) setAssetCursor(library.next_cursor ?? null); setJobs(history.items.map((job: { outputs: string[] }) => ({ ...job, outputs: job.outputs.filter(id => !deletedAssets.current.has(id)) }))); setCapability(capabilities); setError(''); }
+        const [status, history, capabilities] = await Promise.all(responses.map(response => response.json()));
+        if (!disposed) { setStudio(status); setJobs(history.items.map((job: { outputs: string[] }) => ({ ...job, outputs: job.outputs.filter(id => !deletedAssets.current.has(id)) }))); setCapability(capabilities); setError(''); }
       } catch { if (!disposed) setError('seed is unavailable.'); }
     }
-    void refresh();
-    const timer = setInterval(() => { void refresh(); }, 3000);
+    async function refreshLibrary() {
+      try {
+        const response = await fetch('/api/v1/assets', { signal: controller.signal });
+        if (!response.ok) throw new Error('Unavailable');
+        const library = await response.json();
+        if (disposed) return;
+        library.items = library.items.filter((asset: LibraryAsset) => !deletedAssets.current.has(asset.id));
+        setAssets(current => loadedMore.current ? [...library.items, ...current.filter(asset => !library.items.some((fresh: LibraryAsset) => fresh.id === asset.id))] : library.items);
+        if (!loadedMore.current) setAssetCursor(library.next_cursor ?? null);
+        setLibraryLoaded(true); setLibraryError('');
+      } catch { if (!disposed) setLibraryError('Could not load Library. Retrying…'); }
+    }
+    void refresh(); void refreshLibrary();
+    const timer = setInterval(() => { void refresh(); void refreshLibrary(); }, 3000);
     return () => { disposed = true; controller.abort(); clearInterval(timer); };
   }, [connectionRevision]);
   useEffect(() => {
@@ -232,9 +247,9 @@ function App() {
           <button className="generate-button" disabled={!canGenerate || submitting} onClick={() => void generate()} title={canGenerate ? undefined : 'Connect a compatible pod and enter a prompt to generate.'}>{submitting ? 'Submitting…' : <>Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></>}</button>
           {generationError && <p role="alert">{generationError}</p>}
           {deleteError && <p role="alert">{deleteError}</p>}
-          {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <div className="library-item" key={asset}><button className="library-preview" onClick={() => setViewAsset(asset)}><img src={`/api/v1/assets/${asset}/content`} alt="Generated image" /></button><button className="library-delete" aria-label="Delete generated image" title="Delete" disabled={deletingAsset !== null} onClick={() => void deleteAsset({ id: asset, kind: 'image' })}><Icon name="close" /></button></div>) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
+          {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <MediaCard key={asset} src={`/api/v1/assets/${asset}/content`} name="Generated image" onOpen={() => setViewAsset(asset)} onDelete={() => void deleteAsset({ id: asset, kind: 'image' })} deleting={deletingAsset !== null} />) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
         </section>
-      </> : <section className="library"><div className="library-heading"><h1>Library</h1><label className="library-nsfw"><input type="checkbox" checked={showNsfw} onChange={event => setShowNsfw(event.target.checked)} />Show NSFW</label></div>{deleteError && <p role="alert">{deleteError}</p>}{visibleAssets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>{assets.length ? 'No visible files. Enable Show NSFW to see hidden items.' : 'No saved files yet.'}</p></div> : <div className="library-grid">{visibleAssets.map(asset => <div className="library-item" key={asset.id}><button className="library-preview" onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button><button className="library-delete" aria-label={`Delete ${asset.name}`} title="Delete" disabled={deletingAsset !== null} onClick={() => void deleteAsset(asset)}><Icon name="close" /></button></div>)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
+      </> : <section className="library"><div className="library-heading"><h1>Library</h1><label className="library-nsfw"><input type="checkbox" checked={showNsfw} onChange={event => setShowNsfw(event.target.checked)} />Show NSFW</label></div>{deleteError && <p role="alert">{deleteError}</p>}{libraryError && <p role="alert">{libraryError}</p>}{!libraryLoaded ? <LoadingIndicator label="Loading Library…" /> : visibleAssets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>{assets.length ? 'No visible files. Enable Show NSFW to see hidden items.' : 'No saved files yet.'}</p></div> : <div className="library-grid">{visibleAssets.map(asset => <MediaCard key={asset.id} src={`/api/v1/assets/${asset.id}/content`} name={asset.name} onOpen={() => setViewAsset(asset.id)} onDelete={() => void deleteAsset(asset)} deleting={deletingAsset !== null} />)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
       <footer>seed</footer>
     </main>
     {viewAsset && <SavedImage id={viewAsset} close={() => setViewAsset(null)} />}
