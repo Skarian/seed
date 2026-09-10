@@ -60,6 +60,22 @@ it('freezes both modes, expands seeds atomically, and replays one submission wit
   expect(state.submits).toBe(0);
 }));
 
+it('accepts random-seed batches and preserves their concrete seeds on retry', async () => fixture(async ({ jobs, request }: any) => {
+  const randomRequest = { ...request, seed: 'random', count: 16 };
+  const first = await jobs.submit(randomRequest, 'random-seed-regression');
+  const generated = first.jobs.map((job: any) => job.seed);
+  expect(new Set(generated).size).toBe(16);
+  for (const job of first.jobs) {
+    expect(Number.isSafeInteger(Number(job.seed))).toBe(true);
+    expect(Number(job.seed)).toBeGreaterThanOrEqual(0);
+    expect(Number(job.seed)).toBeLessThan(2 ** 48);
+    expect(job.graph['7'].inputs.seed).toBe(Number(job.seed));
+  }
+  const retry = await jobs.submit(randomRequest, 'random-seed-regression');
+  expect(retry.jobs.map((job: any) => job.seed)).toEqual(generated);
+  expect(retry.jobs.map((job: any) => job.id)).toEqual(first.jobs.map((job: any) => job.id));
+}));
+
 it('recovers transfer and acknowledgment independently without regeneration or duplicate Library rows', async () => fixture(async ({ jobs, request, state, finish, paths, db, image }: any) => {
   const { jobs: [job] } = await jobs.submit(request, 'submission-key-0001');
   await jobs.reconcile(); expect(state.submits).toBe(1);

@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomBytes } from 'node:crypto';
 
 export type Preset = { filename: string; sha256: string; strength_model: number; revision: string };
 export type Capabilities = { revision: string; ready: boolean; nsfw: Preset | null; workspace_id: string; engine_session_id: string };
@@ -16,7 +16,7 @@ export function imageRequest(value: unknown): ImageRequest {
 
 export function seeds(request: ImageRequest) {
   const result = new Set<string>();
-  while (result.size < request.count) result.add(request.seed === 'random' ? String(randomInt(0, 2 ** 48)) : String(BigInt(request.seed) + BigInt(result.size)));
+  while (result.size < request.count) result.add(request.seed === 'random' ? String(randomBytes(6).readUIntBE(0, 6)) : String(BigInt(request.seed) + BigInt(result.size)));
   return [...result];
 }
 
