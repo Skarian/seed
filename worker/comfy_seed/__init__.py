@@ -13,7 +13,7 @@ WORKSPACE_ID = json.loads((Path(os.environ['SEED_WORKSPACE']) / '.seed/workspace
 async def studio_session(request):
     return web.json_response({'protocol_version': 1, 'workspace_id': WORKSPACE_ID, 'engine_session_id': ENGINE_SESSION_ID})
 
-NODE_CLASS_MAPPINGS = {}
+from .video import NODE_CLASS_MAPPINGS
 NODE_DISPLAY_NAME_MAPPINGS = {}
 
 from .jobs import install

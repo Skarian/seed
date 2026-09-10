@@ -44,8 +44,10 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     const status = typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 ? statusCode : 500;
     return fail(reply, status, status === 500 ? 'internal_error' : 'invalid_request', status === 500 ? 'seed could not complete this request.' : 'Check the request and try again.', request.id);
   });
+  await jobs.media.register(app);
   app.addHook('onReady', async () => { jobs.start(); });
-  app.addHook('onClose', async () => { await jobs.close(); db.close(); });
+  app.addHook('preClose', async () => { await jobs.close(); });
+  app.addHook('onClose', async () => { await jobs.media.close(); db.close(); });
   app.get('/api/v1/health', async () => ({ application: 'seed', version: '0.1.0', instance_id: instanceId }));
   app.get('/api/v1/studio', async (): Promise<StudioSnapshot> => {
     const remote = await worker.status();
@@ -79,8 +81,9 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.get('/api/v1/assets', async request => { const cursor = String((request.query as { cursor?: string }).cursor ?? ''); const items = listAssets(db, cursor, 51); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.delete('/api/v1/assets/:id', async (request, reply) => jobs.serialize(async () => {
     const id = (request.params as { id: string }).id;
-    const asset = db.prepare('SELECT relative_path FROM assets WHERE id=?').get(id) as { relative_path: string } | undefined;
+    const asset = db.prepare('SELECT relative_path, metadata_json FROM assets WHERE id=?').get(id) as { relative_path: string; metadata_json: string } | undefined;
     if (!asset) return reply.code(204).send();
+    if(jobs.all().some(job=>!['completed','failed','cancelled'].includes(job.state) && job.request.references?.some(ref=>ref.asset_id===id))) return fail(reply,409,'asset_busy','A queued job still needs this file.',request.id);
     const owners = jobs.all().filter(job => job.outputs.includes(id));
     if (owners.some(job => job.state !== 'completed' || job.cleanup_state !== 'complete')) return fail(reply, 409, 'asset_busy', 'This file is still being saved. Try again shortly.', request.id);
     const root = realpathSync(options.paths.data) + path.sep;
@@ -94,7 +97,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     })();
     return reply.code(204).send();
   }));
-  app.get('/api/v1/capabilities', async () => ({ revision: jobs.capabilities?.revision ?? null, workflows: { 'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 } } }));
+  app.get('/api/v1/capabilities', async () => ({ revision: jobs.capabilities?.revision ?? null, workflows: { 'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 }, ...Object.fromEntries(['text-to-video','reference-to-video'].map(id => [id,{enabled:Boolean(jobs.capabilities?.video?.ready),modes:jobs.capabilities?.video?.nsfw.fl && jobs.capabilities?.video?.nsfw.ref ? ['sfw','nsfw'] : ['sfw'],count_max:16}])) } }));
   app.post('/api/v1/jobs', async (request, reply) => {
     try { const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''))); return reply.code(202).send(result); }
     catch (error) { return fail(reply, 409, 'submission_failed', (error as Error).message, request.id); }
@@ -110,12 +113,12 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     catch (error) { return fail(reply, 409, 'acknowledge_failed', (error as Error).message, request.id); }
   });
   app.get('/api/v1/assets/:id/content', async (request, reply) => {
-    const asset = db.prepare('SELECT relative_path FROM assets WHERE id=?').get((request.params as { id: string }).id) as { relative_path: string } | undefined;
+    const asset = db.prepare('SELECT relative_path, metadata_json FROM assets WHERE id=?').get((request.params as { id: string }).id) as { relative_path: string; metadata_json: string } | undefined;
     if (!asset) return fail(reply, 404, 'not_found', 'Image not found.', request.id);
     const file = path.resolve(options.paths.data, asset.relative_path);
     if (!file.startsWith(path.resolve(options.paths.data) + path.sep) || !existsSync(file)) return fail(reply, 404, 'not_found', 'Image not found.', request.id);
     const size = statSync(file).size;
-    reply.type('image/png').header('Accept-Ranges', 'bytes').header('Content-Disposition', `inline; filename="${path.basename(file)}"`);
+    reply.type(JSON.parse(asset.metadata_json).mime_type ?? 'image/png').header('Accept-Ranges', 'bytes').header('Content-Disposition', `inline; filename="${path.basename(file)}"`);
     const range = request.headers.range;
     if (range) {
       const match = /^bytes=(\d+)-(\d*)$/.exec(range); const start = Number(match?.[1]), end = match?.[2] ? Number(match[2]) : size - 1;

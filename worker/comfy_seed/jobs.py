@@ -38,8 +38,18 @@ def install(server, workspace, workspace_id, engine_id):
             try:
                 if verified_preset(candidate): preset = {**candidate, 'revision': value['revision']}
             except (ValueError, OSError, TypeError, KeyError): pass
-        return web.json_response({'protocol_version': 1, 'workspace_id': workspace_id, 'engine_session_id': engine_id,
-            'revision': 'krea-t2i-v1:' + (preset['revision'] if preset else 'base'), 'ready': ready, 'nsfw': preset})
+        video_presets = {}
+        if file.exists():
+            value = json.loads(file.read_text())
+            for route in ('fl','ref'):
+                try:
+                    candidate = verified_preset(value.get('video_' + route))
+                    if candidate: video_presets[route] = {**candidate, 'revision': candidate['sha256'] + '-' + str(candidate['strength_model'])}
+                except (ValueError, OSError, TypeError, KeyError): pass
+        video_required = {'diffusion_models': ['minimax_h3_fl2va_pruned_int8_convrot.safetensors','minimax_h3_ref2va_pruned_int8_convrot.safetensors'], 'text_encoders':['qwen3vl_32b_minimax_h3_int8_convrot.safetensors'], 'vae':['minimax_h3_video_vae_fp16.safetensors','minimax_h3_audio_vae_fp32.safetensors'], 'loras':['minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors','minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors']}
+        video_ready = all(all(name in folder_paths.get_filename_list(category) for name in names) for category,names in video_required.items())
+        return web.json_response({'video': {'ready': video_ready, 'nsfw': video_presets}, 'protocol_version': 1, 'workspace_id': workspace_id, 'engine_session_id': engine_id,
+            'revision': 'seed-media-v2:' + (preset['revision'] if preset else 'base') + ':' + ':'.join(p['revision'] for p in video_presets.values()), 'ready': ready, 'nsfw': preset})
 
     def terminal(item_id, history_result, status, process_item=None):
         # Capture the job while native execution still owns it.
@@ -57,9 +67,11 @@ def install(server, workspace, workspace_id, engine_id):
             if success:
                 root = Path(folder_paths.get_output_directory()).resolve()
                 expected = root / 'seed' / job_id
-                for entry in history_result.get('outputs', {}).get('9', {}).get('images', []):
+                is_video = record['submission']['graph'].get('14', {}).get('class_type') == 'SeedVideoSave'
+                node_id, field, suffix, mime = ('14','videos','.mp4','video/mp4') if is_video else ('9','images','.png','image/png')
+                for entry in history_result.get('outputs', {}).get(node_id, {}).get(field, []):
                     file = (root / entry.get('subfolder', '') / entry['filename']).resolve()
-                    if entry.get('type') != 'output' or not file.is_relative_to(expected) or file.suffix != '.png':
+                    if entry.get('type') != 'output' or not file.is_relative_to(expected) or file.suffix != suffix:
                         raise ValueError('Unexpected output')
                     with open(file, 'r+b') as handle:
                         os.fsync(handle.fileno())
@@ -68,7 +80,7 @@ def install(server, workspace, workspace_id, engine_id):
                         fd = os.open(file.parent, os.O_RDONLY)
                         try: os.fsync(fd)
                         finally: os.close(fd)
-                    outputs.append({'id': str(len(outputs)), 'path': str(file.relative_to(root)), 'size': file.stat().st_size, 'sha256': digest, 'mime_type': 'image/png'})
+                    outputs.append({'id': str(len(outputs)), 'path': str(file.relative_to(root)), 'size': file.stat().st_size, 'sha256': digest, 'mime_type': mime})
                 if len(outputs) != 1: raise ValueError('Incomplete output set')
             atomic(directory / 'manifest.json', {'job_id': job_id, 'workspace_id': workspace_id, 'engine_session_id': engine_id, 'prompt_id': job_id,
                 'state': 'completed' if success else 'cancelled' if (directory / 'cancel.json').exists() else 'failed', 'outputs': outputs,
@@ -96,7 +108,8 @@ def install(server, workspace, workspace_id, engine_id):
                 return web.json_response({'prompt_id': job_id, 'already_recorded': True})
             try:
                 preset = verified_preset(body.get('preset'))
-                if ('10' in graph) != bool(preset) or (preset and (graph['10']['inputs']['lora_name'] != preset['filename'] or graph['10']['inputs']['strength_model'] != preset['strength_model'])):
+                adapter = '18' if graph.get('14', {}).get('class_type') == 'SeedVideoSave' else '10'
+                if (adapter in graph) != bool(preset) or (preset and (graph[adapter]['inputs']['lora_name'] != preset['filename'] or graph[adapter]['inputs']['strength_model'] != preset['strength_model'])):
                     raise ValueError('Preset does not match graph')
             except (ValueError, OSError, TypeError, KeyError):
                 return web.json_response({'error': 'Pinned LoRA is unavailable or changed', 'accepted': False}, status=422)
@@ -105,7 +118,9 @@ def install(server, workspace, workspace_id, engine_id):
             if not valid[0]: return web.json_response({'error': 'Workflow validation failed', 'accepted': False, 'node_errors': valid[3]}, status=422)
             running, pending = server.prompt_queue.get_current_queue()
             if running or pending: return web.json_response({'error': 'Engine queue is not empty', 'accepted': False}, status=409)
-            if graph['9']['class_type'] != 'SaveImage' or graph['9']['inputs']['filename_prefix'] != 'seed/' + job_id + '/image':
+            video = graph.get('14', {}).get('class_type') == 'SeedVideoSave'
+            output = graph.get('14' if video else '9', {})
+            if output.get('class_type') != ('SeedVideoSave' if video else 'SaveImage') or output.get('inputs', {}).get('filename_prefix') != 'seed/' + job_id + ('/video' if video else '/image'):
                 raise web.HTTPBadRequest()
             atomic(directory / 'submission.json', {'job_id': job_id, 'workspace_id': workspace_id, 'engine_session_id': engine_id, 'graph_digest': digest, 'graph': graph})
             number = server.number; server.number += 1

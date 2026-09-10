@@ -1,3 +1,5 @@
+import { Media, type PreparedReference } from './media.js';
+import { videoRoute } from './video.js';
 import type Database from 'better-sqlite3';
 import { createHash, randomUUID } from 'node:crypto';
 import { createReadStream, existsSync, statSync, renameSync, unlinkSync } from 'node:fs';
@@ -7,7 +9,7 @@ import type { StudioPaths } from './storage.js';
 import { WorkerConnection } from './worker.js';
 import { graphFor, imageRequest, seeds, type Capabilities, type ImageRequest, type Preset } from './workflows.js';
 
-type Job = { id: string; state: string; submission_id: string; submission_index: number; request: ImageRequest; seed: string; preset: Preset | null; graph: ReturnType<typeof graphFor>; workspace_id: string; engine_session_id?: string; outputs: string[]; error: string | null; cleanup_state: string; output_save_state: string; created_at: string; updated_at: string; uncertainty_acknowledged?: boolean };
+type Job = { prepared?: PreparedReference[]; id: string; state: string; submission_id: string; submission_index: number; request: ImageRequest; seed: string; preset: Preset | null; graph: ReturnType<typeof graphFor>; workspace_id: string; engine_session_id?: string; outputs: string[]; error: string | null; cleanup_state: string; output_save_state: string; created_at: string; updated_at: string; uncertainty_acknowledged?: boolean };
 type Output = { id: string; path: string; size: number; sha256: string; mime_type: string };
 const terminal = ['completed', 'failed', 'cancelled'];
 const hashFile = async (file: string) => { const hash = createHash('sha256'); for await (const bytes of createReadStream(file)) hash.update(bytes); return hash.digest('hex'); };
@@ -21,7 +23,8 @@ export class Jobs {
   public checkedAt: number | null = null;
   public safe: boolean | null = null;
   public reason = 'Checking the engine and saved outputs.';
-  constructor(private db: Database.Database, private paths: StudioPaths, private worker: WorkerConnection) {}
+  public media: Media;
+  constructor(private db: Database.Database, private paths: StudioPaths, private worker: WorkerConnection) { this.media = new Media(db, paths); }
   serialize<T>(fn: () => Promise<T>): Promise<T> { const next = this.chain.then(fn); this.chain = next.catch(() => {}); return next; }
   start() { this.timer = setInterval(() => { void this.tick(); }, 2000); void this.tick(); }
   async close() { this.stopped = true; clearInterval(this.timer); await this.chain; }
@@ -41,10 +44,16 @@ export class Jobs {
     const cap = await this.inspectCapabilities();
     if (request.capabilities_revision !== cap.revision) throw new Error('Pod settings changed. Refresh and try again.');
     if (this.all().some(j => j.state === 'needs_attention' && !j.uncertainty_acknowledged)) throw new Error('Resolve the previous interrupted job before generating.');
+    const isVideo = request.workflow !== 'text-to-image';
+    if(isVideo && !cap.video?.ready) throw new Error('This worker does not support video yet.');
+    const selectedPreset = request.mode === 'nsfw' ? (isVideo ? cap.video?.nsfw[videoRoute(request)] : cap.nsfw) : null;
+    if(request.mode === 'nsfw' && !selectedPreset) throw new Error('The selected mode is not available for these references.');
+    const prepared: PreparedReference[] = [];
+    for(const ref of request.references ?? []) prepared.push(await this.media.prepare(ref,request.output.aspect,request.output.duration_seconds!));
     const submission_id = randomUUID(), now = new Date().toISOString();
     const jobs = seeds(request).map((seed, index): Job => {
-      const id = randomUUID(), preset = request.mode === 'nsfw' ? cap.nsfw : null;
-      return { id, state: 'queued', submission_id, submission_index: index, request, seed, preset, graph: graphFor(request, id, seed, preset), workspace_id: cap.workspace_id, outputs: [], error: null, cleanup_state: 'not_requested', output_save_state: 'pending', created_at: now, updated_at: now };
+      const id = randomUUID(), preset = selectedPreset ?? null;
+      return { id, state: 'queued', submission_id, submission_index: index, request, seed, preset, graph: graphFor(request, id, seed, preset, prepared), ...(prepared.length ? {prepared} : {}), workspace_id: cap.workspace_id, outputs: [], error: null, cleanup_state: 'not_requested', output_save_state: 'pending', created_at: now, updated_at: now };
     });
     this.db.transaction(() => {
       this.db.prepare('INSERT INTO submissions VALUES (?,?,?)').run(submission_id, key, body);
@@ -124,6 +133,9 @@ export class Jobs {
     if (!this.paused && !foreign && !orphan && !unresolved && nativeIds.length === 0) {
       const next = current.find(j => j.state === 'queued');
       if (next) {
+        try {
+          for(const ref of next.prepared ?? []) { await this.worker.upload(next.id,ref.file,ref.filename); if(ref.audio_file && ref.audio_filename) await this.worker.upload(next.id,ref.audio_file,ref.audio_filename); }
+        } catch { next.error='Reference transfer interrupted. It will retry before generation.';this.save(next);return; }
         next.workspace_id = cap.workspace_id; next.engine_session_id = cap.engine_session_id; next.state = 'submitting'; this.save(next);
         try {
           const result = await this.worker.request('/comfy/prompt', { method: 'POST', session: cap.engine_session_id, body: { prompt_id: next.id, prompt: next.graph, preset: next.preset } });
@@ -149,7 +161,7 @@ export class Jobs {
     if (typeof record.manifest_bytes !== 'string' || createHash('sha256').update(record.manifest_bytes).digest('hex') !== record.manifest_digest) throw new Error('Output manifest integrity failed');
     const manifest = JSON.parse(record.manifest_bytes);
     if (manifest.job_id !== job.id || manifest.workspace_id !== job.workspace_id || manifest.engine_session_id !== job.engine_session_id || !['completed', 'failed', 'cancelled'].includes(manifest.state) || !Array.isArray(manifest.outputs)) throw new Error('Output identity mismatch');
-    if (manifest.state === 'completed' && (manifest.outputs.length !== 1 || manifest.outputs.some((x: Output) => x.id !== '0' || x.mime_type !== 'image/png' || !Number.isSafeInteger(x.size) || x.size < 1 || x.size > 256 * 1024 * 1024 || !/^[a-f0-9]{64}$/.test(x.sha256)))) throw new Error('Invalid image manifest');
+    if (manifest.state === 'completed' && (manifest.outputs.length !== 1 || manifest.outputs.some((x: Output) => x.id !== '0' || x.mime_type !== (job.request.workflow === 'text-to-image' ? 'image/png' : 'video/mp4') || !Number.isSafeInteger(x.size) || x.size < 1 || x.size > 8 * 1024 * 1024 * 1024 || !/^[a-f0-9]{64}$/.test(x.sha256)))) throw new Error('Invalid image manifest');
     return manifest;
   }
   private async retrieve(job: Job, outputs: Output[], digest: string) {
@@ -157,7 +169,7 @@ export class Jobs {
       if (job.output_save_state !== 'saved') {
         job.state = 'copying'; job.output_save_state = 'saving'; job.error = null; this.save(job);
         for (const output of outputs) {
-          const filename = job.id + '-' + output.id + '.png';
+          const filename = job.id + '-' + output.id + (output.mime_type === 'video/mp4' ? '.mp4' : '.png');
           const destination = path.join(this.paths.data, 'media/outputs', filename);
           const temporary = path.join(this.paths.data, 'transfers', filename + '.part');
           if (!existsSync(destination) || statSync(destination).size !== output.size || await hashFile(destination) !== output.sha256) {
@@ -180,7 +192,7 @@ export class Jobs {
         this.db.transaction(() => {
           for (const output of outputs) {
             const id = job.id + '-' + output.id;
-            this.db.prepare('INSERT OR IGNORE INTO assets(id,kind,name,relative_path,metadata_json,created_at) VALUES (?,\'image\',?,?,?,?)').run(id, 'Image · ' + job.request.mode.toUpperCase(), 'media/outputs/' + id + '.png', JSON.stringify({ job_id: job.id, mode: job.request.mode, sha256: output.sha256, size: output.size }), new Date().toISOString());
+            this.db.prepare('INSERT OR IGNORE INTO assets(id,kind,name,relative_path,metadata_json,created_at) VALUES (?,?,?,?,?,?)').run(id, output.mime_type === 'video/mp4' ? 'video' : 'image', (output.mime_type === 'video/mp4' ? 'Video · ' : 'Image · ') + job.request.mode.toUpperCase(), 'media/outputs/' + id + (output.mime_type === 'video/mp4' ? '.mp4' : '.png'), JSON.stringify({ job_id: job.id, mode: job.request.mode, mime_type:output.mime_type, sha256: output.sha256, size: output.size }), new Date().toISOString());
           }
           job.outputs = outputs.map(o => job.id + '-' + o.id); job.state = 'completed'; job.output_save_state = 'saved'; job.cleanup_state = 'pending'; job.error = null; this.save(job);
         })();

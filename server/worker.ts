@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, renameSync, rmSync } from 'node:fs';
+import { readFileSync, writeFileSync, renameSync, rmSync, openAsBlob } from 'node:fs';
 import path from 'node:path';
 import { randomUUID } from 'node:crypto';
 import type { StudioPaths } from './storage.js';
@@ -46,6 +46,13 @@ export class WorkerConnection {
   }
   get connected() { return this.connection !== null; }
   get identity() { return this.connection ? { workspace_id: this.connection.workspace_id, worker_instance_id: this.connection.worker_instance_id } : null; }
+  async upload(jobId:string, file:string, filename:string) {
+    if (!this.connection) throw new Error('Connect a pod first.');
+    const form=new FormData();form.append('image',await openAsBlob(file),filename);form.append('subfolder','seed/'+jobId);form.append('type','input');form.append('overwrite','true');
+    const response=await fetch(this.connection.endpoint+'/comfy/upload',{method:'POST',headers:{Authorization:'Bearer '+this.connection.worker_credential},body:form,redirect:'error',signal:AbortSignal.timeout(600000)});
+    if(!response.ok)throw new Error('Reference transfer failed.');const result=await response.json();
+    if(result.name!==filename||result.subfolder!=='seed/'+jobId||result.type!=='input')throw new Error('Invalid uploaded reference');
+  }
   async request(route: string, options: { method?: string; body?: unknown; session?: string; range?: number } = {}) {
     const connection = this.connection;
     if (!connection) throw new Error('Connect a pod first.');

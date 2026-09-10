@@ -12,7 +12,7 @@ beforeEach(async () => {
   mkdirSync('.local/tests', { recursive: true }); root = mkdtempSync(path.resolve('.local/tests/http-'));
   app = await createApp({ paths: resolvePaths(root), port: 4311, webRoot: path.resolve('dist/web') });
 });
-afterEach(async () => { await app.close(); rmSync(root, { recursive: true, force: true }); });
+afterEach(async () => { await app.close(); await new Promise(resolve => setTimeout(resolve, 30)); rmSync(root, { recursive: true, force: true }); });
 
 describe('local studio boundary', () => {
   it('deletes a saved file and record, permits retry, and rejects paths outside storage', async () => {

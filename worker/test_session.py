@@ -13,6 +13,7 @@ async def test_session_hook_changes_on_engine_reload_preserving_workspace(tmp_pa
     identity.write_text(json.dumps({'workspace_id': 'volume-one'}))
     monkeypatch.setenv('SEED_WORKSPACE', str(tmp_path))
     monkeypatch.setitem(sys.modules, 'server', SimpleNamespace(PromptServer=SimpleNamespace(instance=SimpleNamespace(routes=web.RouteTableDef()))))
+    monkeypatch.setitem(sys.modules, 'test_comfy_seed_hook.video', SimpleNamespace(NODE_CLASS_MAPPINGS={}))
     monkeypatch.setitem(sys.modules, 'test_comfy_seed_hook.jobs', SimpleNamespace(install=lambda *args: None))
     def load():
         spec = importlib.util.spec_from_file_location('test_comfy_seed_hook', Path(__file__).parent/'comfy_seed/__init__.py')

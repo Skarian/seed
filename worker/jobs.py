@@ -57,10 +57,22 @@ def install(app, workspace, comfy_url, authenticated):
             try:
                 for entry in record['manifest']['outputs']:
                     output_path(entry, folder.name).unlink(missing_ok=True)
+                inputs = root / '.seed/spool/inputs/seed' / folder.name
+                if inputs.exists():
+                    for file in inputs.iterdir():
+                        if file.is_file(): file.unlink()
+                    inputs.rmdir()
                 atomic(folder / 'cleaned.json', {'complete': True})
                 return web.json_response({'cleanup_complete': True})
             except OSError:
                 return web.json_response({'cleanup_complete': False, 'error': 'Saved locally; worker cleanup will retry.'})
+
+    async def upload(request):
+        authorize(request)
+        # Native Comfy upload accepts media extensions, despite its historical route name.
+        async with ClientSession(timeout=ClientTimeout(total=600)) as client:
+            async with client.post(comfy_url + '/upload/image', data=request.content, headers={'Content-Type':request.headers['Content-Type']}, allow_redirects=False) as result:
+                return web.Response(body=await result.read(),status=result.status,content_type='application/json')
 
     async def relay(request):
         authorize(request)
@@ -79,6 +91,7 @@ def install(app, workspace, comfy_url, authenticated):
                 raw = b''.join(chunks)
                 return web.Response(body=raw, status=result.status, content_type='application/json')
 
+    app.router.add_post('/comfy/upload', upload)
     app.router.add_get('/worker/v1/jobs', inventory)
     app.router.add_get('/worker/v1/jobs/{job_id}', job)
     app.router.add_get('/worker/v1/jobs/{job_id}/outputs/{output_id}', output)

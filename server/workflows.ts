@@ -1,11 +1,14 @@
+import { videoRequest, videoGraph } from './video.js';
+import type { InputReference, PreparedReference } from './media.js';
 import { randomBytes } from 'node:crypto';
 
 export type Preset = { filename: string; sha256: string; strength_model: number; revision: string };
-export type Capabilities = { revision: string; ready: boolean; nsfw: Preset | null; workspace_id: string; engine_session_id: string };
-export type ImageRequest = { workflow: 'text-to-image'; capabilities_revision: string; prompt: string; mode: 'sfw' | 'nsfw'; output: { aspect: '16:9' | '9:16'; size: '1mp' }; seed: string; count: number };
+export type Capabilities = { revision: string; ready: boolean; nsfw: Preset | null; workspace_id: string; engine_session_id: string; video?: { ready:boolean; nsfw: Partial<Record<'fl'|'ref',Preset>> } };
+export type ImageRequest = { workflow: 'text-to-image' | 'text-to-video' | 'reference-to-video'; capabilities_revision: string; prompt: string; mode: 'sfw' | 'nsfw'; output: { aspect: '16:9' | '9:16'; size: '1mp' | '720p'; duration_seconds?: number }; references?: InputReference[]; audio?: {output:'generated'|'silent'}; seed: string; count: number };
 
 export function imageRequest(value: unknown): ImageRequest {
   const v = value as ImageRequest;
+  if (v?.workflow === 'text-to-video' || v?.workflow === 'reference-to-video') return videoRequest(v);
   if (!v || Object.keys(v).some(k => !['workflow', 'capabilities_revision', 'prompt', 'mode', 'output', 'seed', 'count'].includes(k))
       || v.workflow !== 'text-to-image' || typeof v.capabilities_revision !== 'string' || typeof v.prompt !== 'string' || !v.prompt.trim() || v.prompt.length > 12000
       || !['sfw', 'nsfw'].includes(v.mode) || !v.output || Object.keys(v.output).some(k => !['aspect', 'size'].includes(k)) || !['16:9', '9:16'].includes(v.output.aspect) || v.output.size !== '1mp') throw new Error('Check the image settings.');
@@ -20,7 +23,8 @@ export function seeds(request: ImageRequest) {
   return [...result];
 }
 
-export function graphFor(request: ImageRequest, id: string, seed: string, preset: Preset | null) {
+export function graphFor(request: ImageRequest, id: string, seed: string, preset: Preset | null, references: PreparedReference[] = []) {
+  if(request.workflow !== 'text-to-image') return videoGraph(request,id,seed,preset,references);
   if (request.mode === 'nsfw' && !preset) throw new Error('The NSFW LoRA is not available on this pod.');
   const [width, height] = request.output.aspect === '16:9' ? [1280, 720] : [720, 1280];
   const graph: Record<string, { class_type: string; inputs: Record<string, unknown> }> = {
