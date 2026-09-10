@@ -40,6 +40,10 @@ def read_record(directory):
     if manifest.exists():
         raw = manifest.read_bytes()
         result.update(manifest=json.loads(raw), manifest_bytes=raw.decode(), manifest_digest=hashlib.sha256(raw).hexdigest())
+    telemetry = directory / 'telemetry.json'
+    if telemetry.exists():
+        try: result['telemetry'] = json.loads(telemetry.read_text())
+        except (OSError, ValueError): pass
     ack = directory / 'receipt.json'
     result['acknowledged'] = ack.exists()
     result['cleanup_complete'] = (directory / 'cleaned.json').exists()

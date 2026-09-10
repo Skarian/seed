@@ -61,10 +61,16 @@ async def engine(tmp_path, monkeypatch, valid=True):
     package.__path__ = []
     monkeypatch.setitem(sys.modules, package.__name__, package)
     monkeypatch.setitem(sys.modules, package.__name__ + '.spool', spool)
+    telemetry_spec = importlib.util.spec_from_file_location(package.__name__ + '.telemetry', Path(__file__).parent / 'comfy_seed/telemetry.py')
+    telemetry = importlib.util.module_from_spec(telemetry_spec)
+    telemetry_spec.loader.exec_module(telemetry)
+    monkeypatch.setitem(sys.modules, package.__name__ + '.telemetry', telemetry)
     spec = importlib.util.spec_from_file_location(package.__name__ + '.jobs', Path(__file__).parent / 'comfy_seed/jobs.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
-    server = types.SimpleNamespace(routes=web.RouteTableDef(), prompt_queue=NativeQueue(), number=0)
+    server = types.SimpleNamespace(routes=web.RouteTableDef(), prompt_queue=NativeQueue(), number=0, send_sync=lambda *args: None)
+    queue_server = server
+    server.prompt_queue.server = queue_server
     module.install(server, tmp_path / 'volume', 'workspace', 'current-engine')
     app = web.Application()
     app.add_routes(server.routes)
@@ -160,5 +166,52 @@ async def test_engine_terminal_manifest_requires_success_and_owned_output(tmp_pa
         else:
             assert 'manifest' not in record
         assert file.read_bytes() == payload
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_measurement_aggregates_and_persists_missing_values(tmp_path, monkeypatch):
+    client, _, _, _ = await engine(tmp_path, monkeypatch)
+    try:
+        module = sys.modules['seed_engine_test_package.telemetry']
+        monkeypatch.setattr(module.threading.Thread, 'start', lambda self: None)
+        monkeypatch.setattr(module.threading.Thread, 'join', lambda self, **kwargs: None)
+        samples = iter([
+            ([dict(uuid='gpu', name='Test GPU', total_mib=96000, used_mib=20000, utilization_percent=40, driver='test')], 1000),
+            ([dict(uuid='gpu', name='Test GPU', total_mib=96000, used_mib=30000, utilization_percent=80, driver='test')], 2000),
+            ([dict(uuid='gpu', name='Test GPU', total_mib=96000, used_mib=None, utilization_percent=None, driver='test')], None),
+        ])
+        measurement = module.Measurement(tmp_path, lambda: next(samples))
+        for _ in range(4): measurement.collect()
+        measurement.finish()
+        import json
+        result = json.loads((tmp_path / 'telemetry.json').read_text())
+        assert result['gpus'][0]['peak_used_mib'] == 30000
+        assert result['gpus'][0]['mean_utilization_percent'] == 60
+        assert result['system_ram_peak_used_mib'] == 2000
+        assert result['failed_samples'] == 1 and result['sample_count'] == 3
+        assert result['complete'] and result['execution_seconds'] >= 0
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_execution_event_starts_measurement_and_failure_finishes_it(tmp_path, monkeypatch):
+    client, queue, _, _ = await engine(tmp_path, monkeypatch)
+    try:
+        module = sys.modules['seed_engine_test_package.telemetry']
+        monkeypatch.setattr(module.threading.Thread, 'start', lambda self: None)
+        monkeypatch.setattr(module.threading.Thread, 'join', lambda self, **kwargs: None)
+        job_id = str(uuid.uuid4())
+        assert (await client.post('/studio/prompt', json=request_for(job_id), headers=HEADERS)).status == 200
+        queue.currently_running[0] = queue.pending.pop()
+        queue.server.send_sync('execution_start', {'prompt_id': job_id})
+        queue.task_done(0, {}, types.SimpleNamespace(status_str='error', completed=False))
+        record = spool.read_record(spool.job_directory(tmp_path / 'volume', job_id))
+        assert record['manifest']['state'] == 'failed'
+        assert record['telemetry']['complete']
+        assert record['telemetry']['sample_count'] == 0
+        assert record['telemetry']['gpus'] == []
     finally:
         await client.close()

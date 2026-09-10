@@ -9,7 +9,7 @@ import type { StudioPaths } from './storage.js';
 import { WorkerConnection } from './worker.js';
 import { graphFor, imageRequest, seeds, type Capabilities, type ImageRequest, type Preset } from './workflows.js';
 
-type Job = { generation_percent?: number; prepared?: PreparedReference[]; id: string; state: string; submission_id: string; submission_index: number; request: ImageRequest; seed: string; preset: Preset | null; graph: ReturnType<typeof graphFor>; workspace_id: string; engine_session_id?: string; outputs: string[]; error: string | null; cleanup_state: string; output_save_state: string; created_at: string; updated_at: string; uncertainty_acknowledged?: boolean };
+type Job = { metrics?: { version: 1; inputs: { total: number; image: number; video: number; audio: number; prepared_bytes: number; video_soundtracks: number }; transfer_started_at?: string; submitted_at?: string; saved_at?: string; terminal_at?: string; elapsed_to_terminal_seconds?: number; elapsed_to_saved_seconds?: number; worker?: Record<string, unknown> }; generation_percent?: number; prepared?: PreparedReference[]; id: string; state: string; submission_id: string; submission_index: number; request: ImageRequest; seed: string; preset: Preset | null; graph: ReturnType<typeof graphFor>; workspace_id: string; engine_session_id?: string; outputs: string[]; error: string | null; cleanup_state: string; output_save_state: string; created_at: string; updated_at: string; uncertainty_acknowledged?: boolean };
 type Output = { id: string; path: string; size: number; sha256: string; mime_type: string };
 const terminal = ['completed', 'failed', 'cancelled'];
 const hashFile = async (file: string) => { const hash = createHash('sha256'); for await (const bytes of createReadStream(file)) hash.update(bytes); return hash.digest('hex'); };
@@ -32,7 +32,7 @@ export class Jobs {
   list(limit = 50, cursor = ''): Job[] { return (this.db.prepare('SELECT snapshot_json FROM jobs WHERE (? = \'\' OR (created_at,id) < (SELECT created_at,id FROM jobs WHERE id=?)) ORDER BY created_at DESC,id DESC LIMIT ?').all(cursor, cursor, limit) as { snapshot_json: string }[]).map(r => JSON.parse(r.snapshot_json)); }
   all(): Job[] { return (this.db.prepare('SELECT snapshot_json FROM jobs ORDER BY created_at, submission_index').all() as { snapshot_json: string }[]).map(r => JSON.parse(r.snapshot_json)); }
   get(id: string): Job | null { const row = this.db.prepare('SELECT snapshot_json FROM jobs WHERE id = ?').get(id) as { snapshot_json: string } | undefined; return row ? JSON.parse(row.snapshot_json) : null; }
-  save(job: Job) { job.updated_at = new Date().toISOString(); this.db.prepare('UPDATE jobs SET state=?, snapshot_json=?, updated_at=? WHERE id=?').run(job.state, JSON.stringify(job), job.updated_at, job.id); }
+  save(job: Job) { if (job.metrics && terminal.includes(job.state) && !job.metrics.terminal_at) { job.metrics.terminal_at = new Date().toISOString(); job.metrics.elapsed_to_terminal_seconds = (Date.parse(job.metrics.terminal_at) - Date.parse(job.created_at)) / 1000; } job.updated_at = new Date().toISOString(); this.db.prepare('UPDATE jobs SET state=?, snapshot_json=?, updated_at=? WHERE id=?').run(job.state, JSON.stringify(job), job.updated_at, job.id); }
   get paused() { return Boolean((this.db.prepare('SELECT paused FROM dispatcher_state WHERE id=1').get() as { paused: number }).paused); }
   pause(value: boolean) { this.db.prepare('UPDATE dispatcher_state SET paused=? WHERE id=1').run(value ? 1 : 0); this.safe = null; this.checkedAt = null; }
   async submit(raw: unknown, key: string) {
@@ -53,7 +53,7 @@ export class Jobs {
     const submission_id = randomUUID(), now = new Date().toISOString();
     const jobs = seeds(request).map((seed, index): Job => {
       const id = randomUUID(), preset = selectedPreset ?? null;
-      return { id, state: 'queued', submission_id, submission_index: index, request, seed, preset, graph: graphFor(request, id, seed, preset, prepared), ...(prepared.length ? {prepared} : {}), workspace_id: cap.workspace_id, outputs: [], error: null, cleanup_state: 'not_requested', output_save_state: 'pending', created_at: now, updated_at: now };
+      return { metrics: { version: 1, inputs: { total: prepared.length, image: prepared.filter(r => r.kind === 'image').length, video: prepared.filter(r => r.kind === 'video').length, audio: prepared.filter(r => r.kind === 'audio').length, video_soundtracks: prepared.filter(r => r.audio_file).length, prepared_bytes: prepared.reduce((n, r) => n + statSync(r.file).size + (r.audio_file ? statSync(r.audio_file).size : 0), 0) } }, id, state: 'queued', submission_id, submission_index: index, request, seed, preset, graph: graphFor(request, id, seed, preset, prepared), ...(prepared.length ? {prepared} : {}), workspace_id: cap.workspace_id, outputs: [], error: null, cleanup_state: 'not_requested', output_save_state: 'pending', created_at: now, updated_at: now };
     });
     this.db.transaction(() => {
       this.db.prepare('INSERT INTO submissions VALUES (?,?,?)').run(submission_id, key, body);
@@ -120,6 +120,7 @@ export class Jobs {
       await response.body?.cancel();
       const record = await this.worker.json('/worker/v1/jobs/' + job.id);
       if (record.submission.job_id !== job.id || record.submission.workspace_id !== job.workspace_id || record.submission.engine_session_id !== job.engine_session_id) throw new Error('Job identity mismatch');
+      if (job.metrics && record.telemetry?.version === 1 && typeof record.telemetry === 'object') { job.metrics.worker = record.telemetry; this.save(job); }
       if (record.manifest) {
         const manifest = this.manifest(job, record);
         if (manifest.state === 'completed') { await this.retrieve(job, manifest.outputs, record.manifest_digest); }
@@ -143,10 +144,11 @@ export class Jobs {
     if (!this.paused && !foreign && !orphan && !unresolved && nativeIds.length === 0) {
       const next = current.find(j => j.state === 'queued');
       if (next) {
+        if (next.metrics && !next.metrics.transfer_started_at) { next.metrics.transfer_started_at = new Date().toISOString(); this.save(next); }
         try {
           for(const ref of next.prepared ?? []) { await this.worker.upload(next.id,ref.file,ref.filename); if(ref.audio_file && ref.audio_filename) await this.worker.upload(next.id,ref.audio_file,ref.audio_filename); }
         } catch { next.error='Reference transfer interrupted. It will retry before generation.';this.save(next);return; }
-        next.workspace_id = cap.workspace_id; next.engine_session_id = cap.engine_session_id; next.state = 'submitting'; this.save(next);
+        next.workspace_id = cap.workspace_id; next.engine_session_id = cap.engine_session_id; next.state = 'submitting'; if(next.metrics) next.metrics.submitted_at = new Date().toISOString(); this.save(next);
         try {
           const result = await this.worker.request('/comfy/prompt', { method: 'POST', session: cap.engine_session_id, body: { prompt_id: next.id, prompt: next.graph, preset: next.preset } });
           if (!result.ok) {
@@ -204,6 +206,7 @@ export class Jobs {
             const id = job.id + '-' + output.id;
             this.db.prepare('INSERT OR IGNORE INTO assets(id,kind,name,relative_path,metadata_json,created_at) VALUES (?,?,?,?,?,?)').run(id, output.mime_type === 'video/mp4' ? 'video' : 'image', (output.mime_type === 'video/mp4' ? 'Video · ' : 'Image · ') + job.request.mode.toUpperCase(), 'media/outputs/' + id + (output.mime_type === 'video/mp4' ? '.mp4' : '.png'), JSON.stringify({ job_id: job.id, mode: job.request.mode, mime_type:output.mime_type, sha256: output.sha256, size: output.size }), new Date().toISOString());
           }
+          if (job.metrics && !job.metrics.saved_at) { job.metrics.saved_at = new Date().toISOString(); job.metrics.elapsed_to_saved_seconds = (Date.parse(job.metrics.saved_at) - Date.parse(job.created_at)) / 1000; }
           job.outputs = outputs.map(o => job.id + '-' + o.id); job.state = 'completed'; job.output_save_state = 'saved'; job.cleanup_state = 'pending'; job.error = null; this.save(job);
         })();
       }

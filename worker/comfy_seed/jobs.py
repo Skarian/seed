@@ -9,11 +9,26 @@ from aiohttp import web
 import execution
 import folder_paths
 from .spool import atomic, job_directory, read_record
+from .telemetry import Measurement
 
 
 def install(server, workspace, workspace_id, engine_id):
     lock = asyncio.Lock()
     original_done = server.prompt_queue.task_done
+    measurements = {}
+    original_send = getattr(server, 'send_sync', None)
+    if original_send:
+        def send(event, data, sid=None):
+            if event == 'execution_start' and isinstance(data, dict):
+                job_id = data.get('prompt_id')
+                try:
+                    directory = job_directory(workspace, job_id)
+                    if read_record(directory) and job_id not in measurements:
+                        measurements[job_id] = Measurement(directory)
+                except Exception:
+                    logging.exception('seed telemetry unavailable')
+            return original_send(event, data, sid)
+        server.send_sync = send
 
     def verified_preset(candidate):
         if not candidate: return None
@@ -56,6 +71,10 @@ def install(server, workspace, workspace_id, engine_id):
         with server.prompt_queue.mutex:
             prompt = server.prompt_queue.currently_running[item_id]
             job_id = prompt[3].get('seed_job_id')
+        measurement = measurements.pop(job_id, None)
+        if measurement:
+            try: measurement.finish()
+            except Exception: logging.exception('seed telemetry finalization unavailable')
         original_done(item_id, history_result, status, process_item)
         if not job_id: return
         try:

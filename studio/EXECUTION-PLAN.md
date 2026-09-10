@@ -251,3 +251,14 @@ Owner wording refinement: jobs show "Model loading…" before a positive samplin
 `seed pod-setup` creates or updates an account-private template named seed, populated from locally saved worker credentials. The GHCR image remains public. Setup persists templateId beside volumeId, reuses it, updates the image and credentials on rerun, and reconciles uncertain template creation before issuing another create. Template list results omit visibility, so individual GETs confirm privacy. The RunPod API key is never included in worker environment.
 
 Terminated failed pod swyoff3etls55g per owner request; network volume f7vnixgws1 retained. Converted template tt0cmuwu3t to private and renamed it seed before adding saved credentials. No replacement pod started. Eight setup tests pass, including private credential population and lost-response reconciliation. Next launch: select seed, attach the existing volume, choose one GPU, deploy, then pair through port 8080.
+
+
+### September 10 — per-job hardware measurements
+
+User requested actual usage evidence for GPU selection. Added lightweight worker
+execution timing and sampled GPU/host-RAM summaries, persisted in the spool and
+PC job snapshots alongside reference counts/bytes and existing exact job settings.
+See [measurement semantics and validation](JOB-MEASUREMENTS.md). Local build,
+typecheck, seven job tests and fifteen engine/spool tests passed. New worker image
+deployment and live GPU sampling remain the next checkpoint; no pod started or
+restarted and no claim of retroactive metrics for existing generations.

@@ -122,3 +122,22 @@ it('blocks unknown spool work and never repeats an interrupted execution in a ne
   await jobs.reconcile(); expect(state.submits).toBe(2);
   expect(next.jobs[0].id).not.toBe(job.id);
 }));
+
+
+it('retains worker measurements and freezes saved time across cleanup retries', async () => fixture(async ({ jobs, request, state, finish }: any) => {
+  const { jobs: [job] } = await jobs.submit(request, 'metrics-retention-0001');
+  expect(job.metrics.inputs).toMatchObject({ total: 0, image: 0, video: 0, audio: 0 });
+  await jobs.reconcile();
+  finish(job.id);
+  state.records[job.id].telemetry = { version: 1, complete: true, execution_seconds: 12.5, sample_count: 6, gpus: [{ name: 'Test GPU', peak_used_mib: 30000 }] };
+  state.failReceipt = true;
+  await jobs.reconcile();
+  const saved = jobs.get(job.id);
+  expect(saved.metrics.worker.execution_seconds).toBe(12.5);
+  expect(saved.metrics.submitted_at).toBeTruthy();
+  expect(saved.metrics.elapsed_to_saved_seconds).toBeGreaterThanOrEqual(0);
+  state.failReceipt = false;
+  await jobs.reconcile();
+  expect(jobs.get(job.id).metrics.saved_at).toBe(saved.metrics.saved_at);
+  expect(jobs.get(job.id).cleanup_state).toBe('complete');
+}));
