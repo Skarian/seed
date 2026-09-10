@@ -25,6 +25,18 @@ Preserve model1, encoder2, VAEs3/4, route-specific turbo LoRA5 at existing stren
 | General images/video/audio | Ref2VA |
 | Anchors plus general references | Ref2VA plus native AddGuide, retain explicit anchor intent; required integration gate |
 
+Owner-confirmed FL/Ref support: resolve the engine route before selecting any
+content LoRA. The selected MiniMax preset must contain separate FL2VA and Ref2VA
+bindings. For the owner's supplied version 3266628, file 3150341
+(MysticXXX_MMH3-V4.safetensors) is the FL candidate; file 3156453
+(MysticXXX_MMH3-V4-ref2va.safetensors) is the Ref candidate. Validate tensor coverage
+and runtime behavior for each exact checkpoint before activation. The filename
+mapping alone is not compatibility proof. Missing route-specific content weights
+make that mode unavailable; never silently use the other file. Public workflows
+stay text-to-video/reference-to-video; image roles and additional references select
+the internal route without exposing an FL/Ref model picker. Persist the resolved
+route and exact preset/file revisions on each job for replay and debugging.
+
 Prompt is a single textarea string with optional native labels, no hidden LLM rewrite. Single-image default role is first_frame; adding references cannot silently turn it into a general image. Required mixed-reference route must pass before complete delivery. Optional time-positioned video/audio guides and audio-lock packs are separate future capabilities.
 
 Dynamic node6 bindings: `ref_images.ref_image_N`, `ref_videos.ref_video_N`, `ref_video_audios.ref_video_audio_N` paired with videoN, `ref_audios.ref_audio_N`. Use installed LoadImage/LoadAudio/VideoHelperSuite schemas, not assumed widget positions. Generate labels in actual serialization order, including paired audio before standalone audio; persist and test mapping. Prepare exactly the validated effective frame/audio ranges described in [assets](ASSET-PREPARATION.md).
