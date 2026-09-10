@@ -63,6 +63,9 @@ function App() {
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [assetCursor, setAssetCursor] = useState<string | null>(null);
   const loadedMore = useRef(false);
+  const deletedAssets = useRef(new Set<string>());
+  const [deletingAsset, setDeletingAsset] = useState<string | null>(null);
+  const [deleteError, setDeleteError] = useState('');
   const [jobs, setJobs] = useState<Array<{ id: string; state: string; outputs: string[]; error: string | null; uncertainty_acknowledged?: boolean }>>([]);
   const [capability, setCapability] = useState<{ revision: string | null; workflows: Record<string, { enabled: boolean; modes: string[] }> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -87,7 +90,7 @@ function App() {
         const responses = await Promise.all(['/api/v1/studio', '/api/v1/assets', '/api/v1/jobs', '/api/v1/capabilities'].map(url => fetch(url, { signal: controller.signal })));
         if (responses.some(response => !response.ok)) throw new Error('Unavailable');
         const [status, library, history, capabilities] = await Promise.all(responses.map(response => response.json()));
-        if (!disposed) { setStudio(status); setAssets(current => loadedMore.current ? [...library.items, ...current.filter(asset => !library.items.some((fresh: LibraryAsset) => fresh.id === asset.id))] : library.items); if (!loadedMore.current) setAssetCursor(library.next_cursor ?? null); setJobs(history.items); setCapability(capabilities); setError(''); }
+        if (!disposed) { setStudio(status); library.items = library.items.filter((asset: LibraryAsset) => !deletedAssets.current.has(asset.id)); setAssets(current => loadedMore.current ? [...library.items, ...current.filter(asset => !library.items.some((fresh: LibraryAsset) => fresh.id === asset.id))] : library.items); if (!loadedMore.current) setAssetCursor(library.next_cursor ?? null); setJobs(history.items); setCapability(capabilities); setError(''); }
       } catch { if (!disposed) setError('seed is unavailable.'); }
     }
     void refresh();
@@ -124,8 +127,22 @@ function App() {
     const response = await fetch('/api/v1/assets?cursor=' + encodeURIComponent(assetCursor));
     if (!response.ok) { setGenerationError('Could not load older images.'); return; }
     const page = await response.json(); loadedMore.current = true;
-    setAssets(current => [...current, ...page.items.filter((asset: LibraryAsset) => !current.some(existing => existing.id === asset.id))]);
+    setAssets(current => [...current, ...page.items.filter((asset: LibraryAsset) => !deletedAssets.current.has(asset.id) && !current.some(existing => existing.id === asset.id))]);
     setAssetCursor(page.next_cursor);
+  }
+  async function deleteAsset(asset: LibraryAsset) {
+    if (!window.confirm(`Delete this ${asset.kind}? This permanently removes the saved file from your PC. This cannot be undone.`)) return;
+    setDeletingAsset(asset.id); setDeleteError('');
+    try {
+      const response = await fetch('/api/v1/assets/' + encodeURIComponent(asset.id), { method: 'DELETE' });
+      if (!response.ok) { const body = await response.json(); throw new Error(body.error?.message ?? 'Could not delete this file.'); }
+      deletedAssets.current.add(asset.id);
+      setAssets(current => current.filter(item => item.id !== asset.id));
+      loadedMore.current = false; setAssetCursor(null);
+      setJobs(current => current.map(job => ({ ...job, outputs: job.outputs.filter(id => id !== asset.id) })));
+      setConnectionRevision(value => value + 1);
+    } catch (failure) { setDeleteError((failure as Error).message); }
+    finally { setDeletingAsset(null); }
   }
   async function jobAction(url: string) {
     try { const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!response.ok) { const body = await response.json(); throw new Error(body.error?.message ?? 'Operation failed.'); } setConnectionRevision(x => x + 1); }
@@ -213,7 +230,7 @@ function App() {
           {generationError && <p role="alert">{generationError}</p>}
           {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <button key={asset} onClick={() => setViewAsset(asset)}><img src={`/api/v1/assets/${asset}/content`} alt="Generated image" /></button>) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
         </section>
-      </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <div className="library-grid">{assets.map(asset => <button key={asset.id} onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button>)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
+      </> : <section className="library"><h1>Library</h1>{deleteError && <p role="alert">{deleteError}</p>}{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <div className="library-grid">{assets.map(asset => <div className="library-item" key={asset.id}><button className="library-preview" onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button><button className="library-delete" aria-label={`Delete ${asset.name}`} title="Delete" disabled={deletingAsset !== null} onClick={() => void deleteAsset(asset)}><Icon name="close" /></button></div>)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
       <footer>seed</footer>
     </main>
     {viewAsset && <SavedImage id={viewAsset} close={() => setViewAsset(null)} />}

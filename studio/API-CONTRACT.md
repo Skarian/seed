@@ -144,3 +144,7 @@ M0 design specified on 2026-09-09. Live streaming, session/submission hooks, cra
 Use documented [routes](https://docs.comfy.org/development/comfyui-server/comms_routes) and [messages](https://docs.comfy.org/development/comfyui-server/comms_messages): prompt submission, queue/history inspection, WebSocket execution progress, upload/view and interruption. Check the pinned server's actual schemas before implementing adapters. Do not recreate ComfyUI's execution queue/progress tracking. The local durable waiting list only dispatches one job at a time and reconciles native state.
 
 ComfyUI execution state cannot establish that the PC saved a file. Combine native generation status with PC transfer/receipt state for the shutdown indicator. Pairing/preparation status exists before ComfyUI starts, so it remains in the small early worker component; durable receipt/cleanup is the other narrow integration boundary. No generic orchestration framework is needed.
+
+### Implemented Library deletion
+
+`DELETE /api/v1/assets/:id` requires the usual same-origin mutation headers and no request body. Returns204 after deleting the stored file and asset record; a repeated deletion also returns204. Returns409 while worker cleanup is pending or the file cannot be deleted. Retains job history and removes its deleted output reference. The Library asks for confirmation before sending the request. Applies to every stored asset kind.

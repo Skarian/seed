@@ -1,5 +1,6 @@
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
-import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, writeFileSync, existsSync } from 'node:fs';
+import { openDatabase } from '../server/db.js';
 import path from 'node:path';
 import { createApp } from '../server/http.js';
 import { resolvePaths } from '../server/storage.js';
@@ -14,6 +15,24 @@ beforeEach(async () => {
 afterEach(async () => { await app.close(); rmSync(root, { recursive: true, force: true }); });
 
 describe('local studio boundary', () => {
+  it('deletes a saved file and record, permits retry, and rejects paths outside storage', async () => {
+    const paths = resolvePaths(root), db = openDatabase(paths.data);
+    const file = path.join(paths.data, 'media/outputs/test.png'); writeFileSync(file, 'image');
+    const insert = db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)');
+    insert.run('test', 'image', 'Test image', 'media/outputs/test.png', '{}', new Date().toISOString());
+    const headers = { host, origin: `http://${host}` };
+    expect((await app.inject({ method: 'DELETE', url: '/api/v1/assets/test', headers: { host } })).statusCode).toBe(403);
+    expect(existsSync(file)).toBe(true);
+    expect((await app.inject({ method: 'DELETE', url: '/api/v1/assets/test', headers })).statusCode).toBe(204);
+    expect(existsSync(file)).toBe(false);
+    expect(db.prepare('SELECT id FROM assets WHERE id=?').get('test')).toBeUndefined();
+    expect((await app.inject({ method: 'DELETE', url: '/api/v1/assets/test', headers })).statusCode).toBe(204);
+    const outside = path.join(root, 'keep.txt'); writeFileSync(outside, 'keep');
+    insert.run('outside', 'video', 'Outside', '../keep.txt', '{}', new Date().toISOString());
+    expect((await app.inject({ method: 'DELETE', url: '/api/v1/assets/outside', headers })).statusCode).toBe(409);
+    expect(existsSync(outside)).toBe(true);
+    db.close();
+  });
   it('reports disconnected and unknown safety, never provider-off or ready', async () => {
     const result = await app.inject({ url: '/api/v1/studio', headers: { host } });
     expect(result.statusCode).toBe(200);

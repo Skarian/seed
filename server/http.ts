@@ -2,7 +2,7 @@ import Fastify from 'fastify';
 import { WorkerConnection } from './worker.js';
 import fastifyStatic from '@fastify/static';
 import { randomUUID } from 'node:crypto';
-import { existsSync, createReadStream, statSync } from 'node:fs';
+import { existsSync, createReadStream, statSync, realpathSync, unlinkSync } from 'node:fs';
 import { Jobs } from './jobs.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -77,6 +77,23 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     });
   }
   app.get('/api/v1/assets', async request => { const cursor = String((request.query as { cursor?: string }).cursor ?? ''); const items = listAssets(db, cursor, 51); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.delete('/api/v1/assets/:id', async (request, reply) => jobs.serialize(async () => {
+    const id = (request.params as { id: string }).id;
+    const asset = db.prepare('SELECT relative_path FROM assets WHERE id=?').get(id) as { relative_path: string } | undefined;
+    if (!asset) return reply.code(204).send();
+    const owners = jobs.all().filter(job => job.outputs.includes(id));
+    if (owners.some(job => job.state !== 'completed' || job.cleanup_state !== 'complete')) return fail(reply, 409, 'asset_busy', 'This file is still being saved. Try again shortly.', request.id);
+    const root = realpathSync(options.paths.data) + path.sep;
+    const file = path.resolve(options.paths.data, asset.relative_path);
+    if (!file.startsWith(path.resolve(options.paths.data) + path.sep) || (existsSync(file) && !realpathSync(file).startsWith(root))) return fail(reply, 409, 'invalid_asset', 'Cannot delete this file location.', request.id);
+    // Keep the record on file errors so deletion can be retried. A missing file is already deleted.
+    try { unlinkSync(file); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return fail(reply, 409, 'delete_failed', 'Could not delete the file. Close any apps using it and try again.', request.id); }
+    db.transaction(() => {
+      db.prepare('DELETE FROM assets WHERE id=?').run(id);
+      for (const job of owners) { job.outputs = job.outputs.filter(output => output !== id); jobs.save(job); }
+    })();
+    return reply.code(204).send();
+  }));
   app.get('/api/v1/capabilities', async () => ({ revision: jobs.capabilities?.revision ?? null, workflows: { 'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 } } }));
   app.post('/api/v1/jobs', async (request, reply) => {
     try { const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''))); return reply.code(202).send(result); }
