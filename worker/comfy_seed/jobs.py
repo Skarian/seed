@@ -143,7 +143,7 @@ def install(server, workspace, workspace_id, engine_id):
                 raise web.HTTPBadRequest()
             atomic(directory / 'submission.json', {'job_id': job_id, 'workspace_id': workspace_id, 'engine_session_id': engine_id, 'graph_digest': digest, 'graph': graph})
             number = server.number; server.number += 1
-            server.prompt_queue.put((number, job_id, graph, {'seed_job_id': job_id}, valid[2], {}))
+            server.prompt_queue.put((number, job_id, graph, {'seed_job_id': job_id, 'client_id': job_id}, valid[2], {}))
             return web.json_response({'prompt_id': job_id})
 
     @server.routes.post('/studio/cancel')

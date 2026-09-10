@@ -110,6 +110,8 @@ async def test_engine_duplicate_submission_and_queued_cancel(tmp_path, monkeypat
         repeat = await client.post('/studio/prompt', json=body, headers=HEADERS)
         assert repeat.status == 200 and (await repeat.json())['already_recorded'] is True
         assert queue.put_count == 1 and calls == [job_id]
+        # Native Comfy only emits execution_start for jobs carrying client_id.
+        assert queue.pending[0][3]['client_id'] == job_id
         changed = request_for(job_id)
         changed['prompt']['9']['inputs']['other'] = True
         assert (await client.post('/studio/prompt', json=changed, headers=HEADERS)).status == 409
