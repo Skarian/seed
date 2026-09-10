@@ -1,7 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { MediaPreview, Glyph } from './media-preview.js';
 export type MediaKind = 'image' | 'video' | 'audio';
-export type Reference = { id: string; name: string; url: string; kind: MediaKind; type: string; width?: number; height?: number; duration?: number; start: number; end: number; role: string };
+export type Reference = { file: File; include_audio?: boolean; framing?: 'fit'|'fill'; id: string; name: string; url: string; kind: MediaKind; type: string; width?: number; height?: number; duration?: number; start: number; end: number; role: string };
 type Group = 'edit' | 'video';
 let nextReferenceId = 0;
 async function inspect(file: File): Promise<Reference> {
@@ -31,7 +31,7 @@ async function inspect(file: File): Promise<Reference> {
       }
       element.src = url;
     });
-    return { id: `reference-${++nextReferenceId}`, name: file.name, url, kind, type: file.type, ...metadata, start: 0, end: Math.min(15, metadata.duration ?? 0), role: 'reference' };
+    return { file, id: `reference-${++nextReferenceId}`, name: file.name, url, kind, type: file.type, ...metadata, start: 0, end: Math.min(15, metadata.duration ?? 0), role: 'reference' };
   } catch (error) { URL.revokeObjectURL(url); throw new Error(`${file.name}: ${(error as Error).message}`); }
 }
 export function useReferences() {
@@ -68,21 +68,31 @@ export function useReferences() {
   function update(group: Group, id: string, values: Partial<Reference>) { change(group, latest.current[group].map(entry => entry.id === id ? { ...entry, ...values } : entry)); }
   return { groups, errors, busy, add, remove, update, reset };
 }
-export function ReferenceInputs({ group, state }: { group: Group; state: ReturnType<typeof useReferences> }) {
-  const input = useRef<HTMLInputElement>(null);
-  const [selected, setSelected] = useState<string | null>(null);
-  const items = state.groups[group];
-  const [dragging, setDragging] = useState(false);
+export function referenceIssues(items: Reference[], group: Group) {
   const issues: string[] = [];
   for (const item of items) if (item.kind !== 'image' && (item.start < 0 || item.end > item.duration! || item.end - item.start < 2 || item.end - item.start > 15)) issues.push(`${item.name}: choose a 2–15 second range within the source.`);
   for (const kind of ['video', 'audio'] as const) if (items.filter(item => item.kind === kind).reduce((total, item) => total + item.end - item.start, 0) > 15) issues.push(`Choose at most 15 seconds of ${kind} across the selected clips.`);
   const roles = group === 'edit' ? ['source', 'subject'] : ['first_frame', 'last_frame'];
   for (const role of roles) if (items.filter(item => item.role === role).length > 1) issues.push(`Choose only one ${role.replaceAll('_', ' ')} image.`);
+  if (items.filter(item=>item.kind==='audio'||(item.kind==='video'&&item.include_audio)).reduce((sum,item)=>sum+item.end-item.start,0)>15) issues.push('Choose at most 15 seconds of audio including video soundtracks.');
+  return issues;
+}
+export function referenceLabels(items:Reference[]){const counts={image:0,video:0,audio:items.filter(item=>item.kind==='video'&&item.include_audio).length};return new Map(items.map(item=>[item.id,item.role==='reference'?('<'+{image:'Picture',video:'Video',audio:'Audio'}[item.kind]+' '+(++counts[item.kind])+'>'):item.role.replaceAll('_',' ')]));}
+export function ReferenceInputs({ group, state, seconds=5, onInsert }: { group: Group; state: ReturnType<typeof useReferences>; seconds?:number; onInsert?:(label:string)=>void }) {
+  const input = useRef<HTMLInputElement>(null);
+  const [selected, setSelected] = useState<string | null>(null);
+  const items = state.groups[group];
+  const labels=referenceLabels(items);
+  const [dragging, setDragging] = useState(false);
+  const issues = referenceIssues(items, group);
   const active = items.find(item => item.id === selected);
   const errors = [...state.errors[group], ...issues];
   const controls = active && <>
     {active.kind === 'image' && <label className="viewer-role">Use as<select aria-label={`Role for ${active.name}`} value={active.role} onChange={event => state.update(group, active.id, { role: event.target.value })}>{(group === 'edit' ? [['source', 'Source scene'], ['subject', 'Subject identity']] : [['reference', 'Reference'], ['first_frame', 'First frame'], ['last_frame', 'Last frame']]).map(([value, label]) => <option key={value} value={value}>{label}</option>)}</select></label>}
     {active.duration !== undefined && <div className="clip-range"><span>Range (seconds)</span><label>From<input aria-label={`Start for ${active.name}`} type="number" min="0" max={active.duration} step="any" value={active.start} onChange={event => state.update(group, active.id, { start: Number(event.target.value) })} /></label><label>To<input aria-label={`End for ${active.name}`} type="number" min="0" max={active.duration} step="any" value={active.end} onChange={event => state.update(group, active.id, { end: Number(event.target.value) })} /></label></div>}
+    {active.kind === 'video' && <label><input type="checkbox" checked={Boolean(active.include_audio)} onChange={event=>state.update(group,active.id,{include_audio:event.target.checked})} />Use video audio as a reference</label>}
+    {active.kind === 'video' && <span>Used range: {active.start.toFixed(2)}–{(active.start+(17*Math.floor((Math.min(Math.floor((active.end-active.start)*24),17*Math.ceil((seconds*24-5)/17)+5)-5)/17)+5)/24).toFixed(2)} seconds</span>}
+    {active.kind === 'image' && active.role !== 'reference' && <label className="viewer-role">Framing<select value={active.framing??'fit'} onChange={event=>state.update(group,active.id,{framing:event.target.value as 'fit'|'fill'})}><option value="fit">Fit entire image</option><option value="fill">Fill frame</option></select></label>}
     {errors.length > 0 && <ul className="reference-errors" role="alert">{errors.map((message, index) => <li key={index}>{message}</li>)}</ul>}
   </>;
   return <section className="references" aria-label={group === 'edit' ? 'Image inputs' : 'Video references'}>
@@ -96,6 +106,7 @@ export function ReferenceInputs({ group, state }: { group: Group; state: ReturnT
       </div>
     </div>
     {!active && errors.length > 0 && <ul className="reference-errors" role="alert">{errors.map((message, index) => <li key={index}>{message}</li>)}</ul>}
+    {group==='video'&&items.some(item=>item.role==='reference')&&<div className="reference-labels" aria-label="Insert reference in prompt">{items.filter(item=>item.role==='reference').map(item=><button type="button" key={item.id} onClick={()=>onInsert?.(labels.get(item.id)!)} title={'Insert '+labels.get(item.id)+' in prompt'}>{labels.get(item.id)}</button>)}</div>}
     {active && <MediaPreview key={active.id} media={active} onClose={() => setSelected(null)} onDelete={() => { state.remove(group, active.id); setSelected(null); }} controls={controls} />}
   </section>;
 }

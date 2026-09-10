@@ -242,3 +242,11 @@ footer { color: #8a977a; font-size: 11px; padding: 24px 0; margin-top: 45px; bor
 .media-spinner { width: 20px; height: 20px; flex: 0 0 auto; border: 2px solid #526044; border-top-color: #d0e7a1; border-radius: 50%; animation: connection-spin .8s linear infinite; }
 .media-error { color: #e8b0aa; font-size: 13px; }
 @media (prefers-reduced-motion: reduce) { .media-spinner { animation: none; } .media-preview img { transition: none; } }
+
+.media-preview video { display:block; width:100%; opacity:0; transition:opacity .2s; }
+.media-ready video { opacity:1; }
+.media-play { position:absolute; bottom:12px; left:12px; color:white; text-shadow:0 1px 4px black; }
+.saved-viewer video { width:100%; min-height:0; flex:1; object-fit:contain; }
+.video-audio { display:flex; gap:12px; align-items:center; margin:20px 0; }
+
+.reference-labels{display:flex;gap:.5rem;flex-wrap:wrap;margin-top:.6rem}.reference-labels button{border:1px solid var(--line);border-radius:8px;background:transparent;color:inherit;padding:.35rem .65rem}.video-audio{display:flex;align-items:center;justify-content:center;gap:.75rem;margin:1rem 0}.video-audio select{padding:.5rem;border-radius:8px}

@@ -4,8 +4,8 @@ export function LoadingIndicator({ label }: { label: string }) {
   return <span className="media-loading" role="status"><span className="media-spinner" aria-hidden="true" /><span>{label}</span></span>;
 }
 
-export function MediaCard({ src, name, onOpen, onDelete, deleting }: {
-  src: string; name: string; onOpen: () => void; onDelete: () => void; deleting: boolean;
+export function MediaCard({ src, name, kind = 'image', onOpen, onDelete, deleting }: {
+  kind?: 'image'|'video'|'audio'; src: string; name: string; onOpen: () => void; onDelete: () => void; deleting: boolean;
 }) {
   const [state, setState] = useState<'loading' | 'ready' | 'error'>('loading');
   const [attempt, setAttempt] = useState(0);
@@ -14,9 +14,10 @@ export function MediaCard({ src, name, onOpen, onDelete, deleting }: {
       if (state === 'error') { setState('loading'); setAttempt(value => value + 1); }
       else if (state === 'ready') onOpen();
     }} aria-label={state === 'error' ? `Retry loading ${name}` : name}>
-      <img key={attempt} src={src} alt={name} loading="lazy" decoding="async" onLoad={() => setState('ready')} onError={() => setState('error')} />
-      {state === 'loading' && <LoadingIndicator label="Loading image…" />}
-      {state === 'error' && <span className="media-error">Image unavailable. Click to retry.</span>}
+      {kind === 'image' ? <img key={attempt} src={src} alt={name} loading="lazy" decoding="async" onLoad={() => setState('ready')} onError={() => setState('error')} /> : kind === 'video' ? <video key={attempt} src={src} muted playsInline preload="metadata" onLoadedData={() => setState('ready')} onError={() => setState('error')} /> : <><audio key={attempt} src={src} preload="metadata" onLoadedMetadata={() => setState('ready')} onError={() => setState('error')} /><span className="audio-symbol">♫</span></>}
+      {state === 'ready' && kind === 'video' && <span className="media-play" aria-hidden="true">▶</span>}
+      {state === 'loading' && <LoadingIndicator label={`Loading ${kind}…`} />}
+      {state === 'error' && <span className="media-error">Media unavailable. Click to retry.</span>}
     </button>
     <button className="library-delete" aria-label={`Delete ${name}`} title="Delete" disabled={deleting} onClick={onDelete}>
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden="true"><path d="m6 6 12 12M6 18 18 6" /></svg>

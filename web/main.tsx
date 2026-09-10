@@ -3,7 +3,8 @@ import { createRoot } from 'react-dom/client';
 import type { LibraryAsset, StudioSnapshot, WorkflowId } from '../shared/studio.js';
 import './style.css';
 import { MediaCard, LoadingIndicator } from './media-card.js';
-import { ReferenceInputs, useReferences } from './references.js';
+import { uploadReferences } from './uploads.js';
+import { ReferenceInputs, useReferences, referenceIssues } from './references.js';
 
 const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
   'text-to-image': { title: 'Text to image', placeholder: 'Describe your image…' },
@@ -11,7 +12,7 @@ const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
   'text-to-video': { title: 'Text to video', placeholder: 'Describe the scene, movement and sound…' },
   'reference-to-video': { title: 'Reference to video', placeholder: 'Describe the scene using your references…' },
 };
-type Draft = { prompt: string; aspect: '16:9' | '9:16'; duration: '5' | '10' | '15'; mode: 'sfw' | 'nsfw'; count: number; randomSeed: boolean; seed: string };
+type Draft = { prompt: string; aspect: '16:9' | '9:16'; duration: '5' | '10' | '15'; mode: 'sfw' | 'nsfw'; audio?: 'generated'|'silent'; count: number; randomSeed: boolean; seed: string };
 const emptyDraft = (): Draft => ({ prompt: '', aspect: '16:9', duration: '5', mode: 'sfw', count: 1, randomSeed: true, seed: '0' });
 function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
   try {
@@ -27,6 +28,7 @@ function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
         mode: entry?.mode === 'nsfw' ? 'nsfw' : 'sfw',
         count: Number.isInteger(entry?.count) && entry.count >= 1 && entry.count <= 16 ? entry.count : 1,
         randomSeed: entry?.randomSeed !== false,
+        audio: entry?.audio === 'silent' ? 'silent' : 'generated',
         seed: typeof entry?.seed === 'string' ? entry.seed : '0',
       };
     }
@@ -46,10 +48,10 @@ function Icon({ name }: { name: 'reset' | 'jobs' | 'pod' | 'resize' | 'close' })
   </svg>;
 }
 
-function SavedImage({ id, close }: { id: string; close: () => void }) {
+function SavedImage({ id, kind, close }: { id: string; kind: 'image'|'video'|'audio'; close: () => void }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => { dialog.current?.showModal(); return () => dialog.current?.close(); }, []);
-  return <dialog ref={dialog} className="saved-viewer" aria-label="Saved image" onCancel={close} onClose={close}><div><a href={`/api/v1/assets/${id}/content`} download>Download</a><button onClick={close} aria-label="Close saved image"><Icon name="close" /></button></div><img src={`/api/v1/assets/${id}/content`} alt="Saved generation" /></dialog>;
+  return <dialog ref={dialog} className="saved-viewer" aria-label={kind==='image'?'Saved image':'Saved media'} onCancel={close} onClose={close}><div><a href={`/api/v1/assets/${id}/content`} download>Download</a><button onClick={close} aria-label="Close saved image"><Icon name="close" /></button></div>{kind === 'video' ? <video src={`/api/v1/assets/${id}/content`} controls playsInline autoPlay /> : kind === 'audio' ? <audio src={`/api/v1/assets/${id}/content`} controls /> : <img src={`/api/v1/assets/${id}/content`} alt="Saved generation" />}</dialog>;
 }
 
 function App() {
@@ -74,6 +76,7 @@ function App() {
   const [jobs, setJobs] = useState<Array<{ id: string; state: string; outputs: string[]; error: string | null; uncertainty_acknowledged?: boolean }>>([]);
   const [capability, setCapability] = useState<{ revision: string | null; workflows: Record<string, { enabled: boolean; modes: string[] }> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [uploadProgress,setUploadProgress] = useState('');
   const [generationError, setGenerationError] = useState('');
   const [submission, setSubmission] = useState<string[]>([]);
   const pendingSubmission = useRef<{ key: string; body: string } | null>(null);
@@ -126,10 +129,14 @@ function App() {
   const video = workflow.endsWith('video');
   const seedValid = draft.randomSeed || (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) && BigInt(draft.seed) + BigInt(draft.count - 1) <= 9007199254740991n);
   const jobCount = studio ? studio.queue.active + studio.queue.waiting : null;
-  const canGenerate = workflow === 'text-to-image' && capability?.workflows[workflow]?.enabled && capability.workflows[workflow].modes.includes(draft.mode) && studio?.worker.connected && !studio.worker.stale && seedValid && Boolean(draft.prompt.trim());
+  const canGenerate = workflow !== 'image-to-image' && (workflow !== 'reference-to-video' || (references.groups.video.length > 0 && referenceIssues(references.groups.video,'video').length === 0)) && capability?.workflows[workflow]?.enabled && capability.workflows[workflow].modes.includes(draft.mode) && studio?.worker.connected && !studio.worker.stale && seedValid && Boolean(draft.prompt.trim());
   async function generate() {
     setSubmitting(true); setGenerationError('');
-    const body = JSON.stringify({ workflow, capabilities_revision: capability?.revision, prompt: draft.prompt, mode: draft.mode, output: { aspect: draft.aspect, size: '1mp' }, seed: draft.randomSeed ? 'random' : draft.seed, count: draft.count });
+    let uploaded;
+    try { if(workflow === 'reference-to-video') uploaded = await uploadReferences(references.groups.video,draft.mode,setUploadProgress); }
+    catch(failure){setGenerationError((failure as Error).message);setSubmitting(false);setUploadProgress('');return;}
+    setUploadProgress('');
+    const body = JSON.stringify({ workflow, capabilities_revision: capability?.revision, prompt: draft.prompt, mode: draft.mode, output: { aspect: draft.aspect, size: video ? '720p' : '1mp', ...(video?{duration_seconds:Number(draft.duration)}:{}) }, seed: draft.randomSeed ? 'random' : draft.seed, count: draft.count, ...(uploaded?{references:uploaded}:{}), ...(video?{audio:{output:draft.audio??'generated'}}:{}) });
     if (pendingSubmission.current?.body !== body) pendingSubmission.current = { key: Array.from(crypto.getRandomValues(new Uint8Array(16)), byte => byte.toString(16).padStart(2, '0')).join(''), body };
     try {
       const response = await fetch('/api/v1/jobs', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': pendingSubmission.current!.key }, body });
@@ -234,7 +241,7 @@ function App() {
             <button className="resize-handle" aria-label="Resize prompt" title="Drag to resize; use arrow keys for small adjustments" onPointerDown={event => { drag.current = { y: event.clientY, height: promptHeight }; event.currentTarget.setPointerCapture(event.pointerId); }} onPointerMove={event => { if (drag.current) setPromptHeight(Math.max(140, Math.min(800, drag.current.height + event.clientY - drag.current.y))); }} onPointerUp={() => { drag.current = null; }} onPointerCancel={() => { drag.current = null; }} onLostPointerCapture={() => { drag.current = null; }} onKeyDown={event => { if (event.key === 'ArrowDown' || event.key === 'ArrowUp') { event.preventDefault(); setPromptHeight(height => Math.max(140, Math.min(800, height + (event.key === 'ArrowDown' ? 20 : -20)))); } }}><Icon name="resize" /></button>
           </div>
           {draftError && <p role="alert">Draft could not be saved. Keep a copy before closing.</p>}
-          {(workflow === 'image-to-image' || workflow === 'reference-to-video') && <ReferenceInputs key={workflow} group={workflow === 'image-to-image' ? 'edit' : 'video'} state={references} />}
+          {(workflow === 'image-to-image' || workflow === 'reference-to-video') && <ReferenceInputs key={workflow} group={workflow === 'image-to-image' ? 'edit' : 'video'} state={references} seconds={Number(draft.duration)} onInsert={label=>updateDraft({prompt:draft.prompt+(draft.prompt.endsWith(" ")||!draft.prompt?"":" ")+label+" "})} />}
           <div className="output-settings"><fieldset><legend>Aspect ratio</legend><div className="frame-options">{(['16:9', '9:16'] as const).map(aspect => <button key={aspect} className="frame-option" aria-pressed={draft.aspect === aspect} aria-label={`${aspect === '16:9' ? 'Landscape' : 'Portrait'} ${aspect}`} onClick={() => updateDraft({ aspect })}><span className={`frame-shape ${aspect === '9:16' ? 'portrait' : 'landscape'}`} /><span>{aspect === '16:9' ? 'Landscape' : 'Portrait'}<small>{aspect}</small></span></button>)}</div></fieldset>
             {video && <fieldset><legend>Length</legend><div className="duration-options">{(['5', '10', '15'] as const).map(duration => <button key={duration} aria-pressed={draft.duration === duration} onClick={() => updateDraft({ duration })}>{duration}s</button>)}</div></fieldset>}
           </div>
@@ -244,15 +251,17 @@ function App() {
           </section>}
           {!advancedOpen && !seedValid && <p role="alert">Check the starting seed in Advanced.</p>}
           {workflow === 'text-to-image' && draft.mode === 'nsfw' && capability?.workflows[workflow]?.enabled && !capability.workflows[workflow].modes.includes('nsfw') && <p className="popover-note">The NSFW LoRA is not available on this pod.</p>}
+          {video && <label className="video-audio">Audio<select value={draft.audio??'generated'} onChange={event=>updateDraft({audio:event.target.value as 'generated'|'silent'})}><option value="generated">Generated soundtrack</option><option value="silent">Silent</option></select></label>}
           <button className="generate-button" disabled={!canGenerate || submitting} onClick={() => void generate()} title={canGenerate ? undefined : 'Connect a compatible pod and enter a prompt to generate.'}>{submitting ? 'Submitting…' : <>Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></>}</button>
           {generationError && <p role="alert">{generationError}</p>}
           {deleteError && <p role="alert">{deleteError}</p>}
-          {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <MediaCard key={asset} src={`/api/v1/assets/${asset}/content`} name="Generated image" onOpen={() => setViewAsset(asset)} onDelete={() => void deleteAsset({ id: asset, kind: 'image' })} deleting={deletingAsset !== null} />) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
+          {uploadProgress && <p role="status">{uploadProgress}</p>}
+          {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <MediaCard key={asset} src={`/api/v1/assets/${asset}/content`} kind={assets.find(item=>item.id===asset)?.kind ?? (video ? 'video' : 'image')} name={video ? 'Generated video' : 'Generated image'} onOpen={() => setViewAsset(asset)} onDelete={() => void deleteAsset({ id: asset, kind: assets.find(item=>item.id===asset)?.kind ?? (video?'video':'image') })} deleting={deletingAsset !== null} />) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
         </section>
-      </> : <section className="library"><div className="library-heading"><h1>Library</h1><label className="library-nsfw"><input type="checkbox" checked={showNsfw} onChange={event => setShowNsfw(event.target.checked)} />Show NSFW</label></div>{deleteError && <p role="alert">{deleteError}</p>}{libraryError && <p role="alert">{libraryError}</p>}{!libraryLoaded ? <LoadingIndicator label="Loading Library…" /> : visibleAssets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>{assets.length ? 'No visible files. Enable Show NSFW to see hidden items.' : 'No saved files yet.'}</p></div> : <div className="library-grid">{visibleAssets.map(asset => <MediaCard key={asset.id} src={`/api/v1/assets/${asset.id}/content`} name={asset.name} onOpen={() => setViewAsset(asset.id)} onDelete={() => void deleteAsset(asset)} deleting={deletingAsset !== null} />)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
+      </> : <section className="library"><div className="library-heading"><h1>Library</h1><label className="library-nsfw"><input type="checkbox" checked={showNsfw} onChange={event => setShowNsfw(event.target.checked)} />Show NSFW</label></div>{deleteError && <p role="alert">{deleteError}</p>}{libraryError && <p role="alert">{libraryError}</p>}{!libraryLoaded ? <LoadingIndicator label="Loading Library…" /> : visibleAssets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>{assets.length ? 'No visible files. Enable Show NSFW to see hidden items.' : 'No saved files yet.'}</p></div> : <div className="library-grid">{visibleAssets.map(asset => <MediaCard key={asset.id} src={`/api/v1/assets/${asset.id}/content`} kind={asset.kind} name={asset.name} onOpen={() => setViewAsset(asset.id)} onDelete={() => void deleteAsset(asset)} deleting={deletingAsset !== null} />)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
       <footer>seed</footer>
     </main>
-    {viewAsset && <SavedImage id={viewAsset} close={() => setViewAsset(null)} />}
+    {viewAsset && <SavedImage kind={assets.find(asset=>asset.id===viewAsset)?.kind ?? (video ? 'video' : 'image')} id={viewAsset} close={() => setViewAsset(null)} />}
   </div>;
 }
 
