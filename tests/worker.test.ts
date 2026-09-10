@@ -43,3 +43,19 @@ it('persists privately, reloads, validates identity, and forgets without provide
   loaded.forget(); expect(loaded.connected).toBe(false); expect(await loaded.status()).toBeNull();
   expect(new WorkerConnection(paths, origin).connected).toBe(false);
 });
+
+it('keeps credentials out of the browser API and leaves dispatch paused after pairing', async () => {
+  const { createApp } = await import('../server/http.js');
+  const app = await createApp({ paths: resolvePaths(root), port: 4311, localTestWorkerOrigin: origin });
+  const headers = { host: '127.0.0.1:4311', origin: 'http://127.0.0.1:4311' };
+  try {
+    const paired = await app.inject({ method: 'PUT', url: '/api/v1/connection', headers, payload: { connection_code: code() } });
+    expect(paired.json()).toEqual({ connected: true });
+    const status = await app.inject({ url: '/api/v1/studio', headers });
+    expect(status.json()).toMatchObject({ worker: { state: 'ready', connected: true }, safe_to_terminate: null, outputs: { pending: null }, queue: { paused: true }, implementation: { generation: false } });
+    expect(status.body).not.toContain(credential);
+    expect(status.body).not.toContain(origin);
+    const removed = await app.inject({ method: 'DELETE', url: '/api/v1/connection', headers });
+    expect(removed.json()).toEqual({ connected: false });
+  } finally { await app.close(); }
+});

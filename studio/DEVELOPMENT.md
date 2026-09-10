@@ -188,9 +188,16 @@ implied by saving tokens. Twelve server/CLI/credential tests pass using fixtures
 
 The first M2 connection implementation is in `worker/app.py` and
 `server/worker.ts`. Worker test dependencies are pinned in
-`worker/requirements-test.txt`; run `python -m pytest worker/test_app.py` from the
+`worker/requirements-test.txt`; run `python -m pytest worker` from the
 repository root in a separate Python environment. Node tests include the private
 worker client and portal route boundary. The Python service is not a complete
 pod launcher yet: model preparation, the engine session hook and supervisor must
 be supplied before deployment. Its preparation and unresolved-output fields must
 not be mistaken for a completed generation integration.
+
+Model preparation is isolated in `worker/prepare.py`; `worker/models.json` pins
+only the required base/identity/turbo files. Owner content LoRAs are not baked into
+that inventory. Preparation uses the official Hugging Face client's
+[`hf_hub_download` local-directory support](https://huggingface.co/docs/huggingface_hub/package_reference/file_download)
+for partial-download reuse, then checks full SHA256 before promotion. Completed
+receipts use file size/mtime to avoid rehashing unchanged weights on every boot.
