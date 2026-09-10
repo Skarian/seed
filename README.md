@@ -65,21 +65,23 @@ sent to the browser, and the RunPod key never goes to the GPU worker.
 For unattended/container setup, environment variables are supported, with an optional
 .env file as a fallback import. No .env or example is shipped, and setup never writes one.
 
-## M2 worker candidate
+## M3 worker candidate
 
 The new worker is a separate candidate from the existing lean deployment above.
 It has an early connection page, single-use pairing, authenticated status and
 model preparation with integrity checks. Local and live prepared-volume startup/pairing checks passed, including replacement.
 Cold downloads currently encounter Hugging Face CDN HTTP 429 from the tested pods,
 so empty-volume bootstrap and interrupted-download recovery remain unverified.
-The reusable `seed pod-setup` command is implemented. Generation is still disabled
-in the local portal.
+The reusable `seed pod-setup` command is implemented. Text-to-image generation,
+batching and durable local Library saving are available. SFW uses the base model;
+NSFW requires the verified content adapter on the pod. Other workflows remain
+UI previews until M4. The owner quality review is still pending.
 
 Package: [seed-worker](https://github.com/Skarian/runpod/pkgs/container/seed-worker).
 
-Candidate: `ghcr.io/skarian/seed-worker@sha256:61e7a3fe301672390b5a8760415de5c99342e3a570f831f7d0b9e0f6d4da780c`.
-[Build and publication](https://github.com/Skarian/runpod/actions/runs/34426867401)
-succeeded; anonymous registry access was verified. The shared M2 template pins
+Candidate: `ghcr.io/skarian/seed-worker@sha256:64813a94f9532657530858c4914b2d24fc476cce3eb546710155128d7aa8db9e`.
+[Build and publication](https://github.com/Skarian/runpod/actions/runs/34431589536)
+succeeded; anonymous registry access was verified. The shared template pins
 this candidate; the older lean deployment template is unchanged. See [bootstrap](studio/POD-BOOTSTRAP.md) for required
 private variables and [milestone journal](studio/EXECUTION-PLAN.md) for test evidence.
 

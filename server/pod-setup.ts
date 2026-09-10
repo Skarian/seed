@@ -5,7 +5,7 @@ import type { StudioPaths } from './storage.js';
 import models from '../worker/models.json' with { type: 'json' };
 
 export const workerRelease = {
-  image: 'ghcr.io/skarian/seed-worker@sha256:61e7a3fe301672390b5a8760415de5c99342e3a570f831f7d0b9e0f6d4da780c',
+  image: 'ghcr.io/skarian/seed-worker@sha256:64813a94f9532657530858c4914b2d24fc476cce3eb546710155128d7aa8db9e',
   template: 'tt0cmuwu3t',
   templateUrl: 'https://console.runpod.io/deploy?template=tt0cmuwu3t',
 };
