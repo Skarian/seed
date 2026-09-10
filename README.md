@@ -56,6 +56,9 @@ package name in this private package; scope ownership and publishing access stil
 need validation. Do not install the unrelated `seed` package expecting this app.
 See [development](studio/DEVELOPMENT.md) for the current source launch path.
 
-`seed setup` reuses your saved RunPod API key or asks for it with masked input.
-It also accepts `RUNPOD_API_KEY` from the environment or a local `.env`; the key is
-stored in your per-user configuration, never the npm package or browser.
+`seed setup` reuses saved credentials and uses masked prompts for missing ones:
+RunPod and Hugging Face are required; Civitai is optional (Enter skips). All tokens
+save to the per-user config/credentials.json path printed by setup. The repo .env
+is an optional import source, not a file setup populates. Environment variables
+RUNPOD_API_KEY, HF_TOKEN and CIVITAI_API_TOKEN are also accepted. No tokens are
+sent to the browser, and the RunPod key never goes to the GPU worker.

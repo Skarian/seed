@@ -161,22 +161,26 @@ in web/media-preview.tsx. Metadata is under Info, downloads retrieve the origina
 and role/range controls sit beneath media. The viewer restores scrolling/focus on
 close. Replace and the temporary notice are removed; files remain browser-local.
 
-## RunPod credential setup
+## Credential setup
 
-`seed setup` checks RUNPOD_API_KEY in the environment, then the saved
-credentials.json in the standard config directory, then RUNPOD_API_KEY in a .env
-file in the current directory. Missing keys prompt through @inquirer/password
-with masked input. Noninteractive/quiet setup fails clearly if no key is available.
-The chosen key is saved atomically in the per-user config directory (mode 0600 on
-systems supporting POSIX permissions), separate from ordinary settings and npm files.
-Windows uses the existing per-user directory ACL; this is not OS-vault encryption.
-Setup never prints the key or copies unrelated .env values. Reruns reuse it; an
-explicit environment key can replace it. Malformed credentials are not overwritten.
-The browser/worker never receives this key; CLI launch strips it from the web
-server environment. The web server does not load credentials.json or .env.
-Saving a key is not validation of provider access; that remains an infrastructure
-preflight step. No RunPod requests, provisioning or spending happen during this check.
+`seed setup` requires RunPod and Hugging Face tokens, and offers an optional
+Civitai token (Enter skips). HF covers base models and other HF assets, not only
+LoRAs. Gated model terms still need account approval. All three live in the same
+per-user config/credentials.json, separate from ordinary settings and npm files.
+Setup prints that path, never the token values. The repository .env is not written.
 
-Eleven server/CLI/credential tests pass, covering prompt/save/reuse, dotenv import,
-environment rotation, missing unattended credentials, cancellation, malformed files,
-and removal from the web process environment. Tests use isolated fixture keys.
+For each token, precedence is environment, saved credential, then the current
+folder's optional .env import. Names: RUNPOD_API_KEY, HF_TOKEN, CIVITAI_API_TOKEN.
+Masked prompts ask only for missing tokens. Noninteractive setup fails if either
+required token is absent; Civitai remains optional. Existing RunPod-only files are
+reused and the new prompts fill remaining fields. Entered tokens are saved as each
+step completes, so cancellation does not erase earlier entries. An explicit
+environment value can rotate a saved token. Saved values override stale .env copies.
+
+This is per-user file storage, not OS-vault encryption; mode 0600 on POSIX and
+existing per-user directory ACLs on Windows. All three tokens are removed from the
+spawned web-server environment. Browser routes never load credentials.json/.env.
+Future worker setup receives only necessary model-download credentials privately,
+never the RunPod control-plane key. No live provider verification or spending is
+implied by saving tokens. Twelve server/CLI/credential tests pass using fixtures.
+

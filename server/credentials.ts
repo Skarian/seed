@@ -4,10 +4,14 @@ import { parseEnv } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import password from '@inquirer/password';
 import type { StudioPaths } from './storage.js';
-
-export async function ensureRunpodKey(paths: StudioPaths, options: {
+const providers = [
+  { field: 'runpodApiKey', env: 'RUNPOD_API_KEY', label: 'RunPod API key', required: true },
+  { field: 'huggingFaceToken', env: 'HF_TOKEN', label: 'Hugging Face token (base models and other HF assets)', required: true },
+  { field: 'civitaiApiToken', env: 'CIVITAI_API_TOKEN', label: 'Civitai API token (optional; Enter to skip)', required: false },
+] as const;
+export async function ensureCredentials(paths: StudioPaths, options: {
   interactive: boolean; env?: NodeJS.ProcessEnv; cwd?: string;
-  prompt?: () => Promise<string>;
+  prompt?: (label: string, required: boolean) => Promise<string>;
 }) {
   const file = path.join(paths.config, 'credentials.json');
   let saved: Record<string, unknown> = {};
@@ -18,30 +22,38 @@ export async function ensureRunpodKey(paths: StudioPaths, options: {
     if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Cannot read seed credentials.json; repair it before running setup.');
   }
   const env = options.env ?? process.env;
-  let key = env.RUNPOD_API_KEY?.trim() || (typeof saved.runpodApiKey === 'string' ? saved.runpodApiKey.trim() : '');
-  if (!key) {
-    try { key = parseEnv(readFileSync(path.join(options.cwd ?? process.cwd(), '.env'), 'utf8')).RUNPOD_API_KEY?.trim() ?? ''; }
-    catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Cannot read the local .env file. Check access before running setup.'); }
-  }
-  if (!key) {
-    if (!options.interactive) throw new Error('RunPod API key is missing. Run seed setup in an interactive terminal, or set RUNPOD_API_KEY in your environment or local .env.');
-    try {
-      key = (await (options.prompt ?? (() => password({ message: 'RunPod API key (hidden):', mask: true, validate: value => value.trim() && !/\s/.test(value.trim()) ? true : 'Enter a non-empty API key without whitespace.' })))()).trim();
-    } catch { throw new Error('Setup cancelled. No RunPod key was saved.'); }
-  }
-  if (!key || /\s/.test(key)) throw new Error('Enter a non-empty RunPod API key without whitespace.');
-  if (key !== saved.runpodApiKey) {
-    const temporary = `${file}.${randomUUID()}.tmp`;
-    try {
-      writeFileSync(temporary, JSON.stringify({ ...saved, runpodApiKey: key }, null, 2), { mode: 0o600, flag: 'wx' });
-      renameSync(temporary, file);
-    } catch {
-      rmSync(temporary, { force: true }); throw new Error('Could not save RunPod credentials in the seed config directory.');
+  let dotenv: Record<string, string | undefined> | undefined;
+  for (const provider of providers) {
+    let key = env[provider.env]?.trim() || (typeof saved[provider.field] === 'string' ? (saved[provider.field] as string).trim() : '');
+    if (!key) {
+      if (!dotenv) {
+        try { dotenv = parseEnv(readFileSync(path.join(options.cwd ?? process.cwd(), '.env'), 'utf8')); }
+        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Cannot read the local .env file. Check access before running setup.'); dotenv = {}; }
+      }
+      key = dotenv?.[provider.env]?.trim() ?? '';
+    }
+    if (!key) {
+      if (!options.interactive) {
+        if (!provider.required) continue;
+        throw new Error(`${provider.label} is missing. Run seed setup in an interactive terminal, or set ${provider.env} in your environment or local .env.`);
+      }
+      try {
+        key = (await (options.prompt ? options.prompt(provider.label, provider.required) : password({ message: `${provider.label}:`, mask: true, validate: value => (!provider.required || Boolean(value.trim())) && !/\s/.test(value.trim()) ? true : 'Enter a token without whitespace.' }))).trim();
+      } catch { throw new Error('Setup cancelled. Credentials entered earlier remain saved.'); }
+    }
+    if (!key && !provider.required) continue;
+    if (!key || /\s/.test(key)) throw new Error(`Enter ${provider.label} without whitespace.`);
+    if (key !== saved[provider.field]) {
+      const temporary = `${file}.${randomUUID()}.tmp`;
+      try {
+        saved[provider.field] = key;
+        writeFileSync(temporary, JSON.stringify(saved, null, 2), { mode: 0o600, flag: 'wx' });
+        renameSync(temporary, file);
+      } catch { rmSync(temporary, { force: true }); throw new Error('Could not save credentials in the seed config directory.'); }
     }
   }
+  return { file, civitaiConfigured: Boolean(saved.civitaiApiToken) };
 }
-
 export function webServerEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  // Operator credentials belong to setup, not the long-running web process.
-  return Object.fromEntries(Object.entries(env).filter(([name]) => name.toUpperCase() !== 'RUNPOD_API_KEY'));
+  return Object.fromEntries(Object.entries(env).filter(([name]) => !providers.some(provider => provider.env === name.toUpperCase())));
 }

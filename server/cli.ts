@@ -8,7 +8,7 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { prepareStorage, resolvePaths } from './storage.js';
 import { settings, saveSettings, windowsStartup } from './settings.js';
 import { control } from './lifecycle.js';
-import { ensureRunpodKey, webServerEnvironment } from './credentials.js';
+import { ensureCredentials, webServerEnvironment } from './credentials.js';
 
 const paths = resolvePaths(process.env.STUDIO_DEV_ROOT);
 const [command = 'help', ...args] = process.argv.slice(2);
@@ -34,7 +34,7 @@ try {
       current.port = Number(value('--port') ?? current.port);
       const { validateAddress } = await import('./address.js'); validateAddress(current.host, current.port);
       if (args.includes('--startup') && args.includes('--no-startup')) throw new Error('Choose --startup or --no-startup.');
-      await ensureRunpodKey(paths, { interactive: Boolean(process.stdin.isTTY) && !quiet });
+      const credentials = await ensureCredentials(paths, { interactive: Boolean(process.stdin.isTTY) && !quiet });
       if (process.platform === 'win32') {
         if (args.includes('--startup')) current.startup = true;
         else if (args.includes('--no-startup')) current.startup = false;
@@ -49,7 +49,7 @@ try {
         windowsStartup(current.startup, process.execPath, fileURLToPath(import.meta.url));
       } else if (args.includes('--startup')) throw new Error('Automatic sign-in setup is currently supported on Windows only.');
       saveSettings(paths, current);
-      say(`Setup complete. RunPod key configured. Data: ${paths.data}\nSign-in startup: ${process.platform === 'win32' && current.startup ? 'enabled' : 'disabled'}\nRun seed start.`);
+      say(`Setup complete. RunPod and Hugging Face configured.\nCivitai: ${credentials.civitaiConfigured ? 'configured' : 'skipped (optional)'}\nCredentials: ${credentials.file}\nThe repository .env is not modified.\nData: ${paths.data}\nSign-in startup: ${process.platform === 'win32' && current.startup ? 'enabled' : 'disabled'}\nRun seed start.`);
     } else if (command === 'status') {
       const running = await control(paths, 'status'); say(running ? `Running: ${running.url}` : 'seed is stopped.');
     } else if (command === 'stop') {
