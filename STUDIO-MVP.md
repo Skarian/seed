@@ -1,5 +1,7 @@
 # seed MVP
 
+Infrastructure review, 10 September 2026: [multi-provider orchestration research](research/infrastructure/multi-provider-orchestration.md) evaluates dstack and SkyPilot against the existing Seed worker. Provider selection and storage are being reconsidered together; the operational baseline below remains until a live proof passes.
+
 Scope revision 5, 9 September 2026. The [local application foundation](studio/DEVELOPMENT.md) is implemented; full MVP integration and deployment remain pending. This replaces the earlier LLM-first design. Existing operational instructions remain in [LEAN-SETUP](deployment/LEAN-SETUP.md).
 
 ## Product

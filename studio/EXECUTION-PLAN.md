@@ -1,5 +1,11 @@
 # seed implementation plan, checkpoints and acceptance
 
+## Infrastructure research checkpoint — 10 September 2026
+
+Owner requested a provider-neutral review of dstack and SkyPilot rather than committing to each suggested provider in turn. [Research and proposed proof sequence](../research/infrastructure/multi-provider-orchestration.md) is complete at the documentation/code-inspection level. dstack is the first experimental candidate, not an adopted dependency. Key findings: provider-local volumes stay geographically constrained; HTTP autoscaling does not understand Seed's asynchronous generation/receipt lifecycle; dstack's container-backend idle exceptions require explicit session shutdown; task port forwarding may avoid an extra gateway. Seed currently hardcodes RunPod endpoint validation and a mounted workspace, so migration is not a configuration-only change.
+
+No orchestrator installed, GPU started, credentials changed, or workflow code modified. Next checkpoint is local control/transport proof followed by one image generation on two owner-enabled providers, sequentially, then video/recovery proof. Confirm missing provider access and numerical experiment budget before paid testing. Preserve existing M4 work and the operational deployment while this decision is evaluated; do not duplicate the job queue or replace the frontend.
+
 Revision 12. The local npm CLI/UI, worker packaging, operator setup, prepared-volume startup/pairing and durable text-to-image generation are implemented and live-tested. M4 is in progress with text-to-video and reference-to-video ahead of image-to-image. Video uploads, FL/Ref routing, playback and both content presets are implemented; live acceptance is running. Cold-download and pending-output pod-replacement proof remain separate outstanding gates. This document is the working execution plan and milestone journal. Product scope is [STUDIO-MVP](../STUDIO-MVP.md); technical references are [architecture](ARCHITECTURE.md), [API](API-CONTRACT.md), [worker](POD-BOOTSTRAP.md), [setup](RELEASE-AND-INFRASTRUCTURE.md) and [workflows](COMFYUI-CHANGES.md).
 
 ## 0. Owner-present kickoff: obtain all access first

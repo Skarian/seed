@@ -1,5 +1,9 @@
 # Current seed direction
 
+## Provider-neutral review — 10 September 2026
+
+The owner reopened the infrastructure direction: evaluate the complete click-to-result workflow across GPU providers, without preferring Modal, Colab, RunPod, or a storage vendor. See the [dstack/SkyPilot comparison and proof plan](../research/infrastructure/multi-provider-orchestration.md). Recommendation: a bounded dstack session-worker proof, with SkyPilot as the comparator; reuse Seed's job/media protocol and direct Hugging Face sources. This is not an adopted migration. RunPod-only statements below describe the existing baseline, not a restriction on this evaluation. No new runtime or paid infrastructure was deployed by this review.
+
 Revision 5 product direction, 9 September 2026. The [local application foundation](DEVELOPMENT.md) has started; GPU infrastructure/runtime changes remain pending. This replaces the Terraform, exe.dev hosting, GHCR model-artifact and PC model-packaging proposals. Current implementation evidence is in the [milestone journal](EXECUTION-PLAN.md).
 
 ## Agreed shape

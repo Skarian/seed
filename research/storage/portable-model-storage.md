@@ -1,5 +1,7 @@
 # Portable ComfyUI model storage — 2026-09-10
 
+Latest direction: evaluate storage together with compute orchestration; see [multi-provider review](../infrastructure/multi-provider-orchestration.md). R2 and PC hosting are options considered here, not selected next steps. The initial research predates the benchmark-attempt section below.
+
 Research only. No storage resources changed or paid benchmarks run. GHCR public application image and account-private seed template remain agreed. GPU scarcity and registry hosting are separate issues.
 
 ## Finding and recommendation
