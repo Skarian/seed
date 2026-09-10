@@ -35,7 +35,16 @@ button:focus-visible, a:focus-visible, select:focus-visible, textarea:focus-visi
 .header-status button { display: flex; align-items: center; gap: 8px; border: 1px solid #363d2e; border-radius: 8px; background: #1c2118; color: #b4bea8; min-height: 40px; padding: 9px 12px; }
 .header-status svg, .icon-button svg { width: 19px; height: 19px; }
 .pod-label { font-size: 12px; }
-.status-dot { width: 6px; height: 6px; background: #929e82; border-radius: 50%; flex-shrink: 0; }
+.status-dot { width: 9px; height: 9px; background: currentColor; border-radius: 50%; flex-shrink: 0; }
+[data-tone="ready"] { --status-color: #4ade80; }
+[data-tone="attention"] { --status-color: #fbbf24; }
+[data-tone="activity"] { --status-color: #60a5fa; }
+[data-tone="error"] { --status-color: #f87171; }
+.header-status .pod-button[data-tone], .popover-status[data-tone] { color: var(--status-color); }
+.header-status .pod-button[data-tone] { border-color: color-mix(in srgb, var(--status-color) 30%, #30322c); background: color-mix(in srgb, var(--status-color) 7%, #141614); }
+[data-tone="activity"] .status-dot { background: transparent; border: 2px solid currentColor; border-right-color: transparent; width: 12px; height: 12px; animation: connection-spin 1s linear infinite; }
+@keyframes connection-spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { [data-tone="activity"] .status-dot { animation: none; } }
 .job-count { min-width: 18px; text-align: center; font-size: 11px; border-radius: 4px; padding: 2px 4px; background: #35402a; color: #d4e1bf; }
 .status-popover { position: fixed; inset: 70px 5% auto auto; margin: 0; width: 310px; max-width: calc(100vw - 32px); padding: 19px; border: 1px solid #46523a; border-radius: 12px; background: #20251b; color: #eff0e8; box-shadow: 0 18px 65px #0008; }
 .status-popover::backdrop { background: transparent; }
@@ -192,3 +201,10 @@ footer { color: #8a977a; font-size: 11px; padding: 24px 0; margin-top: 45px; bor
 .connection-form { display: grid; gap: 10px; margin-top: 16px; }
 .connection-form textarea { width: 100%; min-height: 72px; resize: vertical; }
 .connection-form button { padding: 10px 14px; border-radius: 8px; }
+.popover-status[data-tone] { font-size: 18px; font-weight: 600; margin-bottom: 8px; }
+.connection-actions { display: grid; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid #394332; }
+.connection-actions button, .connection-form button { background: #303b26; color: #e2edcb; border: 1px solid #536140; padding: 10px 14px; border-radius: 8px; }
+.connection-actions .connection-secondary, .connection-form .connection-secondary { background: none; border-color: transparent; color: #a4ad98; font-size: 12px; }
+.connection-form button:disabled { opacity: .5; }
+.connection-error { color: #f87171; font-size: 12px; line-height: 1.6; }
+.preparation-detail { overflow-wrap: anywhere; }

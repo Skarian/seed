@@ -59,6 +59,7 @@ function App() {
   const [connectionCode, setConnectionCode] = useState('');
   const [connectionError, setConnectionError] = useState('');
   const [connecting, setConnecting] = useState(false);
+  const [editConnection, setEditConnection] = useState(false);
   const [connectionRevision, setConnectionRevision] = useState(0);
   const [draftError, setDraftError] = useState(false);
   const draft = drafts[workflow] ?? emptyDraft();
@@ -97,11 +98,18 @@ function App() {
       const response = await fetch('/api/v1/connection', { method: remove ? 'DELETE' : 'PUT', headers: { 'Content-Type': 'application/json' }, ...(remove ? {} : { body: JSON.stringify({ connection_code: code }) }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error?.message ?? 'Connection failed.');
+      setStudio(null); setEditConnection(false);
       setConnectionRevision(value => value + 1);
     } catch (failure) { setConnectionError((failure as Error).message); }
     finally { setConnecting(false); }
   }
-  const workerLabel = error ? 'Unavailable' : studio?.worker.state ? studio.worker.state.charAt(0).toUpperCase() + studio.worker.state.slice(1) : 'Disconnected';
+  const worker = studio?.worker;
+  const preparationError = !worker?.stale && worker?.state === 'preparing' ? worker.preparation?.error?.message : null;
+  const tone = error || preparationError ? 'error' : connecting || !studio ? 'activity' : worker?.stale || worker?.state === 'disconnected' ? 'attention' : worker?.state === 'ready' ? 'ready' : 'activity';
+  const workerLabel = { error: 'Error', activity: 'Working', attention: 'Not connected', ready: 'Ready' }[tone];
+  const detail = error ? 'Cannot reach seed. Check that the app is running on your PC.' : preparationError
+    || (connecting ? 'Connecting…' : !studio ? 'Checking connection…' : tone === 'attention' ? worker?.connected ? 'Cannot reach your pod. Check it in RunPod, or connect another pod.' : 'Paste a connection code from your pod to get started.' : tone === 'ready' ? 'Your GPU is connected and ready.' : worker?.state === 'busy' ? 'Generating…' : 'Preparing models and engine…');
+  const showConnectionForm = editConnection || Boolean(studio && !worker?.connected);
   function reset() { if (workflow === 'image-to-image') references.reset('edit'); if (workflow === 'reference-to-video') references.reset('video'); setDrafts(current => ({ ...current, [workflow]: emptyDraft() })); setPromptHeight(240); setAdvancedOpen(false); }
 
   return <div className="studio-shell">
@@ -109,22 +117,27 @@ function App() {
       <a className="brand" href="/" onClick={event => { event.preventDefault(); navigate('generate'); }}><span className="brand-mark"><SeedMark /></span>seed</a>
       <nav aria-label="Main navigation">{['generate', 'library'].map(item => <button key={item} aria-current={page === item ? 'page' : undefined} onClick={() => navigate(item)}>{item === 'generate' ? 'Generate' : 'Library'}</button>)}</nav>
       <div className="header-status">
-        <button className="pod-button" popoverTarget="pod-details" aria-label="Pod connection"><Icon name="pod" /><span className="status-dot" /><span className="pod-label">{workerLabel}</span></button>
+        <button className="pod-button" data-tone={tone} popoverTarget="pod-details" aria-label={`Pod connection: ${workerLabel}`}><Icon name="pod" /><span className="status-dot" /><span className="pod-label">{workerLabel}</span></button>
         <button className="jobs-button" popoverTarget="job-details" aria-label={`Jobs${jobCount === null ? '' : `, ${jobCount}`}`}><Icon name="jobs" /><span className="job-count">{jobCount ?? '–'}</span></button>
       </div>
     </header>
     <section id="pod-details" popover="auto" className="status-popover" aria-labelledby="pod-title">
       <div className="popover-title"><h2 id="pod-title">Pod connection</h2><button className="icon-button" popoverTarget="pod-details" popoverTargetAction="hide" aria-label="Close pod details"><Icon name="close" /></button></div>
-      <p className="popover-status"><span className="status-dot" />{workerLabel === 'Disconnected' ? 'No pod connected' : workerLabel}</p>
+      <p className="popover-status" data-tone={tone} role="status"><span className="status-dot" />{workerLabel}</p>
+      <p className="popover-note">{detail}</p>
+      {tone === 'activity' && worker?.state === 'preparing' && !connecting && !worker.stale && <p className="popover-note preparation-detail">{worker.preparation?.phase}</p>}
       <a className="popover-link" href="https://console.runpod.io/pods" target="_blank" rel="noreferrer">Open RunPod ↗</a>
-      {studio?.worker.preparation && <p className="popover-note">{studio.worker.preparation.error?.message ?? studio.worker.preparation.phase}</p>}
-      <form className="connection-form" onSubmit={event => { event.preventDefault(); void changeConnection(); }}>
+      {showConnectionForm && <form className="connection-form" onSubmit={event => { event.preventDefault(); void changeConnection(); }}>
         <label htmlFor="connection-code">Connection code</label>
         <textarea id="connection-code" autoComplete="off" spellCheck={false} value={connectionCode} onChange={event => setConnectionCode(event.target.value)} placeholder="Paste from your pod" rows={2} />
         <button type="submit" disabled={connecting || !connectionCode.trim()}>{connecting ? 'Connecting…' : 'Connect'}</button>
-        {studio?.worker.connected && <button type="button" disabled={connecting} onClick={() => void changeConnection(true)}>Forget connection</button>}
-        {connectionError && <p role="alert">{connectionError}</p>}
-      </form>
+        {worker?.connected && <button className="connection-secondary" type="button" disabled={connecting} onClick={() => { setEditConnection(false); setConnectionCode(''); setConnectionError(''); }}>Cancel</button>}
+      </form>}
+      {worker?.connected && <div className="connection-actions">
+        {!showConnectionForm && <button disabled={connecting} onClick={() => setEditConnection(true)}>Connect another pod</button>}
+        <button className="connection-secondary" disabled={connecting} onClick={() => void changeConnection(true)}>Forget connection</button>
+      </div>}
+      {connectionError && <p className="connection-error" role="alert">{connectionError}</p>}
     </section>
     <section id="job-details" popover="auto" className="status-popover" aria-labelledby="jobs-title">
       <div className="popover-title"><h2 id="jobs-title">Jobs</h2><button className="icon-button" popoverTarget="job-details" popoverTargetAction="hide" aria-label="Close jobs"><Icon name="close" /></button></div>

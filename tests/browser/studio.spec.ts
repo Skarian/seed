@@ -59,10 +59,10 @@ test('mobile layout, popovers and prompt resize are usable', async ({ page }) =>
   await expect(page.getByLabel('Workflow')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('generate-mobile.png'), fullPage: true });
-  await page.getByRole('button', { name: 'Pod connection', exact: true }).click();
-  await expect(page.getByText('No pod connected', { exact: true })).toBeVisible();
+  await page.getByRole('button', { name: /^Pod connection:/ }).click();
+  await expect(page.locator('#pod-details').getByText('Not connected', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
-  await expect(page.getByText('No pod connected', { exact: true })).not.toBeVisible();
+  await expect(page.locator('#pod-details').getByText('Not connected', { exact: true })).not.toBeVisible();
   await page.getByRole('button', { name: /^Jobs/ }).click();
   await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Close jobs', exact: true }).click();
@@ -210,7 +210,7 @@ test('audio and video previews expose source duration and editable clip ranges',
 
 test('connection form rejects invalid codes and clears them without browser persistence', async ({ page }) => {
   await page.goto('/');
-  await page.getByRole('button', { name: 'Pod connection', exact: true }).click();
+  await page.getByRole('button', { name: /^Pod connection:/ }).click();
   await page.getByLabel('Connection code', { exact: true }).fill('studio1.invalid-connection-code');
   await page.getByRole('button', { name: 'Connect', exact: true }).click();
   await expect(page.getByRole('alert')).toContainText('Invalid connection code');

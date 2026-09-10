@@ -6,6 +6,14 @@ Scope revision 5, 9 September 2026. The [local application foundation](studio/DE
 
 One persistent studio on the owner's PC, delivered as a local application without requiring Docker. Remote hosting and browser access are owner-managed, outside this project. The application name is **seed**. Top navigation is **Generate / Library**, with pod connection and a counted jobs icon at the top-right, each opening a popover; Open RunPod belongs inside connection details. Generate places the workflow selector on the left and SFW/NSFW on the right. Technical graph names, pod addresses and credentials stay behind the API. All workflows include a generation count (default one) and a collapsed Advanced section for random/fixed seed and later supported controls. Multiple generations run as individually tracked sequential jobs. Forms lead with the prompt, include a visible resize handle and reset-current-form control, and use shape-based aspect choices. Omit introductory/tagline copy and fixed output-resolution labels. Show the output panel only after submission, with a logo-only loading placeholder.
 
+### Connection indicator
+
+Four visible states: **Not connected** (amber: action needed), **Working** (blue: activity), **Ready** (bright green: engine available), and **Error** (red: confirmed failure). Connecting, checking, preparing and generating appear as explanatory detail under Working, not additional badge states. Only activity animates; respect reduced-motion preferences. Always include text alongside color, including the accessible name on mobile.
+
+The header and connection popover share the same status. A saved connection is not evidence of reachability; stale/unreachable workers must never remain green. Distinguish an unpaired worker from an unreachable saved worker in the explanatory text. Neither means the provider has stopped billing. Preparation errors override activity; Ready hides all stale preparation messages. Ready describes engine availability, not output-transfer safety or completion of M3 generation integration.
+
+Show the code form when unpaired or after selecting **Connect another pod**. Keep **Forget connection** secondary. Invalid code errors stay beside the form without falsely marking an existing healthy worker as failed. Visually inspect the actual browser UI at desktop and mobile widths before handoff, including fixture states where live transitions are impractical; do not disconnect a working pod merely to inspect styling.
+
 Exactly four workflows:
 
 | Workflow | Default engine | Main controls |
