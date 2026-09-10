@@ -1,5 +1,28 @@
 import { test, expect } from '@playwright/test';
 
+test('Forget connection sends a valid request to the real API and returns to pairing', async ({ page }) => {
+  let forgotten = false;
+  await page.route('**/api/v1/studio', async route => {
+    if (forgotten) return route.continue();
+    return route.fulfill({ json: { worker: { state: 'ready', connected: true, stale: false }, queue: { active: 0, waiting: 0, paused: true } } });
+  });
+  await page.route('**/api/v1/connection', async route => {
+    const response = await route.fetch();
+    forgotten = response.ok();
+    await route.fulfill({ response });
+  });
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Pod connection: Ready', exact: true }).click();
+  const response = page.waitForResponse(r => r.url().endsWith('/api/v1/connection') && r.request().method() === 'DELETE');
+  await page.getByRole('button', { name: 'Forget connection', exact: true }).click();
+  expect((await response).status()).toBe(200);
+  await expect(page.getByRole('button', { name: 'Pod connection: Not connected', exact: true })).toBeVisible();
+  await expect(page.getByLabel('Connection code', { exact: true })).toBeVisible();
+  await expect(page.getByRole('alert')).toHaveCount(0);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Pod connection: Not connected', exact: true })).toBeVisible();
+});
+
 test('connection states stay truthful and pairing controls stay out of the ready view', async ({ page }) => {
   let worker = { state: 'ready', connected: true, stale: false, preparation: { phase: 'starting engine', error: null as null | { message: string } } };
   await page.route('**/api/v1/studio', route => route.fulfill({ json: { worker, queue: { active: 0, waiting: 0, paused: true } } }));

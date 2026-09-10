@@ -95,7 +95,7 @@ function App() {
     setConnecting(true); setConnectionError('');
     const code = connectionCode.trim(); setConnectionCode('');
     try {
-      const response = await fetch('/api/v1/connection', { method: remove ? 'DELETE' : 'PUT', headers: { 'Content-Type': 'application/json' }, ...(remove ? {} : { body: JSON.stringify({ connection_code: code }) }) });
+      const response = await fetch('/api/v1/connection', remove ? { method: 'DELETE' } : { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ connection_code: code }) });
       const result = await response.json();
       if (!response.ok) throw new Error(result.error?.message ?? 'Connection failed.');
       setStudio(null); setEditConnection(false);
