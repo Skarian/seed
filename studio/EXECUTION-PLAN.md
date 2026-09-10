@@ -133,9 +133,12 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 - **Next engineering slice after review:** address UX feedback, finish worker access/spending gates and begin pairing plus one durable image round trip. No expansion to paid model testing until its access/limits are settled. Public proxy support, actual uploads/preparation and richer Library contracts remain unimplemented.
 
 
-#### M2 — Not started: setup and worker connection
+#### M2 - In progress: setup and worker connection
 
-Next owner checkpoint: demonstrate manual deploy → pair during preparation. Record startup/pairing contracts, actual test evidence and any unavoidable extra steps.
+- **2026-09-09, first connection slice implemented:** early aiohttp worker page on 8080; origin-checked unlock, expiring single-use pairing codes, credential rotation and private verifier persistence. PC worker client validates RunPod endpoints, bounds responses, refuses redirects, persists credentials server-side and checks worker identity. Portal connection form clears pasted codes and displays authenticated status. Generation and termination-safety claims remain unavailable until job/output reconciliation exists.
+- **Verified locally:** TypeScript and production build, 14 server/CLI tests, three Python worker tests and seven browser tests. Coverage includes expired/replaced/reused codes, concurrent exchange, credential rotation/restart, endpoint rejection, identity mismatch, engine restart during status probing and browser code clearing. Independent review identified expired-cookie recovery and mixed engine-session probes; both corrected. Windows shortcut testing required normal process permissions; rerun passed. No GPU started or image published in this slice.
+- **Remaining M2:** deterministic worker supervisor and ComfyUI session hook; pinned model preparation; candidate image build/publication; repeatable setup/template instructions; live pair-during-preparation and replacement proof. Existing mirrored GHCR base is publicly readable but old lean startup installs packages and depends on prepared storage, so it is not the new bootstrap.
+- **Next owner checkpoint:** demonstrate manual deploy and pairing during preparation after live validation.
 
 #### M3 — Not started: durable image round trip
 

@@ -207,3 +207,13 @@ test('audio and video previews expose source duration and editable clip ranges',
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('video-references-mobile.png'), fullPage: true });
 });
+
+test('connection form rejects invalid codes and clears them without browser persistence', async ({ page }) => {
+  await page.goto('/');
+  await page.getByRole('button', { name: 'Pod connection', exact: true }).click();
+  await page.getByLabel('Connection code', { exact: true }).fill('studio1.invalid-connection-code');
+  await page.getByRole('button', { name: 'Connect', exact: true }).click();
+  await expect(page.getByRole('alert')).toContainText('Invalid connection code');
+  await expect(page.getByLabel('Connection code', { exact: true })).toHaveValue('');
+  expect(await page.evaluate(() => JSON.stringify(localStorage))).not.toContain('studio1.');
+});

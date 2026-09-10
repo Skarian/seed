@@ -182,3 +182,15 @@ spawned web-server environment. Browser routes never load credentials.json/.env.
 Future worker setup receives only necessary model-download credentials privately,
 never the RunPod control-plane key. No live provider verification or spending is
 implied by saving tokens. Twelve server/CLI/credential tests pass using fixtures.
+
+
+### Worker connection development
+
+The first M2 connection implementation is in `worker/app.py` and
+`server/worker.ts`. Worker test dependencies are pinned in
+`worker/requirements-test.txt`; run `python -m pytest worker/test_app.py` from the
+repository root in a separate Python environment. Node tests include the private
+worker client and portal route boundary. The Python service is not a complete
+pod launcher yet: model preparation, the engine session hook and supervisor must
+be supplied before deployment. Its preparation and unresolved-output fields must
+not be mistaken for a completed generation integration.

@@ -1,4 +1,5 @@
 import Fastify from 'fastify';
+import { WorkerConnection } from './worker.js';
 import fastifyStatic from '@fastify/static';
 import { randomUUID } from 'node:crypto';
 import { existsSync } from 'node:fs';
@@ -8,9 +9,10 @@ import { listAssets, openDatabase } from './db.js';
 import { prepareStorage, type StudioPaths } from './storage.js';
 import type { StudioSnapshot } from '../shared/studio.js';
 
-export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string }) {
+export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; localTestWorkerOrigin?: string }) {
   prepareStorage(options.paths);
   const db = openDatabase(options.paths.data);
+  const worker = new WorkerConnection(options.paths, options.localTestWorkerOrigin);
   const app = Fastify({ logger: false, bodyLimit: 16 * 1024, trustProxy: false, ajv: { customOptions: { removeAdditional: false } } });
   const allowedHost = `${options.host ?? '127.0.0.1'}:${options.port}`;
   const origin = `http://${allowedHost}`;
@@ -43,16 +45,27 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.addHook('onClose', async () => { db.close(); });
   app.get('/api/v1/health', async () => ({ application: 'seed', version: '0.1.0', instance_id: instanceId }));
   app.get('/api/v1/studio', async (): Promise<StudioSnapshot> => {
+    const remote = await worker.status();
     const state = db.prepare('SELECT paused FROM dispatcher_state WHERE id = 1').get() as { paused: number };
     return {
-      worker: { state: 'disconnected', observed_at: null, stale: true },
+      worker: { state: remote?.state ?? 'disconnected', observed_at: remote ? new Date().toISOString() : null, stale: !remote, connected: worker.connected, ...(remote ? { preparation: remote.preparation } : {}) },
       queue: { paused: state.paused === 1, waiting: 0, active: 0 },
-      outputs: { pending: 0 },
+      outputs: { pending: worker.connected ? null : 0 },
       safe_to_terminate: null,
       checked_at: null,
-      reasons: ['No worker has been connected.'],
-      implementation: { pairing: false, generation: false },
+      reasons: [worker.connected ? 'Job and output reconciliation is not implemented yet.' : 'No worker has been connected.'],
+      implementation: { pairing: true, generation: false },
     };
+  });
+  app.put('/api/v1/connection', { schema: { body: { type: 'object', required: ['connection_code'], additionalProperties: false, properties: { connection_code: { type: 'string', minLength: 20, maxLength: 4096 } } } } }, async (request, reply) => {
+    db.prepare('UPDATE dispatcher_state SET paused = 1 WHERE id = 1').run();
+    try { await worker.pair((request.body as { connection_code: string }).connection_code.trim()); return { connected: true }; }
+    catch (error) { return fail(reply, 400, 'connection_failed', (error as Error).message, request.id); }
+  });
+  app.delete('/api/v1/connection', async (request, reply) => {
+    db.prepare('UPDATE dispatcher_state SET paused = 1 WHERE id = 1').run();
+    try { worker.forget(); return { connected: false }; }
+    catch (error) { return fail(reply, 409, 'connection_busy', (error as Error).message, request.id); }
   });
   for (const [action, paused] of [['pause', 1], ['resume', 0]] as const) {
     app.post(`/api/v1/queue/${action}`, { schema: { body: { type: 'object', additionalProperties: false, maxProperties: 0 } } }, async (request, reply) => {

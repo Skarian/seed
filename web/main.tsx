@@ -56,6 +56,10 @@ function App() {
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [error, setError] = useState('');
+  const [connectionCode, setConnectionCode] = useState('');
+  const [connectionError, setConnectionError] = useState('');
+  const [connecting, setConnecting] = useState(false);
+  const [connectionRevision, setConnectionRevision] = useState(0);
   const [draftError, setDraftError] = useState(false);
   const draft = drafts[workflow] ?? emptyDraft();
   const updateDraft = (change: Partial<Draft>) => setDrafts(current => ({ ...current, [workflow]: { ...(current[workflow] ?? emptyDraft()), ...change } }));
@@ -71,9 +75,9 @@ function App() {
       } catch { if (!disposed) setError('seed is unavailable.'); }
     }
     void refresh();
-    const timer = setInterval(() => { void refresh(); }, 10_000);
+    const timer = setInterval(() => { void refresh(); }, 3000);
     return () => { disposed = true; controller.abort(); clearInterval(timer); };
-  }, []);
+  }, [connectionRevision]);
   useEffect(() => {
     try { localStorage.setItem('seed.drafts.v2', JSON.stringify(drafts)); setDraftError(false); }
     catch { setDraftError(true); }
@@ -86,6 +90,18 @@ function App() {
   const video = workflow.endsWith('video');
   const seedValid = draft.randomSeed || (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) && BigInt(draft.seed) + BigInt(draft.count - 1) <= 9007199254740991n);
   const jobCount = studio ? studio.queue.active + studio.queue.waiting : null;
+  async function changeConnection(remove = false) {
+    setConnecting(true); setConnectionError('');
+    const code = connectionCode.trim(); setConnectionCode('');
+    try {
+      const response = await fetch('/api/v1/connection', { method: remove ? 'DELETE' : 'PUT', headers: { 'Content-Type': 'application/json' }, ...(remove ? {} : { body: JSON.stringify({ connection_code: code }) }) });
+      const result = await response.json();
+      if (!response.ok) throw new Error(result.error?.message ?? 'Connection failed.');
+      setConnectionRevision(value => value + 1);
+    } catch (failure) { setConnectionError((failure as Error).message); }
+    finally { setConnecting(false); }
+  }
+  const workerLabel = error ? 'Unavailable' : studio?.worker.state ? studio.worker.state.charAt(0).toUpperCase() + studio.worker.state.slice(1) : 'Disconnected';
   function reset() { if (workflow === 'image-to-image') references.reset('edit'); if (workflow === 'reference-to-video') references.reset('video'); setDrafts(current => ({ ...current, [workflow]: emptyDraft() })); setPromptHeight(240); setAdvancedOpen(false); }
 
   return <div className="studio-shell">
@@ -93,15 +109,22 @@ function App() {
       <a className="brand" href="/" onClick={event => { event.preventDefault(); navigate('generate'); }}><span className="brand-mark"><SeedMark /></span>seed</a>
       <nav aria-label="Main navigation">{['generate', 'library'].map(item => <button key={item} aria-current={page === item ? 'page' : undefined} onClick={() => navigate(item)}>{item === 'generate' ? 'Generate' : 'Library'}</button>)}</nav>
       <div className="header-status">
-        <button className="pod-button" popoverTarget="pod-details" aria-label="Pod connection"><Icon name="pod" /><span className="status-dot" /><span className="pod-label">{error ? 'Unavailable' : 'Disconnected'}</span></button>
+        <button className="pod-button" popoverTarget="pod-details" aria-label="Pod connection"><Icon name="pod" /><span className="status-dot" /><span className="pod-label">{workerLabel}</span></button>
         <button className="jobs-button" popoverTarget="job-details" aria-label={`Jobs${jobCount === null ? '' : `, ${jobCount}`}`}><Icon name="jobs" /><span className="job-count">{jobCount ?? '–'}</span></button>
       </div>
     </header>
     <section id="pod-details" popover="auto" className="status-popover" aria-labelledby="pod-title">
       <div className="popover-title"><h2 id="pod-title">Pod connection</h2><button className="icon-button" popoverTarget="pod-details" popoverTargetAction="hide" aria-label="Close pod details"><Icon name="close" /></button></div>
-      <p className="popover-status"><span className="status-dot" />{error || 'No pod connected'}</p>
+      <p className="popover-status"><span className="status-dot" />{workerLabel === 'Disconnected' ? 'No pod connected' : workerLabel}</p>
       <a className="popover-link" href="https://console.runpod.io/pods" target="_blank" rel="noreferrer">Open RunPod ↗</a>
-      <p className="popover-note">Pairing is not available yet.</p>
+      {studio?.worker.preparation && <p className="popover-note">{studio.worker.preparation.error?.message ?? studio.worker.preparation.phase}</p>}
+      <form className="connection-form" onSubmit={event => { event.preventDefault(); void changeConnection(); }}>
+        <label htmlFor="connection-code">Connection code</label>
+        <textarea id="connection-code" autoComplete="off" spellCheck={false} value={connectionCode} onChange={event => setConnectionCode(event.target.value)} placeholder="Paste from your pod" rows={2} />
+        <button type="submit" disabled={connecting || !connectionCode.trim()}>{connecting ? 'Connecting…' : 'Connect'}</button>
+        {studio?.worker.connected && <button type="button" disabled={connecting} onClick={() => void changeConnection(true)}>Forget connection</button>}
+        {connectionError && <p role="alert">{connectionError}</p>}
+      </form>
     </section>
     <section id="job-details" popover="auto" className="status-popover" aria-labelledby="jobs-title">
       <div className="popover-title"><h2 id="jobs-title">Jobs</h2><button className="icon-button" popoverTarget="job-details" popoverTargetAction="hide" aria-label="Close jobs"><Icon name="close" /></button></div>

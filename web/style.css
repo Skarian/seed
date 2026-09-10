@@ -188,3 +188,7 @@ footer { color: #8a977a; font-size: 11px; padding: 24px 0; margin-top: 45px; bor
 .reference-help svg { width:17px; height:17px; }
 .reference-help > div { position:absolute; top:44px; left:0; z-index:4; width:260px; max-width:100%; display:flex; flex-direction:column; gap:8px; padding:14px; box-sizing:border-box; background:#222c1b; border:1px solid #63744e; border-radius:8px; box-shadow:0 8px 20px #0007; font-size:12px; line-height:1.5; color:#bdc9ad; }
 .reference-help strong { color:#e2eccf; font-weight:500; }
+
+.connection-form { display: grid; gap: 10px; margin-top: 16px; }
+.connection-form textarea { width: 100%; min-height: 72px; resize: vertical; }
+.connection-form button { padding: 10px 14px; border-radius: 8px; }
