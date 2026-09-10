@@ -65,7 +65,7 @@ test('reference video uses real tus upload and verified asset IDs with inserted 
   expect(uploadCreates).toBe(1);
 });
 
-test('deleting and reclassifying images preserves prompt associations and blocks orphan mentions', async ({ page }) => {
+test('deleting and reclassifying images leaves prompt text untouched and flags invalid tags', async ({ page }) => {
   await readyVideo(page);
   const buffer = await sharp({ create: { width: 32, height: 32, channels: 3, background: 'red' } }).png().toBuffer();
   await page.goto('/');
@@ -78,7 +78,7 @@ test('deleting and reclassifying images preserves prompt associations and blocks
   await expect(page.getByRole('button', { name: 'Create video' })).toBeEnabled();
   await page.getByRole('button', { name: 'Preview one.png' }).click();
   await page.getByRole('button', { name: 'Delete file' }).click();
-  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('[removed reference] then <Picture 1> then <Picture 2>');
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('<Picture 1> then <Picture 2> then <Picture 3>');
   await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
   await expect(page.getByRole('alert')).toContainText('missing reference');
   await page.getByLabel('Prompt', { exact: true }).fill('<Picture 1> then <Picture 2>');
@@ -86,7 +86,7 @@ test('deleting and reclassifying images preserves prompt associations and blocks
   await page.getByRole('button', { name: 'Preview two.png' }).click();
   await page.getByLabel('Role for two.png').selectOption('first_frame');
   await page.getByRole('button', { name: 'Close preview' }).click();
-  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('[removed reference] then <Picture 1>');
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('<Picture 1> then <Picture 2>');
   await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
   await page.getByLabel('Prompt', { exact: true }).fill('Continue toward <Picture 1>');
   await expect(page.getByRole('button', { name: 'Create video' })).toBeEnabled();

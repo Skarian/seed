@@ -4,7 +4,7 @@ import type { LibraryAsset, StudioSnapshot, WorkflowId } from '../shared/studio.
 import './style.css';
 import { MediaCard, LoadingIndicator } from './media-card.js';
 import { uploadReferences } from './uploads.js';
-import { ReferenceInputs, useReferences, referenceIssues, remapReferencePrompt, referencePromptIssue } from './references.js';
+import { ReferenceInputs, useReferences, referenceIssues, referencePromptIssue } from './references.js';
 
 const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
   'text-to-image': { title: 'Text to image', placeholder: 'Describe your image…' },
@@ -58,11 +58,7 @@ function App() {
   const [page, setPage] = useState(location.pathname === '/library' ? 'library' : 'generate');
   const [workflow, setWorkflow] = useState<WorkflowId>('text-to-image');
   const [drafts, setDrafts] = useState(loadDrafts);
-  const references = useReferences((before, after) => setDrafts(current => {
-    const draft = current['reference-to-video'] ?? emptyDraft();
-    const prompt = remapReferencePrompt(draft.prompt, before, after);
-    return prompt === draft.prompt ? current : { ...current, 'reference-to-video': { ...draft, prompt } };
-  }));
+  const references = useReferences();
   const [promptHeight, setPromptHeight] = useState(240);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const drag = useRef<{ y: number; height: number } | null>(null);

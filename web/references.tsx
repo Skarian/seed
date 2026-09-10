@@ -45,7 +45,7 @@ async function inspect(file: File | LibraryAsset): Promise<Reference> {
     return { ...(saved ? { asset_id: file.id } : { file }), id: `reference-${++nextReferenceId}`, name: file.name, url, kind, type, ...metadata, start: 0, end: Math.min(15, metadata.duration ?? 0), role: 'reference' };
   } catch (error) { URL.revokeObjectURL(url); throw new Error(`${file.name}: ${(error as Error).message}`); }
 }
-export function useReferences(onVideoChange?: (before: Reference[], after: Reference[]) => void) {
+export function useReferences() {
   const [groups, setGroups] = useState<Record<Group, Reference[]>>({ edit: [], video: [] });
   const latest = useRef(groups); latest.current = groups;
   const epochs = useRef({ edit: 0, video: 0 });
@@ -53,7 +53,7 @@ export function useReferences(onVideoChange?: (before: Reference[], after: Refer
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   useEffect(() => () => { for (const list of Object.values(latest.current)) for (const item of list) URL.revokeObjectURL(item.url); }, []);
-  function change(group: Group, list: Reference[]) { if (group === 'video') onVideoChange?.(latest.current[group], list); latest.current = { ...latest.current, [group]: list }; setGroups(latest.current); }
+  function change(group: Group, list: Reference[]) { latest.current = { ...latest.current, [group]: list }; setGroups(latest.current); }
   function reset(group: Group) { epochs.current[group]++; for (const item of latest.current[group]) URL.revokeObjectURL(item.url); change(group, []); setErrors(previous => ({ ...previous, [group]: [] })); }
   async function add(group: Group, files: (File | LibraryAsset)[]) {
     if (pending.current) return;
@@ -95,12 +95,6 @@ export function referenceLabels(items: Reference[]) {
   const counts = { image: 0, video: 0, audio };
   for (const item of items) if (item.role === 'reference') labels.set(item.id, `<${{ image: 'Picture', video: 'Video', audio: 'Audio' }[item.kind]} ${++counts[item.kind]}>`);
   return labels;
-}
-export function remapReferencePrompt(prompt: string, before: Reference[], after: Reference[]) {
-  const previous = new Map([...referenceLabels(before)].map(([id, label]) => [label, id]));
-  const next = referenceLabels(after);
-  // One replacement pass avoids turning a renumbered tag into a different asset.
-  return prompt.replace(/<(?:Picture|Video|Audio) [1-9][0-9]*>/g, label => next.get(previous.get(label) ?? '') ?? '[removed reference]');
 }
 export function referencePromptIssue(prompt: string, items: Reference[]) {
   const labels = new Set(referenceLabels(items).values());
