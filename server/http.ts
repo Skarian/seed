@@ -115,10 +115,14 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.get('/api/v1/assets/:id/content', async (request, reply) => {
     const asset = db.prepare('SELECT relative_path, metadata_json FROM assets WHERE id=?').get((request.params as { id: string }).id) as { relative_path: string; metadata_json: string } | undefined;
     if (!asset) return fail(reply, 404, 'not_found', 'Image not found.', request.id);
+    const metadata=JSON.parse(asset.metadata_json);
+    if(metadata.state && metadata.state!=='ready')return fail(reply,409,'asset_not_ready','This file has not finished validation.',request.id);
     const file = path.resolve(options.paths.data, asset.relative_path);
     if (!file.startsWith(path.resolve(options.paths.data) + path.sep) || !existsSync(file)) return fail(reply, 404, 'not_found', 'Image not found.', request.id);
     const size = statSync(file).size;
-    reply.type(JSON.parse(asset.metadata_json).mime_type ?? 'image/png').header('Accept-Ranges', 'bytes').header('Content-Disposition', `inline; filename="${path.basename(file)}"`);
+    const mime=metadata.mime_type??'image/png';
+    const inline=/^(image\/(png|jpeg|webp|gif|avif|heic|tiff)|video\/(mp4|webm)|audio\/(mp4|webm|wav|mpeg|flac|ogg))$/.test(mime);
+    reply.type(inline?mime:'application/octet-stream').header('Accept-Ranges', 'bytes').header('Content-Disposition', `${inline?'inline':'attachment'}; filename="${path.basename(file)}"`);
     const range = request.headers.range;
     if (range) {
       const match = /^bytes=(\d+)-(\d*)$/.exec(range); const start = Number(match?.[1]), end = match?.[2] ? Number(match[2]) : size - 1;

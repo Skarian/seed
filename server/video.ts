@@ -38,6 +38,7 @@ export function videoGraph(request:ImageRequest,id:string,seed:string,preset:Pre
   for(const ref of refs){const key=String(node++),filename='seed/'+id+'/'+ref.filename;
     graph[key]={class_type:ref.kind==='image'?'LoadImage':ref.kind==='audio'?'LoadAudio':'SeedLoadVideo',inputs:{[ref.kind==='image'?'image':ref.kind==='audio'?'audio':'filename']:filename}};
     if(ref.role==='first_frame'||ref.role==='last_frame'){
+      if(route==='fl'&&ref.role==='first_frame'){graph['6']!.inputs.first_frame=[key,0];continue;}
       const guide=String(node++);graph[guide]={class_type:'MiniMaxH3AddGuide',inputs:{positive,latent:['6',1],vae:['3',0],image:[key,0],frame_idx:ref.role==='first_frame'?0:seconds*24-1}};positive=[guide,0];
     }else if(ref.kind==='image')graph['6']!.inputs['ref_images.ref_image_'+image++]=[key,0];
     else if(ref.kind==='video'){

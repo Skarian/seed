@@ -13,7 +13,8 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self, *args, **kwargs): return None
 
 
-def install(workspace, version, file_id, expected, strength):
+def install(workspace, version, file_id, expected, strength, route='image'):
+    if route not in ('image', 'fl', 'ref'): raise ValueError('Choose image, fl or ref.')
     if len(expected) != 64 or any(c not in '0123456789abcdef' for c in expected) or not 0 < strength <= 2:
         raise ValueError('Provide the pinned SHA256 and a strength above zero and at most two.')
     root = Path(workspace).resolve()
@@ -54,7 +55,11 @@ def install(workspace, version, file_id, expected, strength):
     stat = target.stat()
     atomic(directory / 'assets' / (expected + '.json'), {'sha256': expected, 'size': stat.st_size, 'mtime_ns': stat.st_mtime_ns})
     revision = expected[:16] + '-' + str(strength)
-    atomic(directory / 'active.json', {'revision': revision, 'nsfw': {'filename': target.name, 'sha256': expected, 'strength_model': strength}})
+    active = json.loads((directory / 'active.json').read_text()) if (directory / 'active.json').exists() else {}
+    preset = {'filename': target.name, 'sha256': expected, 'strength_model': strength}
+    if route == 'image': active.update(revision=revision, nsfw=preset)
+    else: active['video_' + route] = {**preset, 'revision': revision}
+    atomic(directory / 'active.json', active)
     return {'revision': revision, 'bytes': stat.st_size, 'activated': True}
 
 
@@ -62,5 +67,6 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--version', type=int, required=True); parser.add_argument('--file-id', type=int, required=True)
     parser.add_argument('--sha256', required=True); parser.add_argument('--strength', type=float, default=1.0)
+    parser.add_argument('--route', choices=['image', 'fl', 'ref'], default='image')
     args = parser.parse_args()
-    print(json.dumps(install(os.environ.get('SEED_WORKSPACE', '/workspace'), args.version, args.file_id, args.sha256.lower(), args.strength)))
+    print(json.dumps(install(os.environ.get('SEED_WORKSPACE', '/workspace'), args.version, args.file_id, args.sha256.lower(), args.strength, args.route)))
