@@ -118,3 +118,30 @@ def test_spool_rejects_path_ids_and_atomic_failure_retains_record(tmp_path, monk
         atomic(target, {'new': True})
     assert target.read_text() == '{"old":true}'
     assert not list(tmp_path.glob('*.tmp'))
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('state', ['failed', 'cancelled'])
+async def test_terminal_failure_receipt_cleans_inputs_and_partial_outputs(tmp_path, state):
+    client, volume, headers = await paired_client(tmp_path)
+    try:
+        job_id, directory, output, _ = completed(volume)
+        atomic(directory / 'manifest.json', {'job_id': job_id, 'state': state, 'outputs': []})
+        partial = output.with_suffix('.part.mp4')
+        partial.write_bytes(b'incomplete')
+        inputs = volume / '.seed/spool/inputs/seed' / job_id
+        inputs.mkdir(parents=True)
+        (inputs / 'reference.mp4').write_bytes(b'input')
+        unrelated = inputs.parent / 'keep.txt'
+        unrelated.write_bytes(b'keep')
+        record = read_record(directory)
+        for _ in range(2):
+            response = await client.post('/worker/v1/jobs/' + job_id + '/receipt', headers=headers,
+                                         json={'manifest_digest': record['manifest_digest']})
+            assert response.status == 200
+            assert (await response.json())['cleanup_complete'] is True
+        assert not inputs.exists() and not output.parent.exists()
+        assert unrelated.read_bytes() == b'keep'
+        assert read_record(directory)['manifest']['state'] == state
+    finally:
+        await client.close()

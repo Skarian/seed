@@ -48,6 +48,24 @@ async function fixture(run: (f: any) => Promise<void>) {
   finally { await jobs.close(); db.close(); rmSync(root, { recursive: true, force: true }); }
 }
 
+it.each(['failed', 'cancelled'])('retries cleanup after terminal %s without regenerating', async terminalState => fixture(async ({ jobs, state, request }: any) => {
+  const { jobs: [job] } = await jobs.submit(request, 'terminal-cleanup-key');
+  await jobs.reconcile();
+  state.running = [];
+  const manifest = { job_id: job.id, workspace_id: 'volume-one', engine_session_id: 'engine-one', state: terminalState, outputs: [], error: 'Stopped' };
+  const raw = JSON.stringify(manifest);
+  state.records[job.id] = { ...state.records[job.id], manifest, manifest_bytes: raw, manifest_digest: createHash('sha256').update(raw).digest('hex') };
+  state.failReceipt = true;
+  await jobs.reconcile();
+  expect(jobs.get(job.id).state).toBe(terminalState);
+  expect(jobs.get(job.id).output_save_state).toBe('not_applicable');
+  expect(jobs.get(job.id).cleanup_state).toBe('pending');
+  state.failReceipt = false;
+  await jobs.reconcile();
+  expect(jobs.get(job.id).cleanup_state).toBe('complete');
+  expect(state.submits).toBe(1);
+}));
+
 it('freezes both modes, expands seeds atomically, and replays one submission without duplicates', async () => fixture(async ({ jobs, request, state }: any) => {
   const first = await jobs.submit({ ...request, count: 2 }, 'submission-key-0001');
   const again = await jobs.submit({ ...request, count: 2 }, 'submission-key-0001');

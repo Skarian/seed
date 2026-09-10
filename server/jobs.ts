@@ -123,7 +123,11 @@ export class Jobs {
       if (record.manifest) {
         const manifest = this.manifest(job, record);
         if (manifest.state === 'completed') { await this.retrieve(job, manifest.outputs, record.manifest_digest); }
-        else { job.state = manifest.state === 'cancelled' ? 'cancelled' : 'failed'; job.error = manifest.error; job.output_save_state = 'not_applicable'; this.save(job); }
+        else {
+          job.state = manifest.state === 'cancelled' ? 'cancelled' : 'failed'; job.error = manifest.error;
+          job.output_save_state = 'not_applicable'; job.cleanup_state = 'pending'; this.save(job);
+          await this.acknowledgeOutputs(job, record.manifest_digest);
+        }
       } else if (job.engine_session_id !== cap.engine_session_id || !nativeIds.includes(job.id)) { job.state = 'needs_attention'; job.error = 'Generation was interrupted or its outcome is uncertain. No automatic rerun.'; this.save(job); }
       else if (job.state === 'cancel_requested') { if (!foreign) await this.worker.json('/comfy/cancel', { method: 'POST', body: { job_id: job.id }, session: job.engine_session_id }); }
       else { job.state = 'running'; this.save(job); }
@@ -197,11 +201,16 @@ export class Jobs {
           job.outputs = outputs.map(o => job.id + '-' + o.id); job.state = 'completed'; job.output_save_state = 'saved'; job.cleanup_state = 'pending'; job.error = null; this.save(job);
         })();
       }
-      const receipt = await this.worker.json('/worker/v1/jobs/' + job.id + '/receipt', { method: 'POST', body: { manifest_digest: digest } });
-      job.cleanup_state = receipt.cleanup_complete ? 'complete' : 'pending'; this.save(job);
+      await this.acknowledgeOutputs(job, digest);
     } catch {
       if (job.output_save_state !== 'saved') { job.state = 'copy_pending'; job.error = 'Image transfer interrupted. The worker copy is retained; transfer will retry when connected.'; this.save(job); }
       // A lost acknowledgment never rolls back a durable local save.
     }
+  }
+  private async acknowledgeOutputs(job: Job, digest: string) {
+    try {
+      const receipt = await this.worker.json('/worker/v1/jobs/' + job.id + '/receipt', { method: 'POST', body: { manifest_digest: digest } });
+      job.cleanup_state = receipt.cleanup_complete ? 'complete' : 'pending'; this.save(job);
+    } catch { /* Terminal outcome remains durable; retry cleanup independently. */ }
   }
 }

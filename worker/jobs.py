@@ -53,15 +53,26 @@ def install(app, workspace, comfy_url, authenticated):
         async with locks.setdefault(folder.name, asyncio.Lock()):
             record = read_record(folder)
             if not record or 'manifest' not in record or not isinstance(record.get('manifest_digest'), str) or body != {'manifest_digest': record['manifest_digest']}: raise web.HTTPConflict()
+            if record['manifest'].get('state') not in ('completed', 'failed', 'cancelled'):
+                raise web.HTTPConflict()
+            # Validate all named artifacts before any cleanup or acknowledgment.
+            for entry in record['manifest']['outputs']:
+                output_path(entry, folder.name)
             atomic(folder / 'receipt.json', body)
             try:
-                for entry in record['manifest']['outputs']:
-                    output_path(entry, folder.name).unlink(missing_ok=True)
-                inputs = root / '.seed/spool/inputs/seed' / folder.name
-                if inputs.exists():
-                    for file in inputs.iterdir():
-                        if file.is_file(): file.unlink()
-                    inputs.rmdir()
+                # Exact flat per-job directories also contain interrupted encodes.
+                # Never traverse a symlink or recursively delete an unknown tree.
+                for category in ('inputs', 'outputs'):
+                    owned = root / '.seed/spool' / category / 'seed' / folder.name
+                    if owned.is_symlink() or owned.resolve() != owned:
+                        raise OSError('Job directory is redirected')
+                    if owned.exists():
+                        entries = list(owned.iterdir())
+                        if any(file.is_dir() and not file.is_symlink() for file in entries):
+                            raise OSError('Unexpected nested job directory')
+                        for file in entries:
+                            file.unlink(missing_ok=True)
+                        owned.rmdir()
                 atomic(folder / 'cleaned.json', {'complete': True})
                 return web.json_response({'cleanup_complete': True})
             except OSError:
