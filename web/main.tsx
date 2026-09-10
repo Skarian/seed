@@ -109,7 +109,7 @@ function App() {
   const workerLabel = { error: 'Error', activity: 'Working', attention: 'Not connected', ready: 'Ready' }[tone];
   const detail = error ? 'Cannot reach seed. Check that the app is running on your PC.' : preparationError
     || (connecting ? 'Connecting…' : !studio ? 'Checking connection…' : tone === 'attention' ? worker?.connected ? 'Cannot reach your pod. Check it in RunPod, or connect another pod.' : 'Paste a connection code from your pod to get started.' : tone === 'ready' ? 'Your GPU is connected and ready.' : worker?.state === 'busy' ? 'Generating…' : 'Preparing models and engine…');
-  const showConnectionForm = editConnection || Boolean(studio && !worker?.connected);
+  const showConnectionForm = (editConnection && (tone === 'attention' || connecting)) || Boolean(studio && !worker?.connected);
   function reset() { if (workflow === 'image-to-image') references.reset('edit'); if (workflow === 'reference-to-video') references.reset('video'); setDrafts(current => ({ ...current, [workflow]: emptyDraft() })); setPromptHeight(240); setAdvancedOpen(false); }
 
   return <div className="studio-shell">
@@ -134,7 +134,7 @@ function App() {
         {worker?.connected && <button className="connection-secondary" type="button" disabled={connecting} onClick={() => { setEditConnection(false); setConnectionCode(''); setConnectionError(''); }}>Cancel</button>}
       </form>}
       {worker?.connected && <div className="connection-actions">
-        {!showConnectionForm && <button disabled={connecting} onClick={() => setEditConnection(true)}>Connect another pod</button>}
+        {tone === 'attention' && !showConnectionForm && <button disabled={connecting} onClick={() => setEditConnection(true)}>Connect a pod</button>}
         <button className="connection-secondary" disabled={connecting} onClick={() => void changeConnection(true)}>Forget connection</button>
       </div>}
       {connectionError && <p className="connection-error" role="alert">{connectionError}</p>}

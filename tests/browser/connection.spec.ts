@@ -31,9 +31,7 @@ test('connection states stay truthful and pairing controls stay out of the ready
   await expect(page.getByLabel('Connection code', { exact: true })).toHaveCount(0);
   await expect(page.getByText('starting engine', { exact: true })).toHaveCount(0);
   await page.screenshot({ path: '.local/connection-ready.png' });
-  await page.getByRole('button', { name: 'Connect another pod', exact: true }).click();
-  await expect(page.getByLabel('Connection code', { exact: true })).toBeVisible();
-  await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(page.getByRole('button', { name: /Connect (another|a) pod/ })).toHaveCount(0);
   for (const [state, connected, stale, label, tone, message] of [
     ['preparing', true, false, 'Working', 'activity', null],
     ['preparing', true, false, 'Error', 'error', 'Model download failed. Try again later.'],
@@ -46,6 +44,13 @@ test('connection states stay truthful and pairing controls stay out of the ready
     await expect(badge).toHaveAttribute('data-tone', tone);
     await badge.click();
     if (message) await expect(page.getByText(message, { exact: true })).toBeVisible();
+    if (tone === 'attention' && connected) {
+      await page.getByRole('button', { name: 'Connect a pod', exact: true }).click();
+      await expect(page.getByLabel('Connection code', { exact: true })).toBeVisible();
+      await page.getByRole('button', { name: 'Cancel', exact: true }).click();
+    } else {
+      await expect(page.getByRole('button', { name: /Connect (another|a) pod/ })).toHaveCount(0);
+    }
     await page.setViewportSize({ width: 390, height: 844 });
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
     await page.screenshot({ path: `.local/connection-${tone}-${connected}.png` });

@@ -12,7 +12,7 @@ Four visible states: **Not connected** (amber: action needed), **Working** (blue
 
 The header and connection popover share the same status. A saved connection is not evidence of reachability; stale/unreachable workers must never remain green. Distinguish an unpaired worker from an unreachable saved worker in the explanatory text. Neither means the provider has stopped billing. Preparation errors override activity; Ready hides all stale preparation messages. Ready describes engine availability, not output-transfer safety or completion of M3 generation integration.
 
-Show the code form when unpaired or after selecting **Connect another pod**. Keep **Forget connection** secondary. Invalid code errors stay beside the form without falsely marking an existing healthy worker as failed. Visually inspect the actual browser UI at desktop and mobile widths before handoff, including fixture states where live transitions are impractical; do not disconnect a working pod merely to inspect styling.
+Show the code form when unpaired. Only an unreachable saved pod offers **Connect a pod** to reveal the replacement pairing form. Ready shows status and a quiet **Forget connection** action, with no replacement prompt. Keep **Forget connection** secondary. Invalid code errors stay beside the form without falsely marking an existing healthy worker as failed. Visually inspect the actual browser UI at desktop and mobile widths before handoff, including fixture states where live transitions are impractical; do not disconnect a working pod merely to inspect styling.
 
 Exactly four workflows:
 
