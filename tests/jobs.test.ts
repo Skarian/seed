@@ -129,7 +129,7 @@ it('retains worker measurements and freezes saved time across cleanup retries', 
   expect(job.metrics.inputs).toMatchObject({ total: 0, image: 0, video: 0, audio: 0 });
   await jobs.reconcile();
   finish(job.id);
-  state.records[job.id].telemetry = { version: 1, complete: true, execution_seconds: 12.5, sample_count: 6, gpus: [{ name: 'Test GPU', peak_used_mib: 30000 }] };
+  state.records[job.id].telemetry = { version: 2, complete: true, execution_seconds: 12.5, sample_count: 6, gpus: [{ name: 'Test GPU', peak_used_mib: 30000 }] };
   state.failReceipt = true;
   await jobs.reconcile();
   const saved = jobs.get(job.id);

@@ -73,7 +73,7 @@ def install(server, workspace, workspace_id, engine_id):
             job_id = prompt[3].get('seed_job_id')
         measurement = measurements.pop(job_id, None)
         if measurement:
-            try: measurement.finish()
+            try: measurement.finish(getattr(status, 'messages', []) or [])
             except Exception: logging.exception('seed telemetry finalization unavailable')
         original_done(item_id, history_result, status, process_item)
         if not job_id: return

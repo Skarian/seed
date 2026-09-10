@@ -177,21 +177,20 @@ async def test_measurement_aggregates_and_persists_missing_values(tmp_path, monk
         module = sys.modules['seed_engine_test_package.telemetry']
         monkeypatch.setattr(module.threading.Thread, 'start', lambda self: None)
         monkeypatch.setattr(module.threading.Thread, 'join', lambda self, **kwargs: None)
-        samples = iter([
-            ([dict(uuid='gpu', name='Test GPU', total_mib=96000, used_mib=20000, utilization_percent=40, driver='test')], 1000),
-            ([dict(uuid='gpu', name='Test GPU', total_mib=96000, used_mib=30000, utilization_percent=80, driver='test')], 2000),
-            ([dict(uuid='gpu', name='Test GPU', total_mib=96000, used_mib=None, utilization_percent=None, driver='test')], None),
-        ])
+        def snapshot(used, ram):
+            return {'system': {'ram_total': 8000 * 1024**2, 'ram_free': (8000-ram)*1024**2, 'comfyui_version': 'test', 'argv': ['private']}, 'devices': [{'name': 'Test GPU', 'type': 'cuda', 'index': 0, 'vram_total': 96000 * 1024**2, 'vram_free': (96000-used)*1024**2 if used is not None else None}]}
+        samples = iter([snapshot(20000, 1000), snapshot(30000, 2000), snapshot(None, 1000)])
         measurement = module.Measurement(tmp_path, lambda: next(samples))
         for _ in range(4): measurement.collect()
-        measurement.finish()
+        measurement.finish([('execution_start', {'timestamp': 1000}), ('execution_success', {'timestamp': 4500})])
         import json
         result = json.loads((tmp_path / 'telemetry.json').read_text())
         assert result['gpus'][0]['peak_used_mib'] == 30000
-        assert result['gpus'][0]['mean_utilization_percent'] == 60
+        assert 'mean_utilization_percent' not in result['gpus'][0]
+        assert result['software'] == {'comfyui_version': 'test'}
         assert result['system_ram_peak_used_mib'] == 2000
         assert result['failed_samples'] == 1 and result['sample_count'] == 3
-        assert result['complete'] and result['execution_seconds'] >= 0
+        assert result['complete'] and result['execution_seconds'] == 3.5
     finally:
         await client.close()
 
@@ -213,5 +212,6 @@ async def test_execution_event_starts_measurement_and_failure_finishes_it(tmp_pa
         assert record['telemetry']['complete']
         assert record['telemetry']['sample_count'] == 0
         assert record['telemetry']['gpus'] == []
+        assert record['telemetry']['execution_seconds'] is None
     finally:
         await client.close()

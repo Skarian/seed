@@ -14,22 +14,27 @@ and prepared transfer bytes. Counts describe user assets; soundtracks are separa
 
 ## New measurements
 
-- Worker execution starts on Comfy's `execution_start` event and ends at native
-  task completion, covering loading/encoding/sampling/decoding and output writing.
-  Uses a monotonic clock, not timestamps from two different machines.
-- Every approximately two seconds, `nvidia-smi` samples visible GPU names/UUIDs,
-  driver version, total VRAM, device-wide used VRAM and GPU activity. Store sampled
-  peak used MiB and arithmetic mean activity per GPU, plus sample/error counts.
-- Linux system RAM peak is sampled from MemTotal minus MemAvailable. This is
-  host-wide usage, not process RSS or necessarily the container RAM limit.
-- PC timestamps record first input-transfer attempt, prompt submission, durable
-  local save and terminal outcome. Elapsed-to-save includes queue and transfers;
-  cleanup retries never change saved time. These are not pure GPU timings.
+- Execution duration comes from native Comfy history's `execution_start` and
+  terminal `execution_success`, `execution_error` or `execution_interrupted`
+  timestamps. Missing/invalid timestamps produce null, not a guessed duration.
+- A small worker-side sampler calls the private native `/system_stats` endpoint
+  approximately every two seconds. It retains per-device total memory and peak
+  total-minus-free MiB, host RAM peak and Comfy/PyTorch/Python versions.
+- No NVIDIA subprocess collector, GPU activity percentage, or independent
+  execution timer. Only sampling/aggregation and durable retention remain custom.
+- PC timestamps still record first input-transfer attempt, prompt submission,
+  durable save and terminal outcome. Elapsed-to-save includes queue/transfers;
+  cleanup retries never change saved time.
 
-Sampling includes cached model allocations and other processes. It is NOT the
-minimum VRAM required to run the model; sampling can miss short peaks. No samples
-means unavailable, never zero usage. Failed/cancelled executions retain measurements
-when native completion runs; abrupt termination leaves an incomplete last snapshot.
+Version 2 uses Comfy memory accounting: reclaimable PyTorch cache counts as free.
+It is not interchangeable with version 1's NVIDIA device-used readings. Samples
+can miss short peaks and are not the minimum hardware requirement. Failed reads
+increment failed_samples; absent values remain null. Software metadata is
+allowlisted; native argv and other unrelated fields are not persisted.
+Failed/cancelled jobs retain metrics when native completion runs; abrupt process
+termination leaves an incomplete last snapshot. Late samples after completion
+are discarded. GPU sampling remains on the worker so PC disconnection does not
+stop collection.
 Worker measurements remain in the volume spool for recovery and copy into the PC
 record before outputs are acknowledged. Old jobs/workers remain compatible but
 cannot retrospectively supply measurements. Existing job details are local data,
@@ -52,3 +57,10 @@ Next compare the same 15-second heavy-reference job across candidate GPUs: exact
 graph/model configuration, input counts/types, execution seconds, sampled VRAM,
 RAM, success/failure and visual result. Keep cold and repeated runs separate;
 retained graphs alone do not prove whether Comfy reused cached computation.
+
+## Native collection revision
+
+September 10: switched to native Comfy statistics/history after reviewing the
+pinned upstream implementation. Version 1 records remain readable; new records
+use version 2. Live validation still requires a user-started pod. Release pin
+for this revision is recorded in EXECUTION-PLAN.md.

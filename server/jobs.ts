@@ -120,7 +120,7 @@ export class Jobs {
       await response.body?.cancel();
       const record = await this.worker.json('/worker/v1/jobs/' + job.id);
       if (record.submission.job_id !== job.id || record.submission.workspace_id !== job.workspace_id || record.submission.engine_session_id !== job.engine_session_id) throw new Error('Job identity mismatch');
-      if (job.metrics && record.telemetry?.version === 1 && typeof record.telemetry === 'object') { job.metrics.worker = record.telemetry; this.save(job); }
+      if (job.metrics && [1, 2].includes(record.telemetry?.version) && typeof record.telemetry === 'object') { job.metrics.worker = record.telemetry; this.save(job); }
       if (record.manifest) {
         const manifest = this.manifest(job, record);
         if (manifest.state === 'completed') { await this.retrieve(job, manifest.outputs, record.manifest_digest); }

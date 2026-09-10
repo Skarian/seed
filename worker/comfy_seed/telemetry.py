@@ -1,41 +1,30 @@
-"""Best-effort, bounded per-job measurements; no monitoring service required."""
-import csv
-import io
-import subprocess
+"""Persist sampled native Comfy statistics; timing comes from native history."""
+import json
+import math
 import threading
-import time
-from datetime import datetime, timezone
-from pathlib import Path
+from urllib.request import urlopen
 from .spool import atomic
 
 
 def sample():
-    result = subprocess.run(['nvidia-smi', '--query-gpu=uuid,name,memory.total,memory.used,utilization.gpu,driver_version',
-                             '--format=csv,noheader,nounits'], capture_output=True, text=True, timeout=3, check=True)
-    gpus = []
-    for row in csv.reader(io.StringIO(result.stdout)):
-        uuid, name, total, used, utilization, driver = (v.strip() for v in row)
-        def number(value):
-            try: return float(value)
-            except ValueError: return None
-        gpus.append(dict(uuid=uuid, name=name, total_mib=number(total), used_mib=number(used), utilization_percent=number(utilization), driver=driver))
-    ram = None
-    try:
-        values = {line.split(':')[0]: int(line.split()[1]) for line in Path('/proc/meminfo').read_text().splitlines() if line.startswith(('MemTotal:', 'MemAvailable:'))}
-        ram = (values['MemTotal'] - values['MemAvailable']) / 1024
-    except (OSError, ValueError, KeyError): pass
-    return gpus, ram
+    with urlopen('http://127.0.0.1:8188/system_stats', timeout=2) as response:
+        return json.load(response)
+
+
+def used_mib(total, free):
+    if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v) for v in (total, free)):
+        return None
+    return max(0, total - free) / 1024**2
 
 
 class Measurement:
     def __init__(self, directory, sampler=sample):
         self.directory, self.sampler = directory, sampler
-        self.started = time.monotonic()
         self.stop = threading.Event()
         self.lock = threading.Lock()
-        self.data = dict(version=1, started_at=datetime.now(timezone.utc).isoformat(), complete=False,
+        self.data = dict(version=2, source='comfyui/system_stats+execution_history', complete=False,
                          sample_interval_seconds=2, sample_count=0, failed_samples=0, gpus=[], system_ram_peak_used_mib=None,
-                         scope='device-wide sampled usage, including cached models and other processes')
+                         scope='Comfy total minus available memory; reclaimable PyTorch cache counts as available')
         self.thread = threading.Thread(target=self.run, daemon=True)
         self.thread.start()
 
@@ -45,25 +34,27 @@ class Measurement:
 
     def collect(self):
         try:
-            gpus, ram = self.sampler()
+            snapshot = self.sampler()
+            system, devices = snapshot['system'], snapshot['devices']
             with self.lock:
+                if self.stop.is_set(): return
                 self.data['sample_count'] += 1
-                for gpu in gpus:
-                    entry = next((g for g in self.data['gpus'] if g['uuid'] == gpu['uuid']), None)
+                self.data['software'] = {k: system[k] for k in ('comfyui_version', 'pytorch_version', 'python_version') if k in system}
+                for gpu in devices:
+                    if gpu.get('type') == 'cpu': continue
+                    entry = next((g for g in self.data['gpus'] if (g['type'], g['index']) == (gpu['type'], gpu['index'])), None)
                     if entry is None:
-                        entry = {k: gpu[k] for k in ('uuid', 'name', 'total_mib', 'driver')}
-                        entry.update(peak_used_mib=None, utilization_samples=0, mean_utilization_percent=None)
+                        entry = {k: gpu[k] for k in ('name', 'type', 'index')}
+                        entry.update(total_mib=used_mib(gpu.get('vram_total'), 0), peak_used_mib=None)
                         self.data['gpus'].append(entry)
-                    if gpu['used_mib'] is not None:
-                        entry['peak_used_mib'] = max(entry['peak_used_mib'] or 0, gpu['used_mib'])
-                    if gpu['utilization_percent'] is not None:
-                        n = entry['utilization_samples']
-                        entry['mean_utilization_percent'] = ((entry['mean_utilization_percent'] or 0) * n + gpu['utilization_percent']) / (n + 1)
-                        entry['utilization_samples'] = n + 1
+                    used = used_mib(gpu.get('vram_total'), gpu.get('vram_free'))
+                    if used is not None: entry['peak_used_mib'] = max(entry['peak_used_mib'] or 0, used)
+                ram = used_mib(system.get('ram_total'), system.get('ram_free'))
                 if ram is not None: self.data['system_ram_peak_used_mib'] = max(self.data['system_ram_peak_used_mib'] or 0, ram)
                 self.persist()
         except Exception:
             with self.lock:
+                if self.stop.is_set(): return
                 self.data['failed_samples'] += 1
                 self.persist()
 
@@ -72,10 +63,19 @@ class Measurement:
             self.collect()
             if self.stop.wait(2): break
 
-    def finish(self):
-        elapsed = time.monotonic() - self.started
+    def finish(self, messages):
         self.stop.set()
-        self.thread.join(timeout=4)
+        # Do not wait on Comfy's HTTP loop from its execution completion hook.
+        # An in-flight sample is discarded once stopped.
         with self.lock:
-            self.data.update(complete=True, execution_seconds=elapsed, finished_at=datetime.now(timezone.utc).isoformat())
+            self.data['complete'] = True
+            timestamps = {}
+            for event, data in messages:
+                timestamp = data.get('timestamp')
+                if isinstance(timestamp, (int, float)) and not isinstance(timestamp, bool) and math.isfinite(timestamp):
+                    if event == 'execution_start': timestamps['execution_start_ms'] = timestamp
+                    elif event in ('execution_success', 'execution_error', 'execution_interrupted'): timestamps['execution_end_ms'] = timestamp
+            self.data.update(timestamps)
+            start, end = timestamps.get('execution_start_ms'), timestamps.get('execution_end_ms')
+            self.data['execution_seconds'] = (end - start) / 1000 if start is not None and end is not None and end >= start else None
             self.persist()

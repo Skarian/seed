@@ -273,3 +273,13 @@ credentials and network-volume mounts preserved. Installed CLI updated and local
 server restarted at http://192.168.1.212:4310; jobs API HTTP 200. Eight setup tests
 and final build passed. Owner will start the pod and validate actual GPU samples
 later; no live measurement claim yet. See JOB-MEASUREMENTS.md.
+
+
+### September 10 — simplify measurements using native Comfy APIs
+
+Replaced NVIDIA subprocess sampling and custom execution clock with private
+Comfy /system_stats snapshots and native history timestamps. Retain only bounded
+sampling/aggregation and durable job storage; version 2 explicitly labels Comfy's
+reclaimable-cache accounting. Removed GPU activity percentage. Native versions
+allowlisted; raw argv not retained. Fifteen engine/spool tests, seven local job
+tests and typecheck passed. Publish update without starting compute.
