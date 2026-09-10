@@ -150,7 +150,7 @@ function App() {
             {draft.randomSeed ? <p>Different seed for each generation.</p> : <><label className="seed-field" htmlFor="seed">Starting seed<input id="seed" type="text" inputMode="numeric" maxLength={16} value={draft.seed} aria-invalid={!seedValid} aria-describedby="seed-help" onChange={event => updateDraft({ seed: event.target.value })} /></label><p id="seed-help">{seedValid ? 'For batches, each seed increases by 1.' : 'Use a whole number from 0 to 9007199254740991, leaving room for the batch.'}</p></>}
           </section>}
           {!advancedOpen && !seedValid && <p role="alert">Check the starting seed in Advanced.</p>}
-          <button className="generate-button" disabled title="Connect a worker to enable generation">Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></button>
+          <button className="generate-button" disabled title="Generation is not available yet">Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></button>
         </section>
       </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <ul>{assets.map(asset => <li key={asset.id}>{asset.name} · {asset.kind}</li>)}</ul>}</section>}
       <footer>seed</footer>

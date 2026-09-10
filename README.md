@@ -1,14 +1,14 @@
 # seed
 
-**seed** is a personal image and video studio powered by ComfyUI on Runpod. Start a GPU when you need it, open the studio in your browser, and stop compute when you're done. Models, workflows and outputs stay on a persistent network volume.
+**seed** is a local browser app for image and video generation with ComfyUI on disposable RunPod GPUs. Models live on a reusable network volume; permanent media belongs on your PC. Durable generation and media transfers are still being implemented.
 
-Includes MiniMax H3 video workflows, Krea 2 image generation and identity editing, and Phr00t Qwen Image Edit Rapid AIO.
+The MVP targets text-to-image, identity editing, text-to-video and reference-to-video using Krea 2 and MiniMax H3. The older direct-Comfy deployment is documented separately below.
 
 Next-stage planning: [media studio MVP](STUDIO-MVP.md) — a local Windows studio,
 manual RunPod deployment and pairing, expressive workflows, and permanent media
 on your PC. See the [implementation plan](studio/EXECUTION-PLAN.md) for access,
 milestones, reviews and commit policy. A local frontend foundation is implemented.
-Pairing/status work locally and the worker candidate is published; live GPU integration and generation remain pending. Local npm package installation and CLI lifecycle work. See [local development](studio/DEVELOPMENT.md). [LLM choices](research/llm/README.md)
+Pairing/status work locally and the worker candidate is published; prepared-volume GPU startup and pairing are verified; cold-download reliability and generation remain pending. Local npm package installation and CLI lifecycle work. See [local development](studio/DEVELOPMENT.md). [LLM choices](research/llm/README.md)
 are saved for a later phase.
 
 ## Existing RunPod deployment
@@ -69,16 +69,18 @@ For unattended/container setup, environment variables are supported, with an opt
 
 The new worker is a separate candidate from the existing lean deployment above.
 It has an early connection page, single-use pairing, authenticated status and
-model preparation with integrity checks. Local container tests passed; live GPU validation
-remains unfinished. The reusable `seed pod-setup` command is implemented. Generation is still disabled
+model preparation with integrity checks. Local and live prepared-volume startup/pairing checks passed, including replacement.
+Cold downloads currently encounter Hugging Face CDN HTTP 429 from the tested pods,
+so empty-volume bootstrap and interrupted-download recovery remain unverified.
+The reusable `seed pod-setup` command is implemented. Generation is still disabled
 in the local portal.
 
 Package: [seed-worker](https://github.com/Skarian/runpod/pkgs/container/seed-worker).
 
-Candidate: `ghcr.io/skarian/seed-worker@sha256:1d53771a426601861e4e395cceca75a0c33b994d5ce9f591759d755ccb1f1370`.
-[Build and publication](https://github.com/Skarian/runpod/actions/runs/34425333917)
-succeeded; anonymous registry access was verified. This does not update the
-existing pod template. See [bootstrap](studio/POD-BOOTSTRAP.md) for required
+Candidate: `ghcr.io/skarian/seed-worker@sha256:61e7a3fe301672390b5a8760415de5c99342e3a570f831f7d0b9e0f6d4da780c`.
+[Build and publication](https://github.com/Skarian/runpod/actions/runs/34426867401)
+succeeded; anonymous registry access was verified. The shared M2 template pins
+this candidate; the older lean deployment template is unchanged. See [bootstrap](studio/POD-BOOTSTRAP.md) for required
 private variables and [milestone journal](studio/EXECUTION-PLAN.md) for test evidence.
 
 Run `seed pod-setup` to verify model access and reuse network storage. Use

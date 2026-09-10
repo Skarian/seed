@@ -1,6 +1,6 @@
 # GPU runtime bootstrap and pairing
 
-Revision 7. Pairing/status and the container startup path are implemented and locally tested; live GPU validation, job spool/transfer routes and preset activation remain pending. [Current direction](CURRENT-DIRECTION.md) and [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) define the scope.
+Revision 8. Pairing/status, GPU startup and replacement are verified on the existing prepared volume. Cold downloads hit Hugging Face CDN HTTP 429 from the tested pods, so empty-volume preparation and interrupted-download recovery remain open. Job spool/transfer routes and preset activation are not implemented. [Current direction](CURRENT-DIRECTION.md) and [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) define the scope.
 
 1. Owner deploys the published template with the selected network volume and private pairing/download credentials. No provider API credential in the pod.
 2. Start the small worker connection page on port 8080 immediately, before downloads. Keep raw ComfyUI private. Jupyter remains separately authenticated administration.
@@ -79,5 +79,12 @@ candidate as a claim that all four workflows are delivered.
 Required private deployment variables: `SEED_PAIRING_SECRET`, `HF_TOKEN`, and
 `JUPYTER_TOKEN`. RunPod supplies `RUNPOD_POD_ID`; `SEED_PUBLIC_URL` can explicitly
 supply the public HTTPS origin. Workspace defaults to `/workspace`. Secrets do
-not belong in shared templates or the image. This configuration still needs the
-local setup utility and a live deployment walkthrough.
+not belong in shared templates or the image. The local `seed pod-setup` utility now saves/reuses this configuration; prepared-volume
+deployment and pairing have been validated live. Owner walkthrough is next.
+
+Preparation errors distinguish storage quota/full, denied model access, missing files,
+rate limiting and interrupted connections, including wrapped HF exceptions. The
+private runtime `preparation-error.json` stores safe error codes and the last file
+phase, without raw exception strings or signed URLs. Inspect it through Jupyter.
+The NFS free-space figure may describe the provider's shared filesystem rather than
+your volume quota; the selected volume capacity and actual usage still matter.
