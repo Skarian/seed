@@ -88,3 +88,9 @@ private runtime `preparation-error.json` stores safe error codes and the last fi
 phase, without raw exception strings or signed URLs. Inspect it through Jupyter.
 The NFS free-space figure may describe the provider's shared filesystem rather than
 your volume quota; the selected volume capacity and actual usage still matter.
+
+## M4 video extension
+
+The same native-only allowlist now includes two small file adapters shipped inside `comfy_seed`: prepared reference video loading and exact-length MP4 export. MiniMax H3 conditioning, sampling and VAEs use pinned native Comfy nodes. Authenticated `POST /comfy/upload` streams PC-prepared media to native `/upload/image` (its historical name accepts video/audio too). The PC retains originals and prepared derivatives; the network-volume spool retains job inputs and pending outputs until a matching receipt.
+
+Reviewed candidate: `ghcr.io/skarian/seed-worker@sha256:1e56ce0e6c42273d143fc3df16ac7bc854d5971c63add805900bd2f893855fdc` from821b356. Rollback M3: `64813a94f9532657530858c4914b2d24fc476cce3eb546710155128d7aa8db9e`. See the execution journal for live evidence and promotion status. M2/M3 paragraphs above are historical stage records, not a statement that current video routes are disabled.

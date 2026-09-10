@@ -7,6 +7,7 @@ let nextReferenceId = 0;
 async function inspect(file: File): Promise<Reference> {
   const kind = file.type.split('/')[0] as MediaKind;
   if (!['image', 'video', 'audio'].includes(kind)) throw new Error(`${file.name}: choose an image, video or audio file.`);
+  if(kind==='image'&&!['image/jpeg','image/png','image/webp','image/gif','image/avif','image/heic','image/heif','image/tiff'].includes(file.type))throw new Error(`${file.name}: choose a supported raster image, such as JPEG, PNG or WebP.`);
   const url = URL.createObjectURL(file);
   try {
     const metadata = await new Promise<{ width?: number; height?: number; duration?: number }>((resolve, reject) => {
