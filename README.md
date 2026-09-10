@@ -81,7 +81,7 @@ review is the next checkpoint.
 
 Package: [seed-worker](https://github.com/Skarian/runpod/pkgs/container/seed-worker).
 
-Candidate: `ghcr.io/skarian/seed-worker@sha256:1e56ce0e6c42273d143fc3df16ac7bc854d5971c63add805900bd2f893855fdc`.
+Candidate: `ghcr.io/skarian/seed-worker@sha256:50c326db76108e4619131c180ec29bdea29fdc2a85c2f8db8f57d34c72148674`.
 [Build and publication](https://github.com/Skarian/runpod/actions/runs/34436686831)
 succeeded; anonymous registry access was verified. The shared template pins
 this candidate; the older lean deployment template is unchanged. See [bootstrap](studio/POD-BOOTSTRAP.md) for required
