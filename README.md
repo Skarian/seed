@@ -73,8 +73,10 @@ model preparation with integrity checks. Local container tests passed; live GPU 
 and the reusable setup command remain unfinished. Generation is still disabled
 in the local portal.
 
-Candidate: `ghcr.io/skarian/runpod-studio@sha256:f98b36acf39888fb6dab4491f5945abc6173c3899d2bb8e180010497bd98e306`.
-[Build and publication](https://github.com/Skarian/runpod/actions/runs/34424605550)
+Package: [seed-worker](https://github.com/Skarian/runpod/pkgs/container/seed-worker).
+
+Candidate: `ghcr.io/skarian/seed-worker@sha256:1d53771a426601861e4e395cceca75a0c33b994d5ce9f591759d755ccb1f1370`.
+[Build and publication](https://github.com/Skarian/runpod/actions/runs/34425333917)
 succeeded; anonymous registry access was verified. This does not update the
 existing pod template. See [bootstrap](studio/POD-BOOTSTRAP.md) for required
 private variables and [milestone journal](studio/EXECUTION-PLAN.md) for test evidence.
