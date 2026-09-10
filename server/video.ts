@@ -11,6 +11,9 @@ export function videoRequest(value:any):ImageRequest {
   for(const role of ['first_frame','last_frame'])if(references.filter(r=>r.role===role).length>1)throw new Error('Choose only one '+role.replace('_',' ')+'.');
   for(const kind of ['video','audio'])if(references.filter(r=>r.kind===kind).reduce((n,r)=>n+r.range.duration_seconds,0)>15)throw new Error('Choose at most 15 seconds of '+kind+'.');
   if(references.filter(r=>r.kind==='audio'||(r.kind==='video'&&r.include_audio)).reduce((n,r)=>n+r.range.duration_seconds,0)>15)throw new Error('Choose at most 15 seconds of audio including video soundtracks.');
+  const general=references.some(r=>r.role==='reference');
+  const labels:Record<string,number>={Picture:references.filter(r=>r.kind==='image'&&r.role===(general?'reference':'first_frame')).length,Video:references.filter(r=>r.kind==='video').length,Audio:references.filter(r=>r.kind==='audio'||(r.kind==='video'&&r.include_audio)).length};
+  if(value.prompt.includes('[removed reference]')||[...value.prompt.matchAll(/<(Picture|Video|Audio)\s+(\d+)>/g)].some((match:any)=>Number(match[2])<1||Number(match[2])>labels[match[1]]!))throw new Error('Update the reference mentions in your prompt.');
   const audio=value.audio??{output:'generated'};if(Object.keys(audio).some(k=>k!=='output')||!['generated','silent'].includes(audio.output))throw new Error('Choose generated audio or silent output.');
   return {...value,seed,count,references,audio};
 }

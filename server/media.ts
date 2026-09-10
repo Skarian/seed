@@ -57,7 +57,7 @@ export class Media {
         else {metadata=await probe(file);if(!metadata.duration || (item.kind==='video'&&!metadata.has_video)||(item.kind==='audio'&&!metadata.has_audio))throw Error();const formats=metadata.format.split(',');metadata.mime_type=formats.includes('mov')?(item.kind==='video'?'video/mp4':'audio/mp4'):formats.includes('webm')?(item.kind==='video'?'video/webm':'audio/webm'):formats.includes('wav')?'audio/wav':formats.includes('mp3')?'audio/mpeg':formats.includes('flac')?'audio/flac':formats.includes('ogg')?'audio/ogg':'application/octet-stream';}
         const digest=createHash('sha256');for await(const chunk of createReadStream(file))digest.update(chunk);
         this.mark(item.id,{...metadata,state:'ready',sha256:digest.digest('hex')});
-      }catch{this.mark(item.id,{state:'error',error:'This file could not be decoded. Choose another file.'});}
+      }catch{this.mark(item.id,{state:'error',error:'This file could not be decoded. Choose another file.'});await this.store?.remove(item.id).catch(()=>{});}
     }
   });this.chain=task.catch(()=>{});return task;}
   async prepare(ref:InputReference,aspect:string,seconds:number):Promise<PreparedReference>{

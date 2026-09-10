@@ -148,3 +148,13 @@ ComfyUI execution state cannot establish that the PC saved a file. Combine nativ
 ### Implemented Library deletion
 
 `DELETE /api/v1/assets/:id` requires the usual same-origin mutation headers and no request body. Returns204 after deleting the stored file and asset record; a repeated deletion also returns204. Returns409 while worker cleanup is pending or the file cannot be deleted. Retains job history and removes its deleted output reference. The Library asks for confirmation before sending the request. Applies to every stored asset kind.
+
+### M4 implementation checkpoint (in progress)
+
+Implemented resumable uploads with tus; the PC saves and probes originals before accepting references. Image orientation is normalized in prepared derivatives. Verified media receives a canonical MIME type; incomplete or invalid uploads cannot be served inline. Abandoned partial uploads expire after 24 hours without progress; termination releases their reservation. Current preparation uses pinned sharp and FFmpeg/ffprobe packages, not a separate service.
+
+Video requests reuse POST /api/v1/jobs, the durable waiting list, worker manifests, resumable retrieval and receipts. Current output is one MP4 per job: 720p, 24 fps, 5/10/15 seconds, landscape or portrait. Audio output currently supports generated or silent. Reference inputs support images, trimmed video, standalone audio and optional video soundtrack conditioning. Source-soundtrack replacement in the final MP4 and retained raw native AV artifacts are not implemented in this first owner-review slice.
+
+The client uploads originals with tus POST/PATCH/HEAD at /api/v1/uploads, polls GET /api/v1/assets/:id until ready, and sends asset IDs plus roles/ranges. The server prepares deterministic local derivatives and forwards them through authenticated /comfy/upload to native ComfyUI input storage. Jobs freeze their resolved graph, seed, LoRA and prepared files. This initial implementation prepares references during submission, before acknowledging the queued job; lengthy preparation currently shows Submitting rather than per-step transcoding progress.
+
+Failed/cancelled terminal manifests receive cleanup acknowledgments and cleanup retries. Never-submitted or definitively rejected jobs may leave prepared inputs on the volume because no terminal manifest exists; automatic expiry for those worker files remains follow-up. Uncertain outcomes are retained deliberately. Full local seed presets sync remains follow-up; verified operator activation supports image, FL and Ref presets without overwriting the other routes.
