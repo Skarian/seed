@@ -7,7 +7,7 @@ import type { StudioPaths } from './storage.js';
 import { WorkerConnection } from './worker.js';
 import { graphFor, imageRequest, seeds, type Capabilities, type ImageRequest, type Preset } from './workflows.js';
 
-type Job = { id: string; state: string; submission_id: string; submission_index: number; request: ImageRequest; seed: string; preset: Preset | null; graph: ReturnType<typeof graphFor>; workspace_id: string; engine_session_id?: string; outputs: string[]; error: string | null; cleanup_state: string; output_save_state: string; created_at: string; updated_at: string };
+type Job = { id: string; state: string; submission_id: string; submission_index: number; request: ImageRequest; seed: string; preset: Preset | null; graph: ReturnType<typeof graphFor>; workspace_id: string; engine_session_id?: string; outputs: string[]; error: string | null; cleanup_state: string; output_save_state: string; created_at: string; updated_at: string; uncertainty_acknowledged?: boolean };
 type Output = { id: string; path: string; size: number; sha256: string; mime_type: string };
 const terminal = ['completed', 'failed', 'cancelled'];
 const hashFile = async (file: string) => { const hash = createHash('sha256'); for await (const bytes of createReadStream(file)) hash.update(bytes); return hash.digest('hex'); };
@@ -26,7 +26,7 @@ export class Jobs {
   start() { this.timer = setInterval(() => { void this.tick(); }, 2000); void this.tick(); }
   async close() { this.stopped = true; clearInterval(this.timer); await this.chain; }
   invalidate() { this.safe = null; this.checkedAt = null; this.capabilities = null; }
-  list(limit = 50, cursor = ''): Job[] { return (this.db.prepare('SELECT snapshot_json FROM jobs WHERE (? = \'\' OR id < ?) ORDER BY id DESC LIMIT ?').all(cursor, cursor, limit) as { snapshot_json: string }[]).map(r => JSON.parse(r.snapshot_json)); }
+  list(limit = 50, cursor = ''): Job[] { return (this.db.prepare('SELECT snapshot_json FROM jobs WHERE (? = \'\' OR (created_at,id) < (SELECT created_at,id FROM jobs WHERE id=?)) ORDER BY created_at DESC,id DESC LIMIT ?').all(cursor, cursor, limit) as { snapshot_json: string }[]).map(r => JSON.parse(r.snapshot_json)); }
   all(): Job[] { return (this.db.prepare('SELECT snapshot_json FROM jobs ORDER BY created_at, submission_index').all() as { snapshot_json: string }[]).map(r => JSON.parse(r.snapshot_json)); }
   get(id: string): Job | null { const row = this.db.prepare('SELECT snapshot_json FROM jobs WHERE id = ?').get(id) as { snapshot_json: string } | undefined; return row ? JSON.parse(row.snapshot_json) : null; }
   save(job: Job) { job.updated_at = new Date().toISOString(); this.db.prepare('UPDATE jobs SET state=?, snapshot_json=?, updated_at=? WHERE id=?').run(job.state, JSON.stringify(job), job.updated_at, job.id); }
@@ -40,7 +40,7 @@ export class Jobs {
     if (previous) { if (previous.body_json !== body) throw new Error('This submission key belongs to different settings.'); return { submission_id: previous.id, jobs: this.all().filter(j => j.submission_id === previous.id) }; }
     const cap = await this.inspectCapabilities();
     if (request.capabilities_revision !== cap.revision) throw new Error('Pod settings changed. Refresh and try again.');
-    if (this.all().some(j => j.state === 'needs_attention')) throw new Error('Resolve the previous interrupted job before generating.');
+    if (this.all().some(j => j.state === 'needs_attention' && !j.uncertainty_acknowledged)) throw new Error('Resolve the previous interrupted job before generating.');
     const submission_id = randomUUID(), now = new Date().toISOString();
     const jobs = seeds(request).map((seed, index): Job => {
       const id = randomUUID(), preset = request.mode === 'nsfw' ? cap.nsfw : null;
@@ -68,6 +68,12 @@ export class Jobs {
     else if (job.state === 'needs_attention') throw new Error('The previous execution is uncertain. Reconnect its volume to recover it.');
     else job.state = 'cancel_requested';
     this.safe = null; this.save(job); return job;
+  }
+  acknowledge(id: string) {
+    const job = this.get(id);
+    if (!job || job.state !== 'needs_attention') throw new Error('Only an uncertain job can be acknowledged.');
+    job.uncertainty_acknowledged = true; this.save(job); this.safe = null;
+    return job;
   }
   async tick() {
     if (this.ticking || this.stopped) return;
@@ -114,7 +120,7 @@ export class Jobs {
       else { job.state = 'running'; this.save(job); }
     }
     const current = this.all();
-    const unresolved = current.some(j => !terminal.includes(j.state) && j.state !== 'queued');
+    const unresolved = current.some(j => !terminal.includes(j.state) && j.state !== 'queued' && !(j.state === 'needs_attention' && j.uncertainty_acknowledged));
     if (!this.paused && !foreign && !orphan && !unresolved && nativeIds.length === 0) {
       const next = current.find(j => j.state === 'queued');
       if (next) {

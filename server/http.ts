@@ -52,7 +52,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     const state = db.prepare('SELECT paused FROM dispatcher_state WHERE id = 1').get() as { paused: number };
     return {
       worker: { state: remote?.state ?? 'disconnected', observed_at: remote ? new Date().toISOString() : null, stale: !remote, connected: worker.connected, ...(remote ? { preparation: remote.preparation } : {}) },
-      queue: { paused: state.paused === 1, waiting: jobs.all().filter(j => j.state === 'queued').length, active: jobs.all().filter(j => !['queued', 'completed', 'cancelled', 'failed'].includes(j.state)).length },
+      queue: { paused: state.paused === 1, waiting: jobs.all().filter(j => j.state === 'queued').length, active: jobs.all().filter(j => !['queued', 'completed', 'cancelled', 'failed'].includes(j.state) && !j.uncertainty_acknowledged).length },
       outputs: { pending: jobs.all().filter(j => ['copying', 'copy_pending'].includes(j.state)).length },
       safe_to_terminate: jobs.checkedAt && Date.now() - jobs.checkedAt < 5000 ? jobs.safe : null,
       checked_at: jobs.checkedAt ? new Date(jobs.checkedAt).toISOString() : null,
@@ -76,7 +76,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
       catch { return fail(reply, 409, 'worker_unavailable', 'Connect a ready worker before resuming.', request.id); }
     });
   }
-  app.get('/api/v1/assets', async () => ({ items: listAssets(db), next_cursor: null }));
+  app.get('/api/v1/assets', async request => { const cursor = String((request.query as { cursor?: string }).cursor ?? ''); const items = listAssets(db, cursor, 51); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/capabilities', async () => ({ revision: jobs.capabilities?.revision ?? null, workflows: { 'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 } } }));
   app.post('/api/v1/jobs', async (request, reply) => {
     try { const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''))); return reply.code(202).send(result); }
@@ -87,6 +87,10 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.post('/api/v1/jobs/:id/cancel', async (request, reply) => {
     try { return await jobs.serialize(() => jobs.cancel((request.params as { id: string }).id)); }
     catch (error) { return fail(reply, 409, 'cancel_failed', (error as Error).message, request.id); }
+  });
+  app.post('/api/v1/jobs/:id/acknowledge', async (request, reply) => {
+    try { return await jobs.serialize(async () => jobs.acknowledge((request.params as { id: string }).id)); }
+    catch (error) { return fail(reply, 409, 'acknowledge_failed', (error as Error).message, request.id); }
   });
   app.get('/api/v1/assets/:id/content', async (request, reply) => {
     const asset = db.prepare('SELECT relative_path FROM assets WHERE id=?').get((request.params as { id: string }).id) as { relative_path: string } | undefined;

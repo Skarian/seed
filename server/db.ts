@@ -50,6 +50,6 @@ export function openDatabase(dataDirectory: string) {
   }
 }
 
-export function listAssets(db: Database.Database): LibraryAsset[] {
-  return db.prepare('SELECT id, kind, name, created_at FROM assets ORDER BY created_at DESC, id DESC LIMIT 50').all() as LibraryAsset[];
+export function listAssets(db: Database.Database, cursor = '', limit = 50): LibraryAsset[] {
+  return db.prepare('SELECT id, kind, name, created_at FROM assets WHERE (? = \'\' OR (created_at,id) < (SELECT created_at,id FROM assets WHERE id=?)) ORDER BY created_at DESC, id DESC LIMIT ?').all(cursor, cursor, limit) as LibraryAsset[];
 }

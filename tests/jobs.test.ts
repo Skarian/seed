@@ -82,4 +82,9 @@ it('blocks unknown spool work and never repeats an interrupted execution in a ne
   state.session = 'engine-two'; state.running = [];
   await jobs.reconcile(); expect(jobs.get(job.id).state).toBe('needs_attention');
   await jobs.reconcile(); expect(state.submits).toBe(1);
+  jobs.acknowledge(job.id);
+  expect(jobs.get(job.id).uncertainty_acknowledged).toBe(true);
+  const next = await jobs.submit(request, 'submission-key-0002');
+  await jobs.reconcile(); expect(state.submits).toBe(2);
+  expect(next.jobs[0].id).not.toBe(job.id);
 }));

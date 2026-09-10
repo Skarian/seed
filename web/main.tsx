@@ -61,7 +61,9 @@ function App() {
   const drag = useRef<{ y: number; height: number } | null>(null);
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
-  const [jobs, setJobs] = useState<Array<{ id: string; state: string; outputs: string[]; error: string | null }>>([]);
+  const [assetCursor, setAssetCursor] = useState<string | null>(null);
+  const loadedMore = useRef(false);
+  const [jobs, setJobs] = useState<Array<{ id: string; state: string; outputs: string[]; error: string | null; uncertainty_acknowledged?: boolean }>>([]);
   const [capability, setCapability] = useState<{ revision: string | null; workflows: Record<string, { enabled: boolean; modes: string[] }> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [generationError, setGenerationError] = useState('');
@@ -85,7 +87,7 @@ function App() {
         const responses = await Promise.all(['/api/v1/studio', '/api/v1/assets', '/api/v1/jobs', '/api/v1/capabilities'].map(url => fetch(url, { signal: controller.signal })));
         if (responses.some(response => !response.ok)) throw new Error('Unavailable');
         const [status, library, history, capabilities] = await Promise.all(responses.map(response => response.json()));
-        if (!disposed) { setStudio(status); setAssets(library.items); setJobs(history.items); setCapability(capabilities); setError(''); }
+        if (!disposed) { setStudio(status); setAssets(current => loadedMore.current ? [...library.items, ...current.filter(asset => !library.items.some((fresh: LibraryAsset) => fresh.id === asset.id))] : library.items); if (!loadedMore.current) setAssetCursor(library.next_cursor ?? null); setJobs(history.items); setCapability(capabilities); setError(''); }
       } catch { if (!disposed) setError('seed is unavailable.'); }
     }
     void refresh();
@@ -116,6 +118,14 @@ function App() {
       setSubmission(result.jobs.map((j: { id: string }) => j.id)); pendingSubmission.current = null; setConnectionRevision(x => x + 1);
     } catch (failure) { setGenerationError((failure as Error).message + (pendingSubmission.current ? ' Retry uses the same submission key.' : '')); }
     finally { setSubmitting(false); }
+  }
+  async function moreAssets() {
+    if (!assetCursor) return;
+    const response = await fetch('/api/v1/assets?cursor=' + encodeURIComponent(assetCursor));
+    if (!response.ok) { setGenerationError('Could not load older images.'); return; }
+    const page = await response.json(); loadedMore.current = true;
+    setAssets(current => [...current, ...page.items.filter((asset: LibraryAsset) => !current.some(existing => existing.id === asset.id))]);
+    setAssetCursor(page.next_cursor);
   }
   async function jobAction(url: string) {
     try { const response = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }); if (!response.ok) { const body = await response.json(); throw new Error(body.error?.message ?? 'Operation failed.'); } setConnectionRevision(x => x + 1); }
@@ -173,7 +183,7 @@ function App() {
     <section id="job-details" popover="auto" className="status-popover" aria-labelledby="jobs-title">
       <div className="popover-title"><h2 id="jobs-title">Jobs</h2><button className="icon-button" popoverTarget="job-details" popoverTargetAction="hide" aria-label="Close jobs"><Icon name="close" /></button></div>
       {error ? <p role="status">Job status unavailable.</p> : <><div className="job-summary"><span>Active <strong>{studio?.queue.active ?? '–'}</strong></span><span>Waiting <strong>{studio?.queue.waiting ?? '–'}</strong></span></div>
-        <div className="job-list">{jobs.length === 0 ? <p className="popover-note">No jobs yet.</p> : jobs.map(job => <div key={job.id}><span>{jobLabel(job.state)}</span>{!['completed', 'failed', 'cancelled', 'needs_attention'].includes(job.state) && <button onClick={() => void jobAction(`/api/v1/jobs/${job.id}/cancel`)}>Cancel</button>}{job.error && <p>{job.error}</p>}</div>)}</div>
+        <div className="job-list">{jobs.length === 0 ? <p className="popover-note">No jobs yet.</p> : jobs.map(job => <div key={job.id}><span>{jobLabel(job.state)}</span>{!['completed', 'failed', 'cancelled', 'needs_attention'].includes(job.state) && <button onClick={() => void jobAction(`/api/v1/jobs/${job.id}/cancel`)}>Cancel</button>}{job.error && <p>{job.error}</p>}{job.state === 'needs_attention' && !job.uncertainty_acknowledged && <button onClick={() => void jobAction(`/api/v1/jobs/${job.id}/acknowledge`)}>Continue without rerunning</button>}{job.uncertainty_acknowledged && <p>Acknowledged. This job will not be rerun.</p>}</div>)}</div>
         <button className="queue-control" onClick={() => void jobAction(`/api/v1/queue/${studio?.queue.paused ? 'resume' : 'pause'}`)}>{studio?.queue.paused ? 'Resume queue' : 'Pause queue'}</button>
         {studio?.safe_to_terminate === true && <p className="popover-note">Safe to stop the pod.</p>}
       </>}
@@ -203,7 +213,7 @@ function App() {
           {generationError && <p role="alert">{generationError}</p>}
           {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <button key={asset} onClick={() => setViewAsset(asset)}><img src={`/api/v1/assets/${asset}/content`} alt="Generated image" /></button>) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
         </section>
-      </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <div className="library-grid">{assets.map(asset => <button key={asset.id} onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button>)}</div>}</section>}
+      </> : <section className="library"><h1>Library</h1>{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <div className="library-grid">{assets.map(asset => <button key={asset.id} onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button>)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
       <footer>seed</footer>
     </main>
     {viewAsset && <SavedImage id={viewAsset} close={() => setViewAsset(null)} />}

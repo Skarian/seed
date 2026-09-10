@@ -1,6 +1,6 @@
 # seed API contract
 
-Revision 7. Text-to-image jobs, mode capabilities, queue controls, cancellation, saved image content and local dispatcher are implemented; live M3 verification pending. Uploads, other generation workflows, full preset sync and complete Library pagination remain planned. Private same-origin `/api/v1`. No provider credentials, model paths or raw graphs accepted from browsers. Explicit Create accepts a durable submission and resumes the local waiting queue; it never starts compute. Detailed historical field descriptions below describe the target contract; consult execution notes for acceptance evidence.
+Revision 7. Text-to-image jobs, mode capabilities, queue controls, cancellation, saved image content, cursor inventories and local dispatcher are implemented; live M3 verification pending. Uploads, other generation workflows and full preset sync remain planned. Private same-origin `/api/v1`. No provider credentials, model paths or raw graphs accepted from browsers. Explicit Create accepts a durable submission and resumes the local waiting queue; it never starts compute. Detailed historical field descriptions below describe the target contract; consult execution notes for acceptance evidence.
 
 ## Routes
 
@@ -21,6 +21,7 @@ Revision 7. Text-to-image jobs, mode capabilities, queue controls, cancellation,
 | `GET /jobs` | Cursor pagination, workflow/state filters; Library and queue |
 | `GET /jobs/{id}` | Latest progress, frozen settings, effective inputs, outputs/error |
 | `POST /jobs/{id}/cancel` | `{}`; 202 cancellation request; terminal job returns unchanged snapshot |
+| `POST /jobs/{id}/acknowledge` | Explicit owner acknowledgment of an uncertain outcome; permits subsequent work without rerunning the old job. Retain its history/receipt and recover any later discovered complete manifest. Never interrupts unknown work. |
 
 Connection strings are credentials: exclude them from URLs, analytics, logs and browser persistence after submission. Restrict connection targets to configured provider host patterns or explicit operator-approved hosts; reject redirects/private metadata targets to avoid turning connection setup into arbitrary server-side requests. The exact exchange, status, spool receipt and preset routes follow [the worker protocol](POD-BOOTSTRAP.md). The PC persists the credential before enabling dispatch; a lost exchange response requires a newly minted code. Disconnect/replacement must not erase uncertain jobs.
 

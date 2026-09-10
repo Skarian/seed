@@ -50,7 +50,7 @@ export class WorkerConnection {
     const connection = this.connection;
     if (!connection) throw new Error('Connect a pod first.');
     if (!/^\/(comfy\/(session|queue|capabilities|prompt|cancel)|worker\/v1\/jobs(?:[/?].*)?)$/.test(route)) throw new Error('Unsupported worker operation.');
-    return fetch(connection.endpoint + route, { method: options.method ?? 'GET', redirect: 'error', signal: AbortSignal.timeout(options.range !== undefined ? 600000 : 65000),
+    return fetch(connection.endpoint + route, { method: options.method ?? 'GET', redirect: 'error', signal: AbortSignal.timeout(options.range !== undefined ? 600000 : route === '/comfy/prompt' ? 65000 : 10000),
       headers: { Authorization: `Bearer ${connection.worker_credential}`, ...(options.body === undefined ? {} : { 'Content-Type': 'application/json' }), ...(options.session ? { 'X-Studio-Engine-Session': options.session } : {}), ...(options.range ? { Range: `bytes=${options.range}-` } : {}) },
       ...(options.body === undefined ? {} : { body: JSON.stringify(options.body) }) });
   }
