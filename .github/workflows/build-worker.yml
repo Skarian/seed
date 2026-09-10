@@ -1,0 +1,37 @@
+name: Build seed worker candidate
+on:
+  workflow_dispatch:
+  push:
+    branches: [feat/studio-mvp]
+    paths: ['worker/**', '.github/workflows/build-worker.yml']
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: seed-worker-candidate
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+      - name: Make room for the pinned GPU runtime
+        run: |
+          sudo rm -rf /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          df -h /
+      - name: Build candidate
+        run: docker build --platform linux/amd64 --tag "ghcr.io/skarian/runpod-studio:seed-m2-${GITHUB_SHA}" --file worker/Dockerfile worker
+      - name: Authenticate to GHCR
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Publish candidate without changing the pod template
+        run: |
+          image="ghcr.io/skarian/runpod-studio:seed-m2-${GITHUB_SHA}"
+          docker push "$image"
+          digest=$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')
+          printf 'Candidate image: `%s`\n' "$digest" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove registry session
+        if: always()
+        run: docker logout ghcr.io || true

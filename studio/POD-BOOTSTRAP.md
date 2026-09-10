@@ -1,6 +1,6 @@
 # GPU runtime bootstrap and pairing
 
-Revision 6. Protocol specified; implementation and live validation pending. [Current direction](CURRENT-DIRECTION.md) and [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) define the scope.
+Revision 7. Pairing/status and the container startup path are implemented and locally tested; live GPU validation, job spool/transfer routes and preset activation remain pending. [Current direction](CURRENT-DIRECTION.md) and [sources/setup](RELEASE-AND-INFRASTRUCTURE.md) define the scope.
 
 1. Owner deploys the published template with the selected network volume and private pairing/download credentials. No provider API credential in the pod.
 2. Start the small worker connection page on port 8080 immediately, before downloads. Keep raw ComfyUI private. Jupyter remains separately authenticated administration.
@@ -63,3 +63,21 @@ Any Resume, new submission/cancel transition, connection/session change or unsuc
 Specified the Python/aiohttp early worker boundary, exact custom routes, container-scoped credentials, lost-response behavior, durable receipts, explicit preset activation and serialized termination assessment. These are design decisions, not tested runtime behavior. Reuse documented [ComfyUI routes](https://docs.comfy.org/development/comfyui-server/comms_routes) and [execution messages](https://docs.comfy.org/development/comfyui-server/comms_messages); pin and inspect the actual runtime implementation before writing session/submission hooks.
 
 M2/M3 must prove cold/warm preparation; pairing before engine startup; code expiry/reuse/concurrent exchange/lost response; worker-versus-engine/container restart; streaming and Range through the actual outer proxy; manifest closure and disk-full/crash paths; repeated receipt after restart; replacement recovery; pause-versus-submit and foreign-work detection; staged preset activation and queued snapshot preservation. Normal upload/multi-media support must be proven against the pinned Comfy API before adding any fallback route. Implementation paid sessions end with verified compute off; no live tests were run for this specification.
+
+
+## M2 runtime implementation
+
+`worker/Dockerfile` extends the already-published digest and asserts the inspected
+ComfyUI/dependency versions. It copies seed code and overrides CMD; it performs no
+package installation. `worker/run.py` is the container lifetime supervisor. It
+starts 8080 before preparation, refuses an unmounted workspace, checks separately
+authenticated Jupyter, prepares pinned models in a child process, and launches
+Comfy with only `comfy_seed` enabled for the first text-to-image milestone. Later
+identity/video node allowlists are not enabled yet. Do not use this initial
+candidate as a claim that all four workflows are delivered.
+
+Required private deployment variables: `SEED_PAIRING_SECRET`, `HF_TOKEN`, and
+`JUPYTER_TOKEN`. RunPod supplies `RUNPOD_POD_ID`; `SEED_PUBLIC_URL` can explicitly
+supply the public HTTPS origin. Workspace defaults to `/workspace`. Secrets do
+not belong in shared templates or the image. This configuration still needs the
+local setup utility and a live deployment walkthrough.
