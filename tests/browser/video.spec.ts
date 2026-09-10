@@ -64,3 +64,30 @@ test('reference video uses real tus upload and verified asset IDs with inserted 
   expect((await again).postDataJSON().references[0].asset_id).toBe(body.references[0].asset_id);
   expect(uploadCreates).toBe(1);
 });
+
+test('deleting and reclassifying images preserves prompt associations and blocks orphan mentions', async ({ page }) => {
+  await readyVideo(page);
+  const buffer = await sharp({ create: { width: 32, height: 32, channels: 3, background: 'red' } }).png().toBuffer();
+  await page.goto('/');
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
+  await page.getByLabel('Choose reference files').setInputFiles(['one.png', 'two.png', 'three.png'].map(name => ({ name, mimeType: 'image/png', buffer })));
+  await page.getByRole('button', { name: 'Preview one.png' }).click();
+  await page.getByLabel('Role for one.png').selectOption('reference');
+  await page.getByRole('button', { name: 'Close preview' }).click();
+  await page.getByLabel('Prompt', { exact: true }).fill('<Picture 1> then <Picture 2> then <Picture 3>');
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Preview one.png' }).click();
+  await page.getByRole('button', { name: 'Delete file' }).click();
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('[removed reference] then <Picture 1> then <Picture 2>');
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
+  await expect(page.getByRole('alert')).toContainText('missing reference');
+  await page.getByLabel('Prompt', { exact: true }).fill('<Picture 1> then <Picture 2>');
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeEnabled();
+  await page.getByRole('button', { name: 'Preview two.png' }).click();
+  await page.getByLabel('Role for two.png').selectOption('first_frame');
+  await page.getByRole('button', { name: 'Close preview' }).click();
+  await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('[removed reference] then <Picture 1>');
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
+  await page.getByLabel('Prompt', { exact: true }).fill('Continue toward <Picture 1>');
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeEnabled();
+});

@@ -34,7 +34,7 @@ async function inspect(file: File): Promise<Reference> {
     return { file, id: `reference-${++nextReferenceId}`, name: file.name, url, kind, type: file.type, ...metadata, start: 0, end: Math.min(15, metadata.duration ?? 0), role: 'reference' };
   } catch (error) { URL.revokeObjectURL(url); throw new Error(`${file.name}: ${(error as Error).message}`); }
 }
-export function useReferences() {
+export function useReferences(onVideoChange?: (before: Reference[], after: Reference[]) => void) {
   const [groups, setGroups] = useState<Record<Group, Reference[]>>({ edit: [], video: [] });
   const latest = useRef(groups); latest.current = groups;
   const epochs = useRef({ edit: 0, video: 0 });
@@ -42,7 +42,7 @@ export function useReferences() {
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   useEffect(() => () => { for (const list of Object.values(latest.current)) for (const item of list) URL.revokeObjectURL(item.url); }, []);
-  function change(group: Group, list: Reference[]) { latest.current = { ...latest.current, [group]: list }; setGroups(latest.current); }
+  function change(group: Group, list: Reference[]) { if (group === 'video') onVideoChange?.(latest.current[group], list); latest.current = { ...latest.current, [group]: list }; setGroups(latest.current); }
   function reset(group: Group) { epochs.current[group]++; for (const item of latest.current[group]) URL.revokeObjectURL(item.url); change(group, []); setErrors(previous => ({ ...previous, [group]: [] })); }
   async function add(group: Group, files: File[]) {
     if (pending.current) return;
@@ -77,7 +77,25 @@ export function referenceIssues(items: Reference[], group: Group) {
   if (items.filter(item=>item.kind==='audio'||(item.kind==='video'&&item.include_audio)).reduce((sum,item)=>sum+item.end-item.start,0)>15) issues.push('Choose at most 15 seconds of audio including video soundtracks.');
   return issues;
 }
-export function referenceLabels(items:Reference[]){const counts={image:0,video:0,audio:items.filter(item=>item.kind==='video'&&item.include_audio).length};return new Map(items.map(item=>[item.id,item.role==='reference'?('<'+{image:'Picture',video:'Video',audio:'Audio'}[item.kind]+' '+(++counts[item.kind])+'>'):item.role.replaceAll('_',' ')]));}
+export function referenceLabels(items: Reference[]) {
+  const labels = new Map<string, string>();
+  let audio = 0;
+  for (const item of items) if (item.kind === 'video' && item.role === 'reference' && item.include_audio) labels.set(item.id + ':audio', `<Audio ${++audio}>`);
+  const counts = { image: 0, video: 0, audio };
+  for (const item of items) if (item.role === 'reference') labels.set(item.id, `<${{ image: 'Picture', video: 'Video', audio: 'Audio' }[item.kind]} ${++counts[item.kind]}>`);
+  return labels;
+}
+export function remapReferencePrompt(prompt: string, before: Reference[], after: Reference[]) {
+  const previous = new Map([...referenceLabels(before)].map(([id, label]) => [label, id]));
+  const next = referenceLabels(after);
+  // One replacement pass avoids turning a renumbered tag into a different asset.
+  return prompt.replace(/<(?:Picture|Video|Audio) [1-9][0-9]*>/g, label => next.get(previous.get(label) ?? '') ?? '[removed reference]');
+}
+export function referencePromptIssue(prompt: string, items: Reference[]) {
+  const labels = new Set(referenceLabels(items).values());
+  return prompt.includes('[removed reference]') || [...prompt.matchAll(/<(?:Picture|Video|Audio) [1-9][0-9]*>/g)].some(match => !labels.has(match[0]))
+    ? 'Edit the prompt to replace or remove its missing reference.' : '';
+}
 export function ReferenceInputs({ group, state, seconds=5, onInsert }: { group: Group; state: ReturnType<typeof useReferences>; seconds?:number; onInsert?:(label:string)=>void }) {
   const input = useRef<HTMLInputElement>(null);
   const [selected, setSelected] = useState<string | null>(null);

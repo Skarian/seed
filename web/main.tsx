@@ -4,7 +4,7 @@ import type { LibraryAsset, StudioSnapshot, WorkflowId } from '../shared/studio.
 import './style.css';
 import { MediaCard, LoadingIndicator } from './media-card.js';
 import { uploadReferences } from './uploads.js';
-import { ReferenceInputs, useReferences, referenceIssues } from './references.js';
+import { ReferenceInputs, useReferences, referenceIssues, remapReferencePrompt, referencePromptIssue } from './references.js';
 
 const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
   'text-to-image': { title: 'Text to image', placeholder: 'Describe your image…' },
@@ -55,10 +55,14 @@ function SavedImage({ id, kind, close }: { id: string; kind: 'image'|'video'|'au
 }
 
 function App() {
-  const references = useReferences();
   const [page, setPage] = useState(location.pathname === '/library' ? 'library' : 'generate');
   const [workflow, setWorkflow] = useState<WorkflowId>('text-to-image');
   const [drafts, setDrafts] = useState(loadDrafts);
+  const references = useReferences((before, after) => setDrafts(current => {
+    const draft = current['reference-to-video'] ?? emptyDraft();
+    const prompt = remapReferencePrompt(draft.prompt, before, after);
+    return prompt === draft.prompt ? current : { ...current, 'reference-to-video': { ...draft, prompt } };
+  }));
   const [promptHeight, setPromptHeight] = useState(240);
   const [advancedOpen, setAdvancedOpen] = useState(false);
   const drag = useRef<{ y: number; height: number } | null>(null);
@@ -129,8 +133,10 @@ function App() {
   const video = workflow.endsWith('video');
   const seedValid = draft.randomSeed || (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) && BigInt(draft.seed) + BigInt(draft.count - 1) <= 9007199254740991n);
   const jobCount = studio ? studio.queue.active + studio.queue.waiting : null;
-  const canGenerate = workflow !== 'image-to-image' && (workflow !== 'reference-to-video' || (references.groups.video.length > 0 && referenceIssues(references.groups.video,'video').length === 0)) && capability?.workflows[workflow]?.enabled && capability.workflows[workflow].modes.includes(draft.mode) && studio?.worker.connected && !studio.worker.stale && seedValid && Boolean(draft.prompt.trim());
+  const missingReference = workflow === 'reference-to-video' ? referencePromptIssue(draft.prompt, references.groups.video) : '';
+  const canGenerate = !missingReference && workflow !== 'image-to-image' && (workflow !== 'reference-to-video' || (references.groups.video.length > 0 && referenceIssues(references.groups.video,'video').length === 0)) && capability?.workflows[workflow]?.enabled && capability.workflows[workflow].modes.includes(draft.mode) && studio?.worker.connected && !studio.worker.stale && seedValid && Boolean(draft.prompt.trim());
   async function generate() {
+    if (missingReference) return;
     setSubmitting(true); setGenerationError('');
     let uploaded;
     try { if(workflow === 'reference-to-video') uploaded = await uploadReferences(references.groups.video,draft.mode,setUploadProgress); }
@@ -251,6 +257,7 @@ function App() {
           </section>}
           {!advancedOpen && !seedValid && <p role="alert">Check the starting seed in Advanced.</p>}
           {workflow === 'text-to-image' && draft.mode === 'nsfw' && capability?.workflows[workflow]?.enabled && !capability.workflows[workflow].modes.includes('nsfw') && <p className="popover-note">The NSFW LoRA is not available on this pod.</p>}
+          {missingReference && <p role="alert">{missingReference}</p>}
           {video && <label className="video-audio">Audio<select value={draft.audio??'generated'} onChange={event=>updateDraft({audio:event.target.value as 'generated'|'silent'})}><option value="generated">Generated soundtrack</option><option value="silent">Silent</option></select></label>}
           <button className="generate-button" disabled={!canGenerate || submitting} onClick={() => void generate()} title={canGenerate ? undefined : 'Connect a compatible pod and enter a prompt to generate.'}>{submitting ? 'Submitting…' : <>Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></>}</button>
           {generationError && <p role="alert">{generationError}</p>}
