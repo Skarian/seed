@@ -40,6 +40,7 @@
   "files": [
     "dist/server/",
     "dist/shared/",
+    "dist/worker/models.json",
     "dist/web/"
   ]
 }

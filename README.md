@@ -70,7 +70,7 @@ For unattended/container setup, environment variables are supported, with an opt
 The new worker is a separate candidate from the existing lean deployment above.
 It has an early connection page, single-use pairing, authenticated status and
 model preparation with integrity checks. Local container tests passed; live GPU validation
-and the reusable setup command remain unfinished. Generation is still disabled
+remains unfinished. The reusable `seed pod-setup` command is implemented. Generation is still disabled
 in the local portal.
 
 Package: [seed-worker](https://github.com/Skarian/runpod/pkgs/container/seed-worker).
@@ -80,3 +80,8 @@ Candidate: `ghcr.io/skarian/seed-worker@sha256:1d53771a426601861e4e395cceca75a0c
 succeeded; anonymous registry access was verified. This does not update the
 existing pod template. See [bootstrap](studio/POD-BOOTSTRAP.md) for required
 private variables and [milestone journal](studio/EXECUTION-PLAN.md) for test evidence.
+
+Run `seed pod-setup` to verify model access and reuse network storage. Use
+`seed pod-setup --show-secrets` in a private terminal for deployment values.
+[Setup and deployment instructions](studio/RELEASE-AND-INFRASTRUCTURE.md#operator-setup-commands-m2)
+include first-time storage creation and returning with a replacement pod.

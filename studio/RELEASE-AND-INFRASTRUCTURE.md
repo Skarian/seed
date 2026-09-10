@@ -1,6 +1,6 @@
 # seed setup, software release and model sources
 
-Revision 5, planning only. See [current direction](CURRENT-DIRECTION.md). Terraform, provider modules, OCI model artifacts and PC model-packaging are removed from the preferred plan.
+Revision 6. Local operator setup is implemented; live worker verification remains in progress. See [current direction](CURRENT-DIRECTION.md). Terraform, provider modules, OCI model artifacts and PC model-packaging are removed from the preferred plan.
 
 ## Simple setup
 
@@ -62,3 +62,39 @@ remains `Skarian/runpod`. `ghcr.io/skarian/runpod-studio` is retained for the ol
 pod template and the immutable base image used by the worker Dockerfile; do not
 rewrite those historical references or remove their package. Candidate publication
 must be followed by an anonymous pull check before recording a usable release.
+
+## Operator setup commands (M2)
+
+Run `seed setup` once to collect required RunPod/HF and optional Civitai credentials.
+Then run `seed pod-setup` (or `seed pod-setup --volume ID`). It HEAD-checks all 11
+pinned HF files, reuses the saved selection or the only existing volume, and saves
+one pairing secret plus a separate Jupyter token in per-user `pod-deployment.json`.
+No weights are downloaded locally and no compute starts. Provider credentials
+remain in `credentials.json`.
+
+`seed pod-setup --create` lists standard-storage datacenters, asks for capacity,
+reads the current first-TB rate from RunPod's pricing document and displays a
+conservative monthly upper estimate before explicit confirmation. Recommended
+capacity is the 99.62 GB model inventory plus 30 GB working space, rounded to
+150 GB. Existing unrelated files and later LoRA revisions can need more space.
+A saved creation intent prevents blind retries after a lost response. If no
+unambiguous resource can be found, inspect RunPod Storage and select the correct
+ID. An unrelated selection never erases that unresolved intent. If the provider
+confirms creation failed, remove only `pod-volume-intent.json` before retrying.
+
+Run `seed pod-setup --show-secrets` only in a private terminal to display the
+worker environment values to paste into deployment settings. It omits the
+RunPod API key. Do not put these values into shared templates or Git.
+
+[Shared M2 candidate template](https://console.runpod.io/deploy?template=tt0cmuwu3t):
+select your network volume at `/workspace`, exactly one compatible GPU in its
+datacenter, and add the printed private environment values. The template exposes
+8080 (seed pairing) and 8888 (separately authenticated Jupyter), uses a 30 GB
+container disk and pins the public seed-worker image. Raw ComfyUI stays private.
+The candidate supports the M2 connection test; it is not the four-workflow release.
+Open 8080, unlock with SEED_PAIRING_SECRET, copy a fresh code into the local seed
+connection popover. JUPYTER_TOKEN is only for administration on 8888.
+
+Keep the network volume when terminating a pod. A replacement uses the same
+setup values and volume but requires a fresh connection code. Setup does not
+start, stop, migrate or terminate compute.
