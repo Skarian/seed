@@ -90,7 +90,7 @@ function App() {
         const responses = await Promise.all(['/api/v1/studio', '/api/v1/assets', '/api/v1/jobs', '/api/v1/capabilities'].map(url => fetch(url, { signal: controller.signal })));
         if (responses.some(response => !response.ok)) throw new Error('Unavailable');
         const [status, library, history, capabilities] = await Promise.all(responses.map(response => response.json()));
-        if (!disposed) { setStudio(status); library.items = library.items.filter((asset: LibraryAsset) => !deletedAssets.current.has(asset.id)); setAssets(current => loadedMore.current ? [...library.items, ...current.filter(asset => !library.items.some((fresh: LibraryAsset) => fresh.id === asset.id))] : library.items); if (!loadedMore.current) setAssetCursor(library.next_cursor ?? null); setJobs(history.items); setCapability(capabilities); setError(''); }
+        if (!disposed) { setStudio(status); library.items = library.items.filter((asset: LibraryAsset) => !deletedAssets.current.has(asset.id)); setAssets(current => loadedMore.current ? [...library.items, ...current.filter(asset => !library.items.some((fresh: LibraryAsset) => fresh.id === asset.id))] : library.items); if (!loadedMore.current) setAssetCursor(library.next_cursor ?? null); setJobs(history.items.map((job: { outputs: string[] }) => ({ ...job, outputs: job.outputs.filter(id => !deletedAssets.current.has(id)) }))); setCapability(capabilities); setError(''); }
       } catch { if (!disposed) setError('seed is unavailable.'); }
     }
     void refresh();
@@ -130,7 +130,7 @@ function App() {
     setAssets(current => [...current, ...page.items.filter((asset: LibraryAsset) => !deletedAssets.current.has(asset.id) && !current.some(existing => existing.id === asset.id))]);
     setAssetCursor(page.next_cursor);
   }
-  async function deleteAsset(asset: LibraryAsset) {
+  async function deleteAsset(asset: Pick<LibraryAsset, 'id' | 'kind'>) {
     if (!window.confirm(`Delete this ${asset.kind}? This permanently removes the saved file from your PC. This cannot be undone.`)) return;
     setDeletingAsset(asset.id); setDeleteError('');
     try {
@@ -140,6 +140,7 @@ function App() {
       setAssets(current => current.filter(item => item.id !== asset.id));
       loadedMore.current = false; setAssetCursor(null);
       setJobs(current => current.map(job => ({ ...job, outputs: job.outputs.filter(id => id !== asset.id) })));
+      setSubmission(current => current.filter(id => !jobs.some(job => job.id === id && job.outputs.length === 1 && job.outputs[0] === asset.id)));
       setConnectionRevision(value => value + 1);
     } catch (failure) { setDeleteError((failure as Error).message); }
     finally { setDeletingAsset(null); }
@@ -228,7 +229,8 @@ function App() {
           {workflow === 'text-to-image' && draft.mode === 'nsfw' && capability?.workflows[workflow]?.enabled && !capability.workflows[workflow].modes.includes('nsfw') && <p className="popover-note">The NSFW LoRA is not available on this pod.</p>}
           <button className="generate-button" disabled={!canGenerate || submitting} onClick={() => void generate()} title={canGenerate ? undefined : 'Connect a compatible pod and enter a prompt to generate.'}>{submitting ? 'Submitting…' : <>Create {draft.count > 1 ? `${draft.count} ${video ? 'videos' : 'images'}` : video ? 'video' : 'image'} <span>↗</span></>}</button>
           {generationError && <p role="alert">{generationError}</p>}
-          {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <button key={asset} onClick={() => setViewAsset(asset)}><img src={`/api/v1/assets/${asset}/content`} alt="Generated image" /></button>) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
+          {deleteError && <p role="alert">{deleteError}</p>}
+          {submission.length > 0 && <section className="generation-results" aria-label="Output preview">{submission.map(id => { const job = jobs.find(j => j.id === id); return <div key={id}>{job?.outputs?.length ? job.outputs.map(asset => <div className="library-item" key={asset}><button className="library-preview" onClick={() => setViewAsset(asset)}><img src={`/api/v1/assets/${asset}/content`} alt="Generated image" /></button><button className="library-delete" aria-label="Delete generated image" title="Delete" disabled={deletingAsset !== null} onClick={() => void deleteAsset({ id: asset, kind: 'image' })}><Icon name="close" /></button></div>) : <><div className="empty-mark"><SeedMark /></div><p>{job ? jobLabel(job.state) : 'Queued'}</p></>}{job?.error && <p role="alert">{job.error}</p>}</div>; })}</section>}
         </section>
       </> : <section className="library"><h1>Library</h1>{deleteError && <p role="alert">{deleteError}</p>}{assets.length === 0 ? <div className="library-empty"><div className="empty-mark"><SeedMark /></div><p>No saved files yet.</p></div> : <div className="library-grid">{assets.map(asset => <div className="library-item" key={asset.id}><button className="library-preview" onClick={() => setViewAsset(asset.id)}><img src={`/api/v1/assets/${asset.id}/content`} alt={asset.name} loading="lazy" /></button><button className="library-delete" aria-label={`Delete ${asset.name}`} title="Delete" disabled={deletingAsset !== null} onClick={() => void deleteAsset(asset)}><Icon name="close" /></button></div>)}</div>}{assetCursor && <button className="queue-control" onClick={() => void moreAssets()}>Load more</button>}</section>}
       <footer>seed</footer>

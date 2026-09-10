@@ -14,7 +14,7 @@ test('both image modes submit selected settings and show saved output in preview
     }
     return route.fulfill({ json: { items: job ? [job] : [] } });
   });
-  await page.route('**/api/v1/assets', route => route.fulfill({ json: { items: job ? [{ id: job.outputs[0], kind: 'image', name: 'Saved image' }] : [] } }));
+  await page.route('**/api/v1/assets', route => route.fulfill({ json: { items: job?.outputs.length ? [{ id: job.outputs[0], kind: 'image', name: 'Saved image' }] : [] } }));
   await page.route('**/api/v1/assets/*/content', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII=', 'base64') }));
   await page.goto('/');
   await page.getByLabel('Prompt', { exact: true }).fill('An illustrated landscape');
@@ -31,6 +31,16 @@ test('both image modes submit selected settings and show saved output in preview
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: '.local/m3-results-mobile.png', fullPage: true });
+  let deletes = 0;
+  await page.route('**/api/v1/assets/asset-nsfw', route => { deletes++; job.outputs = []; return route.fulfill({ status: 204 }); });
+  const remove = page.getByRole('button', { name: 'Delete generated image' });
+  page.once('dialog', dialog => dialog.dismiss());
+  await remove.click(); expect(deletes).toBe(0);
+  await expect(page.getByRole('img', { name: 'Generated image', exact: true })).toBeVisible();
+  page.once('dialog', dialog => dialog.accept());
+  await remove.click();
+  await expect(page.getByRole('img', { name: 'Generated image', exact: true })).toHaveCount(0);
+  expect(deletes).toBe(1);
   await page.getByRole('button', { name: 'Library', exact: true }).click();
-  await expect(page.getByRole('img', { name: 'Saved image', exact: true })).toBeVisible();
+  await expect(page.getByText('No saved files yet.')).toBeVisible();
 });

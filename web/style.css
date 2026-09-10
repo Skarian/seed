@@ -210,10 +210,10 @@ footer { color: #8a977a; font-size: 11px; padding: 24px 0; margin-top: 45px; bor
 .preparation-detail { overflow-wrap: anywhere; }
 .generate-button:disabled { opacity: .55; }
 .generation-results, .library-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 16px; margin-top: 24px; }
-.generation-results button, .library-preview { width: 100%; padding: 0; background: #20251b; border: 1px solid #46523a; border-radius: 8px; overflow: hidden; }
+.library-preview { width: 100%; padding: 0; background: #20251b; border: 1px solid #46523a; border-radius: 8px; overflow: hidden; }
 .library-item { position: relative; }
-.library-delete { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 40px; height: 40px; padding: 8px; border: 1px solid #ffffff60; border-radius: 50%; color: white; background: #111b; box-shadow: 0 2px 8px #0005; }
-.library-delete:hover { background: #762d2d; }
+.library-delete { position: absolute; top: 6px; right: 6px; display: grid; place-items: center; width: 40px; height: 40px; padding: 8px; border: 1px solid #ff9a9a; border-radius: 50%; color: white; background: #b42323; box-shadow: 0 2px 8px #0005; }
+.library-delete:hover { background: #8f1919; }
 .library-delete:focus-visible { outline: 3px solid #d4eb8c; outline-offset: 2px; }
 .library-delete:disabled { opacity: .5; cursor: wait; }
 .generation-results img, .library-grid img { display: block; width: 100%; }

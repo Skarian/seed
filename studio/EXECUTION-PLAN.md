@@ -177,6 +177,8 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 
 - **Library deletion, 2026-09-09:** owner requested a floating × at the top-right of every Library thumbnail, with confirmation. Implemented native confirmation, same-origin DELETE for any asset kind, on-disk deletion and Library removal, retained job history with removed output references, and retry/error handling. Files still awaiting worker cleanup cannot be deleted. Tests cover confirmation cancel/accept/failure, actual file/record removal, idempotent retry and outside-storage rejection. Nine focused server tests and the mobile browser test passed; production build passed. Desktop Library visually checked with the owner's existing images; none were deleted during verification. Installed app updated; pod unchanged.
 
+- **Generate deletion follow-up:** the same floating red × and confirmation now appear on saved results beneath Create. Deletion updates both views, removes the result card, and keeps failures visible. Both generation and Library browser tests passed; mobile result layout visually checked. Updated the installed PC app without modifying the pod.
+
 Next owner checkpoint: inspect the saved SFW/NSFW images and Library viewer on mobile/desktop. Agree on quality/defaults before M4. Remaining M3 acceptance: pod replacement with a pending output, additional quality prompts and owner review; do not convert successful protocol checks into a blanket quality claim.
 
 #### M4 â€” Not started: expressive workflows
