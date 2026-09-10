@@ -5,7 +5,7 @@ import type { StudioPaths } from './storage.js';
 import models from '../worker/models.json' with { type: 'json' };
 
 export const workerRelease = {
-  image: 'ghcr.io/skarian/seed-worker@sha256:50c326db76108e4619131c180ec29bdea29fdc2a85c2f8db8f57d34c72148674',
+  image: 'ghcr.io/skarian/seed-worker@sha256:f445e5e50393d2c2845563479e73c68582fbc2f76c7fb2ee28217a6bd243993b',
 };
 type Volume = { id: string; name: string; size: number; dataCenter: string; type: string };
 type Deployment = { version: 1; pairingSecret: string; jupyterToken: string; volumeId?: string; templateId?: string };

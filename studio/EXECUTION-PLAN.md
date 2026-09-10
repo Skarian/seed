@@ -262,3 +262,14 @@ See [measurement semantics and validation](JOB-MEASUREMENTS.md). Local build,
 typecheck, seven job tests and fifteen engine/spool tests passed. New worker image
 deployment and live GPU sampling remain the next checkpoint; no pod started or
 restarted and no claim of retroactive metrics for existing generations.
+
+
+### September 10 — measurement release published
+
+Owner authorized publication but no pod startup. GHCR build 34510122554 succeeded;
+public manifest digest f445e5e50393d2c2845563479e73c68582fbc2f76c7fb2ee28217a6bd243993b
+verified anonymously. Private seed template and existing EXITED pod now pin it;
+credentials and network-volume mounts preserved. Installed CLI updated and local
+server restarted at http://192.168.1.212:4310; jobs API HTTP 200. Eight setup tests
+and final build passed. Owner will start the pod and validate actual GPU samples
+later; no live measurement claim yet. See JOB-MEASUREMENTS.md.

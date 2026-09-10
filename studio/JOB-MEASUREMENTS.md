@@ -39,8 +39,13 @@ not anonymized exports.
 
 Implemented locally September 10, 2026. Unit/integration checks cover aggregation,
 unavailable GPU data, execution hooks, failed jobs and statistics surviving cleanup
-retries. A new worker image and a live GPU run are still required before calling
-GPU collection production-verified. No running pod is changed by this code edit.
+retries. Published worker image `ghcr.io/skarian/seed-worker@sha256:f445e5e50393d2c2845563479e73c68582fbc2f76c7fb2ee28217a6bd243993b`.
+GitHub build [34510122554](https://github.com/Skarian/runpod/actions/runs/34510122554)
+succeeded; anonymous registry manifest and digest verified. Private seed template
+`tt0cmuwu3t` and stopped pod `q4x2jnxkt81ept` now pin this image. Pod remained EXITED;
+credentials and mounts were verified unchanged. Installed local CLI/server updated
+and restarted; jobs API returned HTTP 200. Live GPU measurements await the owner’s
+later test; no pod started or generation submitted.
 No statistics dashboard is added in this pass; existing job APIs expose the data.
 
 Next compare the same 15-second heavy-reference job across candidate GPUs: exact
