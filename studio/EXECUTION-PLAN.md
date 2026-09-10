@@ -292,3 +292,23 @@ updated with credentials/mounts preserved. No pod started. Native API submission
 now carry client_id so Comfy emits execution_start even without a browser socket.
 Local app accepts both metric versions. 22 targeted tests passed; GPU validation
 remains deferred to the owner's next run.
+
+### September 10 — live metrics validation blocked by capacity; temporary migration probe
+
+Owner authorized one GPU and a temporary S3 key, with no application integration.
+Existing pod start and replacement allocation in EUR-IS-1 failed. Additional
+single-GPU allocation attempts failed for RTX PRO 6000 (CUDA 13.2) in EU-RO-1
+and US-NC-2, and H100 SXM (CUDA >=13.0) in EU-NL-1, despite catalog availability.
+No new pod was created; no text-to-image or reference-to-video test ran.
+
+S3 access to the existing EUR-IS-1 volume was partially verified: a one-entry
+listing and HEAD requests for several pinned models succeeded. Larger listings
+and other model HEAD requests hit 15-second read timeouts, including outside the
+local sandbox. Full data transfer and throughput were NOT validated. S3 remains
+a possible transfer mechanism, not a proven migration solution for this setup.
+
+All three temporary 150GB destination volumes were deleted and list readback
+confirmed only original f7vnixgws1 remains. Temporary S3 key revoked in console,
+empty key list verified, local secret copy deleted. Original pod q4x2jnxkt81ept
+remains EXITED. Existing storage is unchanged; no GPU compute started. Native
+Comfy metrics still need the two live generation tests when capacity is available.
