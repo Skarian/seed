@@ -52,3 +52,5 @@ RunPod serverless cached models are interesting separately: documented downloads
 ## Proposed next decision
 
 Choose whether a fresh-session download of roughly 56–100 GB is acceptable. Then measure one representative large model on one authorized available GPU before removing the current volume. Implement optional local-cache storage, resumable verified fetching, reproducible LoRA presets, per-workflow readiness and clear transient-output semantics. Do not add automatic GPU shopping, Terraform, multi-provider routing, or a new registry to solve this storage question.
+
+Owner clarification: home connection is "10 GB", interpreted as 10 Gbps service, not the previously discussed 1 Gbps. Symmetric upload speed is not yet established. At sustained 10 Gbps, 100 GB has a theoretical ~80-second transfer floor and one ~56 GB H3 dependency set ~45 seconds. This makes a PC-hosted authenticated model endpoint a strong first candidate. Actual end-to-end throughput remains bounded by home upload, tunnel/relay, pod ingress, disks and verification. Prefer evaluating that path before adding R2 if the PC will already remain online for Seed. No bandwidth benchmark was run.
