@@ -9,7 +9,7 @@ import type { StudioPaths } from './storage.js';
 import { WorkerConnection } from './worker.js';
 import { graphFor, imageRequest, seeds, type Capabilities, type ImageRequest, type Preset } from './workflows.js';
 
-type Job = { prepared?: PreparedReference[]; id: string; state: string; submission_id: string; submission_index: number; request: ImageRequest; seed: string; preset: Preset | null; graph: ReturnType<typeof graphFor>; workspace_id: string; engine_session_id?: string; outputs: string[]; error: string | null; cleanup_state: string; output_save_state: string; created_at: string; updated_at: string; uncertainty_acknowledged?: boolean };
+type Job = { generation_percent?: number; prepared?: PreparedReference[]; id: string; state: string; submission_id: string; submission_index: number; request: ImageRequest; seed: string; preset: Preset | null; graph: ReturnType<typeof graphFor>; workspace_id: string; engine_session_id?: string; outputs: string[]; error: string | null; cleanup_state: string; output_save_state: string; created_at: string; updated_at: string; uncertainty_acknowledged?: boolean };
 type Output = { id: string; path: string; size: number; sha256: string; mime_type: string };
 const terminal = ['completed', 'failed', 'cancelled'];
 const hashFile = async (file: string) => { const hash = createHash('sha256'); for await (const bytes of createReadStream(file)) hash.update(bytes); return hash.digest('hex'); };
@@ -130,7 +130,13 @@ export class Jobs {
         }
       } else if (job.engine_session_id !== cap.engine_session_id || !nativeIds.includes(job.id)) { job.state = 'needs_attention'; job.error = 'Generation was interrupted or its outcome is uncertain. No automatic rerun.'; this.save(job); }
       else if (job.state === 'cancel_requested') { if (!foreign) await this.worker.json('/comfy/cancel', { method: 'POST', body: { job_id: job.id }, session: job.engine_session_id }); }
-      else { job.state = 'running'; this.save(job); }
+      else {
+        job.state = 'running';
+        const progress = session.sampling_progress;
+        const sampler = job.request.workflow.endsWith('video') ? '11' : '7';
+        job.generation_percent = progress?.prompt_id === job.id && progress.node === sampler && Number.isInteger(progress.percent) && progress.percent >= 0 && progress.percent <= 100 ? progress.percent : undefined;
+        this.save(job);
+      }
     }
     const current = this.all();
     const unresolved = current.some(j => !terminal.includes(j.state) && j.state !== 'queued' && !(j.state === 'needs_attention' && j.uncertainty_acknowledged));

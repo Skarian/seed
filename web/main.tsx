@@ -73,7 +73,7 @@ function App() {
   const deletedAssets = useRef(new Set<string>());
   const [deletingAsset, setDeletingAsset] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState('');
-  const [jobs, setJobs] = useState<Array<{ id: string; state: string; outputs: string[]; error: string | null; uncertainty_acknowledged?: boolean }>>([]);
+  const [jobs, setJobs] = useState<Array<{ id: string; state: string; generation_percent?: number; outputs: string[]; error: string | null; uncertainty_acknowledged?: boolean }>>([]);
   const [capability, setCapability] = useState<{ revision: string | null; workflows: Record<string, { enabled: boolean; modes: string[] }> } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress,setUploadProgress] = useState('');
@@ -227,7 +227,7 @@ function App() {
     <section id="job-details" popover="auto" className="status-popover" aria-labelledby="jobs-title">
       <div className="popover-title"><h2 id="jobs-title">Jobs</h2><button className="icon-button" popoverTarget="job-details" popoverTargetAction="hide" aria-label="Close jobs"><Icon name="close" /></button></div>
       {error ? <p role="status">Job status unavailable.</p> : <><div className="job-summary"><span>Active <strong>{studio?.queue.active ?? '–'}</strong></span><span>Waiting <strong>{studio?.queue.waiting ?? '–'}</strong></span></div>
-        <div className="job-list">{jobs.length === 0 ? <p className="popover-note">No jobs yet.</p> : jobs.map(job => <div key={job.id}><span>{jobLabel(job.state)}</span>{!['completed', 'failed', 'cancelled', 'needs_attention'].includes(job.state) && <button onClick={() => void jobAction(`/api/v1/jobs/${job.id}/cancel`)}>Cancel</button>}{job.error && <p>{job.error}</p>}{job.state === 'needs_attention' && !job.uncertainty_acknowledged && <button onClick={() => void jobAction(`/api/v1/jobs/${job.id}/acknowledge`)}>Continue without rerunning</button>}{job.uncertainty_acknowledged && <p>Acknowledged. This job will not be rerun.</p>}</div>)}</div>
+        <div className="job-list">{jobs.length === 0 ? <p className="popover-note">No jobs yet.</p> : jobs.map(job => <div key={job.id}><span>{jobLabel(job.state)}{job.state === 'running' && job.generation_percent !== undefined && <strong className="job-percent" title="Sampling progress; decoding and saving follow">{job.generation_percent}%</strong>}</span>{!['completed', 'failed', 'cancelled', 'needs_attention'].includes(job.state) && <button onClick={() => void jobAction(`/api/v1/jobs/${job.id}/cancel`)}>Cancel</button>}{job.error && <p>{job.error}</p>}{job.state === 'needs_attention' && !job.uncertainty_acknowledged && <button onClick={() => void jobAction(`/api/v1/jobs/${job.id}/acknowledge`)}>Continue without rerunning</button>}{job.uncertainty_acknowledged && <p>Acknowledged. This job will not be rerun.</p>}</div>)}</div>
         <button className="queue-control" onClick={() => void jobAction(`/api/v1/queue/${studio?.queue.paused ? 'resume' : 'pause'}`)}>{studio?.queue.paused ? 'Resume queue' : 'Pause queue'}</button>
         {studio?.safe_to_terminate === true && <p className="popover-note">Safe to stop the pod.</p>}
       </>}
