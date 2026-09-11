@@ -376,3 +376,19 @@ Validation: all 39 app tests and 17 helper tests pass after deletions; retained
 legacy Python helpers parse; no new broken local Markdown links to deleted files.
 No production code changed or GPU resources touched. See research/maintenance/
 REPO-CLEANUP-2026-09-10.md for inventory, exceptions and scope.
+
+
+### September 10 - self-contained Seed skill structure
+
+Owner approved skills/seed with SKILL.md, provider/setup references, scripts and
+a separate tests directory. Renamed vast helper/reference and updated imports,
+current documentation links and test commands; retained per-user/private state
+paths to preserve existing sessions. Rewrote instructions for an operator new to
+the repo: clone/access, prerequisites, masked setup, local startup, acquisition,
+expected status, pairing, queue readiness, teardown and recovery. RunPod provider
+tool dependency and remaining live-test limitations are explicit. No new model
+guide or product capability added.
+
+Validation: 17 Node helper tests and 3 Python adapter tests pass at their new
+paths; doctor confirms build/tools/credential presence; skill links resolve.
+No GPU allocated, app restarted or credentials changed.

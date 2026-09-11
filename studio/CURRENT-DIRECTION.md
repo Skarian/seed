@@ -2,7 +2,7 @@
 
 ## Adopted operating model — 10 September 2026
 
-The agent operates Vast **or RunPod** through the repository's [seed-gpu skill](../skills/seed-gpu/SKILL.md).
+The agent operates Vast **or RunPod** through the repository's [seed skill](../skills/seed/SKILL.md).
 One local browser app keeps permanent inputs/outputs/history; one authorized GPU
 runs generations. The UI does not acquire hardware. No Terraform, orchestrator
 service, multi-region replication or automatic provider failover.

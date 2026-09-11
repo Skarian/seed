@@ -54,14 +54,14 @@ has isolated tests; actual sign-in acceptance is still a user checkpoint.
 npm run typecheck
 npm run build
 npm test
-node --test skills/seed-gpu/scripts/seed-vast.test.mjs skills/seed-gpu/scripts/runpod.test.mjs
+node --test skills/seed/tests/vast.test.mjs skills/seed/tests/runpod.test.mjs
 npx playwright install chromium
 npm run test:browser
 ```
 
 Use the worker's requirements-test.txt and Python for worker development tests;
 Python is not a local end-user dependency. The Vast worker adapter has separate
-`skills/seed-gpu/scripts/test_worker.py` coverage. Browser tests use isolated data
+`skills/seed/tests/test_worker.py` coverage. Browser tests use isolated data
 and an alternate port. Tests do not establish that a paid GPU lifecycle works.
 
 ## Local package installation
@@ -81,7 +81,7 @@ builds are distinct: building this checkout does not update a global installatio
 
 ## Provider operations
 
-Read [seed-gpu](../skills/seed-gpu/SKILL.md). Vast uses the published image with a
+Read [seed](../skills/seed/SKILL.md). Vast uses the published image with a
 narrow compatibility adapter and a managed SSH launcher; RunPod reuses the
 private template/network volume and normal HTTPS protocol. Restore the Vast
 launcher before switching back to normal RunPod operation. No provider rental

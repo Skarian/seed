@@ -248,7 +248,7 @@ export class SeedVast {
 }
 export async function main(argv){
   const {values,positionals}=parseArgs({args:argv,allowPositionals:true,strict:true,options:{repo:{type:'string',default:process.cwd()},'offer-id':{type:'string'},'max-hourly':{type:'string'},'disk-gb':{type:'string',default:'180'},gpu:{type:'string',multiple:true}}});
-  const [command]=positionals;if(!commands.includes(command)||positionals.length!==1)throw new Error(`Usage: node seed-vast.mjs <${commands.join('|')}> --repo <checkout>`);
+  const [command]=positionals;if(!commands.includes(command)||positionals.length!==1)throw new Error(`Usage: node vast.mjs <${commands.join('|')}> --repo <checkout>`);
   let app;
   try{app=await new SeedVast(values.repo).init();}
   catch(error){if(command==='doctor')return {platform:process.platform,node:process.version,built:false,next:error.message};throw error;}

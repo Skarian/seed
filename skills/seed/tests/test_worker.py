@@ -4,7 +4,7 @@ import os
 from pathlib import Path
 import unittest
 
-spec = importlib.util.spec_from_file_location('seed_vast_worker', Path(__file__).with_name('worker.py'))
+spec = importlib.util.spec_from_file_location('seed_vast_worker', Path(__file__).resolve().parent.parent / 'scripts' / 'worker.py')
 worker = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(worker)
 REPO = Path(os.environ.get('SEED_REPO', Path.cwd()))

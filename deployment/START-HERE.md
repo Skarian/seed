@@ -1,7 +1,7 @@
 # RunPod deployment files
 
 For the current **Seed art studio**, start with [the repository README](../README.md)
-and [seed-gpu RunPod operations](../skills/seed-gpu/references/runpod.md).
+and [seed RunPod operations](../skills/seed/references/runpod.md).
 The current worker uses private-template setup in `server/pod-setup.ts` and code
 under `worker/`. It does not use the old Jupyter-authenticated ComfyUI proxy.
 

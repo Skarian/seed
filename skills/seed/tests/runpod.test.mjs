@@ -3,8 +3,8 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {SeedRunpod,podOrigin} from './runpod.mjs';
-import {saveJson} from './seed-vast.mjs';
+import {SeedRunpod,podOrigin} from '../scripts/runpod.mjs';
+import {saveJson} from '../scripts/vast.mjs';
 test('pod origin cannot redirect pairing secrets',()=>{assert.equal(podOrigin('abc123'),'https://abc123-8080.proxy.runpod.net');for(const value of ['https://other','../bad','abc:123',undefined])assert.throws(()=>podOrigin(value));});
 test('pod status never prints provider environment secrets',async()=>{const app=new SeedRunpod('.');app.api=async()=>({pods:[{id:'abc',status:'RUNNING',env:{HF_TOKEN:'private'}}]});app.local=async()=>({});assert.ok(!JSON.stringify(await app.status()).includes('private'));});
 test('pairing rejects a pod outside saved Seed template before contacting worker',async()=>{

@@ -2,13 +2,13 @@
 
 Seed is a local browser app for image and video generation on a disposable GPU.
 Your computer keeps uploads, results and history. An agent operates the GPU through
-the [seed-gpu skill](skills/seed-gpu/SKILL.md); the web UI does not rent or stop hardware.
+the [seed skill](skills/seed/SKILL.md); the web UI does not rent or stop hardware.
 
 ## Start from a checkout
 
 Open this repository with your coding agent and ask:
 
-> Read skills/seed-gpu/SKILL.md and set up Seed for Vast.
+> Read skills/seed/SKILL.md and set up Seed for Vast.
 
 Or choose RunPod. The agent checks dependencies, builds the app, helps you enter
 credentials privately, and starts the local UI. It needs Node **26.8.2–26.x** and,
@@ -78,7 +78,7 @@ new complete paid lifecycles still need validation. macOS has not been executed.
 - [MVP](STUDIO-MVP.md), [execution journal](studio/EXECUTION-PLAN.md): product scope and implementation evidence.
 - `web/`, `server/`, `shared/`: local UI, API, media/database and contracts.
 - `worker/`: authenticated ComfyUI worker, model preparation and job spool.
-- `skills/seed-gpu/`: agent entrypoint, provider instructions and Node helpers.
+- `skills/seed/`: agent entrypoint, provider instructions and Node helpers.
 - `studio/`: API, workflow, asset and release specifications.
 - `deployment/`: retained RunPod utilities and older direct-Comfy deployment;
   [legacy guide](deployment/LEAN-SETUP.md). Do not follow legacy startup instructions for the new Seed worker.

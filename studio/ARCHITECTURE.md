@@ -18,7 +18,7 @@ worker disk is temporary job storage and a reusable model cache where available.
 | `server/pod-setup.ts` | RunPod private template/network-volume setup; no runtime acquisition in UI |
 | `worker/` | Pinned model preparation, authenticated control, transfer spool and Jupyter |
 | `worker/comfy_seed/` | Comfy execution/session integration and native telemetry aggregation |
-| `skills/seed-gpu/` | Agent-operated Vast/RunPod setup, acquisition, connection and cleanup |
+| `skills/seed/` | Agent-operated Vast/RunPod setup, acquisition, connection and cleanup |
 | `tests/`, `worker/test_*.py` | Local regression tests; paid lifecycle checks are separate |
 
 Package versions and runtime are pinned in package.json/lockfile and the worker

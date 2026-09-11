@@ -3,7 +3,7 @@
 import path from 'node:path';
 import {fileURLToPath, pathToFileURL} from 'node:url';
 import {parseArgs} from 'node:util';
-import {readJson, requestJson, assertIdle} from './seed-vast.mjs';
+import {readJson, requestJson, assertIdle} from './vast.mjs';
 export function podOrigin(id){
   if(!/^[a-z0-9]+$/.test(id??''))throw new Error('Supply the exact RunPod pod ID.');
   return `https://${id}-8080.proxy.runpod.net`;
