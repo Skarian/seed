@@ -404,3 +404,12 @@ Scanned all 272 tracked files and traced the current entrypoints, dependencies a
 Implemented the first architecture-audit checkpoint. Normal Seed accepts the exact loopback SSH worker endpoint alongside RunPod HTTPS. Deleted the alternate studio.mjs launcher and Vast app restart/backup/restore code; connect and teardown now manage only the tunnel and pairing. Failed exchange retains the prior saved connection; teardown retains the app and connection. Operator docs explain the one-time restart for old launcher installations. The remote worker adapter remains for the next image checkpoint.
 
 Validation: build/typecheck passed; 41 application tests and 20 provider-helper tests passed. New coverage includes normal app startup with saved SSH connection, failed exchange persistence, tunnel-only connect and teardown. Fixed an initialization race in the new restart test found on the first suite run. No GPU rented or stopped; live provider lifecycle still requires an authorized GPU.
+
+
+## 2026-09-11 — Complete simplification follow-through
+
+Removed the retired direct-Comfy deployment tree (36 tracked files) while retaining current RunPod setup/template/volume support, base-image mirroring and all research. Removed the duplicate rebalanced prompting document. Reduced bootstrap/release runbooks to maintained responsibilities and linked the skill for operating instructions; corrected disposable-disk output semantics and stale skill names.
+
+Worker startup now supports explicit HTTPS/SSH modes and writable absolute workspaces without source patching. Local image build and CPU connection-page smoke tests passed for both modes. Worker tests: 32 passed, one Windows symlink skip. Fixed stale session-test mocks/expectations for existing progress hooks. Remote publication proceeds through the existing GitHub workflow after explicit user authorization; no GPU rental.
+
+The shared worker release pin replaces duplicated image constants. General provider helpers live in common.mjs, with no provider framework. Added npm run verify using existing runners and current-config secret scanning. Dense active modules were formatted for readability without a UI redesign. Build/typecheck, 41 app tests, 20 skill tests and secret scan passed. Browser validation and publication digest are recorded below when complete.

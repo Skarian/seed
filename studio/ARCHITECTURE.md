@@ -41,8 +41,7 @@ establish termination safety; disconnected never proves billing is off.
 RunPod uses the normal authenticated HTTPS worker protocol and a network volume.
 Vast uses an SSH tunnel to the fixed loopback endpoint on port 18080. Both
 providers use the normal app launcher; ending a Vast session stops the tunnel,
-leaving the app and its saved connection intact. A remote worker compatibility
-adapter remains until the image supports SSH-local startup directly. Both use the same local Library and job API; provider lifecycle stays
+leaving the app and its saved connection intact. The image supports both transports directly. Both use the same local Library and job API; provider lifecycle stays
 outside the browser UI. See the skill references for compatibility limits.
 
 ## Local application

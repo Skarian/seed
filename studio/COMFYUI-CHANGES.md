@@ -6,14 +6,14 @@ Revision 6. Text-to-image now has a native graph builder in server/workflows.ts,
 
 | Workflow/source | Exact bindings |
 |---|---|
-| Text to image: `deployment/krea2-t2i-api.json` | Preserve loaders1/2/3; prompt4; canvas6; seed/sampling7; content LoRAs after model1 before sampler7; output9 prefix `studio/<job-id>/image` |
-| Image to image: `deployment/krea2-edit-api.json` | Source10→VAE11; required identity LoRA12→patch13; target latent6 and sampler7; grounded conditioning4/5. Optional subject gets second LoadImage/VAEEncode wired into `source_image_b`/`source_latent_b` and both encoders' `image_b` |
+| Text to image: `server/workflows.ts` | Preserve loaders1/2/3; prompt4; canvas6; seed/sampling7; content LoRAs after model1 before sampler7; output9 prefix `studio/<job-id>/image` |
+| Image to image: historical identity graph (implementation pending) | Source10→VAE11; required identity LoRA12→patch13; target latent6 and sampler7; grounded conditioning4/5. Optional subject gets second LoadImage/VAEEncode wired into `source_image_b`/`source_latent_b` and both encoders' `image_b` |
 
 Preserve Krea create8steps and identity10steps, CFG1. Identity defaults `ref_boost=4`, `ref_boost_a=1`, fit; source scene first, subject second. Content LoRAs, if configured, follow required identity LoRA and precede patch. Validate quantized key coverage and influence before activation. Identity edit is not promised masked inpainting/general editing; mode can be unavailable. Do not expose a negative-prompt control that has no meaningful effect at CFG1.
 
 ## H3 adapters
 
-Sources: `deployment/minimax-text-api.json`, `minimax-image-api.json`, `test-ref2va-api.json`.
+Current graphs: `server/video.ts`. Historical exports remain in Git history and workflow research.
 
 Preserve model1, encoder2, VAEs3/4, route-specific turbo LoRA5 at existing strength0.8, conditioning/latent6, guider7, seed8, sampler9, schedule10, joint sampling11, decode12/13, export14. Content LoRAs go after5 and feed BOTH guider7 and schedule10. Never swap FL2VA and Ref2VA model/turbo assets by filename similarity.
 
@@ -69,7 +69,7 @@ Extend the existing personal custom-node integration with a process-local sessio
 
 Record a submission receipt before accepting studio work and an atomic successful-output manifest only after graph output writers have closed their complete artifacts. Include job/workspace/session IDs, relative output paths, expected sizes/types and terminal status; no startup hash scan. A failed graph never publishes a successful manifest, and leftover partial files do not count as success. Verify terminal hooks against the pinned execution code; a final export node can publish generation artifacts where appropriate, with failure receipts from the integration hook. Local source-soundtrack mux resumes after copying raw generation artifacts.
 
-These hooks keep manual stop/replacement from losing job meaning. They do not make generation resumable or exactly once. Existing authenticated admin UI remains an explicit maintenance surface; studio queue mutation is exclusive during normal use. The [bootstrap](POD-BOOTSTRAP.md) has no duplicate-pod guard or Tailscale component. Receipts/manifests and complete outputs survive pod replacement on the retained volume until durable PC receipt and cleanup. No provider credentials or compute lifecycle calls are added to the engine.
+These hooks keep manual stop/replacement from losing job meaning. They do not make generation resumable or exactly once. Existing authenticated admin UI remains an explicit maintenance surface; studio queue mutation is exclusive during normal use. The [bootstrap](POD-BOOTSTRAP.md) has no duplicate-pod guard or Tailscale component. Spool files survive replacement only if the underlying disk is retained. Destroying Vast disk loses unsaved outputs. No provider credentials or compute lifecycle calls are added to the engine.
 
 ### M4 native video implementation notes
 

@@ -1,102 +1,25 @@
-# seed setup, software release and model sources
+# Releases and infrastructure
 
-Revision 6. Local operator setup is implemented; live worker verification remains in progress. See [current direction](CURRENT-DIRECTION.md). Terraform, provider modules, OCI model artifacts and PC model-packaging are removed from the preferred plan.
+The local app owns user data; the agent operates one authorized GPU. No provider
+daemon, Terraform, model archives, automatic failover or UI rental controls.
+Provider setup and operating steps live in [the skill](../skills/seed/SKILL.md).
 
-## Simple setup
+`shared/worker-release.ts` is the authoritative immutable GHCR image reference for
+RunPod setup and Vast rental. Rebuild the app after changing it. The worker image
+contains explicit source/static files over the pinned public Comfy base; keep the
+mirror workflow because that base remains required. Models download separately
+from `worker/models.json`. Credentials are runtime inputs, never image contents.
 
-The local setup utility reads the per-user credentials.json populated by seed setup. RunPod and Hugging Face are required; Civitai is optional. Environment variables and optional .env import remain available for unattended/container setup; no .env or example is shipped and setup never writes one. It discovers existing resources, reuses the saved volume ID or asks the owner to select one, asks for data center/capacity, and shows current storage pricing before creating a new volume. Recommend capacity from unique model files plus temporary downloads, activation headroom and a bounded operational spool budget. Do not confuse that capacity estimate with a user upload-size limit. Save selected volume ID and generated pairing secret; rerunning never rotates secrets or duplicates resources automatically. After uncertain create results, reconcile before retrying.
+Build: `docker build -t seed-worker:candidate -f worker/Dockerfile worker`.
+The existing GitHub workflow publishes candidates after worker changes are pushed.
+Verify the candidate digest and startup modes before changing the release pin.
+CPU startup checks do not prove GPU generation; record live validation separately.
+Existing pods keep their image. RunPod owners rerun `seed pod-setup` to update the
+private template; future Vast rentals use the built application's pin. Recreate
+old instances after saving outputs when their bootstrap contract changes.
 
-Print the shared template link and explicit instructions for selecting the volume/GPU and supplying pairing/download credentials. No local model download, packing, S3 preload or pod provisioning in this utility. Preflight model metadata/access without downloading weights. No RunPod API key in the GPU worker or web request handler.
-
-## Published software
-
-Keep one complete pinned GHCR image for the worker, ComfyUI, custom nodes, Jupyter, media tools and HF download client. Pin compatible workflows/model manifest with it. Normal start must not run apt/pip/git updates. Audit inherited launcher downloads and mount overrides. Models remain separate files downloaded directly onto the reusable volume; no ORAS, model mirroring or large archive construction.
-
-## Hugging Face source inventory
-
-Checked against local graph filenames and upstream listings on 9 September 2026. File availability is not proof of byte identity with installed copies or successful authenticated download. Resolve/pin full revisions and size/integrity metadata before implementation.
-
-| Required assets | Located source |
-|---|---|
-| Krea turbo INT8, Qwen3VL 4B encoder, Qwen image VAE | [Comfy-Org/Krea-2](https://huggingface.co/Comfy-Org/Krea-2/tree/main); exact existing references in deployment/krea2-assets.json |
-| Identity Edit v1.2 LoRA | [conradlocke/krea2-identity-edit](https://huggingface.co/conradlocke/krea2-identity-edit) |
-| H3 FL2VA and Ref2VA pruned INT8 ConvRot | [Comfy-Org/MiniMax-H3 diffusion models](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/diffusion_models) |
-| H3 Qwen3VL 32B INT8 ConvRot encoder | [H3 text encoders](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/text_encoders) |
-| H3 video FP16/audio FP32 VAEs | [H3 VAEs](https://huggingface.co/Comfy-Org/MiniMax-H3/tree/main/vae) |
-| Exact FL2V 8-step 768p Comfy LoRA | [lightx2v file](https://huggingface.co/lightx2v/Minimax-h3-Turbo/blob/main/minimax_h3_fl2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors) |
-| Exact Ref2V 8-step 768p Comfy LoRA | [lightx2v file](https://huggingface.co/lightx2v/Minimax-h3-Turbo/blob/main/minimax_h3_ref2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors) |
-| Owner-selected SFW/NSFW content LoRAs | Not selected/verified; current example uses Civitai. HF-only coverage is not established. |
-
-Use [HF download tooling](https://huggingface.co/docs/huggingface_hub/guides/cli) and a [read/fine-grained token](https://huggingface.co/docs/hub/security-tokens) for necessary access. Public ungated files do not inherently require a token. Gated access must be approved for the owner's account; a token alone does not grant it. Keep tokens out of public templates, logs and pairing payloads. Configure them privately on deployment. Source-specific content LoRAs can require their own credentials; do not silently substitute or mirror files.
-
-Stage missing files, verify new downloads, then promote complete artifacts. Use completed metadata for warm starts, without full hash scans. Cache/download metadata live on the volume to avoid duplicate copies. Never download entire model repositories with unused precision variants. Existing models and spool data survive replacement. No generation as startup verification.
-
-## Evidence gates
-
-- Preflight exact required assets and owner access before paid setup; test actual cold downloads later.
-- Empty volume becomes usable; interrupted preparation retries safely; complete cache performs no model downloads.
-- Changed LoRA fetches only missing assets and atomically activates a complete preset; queued jobs retain settings.
-- Connection page stays reachable during preparation and pairs before engine readiness.
-- Output transfers survive PC disconnect and pod replacement on the same volume; repeated receipt/cleanup is harmless.
-- Local studio works with GPU off and supports ordinary reverse-proxy hosting. The owner supplies external hosting separately.
-
-Home-hosted model distribution remains an alternative only if selected later; it is not a second downloader to build now.
-
-## Owner LoRA updates
-
-Use the [Civitai REST API](https://github.com/civitai/civitai/wiki/REST-API-Reference) to resolve configured model-version/file IDs, download metadata and authenticated download locations. Download only explicitly selected assets on the pod into the reusable volume. Keep credentials separate from manifests/logs. Do not auto-upgrade to latest or rebuild the runtime image for a LoRA change. Pin the selection, stage/verify, then activate a complete compatible preset while dispatch is paused. Existing queued jobs retain their frozen preset. Exact current API fields and private/gated download behavior require live validation.
-
-## GitHub publication layout
-
-GHCR is GitHub Container Registry, part of the GitHub publishing setup. Use the GitHub repository for source/plans, npm for the seed CLI package (GitHub Releases may carry release notes), and a public GHCR package for the RunPod worker container. The npm CLI package is not a container-registry image reference. Public worker images allow anonymous pulls, so a deployment does not need a private GHCR pull credential; publishing still needs authorized GitHub access.
-
-The owner is comfortable with public software artifacts. Repository visibility is separate from package visibility: retain current repository visibility until its source/history and private operational material have been reviewed as part of the publication decision. Do not publish personal media, credentials, local configuration or model weights. This note does not change remote visibility or publish anything.
-
-References: [GitHub Container Registry](https://docs.github.com/en/packages/working-with-a-github-packages-registry/working-with-the-container-registry), [GitHub Releases](https://docs.github.com/en/repositories/releasing-projects-on-github/about-releases).
-
-## Worker package name
-
-New seed worker releases use `ghcr.io/skarian/seed-worker` to match the application
-name and distinguish the GPU worker from the local npm CLI. The source repository
-remains `Skarian/runpod`. `ghcr.io/skarian/runpod-studio` is retained for the old
-pod template and the immutable base image used by the worker Dockerfile; do not
-rewrite those historical references or remove their package. Candidate publication
-must be followed by an anonymous pull check before recording a usable release.
-
-## Operator setup commands (M2)
-
-Run `seed setup` once to collect required RunPod/HF and optional Civitai credentials.
-Then run `seed pod-setup` (or `seed pod-setup --volume ID`). It HEAD-checks all 11
-pinned HF files, reuses the saved selection or the only existing volume, and saves
-one pairing secret plus a separate Jupyter token in per-user `pod-deployment.json`.
-No weights are downloaded locally and no compute starts. Provider credentials
-remain in `credentials.json`.
-
-`seed pod-setup --create` lists standard-storage datacenters, asks for capacity,
-reads the current first-TB rate from RunPod's pricing document and displays a
-conservative monthly upper estimate before explicit confirmation. Recommended
-capacity is the 99.62 GB model inventory plus 30 GB working space, rounded to
-150 GB. Existing unrelated files and later LoRA revisions can need more space.
-A saved creation intent prevents blind retries after a lost response. If no
-unambiguous resource can be found, inspect RunPod Storage and select the correct
-ID. An unrelated selection never erases that unresolved intent. If the provider
-confirms creation failed, remove only `pod-volume-intent.json` before retrying.
-
-Run `seed pod-setup --show-secrets` only in a private terminal to display the
-worker environment values to paste into deployment settings. It omits the
-RunPod API key. Do not put these values into shared templates or Git.
-
-[Shared M2 candidate template](https://console.runpod.io/deploy?template=tt0cmuwu3t):
-select your network volume at `/workspace`, exactly one compatible GPU in its
-datacenter, and add the printed private environment values. The template exposes
-8080 (seed pairing) and 8888 (separately authenticated Jupyter), uses a 30 GB
-container disk and pins the public seed-worker image. Raw ComfyUI stays private.
-The candidate supports the M2 connection test; it is not the four-workflow release.
-Open 8080, unlock with SEED_PAIRING_SECRET, copy a fresh code into the local seed
-connection popover. JUPYTER_TOKEN is only for administration on 8888.
-
-Keep the network volume when terminating a pod. A replacement uses the same
-setup values and volume but requires a fresh connection code. Setup does not
-start, stop, migrate or terminate compute.
-
-Current launch procedure (supersedes public-template instructions): run `seed pod-setup` to create/update your private seed template and reuse the model volume. Credentials are populated automatically. Launch that template with the saved network volume and one GPU. The image is public; the template is private. Rerun setup after credential or worker-version changes. `--show-secrets` remains available for recovery only.
+Local distribution uses `npm pack` and local npm installation until registry
+publication is enabled. Rebuild/reinstall and restart the idle app; user data stays
+outside the package. Keep the installed skill synchronized and remove obsolete
+helpers. See [development](DEVELOPMENT.md) for checks and [execution journal](EXECUTION-PLAN.md)
+for decisions and evidence. Public hosting remains owner-managed.

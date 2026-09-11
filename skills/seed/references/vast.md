@@ -97,10 +97,10 @@ changes, inspect scripts/vast.mjs; do not improvise credential-bearing shell com
 
 ## Current evidence and limits
 
-The pinned image needs a small Vast compatibility adapter because SSH launch mode
-replaces its command. The helper binds services to loopback and uses Seed's existing
-managed development transport through SSH. This is not yet a general production
-transport setting. Incompatible worker entrypoints fail rather than being patched blindly.
+The worker supports explicit SSH startup and loopback binding. The helper passes
+configuration through SSH and starts it without modifying source. Use the image
+pinned by the built application; older retained images need replacement after
+outputs are saved. CPU startup checks do not establish GPU generation performance.
 
 The manual RTX PRO 6000 trial downloaded/verified 99.62 GB in 5m15s and generated
 a 15-second mixed-reference video in 13m23s. These are one-machine observations,

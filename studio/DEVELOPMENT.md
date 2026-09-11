@@ -2,7 +2,7 @@
 
 ## Build and run
 
-Use Node 26.8.2–26.x (see `.node-version` and package.json):
+Use Node 26.8.2â€“26.x (see `.node-version` and package.json):
 
 ```sh
 npm ci
@@ -60,8 +60,8 @@ npm run test:browser
 ```
 
 Use the worker's requirements-test.txt and Python for worker development tests;
-Python is not a local end-user dependency. The Vast worker adapter has separate
-`skills/seed/tests/test_worker.py` coverage. Browser tests use isolated data
+Python is not a local end-user dependency. Worker startup tests live with the
+worker regression suite. Browser tests use isolated data
 and an alternate port. Tests do not establish that a paid GPU lifecycle works.
 
 ## Local package installation
@@ -82,10 +82,20 @@ builds are distinct: building this checkout does not update a global installatio
 ## Provider operations
 
 Read [seed](../skills/seed/SKILL.md). Vast uses the published image with a
-remote worker compatibility adapter and a managed SSH tunnel; RunPod reuses the
+private worker bootstrap and a managed SSH tunnel; RunPod reuses the
 private template/network volume and HTTPS protocol. Both use the normal app
 launcher and replace connections through the same pairing API. No provider rental
 controls are added to the web UI. Never present paused/disconnected as billing off.
 
 API, asset and workflow specifications remain in this directory; historical
 implementation decisions and test evidence belong in EXECUTION-PLAN.md.
+
+## Complete offline checks
+
+Create `.local/worker-venv` with `python -m venv .local/worker-venv`, then use
+that environment's Python to install `-r worker/requirements-test.txt`.
+Run `npm run verify`: build, typecheck, app tests, skill tests, worker tests and
+current-credential secret scan. It stops on failure. Set `SEED_PYTHON` to use a
+different prepared Python environment. Browser tests and paid GPU validation are
+separate. Pytest uses a fresh directory under `.local/tests` rather than shared
+system temp state. The secret check prints file names and match types, not values.

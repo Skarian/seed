@@ -11,7 +11,7 @@ Open this repository with your coding agent and ask:
 > Read skills/seed/SKILL.md and set up Seed for Vast.
 
 Or choose RunPod. The agent checks dependencies, builds the app, helps you enter
-credentials privately, and starts the local UI. It needs Node **26.8.2–26.x** and,
+credentials privately, and starts the local UI. It needs Node **26.8.2â€“26.x** and,
 for Vast, OpenSSH. No local Docker or Python is required to use the published worker.
 
 The equivalent source commands, from the repository root:
@@ -80,8 +80,8 @@ new complete paid lifecycles still need validation. macOS has not been executed.
 - `worker/`: authenticated ComfyUI worker, model preparation and job spool.
 - `skills/seed/`: agent entrypoint, provider instructions and Node helpers.
 - `studio/`: API, workflow, asset and release specifications.
-- `deployment/`: retained RunPod utilities and older direct-Comfy deployment;
-  [legacy guide](deployment/LEAN-SETUP.md). Do not follow legacy startup instructions for the new Seed worker.
+- RunPod setup is retained in `server/pod-setup.ts` and the Seed skill. The retired
+  direct-Comfy deployment path is available in Git history.
 - [Research](research/README.md): model/LLM research and infrastructure measurements.
 - `prompting/`: model prompting guides.
 

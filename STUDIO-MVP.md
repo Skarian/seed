@@ -47,13 +47,13 @@ Install Seed from a locally packed npm artifact and use the system Node.js runti
 
 ## Deployment and storage
 
-The agent operates Vast or RunPod through seed-gpu, with one authorized GPU and no provider lifecycle controls in the UI. Vast uses disposable local disk and SSH; RunPod reuses a private template and network volume. RunPod setup shows storage cost before creating anything. No Terraform, model packaging, external storage service or automatic provider failover.
+The agent operates Vast or RunPod through the seed skill, with one authorized GPU and no provider lifecycle controls in the UI. Vast uses disposable local disk and SSH; RunPod reuses a private template and network volume. RunPod setup shows storage cost before creating anything. No Terraform, model packaging, external storage service or automatic provider failover.
 
 Preferred model source is direct Hugging Face download into the volume, with read credentials where needed and explicit exceptions for owner-selected LoRAs. No mandatory local model copies. Keep the GHCR software image and pinned dependency/model manifests. See [source inventory](studio/RELEASE-AND-INFRASTRUCTURE.md).
 
 A port-8080 connection page is available while preparation runs. The skill unlocks it and exchanges a short-lived single-use code for a worker credential automatically. Manual copying remains a fallback. Browser refresh retains the connection; replacement workers require pairing. Jupyter stays separate for administration.
 
-Permanent uploads, prepared media, generated results and SQLite records live on PC disk. A temporary volume spool retains pending completed outputs across replacement. Delete worker copies only after durable local receipt; retry transfers/acknowledgments without duplicate Library entries. No automatic regeneration of ambiguous jobs.
+Permanent uploads, prepared media, generated results and SQLite records live on PC disk. The worker spool retains outputs until local receipt. RunPod volume retention can preserve it across replacement; destroying Vast disk loses unsaved outputs. Delete worker copies only after durable local receipt; retry transfers/acknowledgments without duplicate Library entries. No automatic regeneration of ambiguous jobs.
 
 Worker status: Preparing, Ready, Busy, Disconnected. Job progress distinguishes uploading/input saved/sending/queued/generating/retrieving/verifying/saved/cleanup/complete. Safe to terminate requires paused dispatch, no active work and no unsaved outputs based on fresh observation. Cleanup-only failure does not make saved data unsafe. Disconnected is not proof of safety or billing shutdown.
 
