@@ -392,3 +392,8 @@ guide or product capability added.
 Validation: 17 Node helper tests and 3 Python adapter tests pass at their new
 paths; doctor confirms build/tools/credential presence; skill links resolve.
 No GPU allocated, app restarted or credentials changed.
+
+
+## 2026-09-10 — Architecture baggage audit
+
+Scanned all 272 tracked files and traced the current entrypoints, dependencies and provider lifecycle. [Audit and prioritized simplification](../research/maintenance/REPO-ARCHITECTURE-AUDIT-2026-09-10.md). Main findings: remove the alternate Vast app launcher/connection restoration, replace remote worker source patching with supported configuration, and retire the old direct-Comfy deployment path while keeping current RunPod support. Research and durable job/media handling remain useful. No runtime changes or GPU operations in this audit. Typecheck and all 17 provider-helper tests passed; paid end-to-end validation remains outstanding.
