@@ -79,7 +79,13 @@ start Seed and reconnect if the GPU is still running. Sleep does not stop billin
 
 ## Recover without losing work
 
-- **SSH/boot failure:** use status and inspect the same instance. Don't rent another
+- **SSH/boot failure:** use status and inspect the same instance. Startup repairs
+  root ownership and restrictive modes on Vast-injected authorized_keys. If logs
+  show bad ownership/modes, an existing container may need an updated onstart via
+  `/instances/update_template/ID/` (include the image) and authorized in-place
+  recycle; reboot alone does not regenerate the startup script. Preserve work
+  before any recycle. Request logs via `/instances/request_logs/ID/` including
+  its trailing slash. Don't rent another
   GPU to fix an SSH problem. Retry boot after resolving readiness/access.
 - **Connect failure:** local ports 18080/18888 must be free. The helper stops its
   tunnel after a failed connection attempt; a failed code exchange preserves the

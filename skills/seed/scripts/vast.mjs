@@ -174,7 +174,7 @@ export function sshArgs(instance, key, knownHosts) {
     "-o",
     "StrictHostKeyChecking=accept-new",
     "-o",
-    `UserKnownHostsFile=${knownHosts}`,
+    `UserKnownHostsFile="${knownHosts.replaceAll("\\", "/").replaceAll('"', '\\"')}"`,
     `root@${instance.public_ipaddr}`,
   ];
 }
@@ -461,7 +461,7 @@ export class SeedVast {
       disk,
       label: "seed-agent",
       runtype: "ssh_direc ssh_proxy",
-      onstart: "echo Seed ready for private configuration",
+      onstart: "chown root:root /root/.ssh /root/.ssh/authorized_keys && chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys",
       cancel_unavail: true,
       env: {},
     });

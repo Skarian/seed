@@ -416,3 +416,8 @@ The shared worker release pin replaces duplicated image constants. General provi
 
 
 Completion evidence: GitHub run https://github.com/Skarian/runpod/actions/runs/34564842278 published `ghcr.io/skarian/seed-worker@sha256:212ec3c491923e70d6e6c0a621b01c5743894878af873a5fa2e5053dec3c83a8`. Pulled that digest anonymously and verified both connection-service modes in CPU-only network-disabled containers. Updated the single release pin. All 18 browser tests passed; desktop/mobile/viewer screenshots inspected. The remaining live check is model loading and generation on an authorized GPU, not an unfinished source refactor. No existing RunPod template or pod was changed. Net tracked files drop from 272 to 237 for this follow-through; research and user data remain intact.
+
+
+## 2026-09-11 — Virginia live startup corrections
+
+Reserved Vast instance 50601850, offer 47084317, RTX PRO 6000 S 96 GB/600 W, $1.664/h including 180 GB disk. No other active GPU. Live SSH revealed two issues: quote UserKnownHostsFile for OpenSSH parsing of Windows paths with spaces, and repair ownership/modes of Vast-injected authorized_keys at onstart. Regression tests include real ssh -G parsing. Logs confirmed bad ownership/modes despite matching attached public key. Updated onstart through update_template with explicit existing image; reboot does not regenerate its script. In-place recreation is awaiting user approval after automatic review rejection. Worker/model preparation has not started; no generation submitted.

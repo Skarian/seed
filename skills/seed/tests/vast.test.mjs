@@ -41,7 +41,7 @@ test('HTTP keeps auth/body and rejects redirects; service errors never print res
 test('SSH preserves paths with spaces as arguments and rejects invalid network addresses',()=>{
   const instance={public_ipaddr:'127.0.0.1',ports:{'22/tcp':[{HostPort:'40395'}]}};
   const args=sshArgs(instance,'/a path/my key','/a path/known hosts');
-  assert.equal(args[1],'/a path/my key');assert.ok(args.includes('UserKnownHostsFile=/a path/known hosts'));
+  assert.equal(args[1],'/a path/my key');assert.ok(args.includes('UserKnownHostsFile="/a path/known hosts"'));
   assert.throws(()=>sshArgs({...instance,public_ipaddr:'host; command'},'key','hosts'));
 });
 test('subprocess passes empty and special arguments literally, without a shell',async()=>{
@@ -70,7 +70,7 @@ test('ambiguous rental is journaled and cannot allocate again on retry',async()=
     await saveJson(ops.key,{});await saveJson(ops.key+'.pub',{});
     const offer={id:42,machine_id:7,gpu_name:'RTX PRO 6000 WS',num_gpus:1,dph_total:1.45};
     await saveJson(path.join(ops.work,'offers.json'),[offer]);ops.instances=async()=>[];
-    let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))return {offers:[offer]};if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);creations++;throw new Error('lost response');}return {success:true};};
+    let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))return {offers:[offer]};if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);assert.match(body.onstart,/chmod 600/);creations++;throw new Error('lost response');}return {success:true};};
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/lost response/);
     assert.equal((await readJson(ops.stateFile)).offer_id,42);
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/uncertain attempt/);assert.equal(creations,1);
@@ -117,4 +117,10 @@ test('destroy stops the tunnel and retains the saved connection without app life
     assert.deepEqual(await readJson(ops.connectionFile),saved);
     assert.deepEqual(calls,[['POST','/api/v1/queue/pause'],['GET','/api/v1/studio'],['DELETE','/api/v0/instances/42/'],['tunnel','stop']]);
   }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('OpenSSH parses the complete known-hosts path with spaces',async()=>{
+  const args=sshArgs({public_ipaddr:'127.0.0.1',ports:{'22/tcp':[{HostPort:22}]}},'/a path/key','/a path/known hosts');
+  const config=await run('ssh',['-G',...args]);
+  assert.match(config,/userknownhostsfile \"?\/a path\/known hosts/);
 });
