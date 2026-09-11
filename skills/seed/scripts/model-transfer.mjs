@@ -6,12 +6,20 @@ import {pipeline} from 'node:stream/promises';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import path from 'node:path';
 
-export async function transferModels(repo, paths, ssh, {workspace='/workspace',say=console.log}={}) {
-  const {requireModelCache,modelFile}=await import(pathToFileURL(path.join(repo,'dist/server/model-cache.js')));
-  const entries=await requireModelCache(paths);
-  // URLs and source credentials never leave the PC.
+export async function transferModels(repo, paths, ssh, {workspace='/workspace',say=console.log,invoke:providedInvoke}={}) {
+  const {modelManifest,modelFile,cached,downloadModel}=await import(pathToFileURL(path.join(repo,'dist/server/model-cache.js')));
+  const entries=await modelManifest(paths);
+  const {settings}=await import(pathToFileURL(path.join(repo,'dist/server/settings.js')));
+  const fallback=settings(paths).localModelCache === true;
+  let credentials={};
+  try { credentials=JSON.parse(await readFile(path.join(paths.config,'credentials.json'),'utf8')); }
+  catch(error) { if(error.code !== 'ENOENT') throw Error('Cannot read local source credentials.'); }
+  const tokenFor=item=>new URL(item.url).hostname==='huggingface.co'
+    ? (process.env.HF_TOKEN || credentials.huggingFaceToken || '')
+    : (process.env.CIVITAI_API_TOKEN || credentials.civitaiApiToken || '');
+  // Persist only integrity metadata remotely; send each source token over SSH stdin.
   const metadata=entries.map(({url,...item})=>item);
-  async function invoke(command,input){
+  async function sshInvoke(command,input){
     const child=spawn('ssh',[...ssh,command],{windowsHide:true,stdio:['pipe','pipe','pipe']});
     const output=[];let size=0;
     child.stdout.on('data',b=>{size+=b.length;if(size<1024*1024)output.push(b);});
@@ -20,6 +28,7 @@ export async function transferModels(repo, paths, ssh, {workspace='/workspace',s
     await Promise.all([pipeline(input,child.stdin),completion]);
     return Buffer.concat(output).toString('utf8');
   }
+  const invoke=providedInvoke ?? sshInvoke;
   await invoke('umask 077; cat > /root/seed-model-receiver.py',Readable.from([await readFile(new URL('./model_receiver.py',import.meta.url))]));
   const request=async body=>JSON.parse(await invoke('/opt/venv/bin/python /root/seed-model-receiver.py',Readable.from([JSON.stringify({workspace,...body})+'\n'])));
   say('Checking models already on the VM…');
@@ -28,6 +37,19 @@ export async function transferModels(repo, paths, ssh, {workspace='/workspace',s
     const state=remote.find(x=>x.path===item.path);
     if(!state || !Number.isSafeInteger(state.offset)||state.offset<0||state.offset>item.size)throw Error('Invalid VM transfer response.');
     if(state.ready){say(`Already on VM: ${item.path}`);continue;}
+    say(`Downloading directly on GPU: ${item.path}`);
+    const started=Date.now();
+    const heartbeat=setInterval(()=>say(`GPU is downloading/verifying ${item.path} (${Math.round((Date.now()-started)/1000)}s)`),30000);
+    let direct;
+    try { direct=await request({action:'download',item,token:tokenFor(item)}); }
+    finally { clearInterval(heartbeat); }
+    if(direct.ready === true){say(`Verified on GPU: ${item.path} (${direct.seconds}s)`);continue;}
+    if(!fallback) throw Error(`Direct download failed for ${item.path}. Local fallback is disabled; retry boot or enable it with seed setup --cache-models.`);
+    say(`Direct download failed; using PC fallback for ${item.path}.`);
+    if(!await cached(paths,item)) {
+      say(`Downloading and verifying missing PC copy: ${item.path}`);
+      await downloadModel(paths,item,tokenFor(item));
+    }
     say(`Sending ${item.path} (${(state.offset/1e9).toFixed(2)}/${(item.size/1e9).toFixed(2)} GB)`);
     const {url,...info}=item;
     async function* content(){

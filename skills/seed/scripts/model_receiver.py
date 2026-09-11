@@ -1,4 +1,4 @@
-"""Receive verified model files over SSH; no model-source credentials or network calls."""
+"""Prepare verified models over SSH. Source tokens arrive only through stdin."""
 import hashlib
 import json
 import os
@@ -85,6 +85,95 @@ def receive(workspace, item, offset, stream):
     return {'path':item['path'], 'ready':True, 'bytes':item['size']}
 
 
+def direct_download(workspace, item, token, fetch=None):
+    """Download one pinned asset; never persist or echo the supplied token."""
+    import time
+    from urllib.parse import urlsplit, parse_qs
+    target, partial = locations(workspace, item)
+    if probe(workspace, [item])[0]['ready']:
+        return {'ready': True, 'seconds': 0}
+    url = urlsplit(item['url'])
+    stage = Path(workspace).resolve() / '.seed/downloads' / item['sha256']
+    if not stage.resolve().is_relative_to(Path(workspace).resolve()):
+        raise ValueError('Staging leaves workspace')
+    stage.mkdir(parents=True, exist_ok=True)
+    started = time.monotonic()
+    try:
+        if url.scheme != 'https' or url.username or url.password or url.fragment:
+            raise ValueError('Invalid source')
+        if url.netloc == 'huggingface.co':
+            os.environ['HF_XET_CHUNK_CACHE_SIZE_BYTES'] = '0'
+            os.environ['HF_DEBUG'] = '0'
+            os.environ['HF_HUB_DISABLE_PROGRESS_BARS'] = '1'
+            sys.path.insert(0, '/opt/seed')
+            from worker.prepare import hf_fetch, source
+            _, _, filename = source(item)
+            if any(not re.fullmatch(r'[A-Za-z0-9_][A-Za-z0-9_.-]*', p) or p in ('.','..') for p in filename.split('/')):
+                raise ValueError('Invalid source filename')
+            # No login() or token file. The library receives the token as an argument.
+            downloaded = Path((fetch or hf_fetch)(item, stage, token))
+        elif url.netloc == 'civitai.com':
+            query = parse_qs(url.query)
+            if not re.fullmatch(r'/api/download/models/[0-9]+', url.path) or set(query) != {'fileId'} or len(query['fileId']) != 1 or not query['fileId'][0].isdigit():
+                raise ValueError('Unpinned Civitai source')
+            downloaded = Path((fetch or civitai_fetch)(item, stage, token))
+        else:
+            raise ValueError('Unsupported source')
+        if not downloaded.resolve().is_relative_to(stage.resolve()):
+            raise ValueError('Download leaves staging')
+        if not verified(downloaded, item):
+            downloaded.unlink(missing_ok=True)
+            raise ValueError('Integrity check failed')
+        target.parent.mkdir(parents=True, exist_ok=True)
+        os.replace(downloaded, target)
+        partial.unlink(missing_ok=True)
+        save_receipt(workspace, item, target)
+        return {'ready': True, 'seconds': round(time.monotonic()-started, 2)}
+    except Exception:
+        # Upstream exception strings can contain signed URLs; never return them.
+        return {'ready': False, 'error': 'Direct download or verification failed', 'seconds': round(time.monotonic()-started, 2)}
+
+
+def civitai_fetch(item, stage, token):
+    import urllib.request
+    import urllib.error
+    from urllib.parse import urlsplit, urljoin
+    class NoRedirect(urllib.request.HTTPRedirectHandler):
+        def redirect_request(self, *args, **kwargs): return None
+    opener = urllib.request.build_opener(NoRedirect)
+    partial = stage / 'civitai.part'
+    offset = partial.stat().st_size if partial.exists() else 0
+    if offset >= item['size']:
+        if verified(partial, item): return partial
+        partial.unlink(); offset = 0
+    url = item['url']
+    for attempt in range(6):
+        headers = {'Range': f'bytes={offset}-'} if offset else {}
+        if attempt == 0 and token: headers['Authorization'] = 'Bearer ' + token
+        try:
+            response = opener.open(urllib.request.Request(url, headers=headers), timeout=120)
+            break
+        except urllib.error.HTTPError as exc:
+            if exc.code not in (301,302,303,307,308): raise
+            location = exc.headers.get('Location'); exc.close()
+            if not location: raise ValueError('Missing redirect')
+            url = urljoin(url, location); parsed = urlsplit(url)
+            if parsed.scheme != 'https' or parsed.username or parsed.password: raise ValueError('Invalid redirect')
+    else: raise ValueError('Too many redirects')
+    with response:
+        append = offset > 0 and response.status == 206
+        if response.status == 206 and response.headers.get('Content-Range') != f"bytes {offset}-{item['size']-1}/{item['size']}":
+            raise ValueError('Invalid resumed response')
+        size = offset if append else 0
+        with partial.open('ab' if append else 'wb') as handle:
+            while chunk := response.read(1024*1024):
+                size += len(chunk)
+                if size > item['size']: raise ValueError('Response exceeds pinned size')
+                handle.write(chunk)
+            handle.flush(); os.fsync(handle.fileno())
+    return partial
+
+
 def activate(workspace, entries):
     # Only preset files already verified on this VM can become active.
     import urllib.request
@@ -129,6 +218,7 @@ if __name__ == '__main__':
         action=incoming['action']; workspace=incoming['workspace']
         if action=='probe': result=probe(workspace,incoming['entries'])
         elif action=='receive': result=receive(workspace,incoming['item'],incoming['offset'],sys.stdin.buffer)
+        elif action=='download': result=direct_download(workspace,incoming['item'],incoming.get('token',''))
         elif action=='activate': result=activate(workspace,incoming['entries'])
         else: raise ValueError('Unknown action')
         print(json.dumps(result))

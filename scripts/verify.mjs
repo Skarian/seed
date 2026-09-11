@@ -25,6 +25,7 @@ for (const [command, args] of [
       "--test",
       "skills/seed/tests/vast.test.mjs",
       "skills/seed/tests/runpod.test.mjs",
+      "skills/seed/tests/model-transfer.test.mjs",
     ],
   ],
   [

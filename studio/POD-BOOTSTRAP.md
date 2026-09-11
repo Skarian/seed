@@ -12,11 +12,12 @@ The same pinned image runs on reusable RunPod volumes or disposable Vast disk.
 
 The workspace must be absolute and writable, not necessarily a mount point.
 Private pairing and Jupyter secrets require at least 24 characters. New bootstraps
-keep HF/Civitai/provider keys on the PC and send verified files over SSH. Existing
+send HF/Civitai tokens per download over SSH stdin without saving them on the VM.
+Provider keys stay on the PC. Existing
 token-supplied workers remain compatible; changing code does not remove their keys.
 
 `worker/run.py` serves the connection page while waiting for or verifying models. Jupyter is a
-separate administration tool. Without HF_TOKEN, `prepare.py` waits for PC-delivered
+separate administration tool. Without HF_TOKEN, `prepare.py` waits for externally prepared
 manifest files and verifies/reuses them; it makes no model-source requests. Comfy starts privately after preparation; child
 processes do not inherit download/pairing secrets. The Vast bootstrap supplies
 secrets through SSH stdin and invokes the entrypoint without rewriting source.
@@ -24,8 +25,9 @@ secrets through SSH stdin and invokes the entrypoint without rewriting source.
 Local Hugging Face acquisition uses the official hf CLI/Xet; Civitai remains a
 separate HTTP source. Both verify hashes before files enter the transferable cache.
 
-The PC owns the model cache, originals, prepared media, results and SQLite history.
-Vast boot transfers missing files before starting the worker. RunPod may start
+The PC owns the optional model cache, originals, prepared media, results and SQLite history.
+Vast boot reuses verified files and attempts direct downloads before starting the
+worker. Failed downloads use PC download/transfer only when local fallback is enabled. RunPod may start
 first and wait for transfer; direct SSH access is currently operator-managed. Worker spool
 files retain outputs until durable PC receipt; acknowledgment and cleanup are
 repeatable. A retained RunPod volume can preserve spool files across replacement.

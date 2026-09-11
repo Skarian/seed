@@ -37,8 +37,9 @@ Run app commands from REPO. Helper commands work from any directory with `--repo
 ## Open the studio
 
 1. Check the local app and any existing GPU connection. Reuse a working session.
-2. Complete local model setup before renting compute; weights and model-source
-   credentials stay on the PC, and missing files are pushed over SSH. If compute is needed, use the user's chosen provider or compare both when
+2. Setup offers an optional local model cache and downloads it when enabled.
+   GPU preparation reuses remote files, tries direct downloads, then uses the
+   PC fallback only when enabled. If compute is needed, use the user's chosen provider or compare both when
    requested. Follow [Vast](references/vast.md) or [RunPod](references/runpod.md).
    Consider hourly price, startup time and generation speed. Explain the selected
    offer and act within the user's spending authorization; obtain missing access
@@ -65,7 +66,9 @@ not stop GPU charges.
 ## Working boundaries
 
 The web UI makes art; the agent acquires compute. Credentials stay in private
-local configuration and are never pasted into chat or committed. Resolve uncertain
+local configuration and are never pasted into chat or committed. Model-source
+tokens may be supplied transiently to download processes over SSH stdin; do not
+put them in provider templates or command arguments. Resolve uncertain
 rental attempts by inspecting provider state before creating another instance.
 If a provider fails, report the issue and continue within the user's authorized
 alternatives instead of leaving an unexplained running bill.

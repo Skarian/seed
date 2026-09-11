@@ -64,3 +64,22 @@ test('fresh Vast setup needs no RunPod key and remembers provider on rerun', asy
   expect(JSON.parse(readFileSync(path.join(root, 'config/credentials.json'), 'utf8')).runpodApiKey).toBeUndefined();
   await expect(run('setup', '--provider', 'unknown')).rejects.toThrow();
 });
+
+// The fixture records whether setup actually attempts local preparation.
+test('setup persists opt-in cache and skips downloads when disabled', async () => {
+  mkdirSync('.local/tests', {recursive:true});
+  const root=mkdtempSync(path.resolve('.local/tests/cache-choice-'));
+  const marker=path.join(root,'prepared');
+  const hook=path.join(root,'hook.mjs');
+  const fixture=`import {writeFileSync} from 'node:fs'; export async function prepareModels(){writeFileSync(${JSON.stringify(marker)},'yes');}`;
+  writeFileSync(hook,`import {registerHooks} from 'node:module';registerHooks({resolve(s,c,next){if(s==='./model-cache.js'&&c.parentURL?.endsWith('/cli.js'))return {url:${JSON.stringify('data:text/javascript,'+encodeURIComponent(fixture))},shortCircuit:true};return next(s,c);}});`);
+  const env={...process.env,STUDIO_DEV_ROOT:root,VAST_API_KEY:'fixture-vast',HF_TOKEN:'fixture-hf',APPDATA:path.join(root,'profile'),NODE_OPTIONS:`--import=${pathToFileURL(hook).href}`};
+  const run=(...args:string[])=>exec(process.execPath,['dist/server/cli.js','setup','--provider','vast','--no-startup',...args],{env,timeout:15000});
+  await run('--no-cache-models');
+  expect(existsSync(marker)).toBe(false);
+  expect(JSON.parse(readFileSync(path.join(root,'config/settings.json'),'utf8')).localModelCache).toBe(false);
+  await run('--cache-models');
+  expect(existsSync(marker)).toBe(true);
+  expect(JSON.parse(readFileSync(path.join(root,'config/settings.json'),'utf8')).localModelCache).toBe(true);
+  await expect(run('--cache-models','--no-cache-models')).rejects.toThrow();
+});

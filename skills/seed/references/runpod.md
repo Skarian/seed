@@ -64,9 +64,13 @@ If start/create fails for capacity, inspect actual pods before trying another
 approved candidate. A timeout can conceal a successful allocation. Do not loop
 blindly, migrate volumes, or switch providers outside the user's agreed alternatives.
 
-## Transfer models from the PC
+## Prepare models over SSH
 
-`pod-setup` now prepares the local cache and creates/updates templates without HF
+The shared helper reuses remote weights, tries direct source downloads with tokens
+supplied through SSH stdin, and falls back to PC download/transfer only when the
+setup cache preference is enabled. RunPod SSH provisioning is still operator-managed.
+
+`pod-setup` prepares the local cache only when enabled and creates/updates templates without HF
 or Civitai tokens. Existing tokens are not removed from previously created pods.
 Models already on the network volume are reused. With an empty volume the worker
 waits for files rather than contacting a model source.

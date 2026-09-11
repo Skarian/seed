@@ -392,8 +392,8 @@ export class SeedVast {
     );
   }
   async requireModels() {
-    const { requireModelCache } = await import(pathToFileURL(path.join(this.repo, "dist/server/model-cache.js")));
-    return requireModelCache(this.paths);
+    const { modelManifest } = await import(pathToFileURL(path.join(this.repo, "dist/server/model-cache.js")));
+    return modelManifest(this.paths);
   }
   async rent({ offerId, maxHourly, disk = 180 }) {
     if (

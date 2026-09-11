@@ -27,7 +27,7 @@ node dist/server/cli.js start
 Use `--provider runpod` for RunPod. Setup saves the choice and reuses it on later
 runs; fresh setup defaults to Vast. The selected provider key and Hugging Face token
 are required; Civitai is optional. Accept any gated model terms on the source site.
-Setup downloads and verifies roughly 102 GB of models and configured LoRAs locally before renting compute. Run `node dist/server/cli.js models` to resume or update the cache while the app stays running. Models live in the per-user data directory, outside Git.
+Setup asks whether to keep a local fallback cache. Yes downloads and verifies all models and configured LoRAs immediately (roughly 102 GB); No skips it. Use `--cache-models` / `--no-cache-models` for unattended setup. Run `node dist/server/cli.js models` to resume or update the cache while the app stays running. Models live in the per-user data directory, outside Git.
 
 Setup stores credentials in the per-user configuration directory it prints, never
 in Git or browser storage. Environment overrides: VAST_API_KEY, RUNPOD_API_KEY,
@@ -54,11 +54,11 @@ The npm package is not published. Do not install the unrelated package named `se
 
 | Provider | Models | Connection | After use |
 |---|---|---|---|
-| Vast | Push verified local cache over SSH | Private SSH tunnel | Normally destroy instance/disk after saving outputs |
+| Vast | Direct download, optional PC fallback | Private SSH tunnel | Normally destroy instance/disk after saving outputs |
 | RunPod | Reuse your network volume | Authenticated HTTPS worker proxy | Stop/terminate pod; retain separately billed network volume |
 
 The software image is public on [GHCR](https://github.com/Skarian/runpod/pkgs/container/seed-worker).
-Model-source credentials stay on the PC. Only per-worker pairing/Jupyter secrets go to new templates or workers, outside the image. Existing deployments are not retroactively changed.
+Model-source tokens are stored on the PC and supplied transiently over SSH stdin for direct downloads; they are not saved in templates or worker configuration. Host administrators could still inspect process memory. Provider keys stay local. The worker keeps its pairing/Jupyter secrets outside the image.
 The skill pins a tested release; users do not need to build a container.
 
 ## What works, and what still needs checking

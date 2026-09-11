@@ -34,7 +34,7 @@ node dist/server/cli.js help
 
 Expected result: the build creates `dist/server/` and `dist/web/`, and help lists
 setup/start/status/stop. If installation or native dependencies fail, resolve that
-before renting a GPU. No local Docker or desktop wrapper is required. Model setup
+before renting a GPU. No local Docker or desktop wrapper is required. Optional local model setup
 uses the official Hugging Face `hf` CLI with Xet. Check `hf version` (or the
 installer default at `~/.local/bin/hf`) and install it from
 https://huggingface.co/docs/huggingface_hub/guides/cli when missing. The official
@@ -73,9 +73,13 @@ CIVITAI_API_TOKEN are also accepted through the process environment.
 If setup says Seed is running, check for active work before using the CLI `stop`
 command, then rerun setup. Never interrupt a creative session just to change a setting.
 
-## Models stay on the PC
+## Optional local model cache
 
-Setup downloads and verifies the pinned base models before any GPU is rented.
+Setup asks "Keep a local model cache for fallback?" Yes immediately downloads
+and verifies all pinned base models and configured LoRAs. No skips downloads.
+Use `--cache-models` or `--no-cache-models` for unattended setup. Without either,
+unattended setup preserves the saved choice, defaulting to disabled for a new
+installation. The preference is saved before downloading so failures can resume.
 Allow about 102 GB for the current models and presets, plus free space for media.
 Files live in the standard per-user data directory under `models/`, outside the
 checkout. Two files are prepared at a time; Hugging Face handles parallel chunk
@@ -84,7 +88,8 @@ files are SHA256-verified before use. Old custom HTTP partials are retained unti
 the official replacement verifies, then removed; those two resume formats are
 not assumed compatible.
 Run `node dist/server/cli.js models` to resume or fetch updates without stopping
-Seed. Verified files are reused. This command does not acquire compute.
+Seed. Verified files are reused. This command does not acquire compute or change the fallback preference.
+`pod-setup` also prepares the cache only when that preference is enabled.
 
 Owner-selected LoRAs are pinned in `model-presets.json` in the configuration
 directory printed by setup. It is an array of entries with `path`, `url`, `size`,
@@ -96,10 +101,17 @@ size/SHA256; do not guess a file or silently change a pinned version. Base model
 come from the application's pinned manifest. Identity's base LoRA remains there;
 its UI workflow is still unfinished. Never put source tokens in these URLs.
 
-Vast boot sends missing files over SSH and verifies them on the VM. A failed copy
-resumes from its partial file. No public file server is needed. Source credentials
-stay on the PC; VM bootstrap receives only per-worker pairing/Jupyter secrets.
-A host still has access to the weights and job media it processes.
+GPU preparation reuses verified remote files, then tries direct downloads.
+When a direct download fails and fallback is enabled, it uses the PC copy; a
+missing PC copy is downloaded and verified first. Disabled fallback means a
+clear failure and retry, with no automatic local download or transfer. Copies
+resume over SSH and are verified before promotion. No public PC endpoint is needed.
+
+Source tokens are sent per file through encrypted SSH stdin, used by the download
+process, and not written to worker configuration, command arguments or logs.
+Upstream errors are redacted. HF login/token-file creation is not used. Host
+administrators can still inspect process memory; use dedicated read-only tokens.
+Provider API keys remain local. Pairing/Jupyter secrets remain worker settings.
 
 ## Open and verify
 
