@@ -4,6 +4,7 @@ Agent-operated Vast deployment is available as a [Seed on Vast skill](skills/see
 The skill is the agent entry point; this repository continues to contain the normal web app,
 worker and supporting scripts. It finds/prices GPUs, prepares models directly from Hugging Face,
 connects over SSH and handles teardown. No GPU rental controls are added to the UI.
+Its local CLI uses Node.js and OpenSSH on Windows, macOS and Linux; no PowerShell is required.
 The manual Vast trial passed; the reusable helper's next paid lifecycle remains to be validated.
 
 **seed** is a local browser app for image and video generation with ComfyUI on disposable RunPod GPUs. Models live on a reusable network volume; permanent media belongs on your PC. Image generation and the first video workflows save verified results locally; identity editing remains in development.
