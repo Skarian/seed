@@ -282,7 +282,7 @@ export class SeedVast {
   async current() {
     if (!Number.isSafeInteger(this.state?.instance_id) || this.state.destroyed)
       throw new Error(
-        "No retained instance in this checkout. Inspect status/offers.",
+        "No retained instance in your Seed configuration. Inspect status/offers.",
       );
     const r = await this.api(
       "GET",
@@ -819,7 +819,7 @@ export async function main(argv) {
   const [command] = positionals;
   if(command==='help')return {
     provider:'vast',
-    commands:{doctor:'Local dependencies/configuration',offers:'Verified hosts ordered by reliability and network speed; --gpu NAME (repeatable), --disk-gb, --min-vram, --min-ram',rent:'--offer-id ID --max-hourly USD --disk-gb 180',wait:'Bounded wait for startup/direct SSH',boot:'Prepare models and start worker; rerun to resume',preparation:'Worker preparation status',connect:'Private SSH tunnel and automatic pairing',status:'Provider and local studio status',reconcile:'Resolve uncertain creation before retrying',billing:'Recorded-instance billing and account balance',destroy:'Verify outputs then delete recorded instance/disk',stop:'Explicitly retain billable disk'},
+    commands:{doctor:'Local dependencies/configuration',offers:'Verified hosts ordered by reliability and network speed; --gpu NAME (repeatable), --disk-gb, --min-vram, --min-ram, --max-hourly, --min-download-mbps',rent:'--offer-id ID --max-hourly USD --disk-gb 180',wait:'Bounded wait for startup/direct SSH',boot:'Prepare models and start worker; rerun to resume',preparation:'Worker preparation status',connect:'Private SSH tunnel and automatic pairing',status:'Provider and local studio status',reconcile:'Resolve uncertain creation before retrying',billing:'Recorded-instance billing and account balance',destroy:'Verify outputs then delete recorded instance/disk',stop:'Explicitly retain billable disk'},
     selection:'Prioritize verified hosts, high reliability and good transfer speeds; consider compute and transfer prices together.'
   };
   if (!commands.includes(command) || positionals.length !== 1)

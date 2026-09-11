@@ -1,5 +1,5 @@
 // Run after npm pack. Uses real dependency installation in an isolated prefix.
-import { mkdtemp, mkdir, writeFile, readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, cp } from 'node:fs/promises';
 import { spawn } from 'node:child_process';
 import path from 'node:path';
 import os from 'node:os';
@@ -31,5 +31,30 @@ try {
  assert.equal(await readFile(marker,'utf8'),'preserve me');
  assert.equal(await readFile(path.join(env.STUDIO_DEV_ROOT,'config','credentials.json'),'utf8'),credentials);
  await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);
- console.log(JSON.stringify({passed:true,platform:process.platform,node:process.version,root,checks:['install','setup','provider-module-resolution','start-stop','idle-reinstall','credential-and-media-preservation','restart']}));
+ await run([cli,'stop']);
+ // Synthetic next release: exercise npm's version replacement, then a broken
+ // server startup and explicit reinstall of the known-good archive.
+ const candidate=path.join(root,'candidate');
+ const installed=path.join(root,'node_modules/@skarian/seed');
+ await cp(installed,candidate,{recursive:true,filter:source=>!path.relative(installed,source).split(path.sep).includes('node_modules')});
+ const manifest=JSON.parse(await readFile(path.join(candidate,'package.json'),'utf8'));
+ const originalVersion=manifest.version;
+ manifest.version='0.0.0-upgrade-fixture';
+ await writeFile(path.join(candidate,'package.json'),JSON.stringify(manifest,null,2));
+ const pack=async()=>{const result=JSON.parse(await run([npm,'pack',candidate,'--ignore-scripts','--json','--pack-destination',root]));return path.join(root,result[0].filename);};
+ const upgrade=await pack();
+ await run([npm,'install','--prefix',root,upgrade,'--no-audit','--no-fund']);
+ assert.equal(JSON.parse(await run([cli,'version'])).version,manifest.version);
+ await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);await run([cli,'stop']);
+ manifest.version='0.0.0-broken-fixture';
+ await writeFile(path.join(candidate,'package.json'),JSON.stringify(manifest,null,2));
+ await writeFile(path.join(candidate,'dist/server/main.js'),"throw new Error('Intentional package acceptance startup failure');\n");
+ await run([npm,'install','--prefix',root,await pack(),'--no-audit','--no-fund']);
+ await assert.rejects(run([cli,'start']),/did not start/);
+ await run([npm,'install','--prefix',root,archive,'--no-audit','--no-fund']);
+ assert.equal(JSON.parse(await run([cli,'version'])).version,originalVersion);
+ assert.equal(await readFile(marker,'utf8'),'preserve me');
+ assert.equal(await readFile(path.join(env.STUDIO_DEV_ROOT,'config','credentials.json'),'utf8'),credentials);
+ await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);
+ console.log(JSON.stringify({passed:true,platform:process.platform,node:process.version,root,checks:['install','setup','provider-module-resolution','start-stop','idle-reinstall','synthetic-version-upgrade','failed-start-rollback','credential-and-media-preservation','restart']}));
 } finally {await run([cli,'stop']);}

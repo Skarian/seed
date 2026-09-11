@@ -13,7 +13,8 @@ one RunPod pod and one Vast VM, sequentially. No long-video/max-reference benchm
 | Clean package install outside checkout | Passed | npm archive installed in temporary prefix; dependency scripts enabled |
 | Installed setup/start/status/stop | Passed | Fake credentials, isolated data, localhost:4327 |
 | Installed provider doctor | Passed | Resolves modules without checkout |
-| Idle reinstall/data preservation | Passed | Reusable isolated package harness; distinct-version upgrade still pending |
+| Idle reinstall/data preservation | Passed | Reusable isolated package harness |
+| Different-version install and rollback | Passed with synthetic releases | Next-version startup, deliberately broken server startup, reinstall original archive; credentials and media preserved |
 | Windows generated startup entry | Passed in regression suite | Actual sign-in remains owner checkpoint |
 | Browser regression | Passed | 18 tests |
 | New RunPod lifecycle | Partially tested | Global creation and confirmed destruction passed; initial image lacked SSH; corrected image placement blocked by capacity |
@@ -38,5 +39,13 @@ Final provider check: Vast has no instances; RunPod has only the three pre-exist
 EXITED pods. Existing network storage remains untouched and may still incur storage
 charges. No new GPU remains active. Billing for the test pod returned no records;
 the final charge is pending, not proven zero. No generation jobs ran in this session.
-Current package and installed skill were updated. Distinct-version upgrade and
-actual Windows sign-in remain separate acceptance checks.
+Current package and installed skill were updated. The synthetic upgrade/rollback
+test passed in isolated Windows storage (`seed-package-v0OR8O`). This proves package
+replacement and rollback, not backward compatibility with future database migrations.
+Actual Windows sign-in remains an owner acceptance check. Relative Markdown links
+in README, skill files and studio documents were audited with no missing targets.
+
+A subsequent verified Japan RTX PRO 6000 offer (50453760, $1.45/h, 7.8 Gbit/s
+advertised download, 0.9971 reliability) disappeared at rental time. Vast returned
+HTTP 410 `no_such_ask`; no VM appeared during reconciliation. No successful live
+Vast lifecycle is claimed from this attempt.

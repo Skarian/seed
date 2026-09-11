@@ -93,7 +93,7 @@ implementation decisions and test evidence belong in EXECUTION-PLAN.md.
 
 Create `.local/worker-venv` with `python -m venv .local/worker-venv`, then use
 that environment's Python to install `-r worker/requirements-test.txt`.
-Run `npm run verify`: build, typecheck, app tests, skill tests, worker tests and
+Run `npm run verify`: build, typecheck, app tests, operational tests, worker tests and
 current-credential secret scan. It stops on failure. Set `SEED_PYTHON` to use a
 different prepared Python environment. Browser tests and paid GPU validation are
 separate. Pytest uses a fresh directory under `.local/tests` rather than shared

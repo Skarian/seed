@@ -24,7 +24,8 @@ publication and identity editing are deferred.
 - [x] Rewrite README, skill/setup/provider instructions and current direction.
 - [x] Align architecture, bootstrap, release and storage contracts with disposable disk.
 - [x] Mark the old execution journal historical; maintain this single current checklist.
-- [ ] Complete documentation link/command audit and final owner walkthrough.
+- [x] Audit relative documentation links and update CLI/provider command help.
+- [ ] Final owner walkthrough.
 
 ## Installation and recovery
 
@@ -36,7 +37,7 @@ publication and identity editing are deferred.
 - [x] Final current-archive installation and installed-skill update.
 - [x] Actual Linux package install/setup/start/status/stop in Node Debian container.
 - [ ] Real Windows sign-in acceptance with owner; actual macOS coverage.
-- [ ] Distinct-version upgrade/failure rollback acceptance (idle reinstall is proven).
+- [x] Synthetic distinct-version upgrade and failed-start rollback, with credentials/media preserved.
 
 ## Validation
 
