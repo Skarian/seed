@@ -12,8 +12,10 @@ export function validateWorkerEndpoint(value: unknown, localTestOrigin?: string)
   if (typeof value !== 'string') throw new Error('Invalid worker address.');
   const url = new URL(value);
   if (url.username || url.password || url.search || url.hash || (url.pathname !== '/' && url.pathname !== '')) throw new Error('Invalid worker address.');
+  // The normal app supports only the fixed, loopback-only Seed SSH tunnel.
+  if (url.origin === 'http://127.0.0.1:18080') return url.origin;
   if (localTestOrigin && url.origin === localTestOrigin && url.hostname === '127.0.0.1' && url.protocol === 'http:') return url.origin;
-  if (url.protocol !== 'https:' || url.port || !/^[a-z0-9]+-8080\.proxy\.runpod\.net$/.test(url.hostname)) throw new Error('Use the connection code from your RunPod worker on port 8080.');
+  if (url.protocol !== 'https:' || url.port || !/^[a-z0-9]+-8080\.proxy\.runpod\.net$/.test(url.hostname)) throw new Error('Use a connection code from your Seed worker.');
   return url.origin;
 }
 async function jsonRequest(url: string, init: RequestInit) {

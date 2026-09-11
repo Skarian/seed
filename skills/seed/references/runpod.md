@@ -2,7 +2,7 @@
 
 Complete [setup](setup.md) with `--provider runpod` first. RunPod uses a private
 Seed template and a reusable network volume. Its worker connects over HTTPS;
-do not use the Vast SSH launcher. REPO and SKILL mean absolute paths to the app
+no SSH tunnel is needed. REPO and SKILL mean absolute paths to the app
 checkout and this skill, respectively.
 
 ## Prepare storage and the template

@@ -77,7 +77,7 @@ export function sshArgs(instance,key,knownHosts){
   return ['-i',key,'-p',String(port),'-o','BatchMode=yes','-o','IdentitiesOnly=yes','-o','ConnectTimeout=15','-o','StrictHostKeyChecking=accept-new','-o',`UserKnownHostsFile=${knownHosts}`,`root@${instance.public_ipaddr}`];
 }
 export class SeedVast {
-  constructor(repo,{fetcher=fetch,env=process.env}={}){this.repo=path.resolve(repo);this.work=path.join(this.repo,'.local/seed-vast');this.fetcher=fetcher;this.env=env;}
+  constructor(repo,{fetcher=fetch,env=process.env,startBackground=background}={}){this.repo=path.resolve(repo);this.work=path.join(this.repo,'.local/seed-vast');this.fetcher=fetcher;this.env=env;this.startBackground=startBackground;}
   async init(){
     this.stateFile=path.join(this.work,'state.json');this.state=await readJson(this.stateFile);
     const load=file=>import(pathToFileURL(path.join(this.repo,'dist/server',file)).href);
@@ -92,7 +92,6 @@ export class SeedVast {
     this.tunnelPaths={config:path.join(this.privateDir,'tunnel')};
     this.key=path.join(this.privateDir,'ssh-key');this.knownHosts=path.join(this.privateDir,'known-hosts');
     this.connectionFile=path.join(this.paths.config,'worker-connection.json');
-    this.backupFile=path.join(this.privateDir,'previous-connection.json');
     return this;
   }
   async credentials(){return await readJson(this.credentialFile,{});}
@@ -181,17 +180,6 @@ export class SeedVast {
     for(let i=0;i<30;i++){if(!await this.lifecycle.control(this.tunnelPaths,'status'))return;await delay(100);}
     throw new Error('The existing SSH tunnel did not stop.');
   }
-  async restoreApp(){
-    if(this.state?.app_managed){
-      await run(process.execPath,[path.join(this.repo,'dist/server/cli.js'),'stop']);
-      const backup=await readJson(this.backupFile);
-      if(!backup)throw new Error('Previous connection backup missing; inspect configuration before restoring.');
-      if(backup.connection)await saveJson(this.connectionFile,backup.connection);else await rm(this.connectionFile,{force:true});
-      await run(process.execPath,[path.join(this.repo,'dist/server/cli.js'),'start','--quiet']);
-      this.state.app_managed=false;await this.saveState();await rm(this.backupFile,{force:true});
-    }
-    await this.stopTunnel();
-  }
   async connect(){
     const instance=await this.current();if(instance.actual_status!=='running')throw new Error('The instance is not running.');
     assertIdle(await this.local('GET','/api/v1/studio'));await this.stopTunnel();
@@ -200,16 +188,10 @@ export class SeedVast {
     args.push('-N','-o','ExitOnForwardFailure=yes','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=3','-L','127.0.0.1:18080:127.0.0.1:8080','-L','127.0.0.1:18888:127.0.0.1:8888',target);
     await mkdir(this.tunnelPaths.config,{recursive:true,mode:0o700});
     try{
-      await background(path.join(here,'tunnel.mjs'),[this.repo,this.tunnelPaths.config,...args],path.join(this.privateDir,'tunnel.log'));
+      await this.startBackground(path.join(here,'tunnel.mjs'),[this.repo,this.tunnelPaths.config,...args],path.join(this.privateDir,'tunnel.log'));
       let ready=false;
       for(let i=0;i<15;i++){try{const r=await this.fetcher(workerOrigin,{redirect:'error',signal:AbortSignal.timeout(2000)});ready=r.ok;await r.body?.cancel();if(ready)break;}catch{}await delay(1000);}
       if(!ready)throw new Error('Tunnel/worker is not ready. Run status and boot diagnostics.');
-      if(!this.state.app_managed)await saveJson(this.backupFile,{connection:await readJson(this.connectionFile)});
-      await run(process.execPath,[path.join(this.repo,'dist/server/cli.js'),'stop']);
-      this.state.app_managed=true;await this.saveState();
-      await background(path.join(here,'studio.mjs'),[this.repo],path.join(this.privateDir,'app.log'));
-      ready=false;for(let i=0;i<15;i++){try{await this.local('GET','/api/v1/health');ready=true;break;}catch{await delay(500);}}
-      if(!ready)throw new Error('Skill launcher did not start; inspect its private app.log.');
       const secret=await readJson(this.secretFile());
       const response=await this.fetcher(workerOrigin+'/worker/v1/unlock',{method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),headers:{Origin:workerOrigin,'Content-Type':'application/json'},body:JSON.stringify({pairing_secret:secret?.SEED_PAIRING_SECRET})});
       if(!response.ok){await response.body?.cancel();throw new Error('Worker unlock failed. Check boot configuration.');}
@@ -218,7 +200,7 @@ export class SeedVast {
       await this.local('PUT','/api/v1/connection',{connection_code:pairing.connection_code});
       this.state.paired_worker=(await readJson(this.connectionFile)).worker_instance_id;await this.saveState();
       return {connected:true,url:this.origin,queue:'paused; resume when ready'};
-    }catch(error){try{await this.restoreApp();}catch{throw new Error('Connection failed and local restore needs attention. Inspect private app/tunnel logs; the GPU remains allocated.');}throw error;}
+    }catch(error){try{await this.stopTunnel();}catch{throw new Error('Connection failed and the tunnel did not stop. Inspect the private tunnel log; the GPU remains allocated.');}throw error;}
   }
   async preparation(){const args=sshArgs(await this.current(),this.key,this.knownHosts);return JSON.parse(await run('ssh',[...args,'/opt/venv/bin/python /root/seed-agent-worker.py preparation']));}
   async teardown(action){
@@ -229,7 +211,7 @@ export class SeedVast {
     const result=await this.api(action==='destroy'?'DELETE':'PUT',`/api/v0/instances/${instance.id}/`,action==='destroy'?{}:{state:'stopped'});
     if(!result.success)throw new Error('Teardown was not confirmed.');
     if(action==='destroy'){this.state.destroyed=true;await this.saveState();}
-    await this.restoreApp();
+    await this.stopTunnel();
     for(let i=0;i<15;i++){
       const found=(await this.instances()).find(x=>x.id===instance.id);
       if((action==='destroy'&&!found)||(action==='stop'&&found?.actual_status==='exited'))return {confirmed:action,instance_id:instance.id,disk_retained:action==='stop'};

@@ -1,6 +1,6 @@
 import { afterEach, beforeEach, expect, it } from 'vitest';
 import { createServer, type Server } from 'node:http';
-import { mkdtempSync, mkdirSync, rmSync, readFileSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { WorkerConnection, validateWorkerEndpoint } from '../server/worker.js';
 import { prepareStorage, resolvePaths } from '../server/storage.js';
@@ -58,4 +58,35 @@ it('keeps credentials out of the browser API and leaves dispatch paused after pa
     const removed = await app.inject({ method: 'DELETE', url: '/api/v1/connection', headers });
     expect(removed.json()).toEqual({ connected: false });
   } finally { await app.close(); }
+});
+
+it('normal app reloads a saved SSH worker without a special launcher', async () => {
+  const paths = resolvePaths(root);
+  const endpoint = 'http://127.0.0.1:18080';
+  expect(validateWorkerEndpoint(endpoint)).toBe(endpoint);
+  for (const url of ['http://127.0.0.1:18081', 'http://localhost:18080', 'http://192.168.1.2:18080', endpoint+'/path', endpoint+'?x=1']) {
+    expect(() => validateWorkerEndpoint(url)).toThrow();
+  }
+  writeFileSync(path.join(paths.config, 'worker-connection.json'), JSON.stringify({endpoint, worker_credential:credential, worker_instance_id:identity, workspace_id:'workspace-one', protocol_version:1}));
+  const { createApp } = await import('../server/http.js');
+  for (let restart=0; restart<2; restart++) {
+    const app = await createApp({paths, port:4311});
+    try {
+      const health=await app.inject({url:'/api/v1/health',headers:{host:'127.0.0.1:4311'}});
+      expect(health.statusCode).toBe(200);
+      expect(new WorkerConnection(paths).identity?.worker_instance_id).toBe(identity);
+    }
+    finally { await app.close(); }
+  }
+});
+
+it('failed replacement preserves the previous connection on disk and in memory', async () => {
+  const paths=resolvePaths(root), connection=new WorkerConnection(paths, origin);
+  await connection.pair(code());
+  const file=path.join(paths.config,'worker-connection.json'), saved=readFileSync(file,'utf8');
+  server.removeAllListeners('request');
+  server.on('request', (_req,res)=>{res.writeHead(503);res.end();});
+  await expect(connection.pair(code())).rejects.toThrow('Could not exchange');
+  expect(readFileSync(file,'utf8')).toBe(saved);
+  expect(connection.identity?.worker_instance_id).toBe('worker-one');
 });

@@ -74,3 +74,45 @@ test('ambiguous rental is journaled and cannot allocate again on retry',async()=
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/uncertain attempt/);assert.equal(creations,1);
   }finally{await rm(root,{recursive:true,force:true});}
 });
+
+for (const fail of [false,true]) test(`connect uses only a tunnel and pairing; exchange failure=${fail}`,async()=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),'seed-connect-'));
+  try {
+    const starts=[],calls=[];
+    const ops=new SeedVast(root,{startBackground:async(script)=>starts.push(path.basename(script)),fetcher:async(url)=>{
+      if(url.endsWith('/pairing-codes'))return Response.json({connection_code:'test-code'});
+      return new Response('ok',{headers:{'set-cookie':'session=test; HttpOnly'}});
+    }});
+    ops.state={instance_id:42};ops.privateDir=root;ops.tunnelPaths={config:path.join(root,'tunnel')};ops.connectionFile=path.join(root,'connection.json');ops.origin='http://127.0.0.1:4310';
+    await saveJson(ops.connectionFile,{worker_instance_id:'previous'});
+    await saveJson(ops.secretFile(),{SEED_PAIRING_SECRET:'fake'});
+    ops.key='key';ops.knownHosts='hosts';ops.current=async()=>({actual_status:'running',public_ipaddr:'127.0.0.1',ports:{'22/tcp':[{HostPort:22}]}});
+    let stops=0;ops.stopTunnel=async()=>{stops++;};ops.saveState=async()=>{};
+    ops.local=async(method,route)=>{
+      calls.push([method,route]);
+      if(method==='GET')return idle;
+      if(fail)throw new Error('exchange failed');
+      await saveJson(ops.connectionFile,{worker_instance_id:'new'});
+    };
+    if(fail)await assert.rejects(ops.connect(),/exchange failed/);else assert.equal((await ops.connect()).connected,true);
+    assert.deepEqual(starts,['tunnel.mjs']);
+    assert.deepEqual(calls,[['GET','/api/v1/studio'],['PUT','/api/v1/connection']]);
+    assert.equal(stops,fail?2:1);
+    assert.equal((await readJson(ops.connectionFile)).worker_instance_id,fail?'previous':'new');
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('destroy stops the tunnel and retains the saved connection without app lifecycle calls',async()=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),'seed-destroy-'));
+  try {
+    const ops=new SeedVast(root);ops.state={instance_id:42,paired_worker:'worker'};
+    ops.connectionFile=path.join(root,'connection.json');const saved={worker_instance_id:'worker',endpoint:workerOrigin};await saveJson(ops.connectionFile,saved);
+    ops.current=async()=>({id:42,actual_status:'running'});
+    const calls=[];ops.local=async(method,route)=>{calls.push([method,route]);return {safe_to_terminate:true};};
+    ops.api=async(method,route)=>{calls.push([method,route]);return {success:true};};
+    ops.saveState=async()=>{};ops.stopTunnel=async()=>{calls.push(['tunnel','stop']);};ops.instances=async()=>[];
+    assert.equal((await ops.teardown('destroy')).confirmed,'destroy');
+    assert.deepEqual(await readJson(ops.connectionFile),saved);
+    assert.deepEqual(calls,[['POST','/api/v1/queue/pause'],['GET','/api/v1/studio'],['DELETE','/api/v0/instances/42/'],['tunnel','stop']]);
+  }finally{await rm(root,{recursive:true,force:true});}
+});

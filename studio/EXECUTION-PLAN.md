@@ -397,3 +397,10 @@ No GPU allocated, app restarted or credentials changed.
 ## 2026-09-10 — Architecture baggage audit
 
 Scanned all 272 tracked files and traced the current entrypoints, dependencies and provider lifecycle. [Audit and prioritized simplification](../research/maintenance/REPO-ARCHITECTURE-AUDIT-2026-09-10.md). Main findings: remove the alternate Vast app launcher/connection restoration, replace remote worker source patching with supported configuration, and retire the old direct-Comfy deployment path while keeping current RunPod support. Research and durable job/media handling remain useful. No runtime changes or GPU operations in this audit. Typecheck and all 17 provider-helper tests passed; paid end-to-end validation remains outstanding.
+
+
+## 2026-09-11 — One local application launcher
+
+Implemented the first architecture-audit checkpoint. Normal Seed accepts the exact loopback SSH worker endpoint alongside RunPod HTTPS. Deleted the alternate studio.mjs launcher and Vast app restart/backup/restore code; connect and teardown now manage only the tunnel and pairing. Failed exchange retains the prior saved connection; teardown retains the app and connection. Operator docs explain the one-time restart for old launcher installations. The remote worker adapter remains for the next image checkpoint.
+
+Validation: build/typecheck passed; 41 application tests and 20 provider-helper tests passed. New coverage includes normal app startup with saved SSH connection, failed exchange persistence, tunnel-only connect and teardown. Fixed an initialization race in the new restart test found on the first suite run. No GPU rented or stopped; live provider lifecycle still requires an authorized GPU.

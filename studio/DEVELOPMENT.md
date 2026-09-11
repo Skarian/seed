@@ -82,9 +82,9 @@ builds are distinct: building this checkout does not update a global installatio
 ## Provider operations
 
 Read [seed](../skills/seed/SKILL.md). Vast uses the published image with a
-narrow compatibility adapter and a managed SSH launcher; RunPod reuses the
-private template/network volume and normal HTTPS protocol. Restore the Vast
-launcher before switching back to normal RunPod operation. No provider rental
+remote worker compatibility adapter and a managed SSH tunnel; RunPod reuses the
+private template/network volume and HTTPS protocol. Both use the normal app
+launcher and replace connections through the same pairing API. No provider rental
 controls are added to the web UI. Never present paused/disconnected as billing off.
 
 API, asset and workflow specifications remain in this directory; historical

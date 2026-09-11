@@ -69,8 +69,8 @@ node "SKILL/scripts/vast.mjs" billing --repo "REPO"
 ```
 
 Use destroy only when deletion is authorized. It pauses dispatch, requires fresh
-output-safety confirmation, deletes the recorded instance/disk and restores the
-ordinary local launcher. Confirm the instance is absent. The Library stays local.
+output-safety confirmation, deletes the recorded instance/disk and stops the SSH
+tunnel. Seed stays running with its last worker disconnected. Confirm the instance is absent. The Library stays local.
 
 Use `stop` instead of `destroy` if the user wants to retain disk; stopped disk still
 costs money. The helper does not have a resume command: start a stopped instance
@@ -81,9 +81,10 @@ start Seed and reconnect if the GPU is still running. Sleep does not stop billin
 
 - **SSH/boot failure:** use status and inspect the same instance. Don't rent another
   GPU to fix an SSH problem. Retry boot after resolving readiness/access.
-- **Connect failure:** local ports 18080/18888 must be free. The helper tries to
-  restore the previous app connection. If it reports rollback failure, inspect
-  the private app/tunnel logs; the GPU may still be billing.
+- **Connect failure:** local ports 18080/18888 must be free. The helper stops its
+  tunnel after a failed connection attempt; a failed code exchange preserves the
+  saved connection. Inspect the private tunnel log if cleanup fails. The GPU
+  remains allocated until explicitly stopped or destroyed.
 - **Shutdown refused:** finish/cancel jobs and let outputs save; reconnect/reconcile
   if status is unknown. A worker that never became usable requires checking that
   no jobs were submitted before emergency teardown through Vast.
@@ -106,3 +107,12 @@ a 15-second mixed-reference video in 13m23s. These are one-machine observations,
 not guarantees. See REPO/research/infrastructure/VAST-KOREA-BENCHMARK-2026-09-10.md.
 Portable helper tests and live read-only calls pass; its complete rewritten paid
 lifecycle and macOS execution still need validation.
+
+### Upgrading from the alternate app launcher
+
+After jobs finish and outputs are saved, rebuild/reinstall Seed, then run `seed stop`
+and `seed start` once. This replaces any already-running old launcher without
+changing the saved connection or GPU. Reconnect to restore the SSH tunnel if needed.
+Old `app_managed` state and `previous-connection.json` backups are no longer used;
+they may be removed after the normal app starts successfully. Do not restore those
+backups over the current connection.

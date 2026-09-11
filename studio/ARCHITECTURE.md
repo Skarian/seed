@@ -39,9 +39,10 @@ precedes deletion of the worker copy. Queue pause and fresh worker observations
 establish termination safety; disconnected never proves billing is off.
 
 RunPod uses the normal authenticated HTTPS worker protocol and a network volume.
-Vast currently uses an SSH tunnel and a narrow compatibility launcher against the
-same worker image. The skill restores the ordinary app when finishing a Vast
-session. Both use the same local Library and job API; provider lifecycle stays
+Vast uses an SSH tunnel to the fixed loopback endpoint on port 18080. Both
+providers use the normal app launcher; ending a Vast session stops the tunnel,
+leaving the app and its saved connection intact. A remote worker compatibility
+adapter remains until the image supports SSH-local startup directly. Both use the same local Library and job API; provider lifecycle stays
 outside the browser UI. See the skill references for compatibility limits.
 
 ## Local application
