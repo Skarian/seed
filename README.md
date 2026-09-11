@@ -77,6 +77,8 @@ new complete paid lifecycles still need validation. macOS has not been executed.
 
 ## Repository map
 
+- [Prioritized action list](studio/TODO.md): current review decisions, engineering work and validation gaps.
+
 - [Current direction](studio/CURRENT-DIRECTION.md): current decisions and remaining checkpoints.
 - [MVP](STUDIO-MVP.md), [execution journal](studio/EXECUTION-PLAN.md): product scope and implementation evidence.
 - `web/`, `server/`, `shared/`: local UI, API, media/database and contracts.
@@ -91,3 +93,4 @@ new complete paid lifecycles still need validation. macOS has not been executed.
 Generated media, model weights, tokens, local state and dependencies are ignored.
 Removing the checkout does not back up or delete your separate media library.
 Upstream software and model licenses still apply. Committing code does not deploy it.
+
