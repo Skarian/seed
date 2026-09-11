@@ -12,7 +12,8 @@ Open this repository with your coding agent and ask:
 
 Or choose RunPod. The agent checks dependencies, builds the app, helps you enter
 credentials privately, and starts the local UI. It needs Node **26.8.2–26.x** and,
-for Vast, OpenSSH. No local Docker or Python is required to use the published worker.
+for Vast, OpenSSH. Model setup also uses the official Hugging Face `hf` CLI
+with Xet (the Windows installer requires Python 3.10+). No local Docker is needed.
 
 The equivalent source commands, from the repository root:
 

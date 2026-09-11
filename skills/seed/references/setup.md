@@ -34,8 +34,14 @@ node dist/server/cli.js help
 
 Expected result: the build creates `dist/server/` and `dist/web/`, and help lists
 setup/start/status/stop. If installation or native dependencies fail, resolve that
-before renting a GPU. No local Docker, Python or desktop wrapper
-is required to use the published GPU worker.
+before renting a GPU. No local Docker or desktop wrapper is required. Model setup
+uses the official Hugging Face `hf` CLI with Xet. Check `hf version` (or the
+installer default at `~/.local/bin/hf`) and install it from
+https://huggingface.co/docs/huggingface_hub/guides/cli when missing. The official
+Windows installer uses Python 3.10+ and creates an isolated environment; skip
+installing its extra agent skill unless requested. Seed itself remains a Node app.
+`SEED_HF_CLI` can point to an alternative hf executable; otherwise Seed checks
+the installer default and PATH. Never pass the HF token as a command argument.
 
 ## Configure credentials once
 
@@ -72,7 +78,11 @@ command, then rerun setup. Never interrupt a creative session just to change a s
 Setup downloads and verifies the pinned base models before any GPU is rented.
 Allow about 102 GB for the current models and presets, plus free space for media.
 Files live in the standard per-user data directory under `models/`, outside the
-checkout. Three downloads run at a time; interrupted downloads retain partials.
+checkout. Two files are prepared at a time; Hugging Face handles parallel chunk
+transfer and resume through Xet. Civitai keeps its separate HTTP path. Completed
+files are SHA256-verified before use. Old custom HTTP partials are retained until
+the official replacement verifies, then removed; those two resume formats are
+not assumed compatible.
 Run `node dist/server/cli.js models` to resume or fetch updates without stopping
 Seed. Verified files are reused. This command does not acquire compute.
 

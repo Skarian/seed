@@ -6,7 +6,7 @@ import {createHash} from 'node:crypto';
 import {downloadModel,modelFile,modelDirectory,cached,validateModel} from '../server/model-cache.js';
 import {resolvePaths,prepareStorage} from '../server/storage.js';
 const bytes=Buffer.from('model weights');
-const item={path:'vae/test.safetensors',url:'https://huggingface.co/test/repo/resolve/'+ 'a'.repeat(40)+'/test.safetensors',size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
+const item={path:'vae/test.safetensors',url:'https://civitai.com/api/download/models/12?fileId=34',size:bytes.length,sha256:createHash('sha256').update(bytes).digest('hex')};
 async function fixture(){const p=resolvePaths(await mkdtemp(path.join(tmpdir(),'seed-models-')));prepareStorage(p);return p;}
 test('download follows CDN without source token and reuses verified local file',async()=>{
  const p=await fixture();const calls:any[]=[];

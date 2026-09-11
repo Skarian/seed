@@ -5,6 +5,7 @@ import path from 'node:path';
 import { Readable, Transform } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 import models from '../worker/models.json' with { type: 'json' };
+import { downloadHuggingFace, hfSource } from './hf-download.js';
 import type { StudioPaths } from './storage.js';
 
 export type ModelFile = { path: string; url: string; size: number; sha256: string; route?: 'image' | 'fl' | 'ref'; strength?: number };
@@ -12,7 +13,7 @@ export function validateModel(item: ModelFile) {
   if (!item || !/^[a-zA-Z0-9_./-]+$/.test(item.path) || item.path.startsWith('/') || item.path.split('/').some(p => !p || p === '..' || p === '.') || !/^[a-f0-9]{64}$/.test(item.sha256) || !Number.isSafeInteger(item.size) || item.size < 1) throw Error('Invalid model manifest entry.');
   const url = new URL(item.url);
   if (url.protocol !== 'https:' || url.username || url.password || url.hash || !['huggingface.co','civitai.com'].includes(url.hostname)) throw Error('Unsupported model source.');
-  if (url.hostname === 'huggingface.co' && (url.search || !/^\/[^/]+\/[^/]+\/resolve\/[a-f0-9]{40}\/.+/.test(url.pathname))) throw Error('Pin Hugging Face models to a commit.');
+  if (url.hostname === 'huggingface.co') hfSource(item.url);
   if (url.hostname === 'civitai.com' && (!/^\/api\/download\/models\/\d+$/.test(url.pathname) || !/^\d+$/.test(url.searchParams.get('fileId') ?? '') || [...url.searchParams.keys()].some(k => k !== 'fileId'))) throw Error('Pin Civitai models to a version and file ID.');
   if (item.route && (!['image','fl','ref'].includes(item.route) || !item.path.startsWith('loras/') || !(Number(item.strength ?? 1) > 0 && Number(item.strength ?? 1) <= 2))) throw Error('Invalid preset route or strength.');
 }
@@ -65,13 +66,28 @@ async function downloadResponse(item: ModelFile, token: string, offset: number, 
   }
   throw Error('Too many model download redirects.');
 }
-export async function downloadModel(paths: StudioPaths, item: ModelFile, token: string, request: typeof fetch = fetch, progress: (bytes:number)=>void = ()=>{}) {
+export async function downloadModel(paths: StudioPaths, item: ModelFile, token: string, request: typeof fetch = fetch, progress: (bytes:number)=>void = ()=>{}, hfDownload: typeof downloadHuggingFace = downloadHuggingFace) {
   validateModel(item);
   await mkdir(modelDirectory(paths), { recursive:true });
   if (await cached(paths,item)) return;
   const file = modelFile(paths,item), partial = file + '.part';
   // A completed but unreceipted file can be recovered after an interrupted setup.
   try { if ((await stat(file)).size === item.size && await digest(file) === item.sha256) { const s=await stat(file); await writeFile(file+'.json',JSON.stringify({sha256:item.sha256,size:s.size,mtimeMs:s.mtimeMs})); return; } } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
+  if (new URL(item.url).hostname === 'huggingface.co') {
+    const staging = path.join(modelDirectory(paths), 'hf', item.sha256);
+    const downloaded = await hfDownload(item.url, staging, token, path.join(paths.cache, 'huggingface'));
+    const expected = path.join(staging, ...hfSource(item.url).filename.split('/'));
+    if (path.resolve(downloaded) !== path.resolve(expected)) throw Error('Unexpected Hugging Face output path.');
+    if ((await stat(downloaded)).size !== item.size || await digest(downloaded) !== item.sha256) {
+      await rm(downloaded, {force:true});
+      throw Error(`Model verification failed: ${item.path}.`);
+    }
+    await rename(downloaded, file);
+    const s = await stat(file);
+    await writeFile(file+'.json',JSON.stringify({sha256:item.sha256,size:s.size,mtimeMs:s.mtimeMs}));
+    await rm(partial, {force:true}); // Retire old HTTP partials only after replacement verifies.
+    return;
+  }
   let offset = await stat(partial).then(s => s.size, () => 0);
   if (offset > item.size) { await rm(partial); offset = 0; }
   const disk = await statfs(modelDirectory(paths));
@@ -107,7 +123,7 @@ export async function prepareModels(paths: StudioPaths, say: (message:string)=>v
   await mkdir(modelDirectory(paths), {recursive:true});
   let required = 1024 ** 3;
   for(const item of entries) if(!await cached(paths,item)) {
-    const partial = await stat(modelFile(paths,item)+'.part').then(s=>s.size,()=>0);
+    const partial = new URL(item.url).hostname === 'huggingface.co' ? 0 : await stat(modelFile(paths,item)+'.part').then(s=>s.size,()=>0);
     required += item.size - Math.min(partial,item.size);
   }
   const disk=await statfs(modelDirectory(paths));
@@ -118,12 +134,15 @@ export async function prepareModels(paths: StudioPaths, say: (message:string)=>v
       const index = next++, item = entries[index]!;
       say(`[${index+1}/${entries.length}] ${await cached(paths,item)?'Cached':'Downloading and verifying'}: ${item.path}`);
       let last = Date.now();
-      await downloadModel(paths,item,new URL(item.url).hostname === 'huggingface.co' ? (process.env.HF_TOKEN || credentials.huggingFaceToken || '') : (process.env.CIVITAI_API_TOKEN || credentials.civitaiApiToken || ''),fetch,bytes=>{
+      const started=Date.now();
+      const heartbeat=new URL(item.url).hostname==='huggingface.co' ? setInterval(()=>say(`Hugging Face is preparing ${item.path} (${Math.round((Date.now()-started)/1000)}s)`),30000) : undefined;
+      try { await downloadModel(paths,item,new URL(item.url).hostname === 'huggingface.co' ? (process.env.HF_TOKEN || credentials.huggingFaceToken || '') : (process.env.CIVITAI_API_TOKEN || credentials.civitaiApiToken || ''),fetch,bytes=>{
         if (Date.now()-last > 30000) { say(`${item.path}: ${(bytes/1e9).toFixed(2)}/${(item.size/1e9).toFixed(2)} GB`); last=Date.now(); }
-      });
+      }); } finally { clearInterval(heartbeat); }
+      say(`Verified: ${item.path} (${Math.round((Date.now()-started)/1000)}s)`);
     }
   }
-  const results = await Promise.allSettled([acquire(),acquire(),acquire()]);
+  const results = await Promise.allSettled([acquire(),acquire()]);
   const failed = results.find(r=>r.status==='rejected');
   if (failed?.status==='rejected') throw failed.reason;
   say('All models verified locally. Model-source keys stay on this PC.');

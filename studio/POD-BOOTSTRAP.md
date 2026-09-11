@@ -21,6 +21,9 @@ manifest files and verifies/reuses them; it makes no model-source requests. Comf
 processes do not inherit download/pairing secrets. The Vast bootstrap supplies
 secrets through SSH stdin and invokes the entrypoint without rewriting source.
 
+Local Hugging Face acquisition uses the official hf CLI/Xet; Civitai remains a
+separate HTTP source. Both verify hashes before files enter the transferable cache.
+
 The PC owns the model cache, originals, prepared media, results and SQLite history.
 Vast boot transfers missing files before starting the worker. RunPod may start
 first and wait for transfer; direct SSH access is currently operator-managed. Worker spool
