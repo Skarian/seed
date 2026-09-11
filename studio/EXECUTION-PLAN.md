@@ -421,3 +421,9 @@ Completion evidence: GitHub run https://github.com/Skarian/runpod/actions/runs/3
 ## 2026-09-11 — Virginia live startup corrections
 
 Reserved Vast instance 50601850, offer 47084317, RTX PRO 6000 S 96 GB/600 W, $1.664/h including 180 GB disk. No other active GPU. Live SSH revealed two issues: quote UserKnownHostsFile for OpenSSH parsing of Windows paths with spaces, and repair ownership/modes of Vast-injected authorized_keys at onstart. Regression tests include real ssh -G parsing. Logs confirmed bad ownership/modes despite matching attached public key. Updated onstart through update_template with explicit existing image; reboot does not regenerate its script. In-place recreation is awaiting user approval after automatic review rejection. Worker/model preparation has not started; no generation submitted.
+
+## 2026-09-11 - Ohio replacement live
+
+User authorized deleting failed Virginia instance 50601850/disk; confirmed absent, local media preserved. Rented only Ohio 50603637 (offer 46296973), RTX PRO 6000 S 96 GB/600 W, 180 GB disk, $1.5833/h plus $0.0078125/GB transfers. Advertised download 32.9 Gbps. SSH startup permissions repair and quoted known-hosts path worked; normal Seed paired automatically without source patching. Fixed duplicate account SSH key registration (Vast HTTP 400): now checks/reuses existing key. All 18 Vast helper tests pass.
+
+All 11 base models (99,624,767,830 bytes) downloaded/verified in 191.19 seconds, effective 521.08 MB/s. Engine Ready; no paid generation submitted. Civitai returned 403 from the GPU host; restoring presets through PC/SSH fallback. GPU remains running for the user's session.

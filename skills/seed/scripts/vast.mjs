@@ -444,7 +444,7 @@ export class SeedVast {
         "seed-vast-agent",
       ]);
     const publicKey = (await readFile(this.key + ".pub", "utf8")).trim();
-    await this.api("POST", "/api/v0/ssh/", { ssh_key: publicKey });
+    await this.ensureAccountKey(publicKey);
     this.state = {
       offer_id: offerId,
       machine_id: offer.machine_id,
@@ -476,6 +476,13 @@ export class SeedVast {
       hourly: offer.dph_total,
       disk_gb: disk,
     };
+  }
+  async ensureAccountKey(publicKey) {
+    const response = await this.api("GET", "/api/v0/ssh/");
+    const keys = Array.isArray(response) ? response : response.ssh_keys;
+    if (!Array.isArray(keys)) throw new Error("Cannot verify account SSH keys.");
+    if (!keys.some((key) => (key.public_key ?? key.ssh_key)?.trim() === publicKey.trim()))
+      await this.api("POST", "/api/v0/ssh/", { ssh_key: publicKey });
   }
   async status() {
     const result = {
