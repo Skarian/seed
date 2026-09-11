@@ -6,6 +6,7 @@ The active plan starts at [STUDIO-MVP](../STUDIO-MVP.md).
 
 | Topic | Contents |
 |---|---|
+| [Repository cleanup](maintenance/REPO-CLEANUP-2026-09-10.md) | File/dependency inventory, actual deletions and local-disk exceptions |
 | [GPU procurement](infrastructure/GPU-PROCUREMENT-REPORT.md) | September 2026 provider decision, availability evidence, costs and bounded migration proof |
 | [LLMs](llm/README.md) | Preserved model selection, community and multimodal capability research; deferred from the MVP |
 | [Media workflows](workflows/MEDIA-WORKFLOW-PLAN.md) | Supported inputs, model constraints and proposed generation controls |

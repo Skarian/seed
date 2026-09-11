@@ -1,4 +1,7 @@
-# ComfyUI: daily use and replacement
+# Legacy direct-Comfy deployment and recovery
+
+This is the pre-Seed deployment, retained for recovery. Pod/template IDs and prices
+below are historical. For current Seed operation use [START-HERE](START-HERE.md).
 
 The saved template uses our public GitHub Container Registry mirror of the pinned Hearmeman image, a small startup script, and the existing 150 GB network volume. No image build or local computer is needed to start it. See [registry publishing and rollback](GHCR.md).
 
@@ -51,7 +54,7 @@ To update pinned upstream repositories in an existing container, first inspect a
 
 The pre-change workflows/settings and personal custom nodes are backed up in `/workspace/h3-deployment/before-lean-startup.tar.gz` and locally in `before-lean-startup.private.tar.gz`. That archive is not a backup of models or generated outputs. Download valuable outputs separately.
 
-For a bad startup change, restore the prior script path in both the template and pod configuration, then restart. Restore user files from backup only if the upgrade changed them; replacing scripts does not undo a data migration. The original `bootstrap.sh` remains locally as historical recovery material.
+For a bad startup change, restore the prior script path in both the template and pod configuration, then restart. Restore user files from backup only if the upgrade changed them; replacing scripts does not undo a data migration. The superseded original bootstrap is available in Git history; `lean/start.sh` is the retained legacy startup.
 
 Use the pod's Runpod container logs if startup fails. ComfyUI logs are at `/workspace/comfyui_<pod-id>_nohup.log`. The script intentionally fails if the expected mounted workspace/models are missing. It does not delete files or silently construct an empty setup.
 

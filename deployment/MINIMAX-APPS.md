@@ -47,8 +47,9 @@ already present. For a fresh volume, restore `minimax_app_nodes.py` to the custo
 node path above, restart ComfyUI once, then run `python deployment/minimax_build_apps.py`
 from this repository with its usual deployment credentials and current pod ID.
 
-`minimax-app-tests.json` records real generations. `minimax_check_apps.py` reads
-their outcomes and runs ffprobe to check dimensions, fps, frame count and duration.
+Historical generation snapshots and their one-off checking script were removed
+from the working tree; Git history retains them. ffprobe checked dimensions,
+fps, frame count and duration during the acceptance below.
 The image app is also submitted through its browser Run button to verify widget
 serialization and image preprocessing, rather than testing only API JSON.
 

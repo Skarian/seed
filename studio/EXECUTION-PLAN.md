@@ -348,3 +348,31 @@ Installed CLI refreshed from the local npm artifact and normal app restarted at
 http://192.168.1.212:4310. Combined seed-gpu installed and validated; superseded
 installed seed-vast removed. User data/credentials retained. No paid resources
 created or altered. Unrelated regional research note left untouched/uncommitted.
+
+
+### September 10 - exhaustive repository cleanup and product skill rewrite
+
+Inventoried all 359 tracked files (3,320,015 bytes), imports/literal file references,
+exact duplicates, npm dependency uses and local disk categories. Removed 89 retired
+files: obsolete installers/acceptance probes, captured job histories/queues, Qwen
+deployment hooks and the superseded READINESS review. Current Seed/RunPod support,
+legacy pinned startup/editable graphs, useful recovery tools and research retained.
+Added ignore rules for future job-capture artifacts; updated legacy documentation
+to distinguish current Seed operation from historical deployment evidence.
+
+Deleted 4,467,218,237 bytes of verified local download/test/tool scratch. LoRA
+validation receipts remain; their disposable model copies were removed. Docker
+recovery backup, user media, credentials, benchmark evidence and cloud storage
+were untouched. Seven protected scratch targets could not be fully removed and
+are listed in the audit; no permission/ownership takeover was attempted.
+
+Owner clarified the skill must explain the product. Rewrote its entrypoint around
+Seed as a personal art studio: what to create, setup, opening the studio, GPU
+selection, creative help and ending a session. Provider mechanics live in linked
+references. It leaves the studio running for the user's creative session, rather
+than treating an assistant reply as a reason to terminate compute.
+
+Validation: all 39 app tests and 17 helper tests pass after deletions; retained
+legacy Python helpers parse; no new broken local Markdown links to deleted files.
+No production code changed or GPU resources touched. See research/maintenance/
+REPO-CLEANUP-2026-09-10.md for inventory, exceptions and scope.

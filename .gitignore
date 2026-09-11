@@ -63,3 +63,12 @@ dist/
 test-results/
 playwright-report/
 coverage/
+
+# Disposable provider/job captures belong in .local, not source control
+/deployment/*-history.json
+/deployment/*-submitted.json
+/deployment/*-state.json
+/deployment/*-validation.json
+/deployment/*-tests.json
+/deployment/queue.json
+/deployment/post-recreate-queue.json

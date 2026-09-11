@@ -1,20 +1,22 @@
-# Your ComfyUI setup
+# RunPod deployment files
 
-Use [LEAN-SETUP.md](LEAN-SETUP.md) for Start/Connect/Stop, GPU-unavailable recovery, replacements and future changes. It supersedes the older deployment plans.
+For the current **Seed art studio**, start with [the repository README](../README.md)
+and [seed-gpu RunPod operations](../skills/seed-gpu/references/runpod.md).
+The current worker uses private-template setup in `server/pod-setup.ts` and code
+under `worker/`. It does not use the old Jupyter-authenticated ComfyUI proxy.
 
-- Saved template: **Neil ComfyUI - H3 Krea Qwen** (`7522irqo4q`).
-- Current saved pod: **marvellous_cyan_egret** (`m6k75q8bdelebh`). See [live handoff status](STATUS.md).
-- Storage: **neil-h3-models**, **150 GB**, EUR-IS-1, mounted at `/workspace`.
-- [Runpod controls](https://console.runpod.io/pods?id=m6k75q8bdelebh)
-- [ComfyUI, when running](https://m6k75q8bdelebh-8080.proxy.runpod.net/)
-- [Jupyter administration, when running](https://m6k75q8bdelebh-8888.proxy.runpod.net/lab)
+This directory retains the earlier direct-Comfy setup for recovery/reference:
 
-Sign in using the existing Jupyter token. Use Runpod's Connect button after replacing a pod because its URL changes.
+- `lean/`: pinned startup scripts and nginx configuration.
+- [Legacy operating guide](LEAN-SETUP.md), [acceptance summary](LEAN-ACCEPTANCE.md).
+- [GHCR mirror](GHCR.md): also supplies the current worker's pinned base image.
+- `workflows/` and retained API graphs: editable workflow sources for reference/rollback.
+- [Krea](KREA2-START-HERE.md), [MiniMax apps](MINIMAX-APPS.md), [rebalancing](REBALANCER.md).
+- `remote.py`, `comfy.py`: legacy diagnostics using local private credentials and
+  `configuration.json`. They are not imported by Seed.
 
-Workflow guides: [MiniMax video apps](MINIMAX-APPS.md), [Krea 2](KREA2-START-HERE.md), [Qwen Rapid](QWEN-RAPID-START-HERE.md).
-
-For H3, open **Workflows → Neil H3** and select a Turbo 8 preset. Defaults are 1344×768, 124 frames at 24 fps with audio. For image/reference workflows, choose your image in Load Image. Reference prompts identify the first image as `<Picture 1>`. The Standard 20 presets take longer. Auto Prompt variants under the upstream MiniMax H3 folder require a separate OpenRouter key.
-
-Models, uploads, outputs, workflows and settings live under `/workspace/ComfyUI`. Keep personal workflow variants in the Neil folders; upstream refreshes some of its example/troubleshooting files at startup.
-
-Earlier H3 measurements and deployment history are preserved in [START-HERE-HISTORY.md](../research/deployment/EARLY-HANDOFF.md); its old pod URLs, storage figures and operating instructions are historical.
+Old one-off installers, job histories, queue snapshots, retired Qwen deployment
+hooks and generated acceptance scripts were removed during the exhaustive cleanup.
+Git history preserves them. Historical pod IDs/prices in the guides are evidence,
+not current deployment instructions. Never run an old mutation script recovered
+from history without checking its hard-coded paths and resource IDs.

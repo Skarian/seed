@@ -1,50 +1,81 @@
 ---
 name: seed-gpu
-description: Operate Seed on disposable Vast.ai or RunPod GPUs from Windows, macOS or Linux. Find and price suitable offers, launch the Seed worker, connect it privately over SSH, measure readiness and jobs, and remove paid resources after saving outputs.
+description: Set up and open Seed, a personal AI art studio for creating images and videos. Find a suitable GPU on Vast or RunPod, connect the studio, help with generation workflows, and release paid compute when the user is finished.
 ---
 
-# Seed GPU sessions
+# Seed — your personal art studio
 
-Use this repository's existing app and published worker. The user asks the agent to start/finish a session; the web UI runs generations and never rents compute. Keep one active GPU across both providers. Provider choice belongs to the user/session; do not automatically fail over and incur another rental.
+Seed is a browser-based studio for making images and videos with open models.
+It runs on the user's computer and rents a GPU when needed. The computer keeps
+their uploads, creations and history; replacing the GPU does not replace their
+library. Your role is to make the studio available, so the user can focus on art.
 
-## First-time setup
+## What the user can do
 
-Find the checkout and pass its absolute path as `--repo`. Check Node against package.json and OpenSSH for Vast. Install missing dependencies only, then run `npm ci` and `npm run build`. No local Docker or Python is needed for the published worker.
+- **Create an image:** describe it, choose an aspect ratio, and generate one or a batch.
+- **Create a video:** describe action, camera movement, dialogue and sound; choose
+  a 5, 10 or 15-second clip and portrait or landscape output.
+- **Guide a video with references:** bring images, video or audio, including
+  optional first/last-frame images. References can come from uploads or the Library.
+- **Keep and reuse their work:** preview, download, reuse and delete creations in
+  the local Library. SFW/NSFW selects configured model/LoRA presets; advanced
+  controls expose seeds and supported generation options.
 
-Run `node dist/server/cli.js setup --provider vast` or `--provider runpod` in an interactive terminal. It collects the selected provider key, required Hugging Face token, optional Civitai token, and Windows sign-in preference. Never paste keys into chat or arguments. Existing keys are reused; switching providers preserves them. Stop the local app before changing setup, after checking there is no active work. `node dist/server/cli.js start` prints its URL. Use `setup --host LOCAL_IP` when the user requests LAN access; do not expose it publicly.
+Image-to-image identity editing is still in development. Do not present the
+preview form as a working feature. See the app's current controls for supported
+inputs; don't invent capabilities or rewrite prompts unless asked.
 
-Default a fresh install to Vast; honor an existing saved provider or explicit user choice. The app is not published on npm: don't install the unrelated `seed` package. A discoverable installed skill still needs this checkout/build. If not installed, the agent can read this file directly from the repository.
+## “Set up Seed”
 
-## Provider routing
+Get the existing checkout working. Read [setup](references/setup.md) for the exact
+commands and credentials. Install missing dependencies, build the app and help the
+user enter keys privately. Remember their provider and optional Windows sign-in
+preference. They shouldn't need Docker, a desktop wrapper, or local model weights.
 
-- **Vast:** follow the lifecycle below and [Vast operations](references/operations.md).
-- **RunPod:** follow [RunPod operations](references/runpod.md), reusing Seed's private template, network storage, and normal HTTPS worker protocol. Use native provider tools for compute lifecycle; the included Node helper handles sanitized reads and automatic pairing.
-- **Compare both:** read availability/prices for both, including retained storage and cold-start time, then choose one within current authorization. A catalog availability indicator is not a reservation. Do not run allocation loops or move storage automatically.
+Start the local server and give them a clickable browser URL. For phone/tablet use
+on their Wi-Fi, configure the local LAN address. Their Library is available even
+when the GPU is off. Setup itself does not rent compute.
 
-Before paid operations, state the selected hardware, hourly price and teardown policy. Honor current authorization; request missing spending authorization only. Credentials may be sent only to the selected authorized worker/provider. Check both accounts for active GPUs when both are configured; inability to check is not proof of zero instances. No paid acceptance is implied by installing this skill.
+## “Open the studio” / “Find me a GPU”
 
-## Vast: find and launch
+Check whether Seed already has a usable worker before provisioning anything.
+Reuse working compute. Otherwise find suitable available hardware on the selected
+provider, or compare both if requested. Balance total price, generation speed and
+startup/download time; the cheapest hourly card is not always the cheapest session.
+Explain the chosen offer briefly and work within the user's spending authorization.
+Ask only for a missing budget/provider preference or required access.
 
-1. `doctor` reports local dependencies, build availability and credential presence without exposing values. `setup` delegates to the shared app setup and checks Vast authentication. HF/Civitai credentials come from that same flow. For missing dependencies, follow the reference; do not reinstall working software.
-2. Run `offers`. Defaults target one full-power RTX PRO 6000 WS/Server, 96 GB VRAM, at least 96 GB host RAM, CUDA 13+, verified/reliable hosts and 180 GB disk. These are a starting profile for the tested image, not universal hardware requirements. Inspect price including disk, bandwidth rates, host download speed, location and RAM. Do not hard-code the South Korea machine or equate advertised bandwidth with achieved throughput. H100/H200 or Max-Q require an explicit change to the search and an explanation of the tradeoff; A100 worked but was slower in the benchmark.
-3. State the chosen offer, total hourly rate and teardown policy. Honor existing authorization and budget; ask only for missing spending authorization. Skill invocation itself does not authorize a rental or reuse of another session's approval. Keep one active GPU. `rent --offer-id ... --max-hourly ...` rechecks the live offer, refuses an existing active Vast instance or unfinished saved rental, stores the returned instance ID immediately, and never retries an uncertain creation automatically.
-4. Poll `status` during image setup; report meaningful progress. Once running, run `boot` to install fresh private worker secrets and send HF/optional Civitai tokens via SSH. The user must authorize those credentials being used on the selected provider; don't send the Vast control-plane key to the worker. `boot` is idempotent for this instance and reuses the saved SSH key and worker configuration. A failed SSH attempt is not a reason to rent another GPU.
-5. Run `connect`. It preserves the previous Seed connection, starts the SSH tunnel, uses the existing local-worker test seam in a managed launcher, and pairs automatically. Pairing can happen during model preparation. Keep the app on its configured LAN address so mobile testing still works. Do not interrupt active local jobs to switch workers.
+Use [Vast](references/operations.md) or [RunPod](references/runpod.md) instructions
+to acquire one GPU, prepare models and pair it automatically. Keep one active GPU
+across providers. Resolve an uncertain rental response before attempting another.
+The user should not have to manage template values, SSH commands or pairing codes.
 
-```sh
-node <skill>/scripts/seed-vast.mjs offers --repo <checkout>
-node <skill>/scripts/seed-vast.mjs rent --repo <checkout> --offer-id <id> --max-hourly <approved-price>
-node <skill>/scripts/seed-vast.mjs status --repo <checkout>
-node <skill>/scripts/seed-vast.mjs boot --repo <checkout>
-node <skill>/scripts/seed-vast.mjs connect --repo <checkout>
-```
+Keep them informed while the studio prepares. Check the actual worker, not merely
+its provider status. Deliver the URL with **Preparing** or **Ready**, the hourly
+cost, and any action still needed. Leave the requested studio running for them;
+finishing your reply is not the end of their creative session.
 
-## Vast: operate and finish
+## “Help me create”
 
-- `status` reports the selected instance and local Seed readiness. `preparation` reports first-stage and final verification timestamps, model byte counts and elapsed preparation time. Distinguish container setup, download+verification, model initialization, generation and transfer time.
-- Normal generations run through Seed's existing UI/API. Do not automatically spend time on a 15-second benchmark for a user who just wants the UI started. When a benchmark is requested, retain workflow, inputs, settings, native job metrics and output validation. Native memory readings after switching models can include previously loaded models; do not present them as standalone model requirements.
-- If the user wants to test, leave the requested GPU running and clearly report the cost. Otherwise follow the agreed teardown policy. Default recommendation for new sessions: delete disposable disk after use, given the observed five-minute model preparation. Do not silently turn a request to stop into permission to destroy a retained disk.
-- `stop` pauses the queue and waits for a fresh `safe_to_terminate=true`; then stops the saved instance and restores the normal local launcher. Disk charges continue. `destroy` performs the same safety check for a running instance and deletes the instance/disk. It refuses deletion when the PC has unresolved work or output transfers, and never deletes an unrelated instance. If disconnected safety cannot be proven, inspect the worker and local job records before taking further action; don't override the check blindly.
-- `billing` reports remaining credit and charges for the recorded instance. After teardown, verify provider state, local app health and saved outputs. Record useful measurements in the repository research folder and commit relevant non-secret changes. Do not commit `.local` state, keys or tokens.
+The user normally works directly in Generate and Library. Help choose a workflow,
+understand reference roles or improve a prompt when asked. Read the matching guide
+under the checkout's `prompting/` directory for model-specific prompting. Existing
+jobs show progress and record timings/memory; use that evidence when recommending
+hardware. Do not run an expensive benchmark just to open the studio.
 
-No blind allocation loops, provider abstraction, scheduled shopping, extra storage service or registry is needed for this version. On an ambiguous rental response, inspect the account's instance list before any new attempt. Stop and diagnose repeated preparation errors instead of cycling GPU rentals or repeatedly downloading the same files.
+## “I'm finished”
+
+Confirm active work is finished and outputs are durably saved locally, then follow
+the agreed stop/delete choice and verify provider state. Vast's disposable disk is
+normally deleted after a session; RunPod's network volume is retained. Explain any
+remaining storage charge. Closing a browser, stopping the local app or putting the
+PC to sleep does not stop GPU billing.
+
+## Where the implementation lives
+
+The repository contains the React/Node studio, its ComfyUI worker and this skill.
+The provider references contain commands and recovery details; they are not steps
+for the user to perform manually. Keep credentials outside Git and browser state.
+The current software/runtime pins and verification limits live in those references
+and the repo's README. No provider controls or extra orchestration service belong
+in the studio UI.

@@ -22,6 +22,6 @@ Verified:
 - 83 backed-up files match after replacement, including personal workflows and custom-node source. Changes were limited to logs and the upstream troubleshooting example.
 - Startup logs report ten existing H3 model files skipped and an empty download manifest. Krea/Qwen assets were also present and used. No full model hash scan was performed; Qwen's earlier checksum verification remains skipped as requested.
 
-Evidence: `lean-tests.json`, `lean-*-history.json`, `lean-persistence.json`, `lean-audit.json`, `lean/pins.json`, and downloaded media in `samples/lean/`.
+Evidence: the historical raw job/audit snapshots are retained in Git history before the repository cleanup; `lean/pins.json` and this acceptance summary remain in the working tree. Local samples/backups were not deleted.
 
-Limits: generation tests use the API graphs, not browser clicks on Run. No cross-region migration, alternate GPU, fault-injection campaign or automated backup/idle-shutdown system was added. Upstream dependency installation is retained and is not a complete package lockfile. See `STATUS.md` for the final stopped state and `LEAN-SETUP.md` for operation and recovery.
+Limits: generation tests use the API graphs, not browser clicks on Run. No cross-region migration, alternate GPU, fault-injection campaign or automated backup/idle-shutdown system was added. Upstream dependency installation is retained and is not a complete package lockfile. Consult the provider for current state; see `LEAN-SETUP.md` for legacy recovery.
