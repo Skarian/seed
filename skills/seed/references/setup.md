@@ -34,7 +34,7 @@ node dist/server/cli.js help
 
 Expected result: the build creates `dist/server/` and `dist/web/`, and help lists
 setup/start/status/stop. If installation or native dependencies fail, resolve that
-before renting a GPU. No local Docker, Python, model weights or desktop wrapper
+before renting a GPU. No local Docker, Python or desktop wrapper
 is required to use the published GPU worker.
 
 ## Configure credentials once
@@ -66,6 +66,30 @@ CIVITAI_API_TOKEN are also accepted through the process environment.
 
 If setup says Seed is running, check for active work before using the CLI `stop`
 command, then rerun setup. Never interrupt a creative session just to change a setting.
+
+## Models stay on the PC
+
+Setup downloads and verifies the pinned base models before any GPU is rented.
+Allow about 102 GB for the current models and presets, plus free space for media.
+Files live in the standard per-user data directory under `models/`, outside the
+checkout. Three downloads run at a time; interrupted downloads retain partials.
+Run `node dist/server/cli.js models` to resume or fetch updates without stopping
+Seed. Verified files are reused. This command does not acquire compute.
+
+Owner-selected LoRAs are pinned in `model-presets.json` in the configuration
+directory printed by setup. It is an array of entries with `path`, `url`, `size`,
+`sha256`, `route` (`image`, `fl`, `ref`) and optional `strength` (default 1).
+Use the exact Civitai version/file URL:
+`https://civitai.com/api/download/models/VERSION_ID?fileId=FILE_ID`.
+Resolve the user's links through Civitai metadata and verify the selected file's
+size/SHA256; do not guess a file or silently change a pinned version. Base models
+come from the application's pinned manifest. Identity's base LoRA remains there;
+its UI workflow is still unfinished. Never put source tokens in these URLs.
+
+Vast boot sends missing files over SSH and verifies them on the VM. A failed copy
+resumes from its partial file. No public file server is needed. Source credentials
+stay on the PC; VM bootstrap receives only per-worker pairing/Jupyter secrets.
+A host still has access to the weights and job media it processes.
 
 ## Open and verify
 

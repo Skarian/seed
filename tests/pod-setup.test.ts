@@ -2,8 +2,7 @@ import { expect, test, vi } from 'vitest';
 import { mkdirSync, mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
 import path from 'node:path';
 import { prepareStorage, resolvePaths } from '../server/storage.js';
-import { deploymentSettings, podEnvironment, preflightModels, setupPod, type Provider } from '../server/pod-setup.js';
-import models from '../worker/models.json' with { type: 'json' };
+import { deploymentSettings, podEnvironment, setupPod, type Provider } from '../server/pod-setup.js';
 function fixture() {
   mkdirSync('.local/tests', { recursive: true });
   const paths = resolvePaths(mkdtempSync(path.resolve('.local/tests/pod-setup-'))); prepareStorage(paths);
@@ -20,7 +19,7 @@ test('reuse persists secrets and selected volume without creating paid resources
   expect(provider.createVolume).not.toHaveBeenCalled(); expect(provider.storageRate).not.toHaveBeenCalled();
   expect(say.mock.calls.flat().join('\n')).not.toContain(before.pairingSecret);
   writeFileSync(path.join(paths.config, 'credentials.json'), JSON.stringify({ runpodApiKey: 'must-not-reach-worker', huggingFaceToken: 'fixture-hf', civitaiApiToken: 'fixture-civitai' }));
-  expect(podEnvironment(paths)).toEqual({ HF_TOKEN: 'fixture-hf', CIVITAI_API_TOKEN: 'fixture-civitai', SEED_PAIRING_SECRET: before.pairingSecret, JUPYTER_TOKEN: before.jupyterToken });
+  expect(podEnvironment(paths)).toEqual({ SEED_PAIRING_SECRET: before.pairingSecret, JUPYTER_TOKEN: before.jupyterToken });
 });
 test('lost creation response reconciles the intent and never repeats the POST', async () => {
   const { paths, provider, existing, say } = fixture();
@@ -59,18 +58,6 @@ test('declining paid storage and invalid settings preserve resources and configu
   const file = path.join(paths.config, 'pod-deployment.json'); writeFileSync(file, '{broken');
   expect(() => deploymentSettings(paths)).toThrow('Cannot read'); expect(readFileSync(file, 'utf8')).toBe('{broken');
 });
-test('model preflight checks pinned size/digest without following credential-bearing redirects', async () => {
-  const { paths } = fixture();
-  writeFileSync(path.join(paths.config, 'credentials.json'), JSON.stringify({ huggingFaceToken: 'fixture-hf' }));
-  const request = vi.fn(async (url, init) => {
-    expect(init.method).toBe('HEAD'); expect(init.redirect).toBe('manual');
-    const model = models.find(item => item.url === url)!;
-    return new Response(null, { status: 302, headers: { 'x-linked-size': String(model.size), 'x-linked-etag': '"' + model.sha256 + '"' } });
-  });
-  expect((await preflightModels(paths, request)).files).toBe(models.length);
-  await expect(preflightModels(paths, vi.fn(async () => new Response(null, { status: 401 })))).rejects.toThrow('access/integrity');
-});
-
 test('private template is reused and contains worker credentials but never the RunPod API key', async () => {
   const {paths,provider,say}=fixture();
   await setupPod(paths,{say},provider);await setupPod(paths,{say},provider);
@@ -78,7 +65,8 @@ test('private template is reused and contains worker credentials but never the R
   expect(provider.updateTemplate).toHaveBeenCalledTimes(2);
   const config=vi.mocked(provider.updateTemplate).mock.calls[0]![1];
   expect(config).toMatchObject({name:'seed',public:false,ports:['8080/http','8888/http']});
-  expect(config.env.HF_TOKEN).toBe('fixture-hf');
+  expect(config.env).not.toHaveProperty('HF_TOKEN');
+  expect(config.env).not.toHaveProperty('CIVITAI_API_TOKEN');
   expect(config.env).not.toHaveProperty('RUNPOD_API_KEY');
   expect(deploymentSettings(paths).templateId).toBe('fixture-template');
   expect(say.mock.calls.flat().join('\n')).not.toContain('fixture-hf');

@@ -49,7 +49,7 @@ Install Seed from a locally packed npm artifact and use the system Node.js runti
 
 The agent operates Vast or RunPod through the seed skill, with one authorized GPU and no provider lifecycle controls in the UI. Vast uses disposable local disk and SSH; RunPod reuses a private template and network volume. RunPod setup shows storage cost before creating anything. No Terraform, model packaging, external storage service or automatic provider failover.
 
-Preferred model source is direct Hugging Face download into the volume, with read credentials where needed and explicit exceptions for owner-selected LoRAs. No mandatory local model copies. Keep the GHCR software image and pinned dependency/model manifests. See [source inventory](studio/RELEASE-AND-INFRASTRUCTURE.md).
+Setup downloads all pinned models and owner-selected LoRAs to the PC. Deployment pushes verified files over SSH, resuming partials and reusing remote copies. Hugging Face and Civitai credentials remain local on new deployments. Initial local setup completes before acquiring compute. Keep the GHCR software image and pinned dependency/model manifests. See [source inventory](studio/RELEASE-AND-INFRASTRUCTURE.md).
 
 A port-8080 connection page is available while preparation runs. The skill unlocks it and exchanges a short-lived single-use code for a worker credential automatically. Manual copying remains a fallback. Browser refresh retains the connection; replacement workers require pairing. Jupyter stays separate for administration.
 
@@ -63,8 +63,8 @@ Public hosting, tunnel/VPS, domain, TLS and external browser login are outside t
 
 SwarmUI evaluation and broader UI choices remain separate. Retain four workflow forms/adapters, waiting queue, preset snapshots, Library filters, full native references and meaningful Advanced. Owner-selected LoRAs use the Civitai API, with exact version/file and compatibility records; updates are explicit, not automatic replacement with the latest version. SFW denotes a configured preset, not a content-classification guarantee.
 
-First obtain all access with owner present. Prove setup/pairing during preparation, blank/warm caches and one durable generation/transfer/replacement round trip before broad UI work. Implementation requires authorization for at most one active pod/one GPU and verified compute off at session end. Remove only the verified retired Qwen Rapid checkpoint/redownload hooks then, preserving shared encoders/VAEs.
+First obtain all access with owner present. Prove setup/pairing during preparation, blank/warm caches and one durable generation/transfer/replacement round trip before broad UI work. Implementation requires authorization for at most one active GPU; leave a requested creative session running, and verify compute off when the owner ends it. Remove only the verified retired Qwen Rapid checkpoint/redownload hooks then, preserving shared encoders/VAEs.
 
 [Current direction](studio/CURRENT-DIRECTION.md), [bootstrap/pairing](studio/POD-BOOTSTRAP.md), [execution](studio/EXECUTION-PLAN.md), [architecture](studio/ARCHITECTURE.md), [API](studio/API-CONTRACT.md), [graph changes](studio/COMFYUI-CHANGES.md).
 
-No revised deployment is implemented. Current readiness is unresolved; historical percentages do not apply. LLM/Pi, timeline editing, remote object storage and automatic lifecycle remain deferred.
+Implementation status and remaining live-validation limits are recorded in the execution journal. LLM/Pi, timeline editing, remote object storage and automatic lifecycle remain deferred.

@@ -1,6 +1,8 @@
+> September 11 update: setup caches all models and configured LoRAs on the PC. New workers receive verified files over SSH, not Hugging Face/Civitai keys. Reuse local and remote files; resume interrupted transfers. No public model server or separate object store. Current GPU sessions remain unchanged. Full cold PC-to-VM timing remains to be measured; RunPod direct SSH provisioning is operator-managed.
+
 # Current Seed direction
 
-## Adopted operating model — 10 September 2026
+## Adopted operating model â€” 10 September 2026
 
 The agent operates Vast **or RunPod** through the repository's [seed skill](../skills/seed/SKILL.md).
 One local browser app keeps permanent inputs/outputs/history; one authorized GPU

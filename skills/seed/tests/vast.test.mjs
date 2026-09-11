@@ -70,7 +70,7 @@ test('ambiguous rental is journaled and cannot allocate again on retry',async()=
     await saveJson(ops.key,{});await saveJson(ops.key+'.pub',{});
     const offer={id:42,machine_id:7,gpu_name:'RTX PRO 6000 WS',num_gpus:1,dph_total:1.45};
     await saveJson(path.join(ops.work,'offers.json'),[offer]);ops.instances=async()=>[];
-    ops.ensureAccountKey=async()=>{};let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))return {offers:[offer]};if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);assert.match(body.onstart,/chmod 600/);creations++;throw new Error('lost response');}return {success:true};};
+    ops.requireModels=async()=>[];ops.ensureAccountKey=async()=>{};let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))return {offers:[offer]};if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);assert.match(body.onstart,/chmod 600/);creations++;throw new Error('lost response');}return {success:true};};
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/lost response/);
     assert.equal((await readJson(ops.stateFile)).offer_id,42);
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/uncertain attempt/);assert.equal(creations,1);
@@ -81,7 +81,7 @@ for (const fail of [false,true]) test(`connect uses only a tunnel and pairing; e
   const root=await mkdtemp(path.join(os.tmpdir(),'seed-connect-'));
   try {
     const starts=[],calls=[];
-    const ops=new SeedVast(root,{startBackground:async(script)=>starts.push(path.basename(script)),fetcher:async(url)=>{
+    const ops=new SeedVast(root,{checkPort:async()=>{},startBackground:async(script)=>starts.push(path.basename(script)),fetcher:async(url)=>{
       if(url.endsWith('/pairing-codes'))return Response.json({connection_code:'test-code'});
       return new Response('ok',{headers:{'set-cookie':'session=test; HttpOnly'}});
     }});

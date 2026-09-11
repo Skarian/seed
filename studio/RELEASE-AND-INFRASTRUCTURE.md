@@ -7,8 +7,10 @@ Provider setup and operating steps live in [the skill](../skills/seed/SKILL.md).
 `shared/worker-release.ts` is the authoritative immutable GHCR image reference for
 RunPod setup and Vast rental. Rebuild the app after changing it. The worker image
 contains explicit source/static files over the pinned public Comfy base; keep the
-mirror workflow because that base remains required. Models download separately
-from `worker/models.json`. Credentials are runtime inputs, never image contents.
+mirror workflow because that base remains required. Setup downloads models from `worker/models.json` into the PC cache; configured
+presets come from private model-presets.json. Deployment pushes verified files
+over SSH. Source credentials stay local; worker pairing/Jupyter secrets are
+runtime inputs, never image contents.
 
 Build: `docker build -t seed-worker:candidate -f worker/Dockerfile worker`.
 The existing GitHub workflow publishes candidates after worker changes are pushed.

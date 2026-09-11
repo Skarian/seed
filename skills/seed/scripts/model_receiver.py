@@ -28,11 +28,31 @@ def verified(target, item):
         return hashlib.file_digest(f, 'sha256').hexdigest() == item['sha256']
 
 
+def receipt_path(workspace, item):
+    root=Path(workspace).resolve()
+    result=root/'.seed/models'/(hashlib.sha256(item['path'].encode()).hexdigest()+'.json')
+    if not result.resolve().is_relative_to(root): raise ValueError('Receipt path leaves workspace')
+    return result
+
+
+def save_receipt(workspace, item, target):
+    if item.get('route'): return
+    receipt=receipt_path(workspace,item); receipt.parent.mkdir(parents=True,exist_ok=True)
+    s=target.stat(); temporary=receipt.with_suffix('.tmp')
+    temporary.write_text(json.dumps({'sha256':item['sha256'],'size':s.st_size,'mtime_ns':s.st_mtime_ns}))
+    os.replace(temporary,receipt)
+
+
 def probe(workspace, entries):
     result = []
     for item in entries:
         target, partial = locations(workspace, item)
-        valid = verified(target, item)
+        try:
+            saved=json.loads(receipt_path(workspace,item).read_text()); stat=target.stat()
+            valid=stat.st_size==item['size'] and saved=={'sha256':item['sha256'],'size':stat.st_size,'mtime_ns':stat.st_mtime_ns}
+        except (OSError,ValueError): valid=False
+        if not valid: valid=verified(target,item)
+        if valid: save_receipt(workspace,item,target)
         offset = partial.stat().st_size if partial.exists() else 0
         if offset > item['size']:
             partial.unlink(); offset = 0
@@ -61,11 +81,23 @@ def receive(workspace, item, offset, stream):
         partial.unlink()
         raise ValueError('Transfer hash mismatch; rerun from zero')
     os.replace(partial, target)
+    save_receipt(workspace,item,target)
     return {'path':item['path'], 'ready':True, 'bytes':item['size']}
 
 
 def activate(workspace, entries):
     # Only preset files already verified on this VM can become active.
+    import urllib.request
+    import urllib.error
+    try:
+        with urllib.request.urlopen('http://127.0.0.1:8188/queue', timeout=5) as response:
+            queue=json.load(response)
+        if queue['queue_running'] or queue['queue_pending']:
+            raise ValueError('Engine has active work; activate presets after it finishes')
+    except urllib.error.URLError as exc:
+        if not isinstance(exc.reason, ConnectionRefusedError):
+            raise ValueError('Cannot verify engine state') from None
+
     sys.path.insert(0, '/opt/seed')
     from worker.spool import atomic
     root = Path(workspace).resolve()

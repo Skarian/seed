@@ -17,26 +17,29 @@ const say = (value: string) => { if (!quiet) console.log(value); };
 try {
   const [major, minor, patch] = process.versions.node.split('.').map(Number);
   if (major !== 26 || minor! < 8 || (minor === 8 && patch! < 2)) throw new Error('seed requires Node 26.8.2 or newer in the 26.x line. Install it from nodejs.org.');
-  if (!['setup', 'pod-setup', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
-  const known = command === 'pod-setup' ? ['--quiet', '--volume', '--create', '--show-secrets'] : ['--quiet', '--startup', '--no-startup', '--host', '--port', ...(command === 'setup' ? ['--provider'] : [])];
+  if (!['setup', 'pod-setup', 'models', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
+  const known = command === 'models' ? ['--quiet'] : command === 'pod-setup' ? ['--quiet', '--volume', '--create', '--show-secrets'] : ['--quiet', '--startup', '--no-startup', '--host', '--port', ...(command === 'setup' ? ['--provider'] : [])];
   for (let i = 0; i < args.length; i++) {
     if (!known.includes(args[i]!)) throw new Error(`Unknown option: ${args[i]}`);
     if (args[i] === '--host' || args[i] === '--port' || args[i] === '--volume' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
   }
-  if (command === 'help') say('seed setup [--provider vast|runpod] [--host LOCAL_IP] [--port 4310] [--startup | --no-startup]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed start [--quiet]\nseed status\nseed stop');
+  if (command === 'help') say('seed setup [--provider vast|runpod] [--host LOCAL_IP] [--port 4310] [--startup | --no-startup]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop');
   else {
     prepareStorage(paths);
-    if (command === 'pod-setup') {
+    if (command === 'models') {
+      const { prepareModels } = await import('./model-cache.js');
+      await prepareModels(paths, say);
+    } else if (command === 'pod-setup') {
       const interactive = Boolean(process.stdin.isTTY) && !quiet;
       await ensureCredentials(paths, { interactive, provider: 'runpod' });
-      const { setupPod, podEnvironment, preflightModels } = await import('./pod-setup.js');
+      const { setupPod, podEnvironment } = await import('./pod-setup.js');
       if (args.includes('--show-secrets')) {
         if (quiet || args.includes('--create') || args.includes('--volume')) throw new Error('Use --show-secrets by itself; it displays private deployment values.');
         say('Private worker environment values. Copy into RunPod deployment settings; do not share or commit.');
         say(JSON.stringify(podEnvironment(paths), null, 2));
       } else {
-        const checked = await preflightModels(paths);
-        say(`Hugging Face access verified for ${checked.files} pinned model files (${(checked.bytes / 1e9).toFixed(2)} GB). No weights downloaded locally.`);
+        const { prepareModels } = await import('./model-cache.js');
+        await prepareModels(paths, say);
         const prompt = interactive ? createInterface({ input: process.stdin, output: process.stdout }) : undefined;
         try { await setupPod(paths, { say, question: prompt ? message => prompt.question(message) : undefined, volumeId: args.includes('--volume') ? args[args.indexOf('--volume') + 1] : undefined, create: args.includes('--create') }); }
         finally { prompt?.close(); }
@@ -66,6 +69,8 @@ try {
         }
         windowsStartup(current.startup, process.execPath, fileURLToPath(import.meta.url));
       } else if (args.includes('--startup')) throw new Error('Automatic sign-in setup is currently supported on Windows only.');
+      const { prepareModels } = await import('./model-cache.js');
+      await prepareModels(paths, say);
       saveSettings(paths, current);
       say(`Setup complete. ${current.provider === 'vast' ? 'Vast' : 'RunPod'} and Hugging Face configured.\nCivitai: ${credentials.civitaiConfigured ? 'configured' : 'skipped (optional)'}\nCredentials: ${credentials.file}\nThe repository .env is not modified.\nData: ${paths.data}\nSign-in startup: ${process.platform === 'win32' && current.startup ? 'enabled' : 'disabled'}\nRun seed start.`);
     } else if (command === 'status') {

@@ -28,8 +28,8 @@ def boot():
     os.umask(0o077)
     config = Path('/root/.seed-agent-env.json')
     incoming = json.load(sys.stdin)
-    allowed = {'HF_TOKEN', 'CIVITAI_API_TOKEN', 'JUPYTER_TOKEN', 'SEED_PAIRING_SECRET'}
-    if set(incoming) - allowed or not incoming.get('HF_TOKEN'):
+    allowed = {'JUPYTER_TOKEN', 'SEED_PAIRING_SECRET'}
+    if set(incoming) != allowed:
         raise ValueError('Unexpected or missing worker credential fields.')
     for name in ('JUPYTER_TOKEN', 'SEED_PAIRING_SECRET'):
         if len(incoming.get(name, '')) < 24:
@@ -45,7 +45,7 @@ def boot():
         pass
     config.write_text(json.dumps(incoming))
     config.chmod(0o600)
-    env = os.environ.copy()
+    env = {k:v for k,v in os.environ.items() if k not in {'HF_TOKEN','HUGGING_FACE_HUB_TOKEN','HUGGINGFACE_TOKEN','CIVITAI_API_TOKEN','CIVITAI_TOKEN'}}
     env.update(incoming)
     env.update(SEED_WORKSPACE='/workspace', SEED_TRANSPORT='ssh', SEED_PUBLIC_URL='http://127.0.0.1:18080', HF_XET_CHUNK_CACHE_SIZE_BYTES='0')
     with open('/var/log/seed-worker.log', 'ab') as log:
@@ -57,7 +57,14 @@ def boot():
 
 if __name__ == '__main__':
     try:
-        if sys.argv[1:] == ['preparation']:
+        if sys.argv[1:] == ['status']:
+            try:
+                pid = Path('/root/.seed-agent-worker.pid').read_text().strip()
+                running = b'worker.run' in (Path('/proc')/pid/'cmdline').read_bytes()
+            except FileNotFoundError:
+                running = False
+            print(json.dumps({'running':running}))
+        elif sys.argv[1:] == ['preparation']:
             print(json.dumps(preparation()))
         elif sys.argv[1:] == ['boot']:
             print(json.dumps(boot()))

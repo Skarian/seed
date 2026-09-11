@@ -4,6 +4,7 @@ import { promisify } from 'node:util';
 import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import { createServer } from 'node:net';
+import {pathToFileURL} from 'node:url';
 const exec = promisify(execFile);
 
 test('CLI setup, concurrent start, authenticated stop, restart and data preservation', async () => {
@@ -13,6 +14,9 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
   const port = (probe.address() as import('node:net').AddressInfo).port;
   await new Promise<void>(resolve => probe.close(() => resolve()));
   const env: NodeJS.ProcessEnv = { ...process.env, STUDIO_DEV_ROOT: root, RUNPOD_API_KEY: 'fixture-runpod-key', HF_TOKEN: 'fixture-hf-token', APPDATA: path.join(root, 'fake Windows profile') };
+  const hook=path.join(root,'model-fixture.mjs');
+  writeFileSync(hook, `import {registerHooks} from 'node:module'; registerHooks({resolve(s,c,next){if(s==='./model-cache.js'&&c.parentURL?.endsWith('/cli.js')) return {url:'data:text/javascript,export async function prepareModels() {}',shortCircuit:true};return next(s,c);}});`);
+  env.NODE_OPTIONS=`--import=${pathToFileURL(hook).href}`;
   delete env.STUDIO_PORT; delete env.STUDIO_PREVIEW_ADDRESS; delete env.SEED_MANAGED;
   const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
   try {
@@ -48,6 +52,9 @@ test('fresh Vast setup needs no RunPod key and remembers provider on rerun', asy
   mkdirSync('.local/tests', { recursive: true });
   const root = mkdtempSync(path.resolve('.local/tests/cli-vast-'));
   const env: NodeJS.ProcessEnv = { ...process.env, STUDIO_DEV_ROOT: root, VAST_API_KEY: 'fixture-vast', HF_TOKEN: 'fixture-hf', APPDATA: path.join(root, 'profile') };
+  const hook=path.join(root,'model-fixture.mjs');
+  writeFileSync(hook, `import {registerHooks} from 'node:module'; registerHooks({resolve(s,c,next){if(s==='./model-cache.js'&&c.parentURL?.endsWith('/cli.js')) return {url:'data:text/javascript,export async function prepareModels() {}',shortCircuit:true};return next(s,c);}});`);
+  env.NODE_OPTIONS=`--import=${pathToFileURL(hook).href}`;
   delete env.RUNPOD_API_KEY;
   const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
   const first = await run('setup', '--provider', 'vast', '--no-startup');

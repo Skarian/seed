@@ -181,13 +181,14 @@ export function sshArgs(instance, key, knownHosts) {
 export class SeedVast {
   constructor(
     repo,
-    { fetcher = fetch, env = process.env, startBackground = background } = {},
+    { fetcher = fetch, env = process.env, startBackground = background, checkPort = freePort } = {},
   ) {
     this.repo = path.resolve(repo);
     this.work = path.join(this.repo, ".local/seed-vast");
     this.fetcher = fetcher;
     this.env = env;
     this.startBackground = startBackground;
+    this.checkPort = checkPort;
   }
   async init() {
     this.stateFile = path.join(this.work, "state.json");
@@ -390,6 +391,10 @@ export class SeedVast {
       ]),
     );
   }
+  async requireModels() {
+    const { requireModelCache } = await import(pathToFileURL(path.join(this.repo, "dist/server/model-cache.js")));
+    return requireModelCache(this.paths);
+  }
   async rent({ offerId, maxHourly, disk = 180 }) {
     if (
       !Number.isSafeInteger(offerId) ||
@@ -414,6 +419,7 @@ export class SeedVast {
       )
     )
       throw new Error("An active Vast instance already exists.");
+    await this.requireModels();
     const cached = (
       await readJson(path.join(this.work, "offers.json"), [])
     ).find((o) => o.id === offerId);
@@ -522,9 +528,6 @@ export class SeedVast {
     const instance = await this.current();
     if (instance.actual_status !== "running")
       throw new Error("Wait for the instance to be running before boot.");
-    const c = await this.credentials();
-    const hf = this.env.HF_TOKEN || c.huggingFaceToken;
-    if (!hf) throw new Error("HF_TOKEN is required.");
     let secret = await readJson(this.secretFile());
     if (!secret) {
       secret = {
@@ -533,9 +536,7 @@ export class SeedVast {
       };
       await saveJson(this.secretFile(), secret);
     }
-    const payload = { ...secret, HF_TOKEN: hf };
-    const civitai = this.env.CIVITAI_API_TOKEN || c.civitaiApiToken;
-    if (civitai) payload.CIVITAI_API_TOKEN = civitai;
+    const payload = { SEED_PAIRING_SECRET: secret.SEED_PAIRING_SECRET, JUPYTER_TOKEN: secret.JUPYTER_TOKEN };
     await this.api("POST", `/api/v0/instances/${instance.id}/ssh/`, {
       ssh_key: (await readFile(this.key + ".pub", "utf8")).trim(),
     });
@@ -543,6 +544,10 @@ export class SeedVast {
     await run("ssh", [...args, "umask 077; cat > /root/seed-agent-worker.py"], {
       input: await readFile(path.join(here, "worker.py")),
     });
+    const existing = JSON.parse(await run("ssh", [...args, "/opt/venv/bin/python /root/seed-agent-worker.py status"]));
+    if (existing.running) return { running: true, reused: true };
+    const { transferModels } = await import("./model-transfer.mjs");
+    await transferModels(this.repo, this.paths, args);
     const result = await run(
       "ssh",
       [...args, "/opt/venv/bin/python /root/seed-agent-worker.py boot"],
@@ -565,7 +570,7 @@ export class SeedVast {
       throw new Error("The instance is not running.");
     assertIdle(await this.local("GET", "/api/v1/studio"));
     await this.stopTunnel();
-    for (const port of [18080, 18888]) await freePort(port);
+    for (const port of [18080, 18888]) await this.checkPort(port);
     const args = sshArgs(instance, this.key, this.knownHosts);
     const target = args.pop();
     args.push(

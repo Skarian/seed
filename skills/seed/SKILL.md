@@ -37,7 +37,8 @@ Run app commands from REPO. Helper commands work from any directory with `--repo
 ## Open the studio
 
 1. Check the local app and any existing GPU connection. Reuse a working session.
-2. If compute is needed, use the user's chosen provider or compare both when
+2. Complete local model setup before renting compute; weights and model-source
+   credentials stay on the PC, and missing files are pushed over SSH. If compute is needed, use the user's chosen provider or compare both when
    requested. Follow [Vast](references/vast.md) or [RunPod](references/runpod.md).
    Consider hourly price, startup time and generation speed. Explain the selected
    offer and act within the user's spending authorization; obtain missing access

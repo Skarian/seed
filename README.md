@@ -1,7 +1,7 @@
 # seed
 
 Seed is a local browser app for image and video generation on a disposable GPU.
-Your computer keeps uploads, results and history. An agent operates the GPU through
+Your computer keeps models, uploads, results and history. An agent operates the GPU through
 the [seed skill](skills/seed/SKILL.md); the web UI does not rent or stop hardware.
 
 ## Start from a checkout
@@ -26,6 +26,8 @@ node dist/server/cli.js start
 Use `--provider runpod` for RunPod. Setup saves the choice and reuses it on later
 runs; fresh setup defaults to Vast. The selected provider key and Hugging Face token
 are required; Civitai is optional. Accept any gated model terms on the source site.
+Setup downloads and verifies roughly 102 GB of models and configured LoRAs locally before renting compute. Run `node dist/server/cli.js models` to resume or update the cache while the app stays running. Models live in the per-user data directory, outside Git.
+
 Setup stores credentials in the per-user configuration directory it prints, never
 in Git or browser storage. Environment overrides: VAST_API_KEY, RUNPOD_API_KEY,
 HF_TOKEN and CIVITAI_API_TOKEN. Optional .env import is supported, but no file is
@@ -51,11 +53,11 @@ The npm package is not published. Do not install the unrelated package named `se
 
 | Provider | Models | Connection | After use |
 |---|---|---|---|
-| Vast | Download to disposable instance disk | Private SSH tunnel | Normally destroy instance/disk after saving outputs |
+| Vast | Push verified local cache over SSH | Private SSH tunnel | Normally destroy instance/disk after saving outputs |
 | RunPod | Reuse your network volume | Authenticated HTTPS worker proxy | Stop/terminate pod; retain separately billed network volume |
 
 The software image is public on [GHCR](https://github.com/Skarian/runpod/pkgs/container/seed-worker).
-Credentials stay in private configuration/template values, outside that image.
+Model-source credentials stay on the PC. Only per-worker pairing/Jupyter secrets go to new templates or workers, outside the image. Existing deployments are not retroactively changed.
 The skill pins a tested release; users do not need to build a container.
 
 ## What works, and what still needs checking

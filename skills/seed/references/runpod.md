@@ -45,7 +45,8 @@ https://github.com/runpod/runpodctl/releases. Inspect `runpodctl --help` and
 `runpodctl pod create --help` for that version's flags. Authenticate using the saved
 RunPod key in the child process's RUNPOD_API_KEY environment, never as an argument
 or in chat. A Node child process can read credentials.json and supply that environment.
-Do not print raw pod/template responses; they include model-source secrets.
+Do not print raw pod/template responses; they include worker secrets. Older
+templates may still contain model-source tokens until explicitly updated.
 
 Prefer a compatible existing pod if reusable. Otherwise create one pod using the
 saved template ID, saved volume mounted at `/workspace`, ONE compatible GPU and
@@ -62,6 +63,27 @@ reconstructing secrets manually. The helper only supplies reads, pairing and saf
 If start/create fails for capacity, inspect actual pods before trying another
 approved candidate. A timeout can conceal a successful allocation. Do not loop
 blindly, migrate volumes, or switch providers outside the user's agreed alternatives.
+
+## Transfer models from the PC
+
+`pod-setup` now prepares the local cache and creates/updates templates without HF
+or Civitai tokens. Existing tokens are not removed from previously created pods.
+Models already on the network volume are reused. With an empty volume the worker
+waits for files rather than contacting a model source.
+
+Before acquiring a new empty-volume pod, establish how the provider's direct SSH
+port and public-key access will be configured using the native RunPod tools. The
+current RunPod helper does not automate SSH provisioning. Do not rent a pod if
+this access path is unresolved. Once direct SSH works, use the shared copier:
+
+```sh
+node "SKILL/scripts/model-transfer.mjs" --repo "REPO" --host GPU_IP --port SSH_PORT --key PRIVATE_KEY_PATH --known-hosts KNOWN_HOSTS_PATH --workspace /workspace
+```
+
+Use exact connection values returned/configured for that pod. The copier sends no
+source credentials, skips verified models, resumes partials and activates the
+configured presets only when the engine has no queued/running work. This path
+needs a live RunPod validation; do not claim fully automatic RunPod deployment.
 
 ## Connect the studio
 

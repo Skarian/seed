@@ -13,6 +13,8 @@ node "SKILL/scripts/vast.mjs" offers --repo "REPO"
 ```
 
 Doctor should show `built: true`, working SSH tools and configured Vast/HF keys.
+Run `node "REPO/dist/server/cli.js" models` before renting if the local model cache is incomplete. Rent refuses a missing/changed cache.
+
 Status lists account instances and local studio state. Reuse an existing usable
 session; don't acquire another GPU while one is already active. If RunPod is also
 configured, check it using that guide before allocation.
@@ -49,8 +51,9 @@ node "SKILL/scripts/vast.mjs" preparation --repo "REPO"
 node "SKILL/scripts/vast.mjs" status --repo "REPO"
 ```
 
-Boot configures the worker over SSH with fresh worker secrets and saved model-source
-tokens. The Vast account key stays on the PC. Connect starts the SSH tunnel and
+Boot transfers the verified local models and configured LoRAs over SSH, reusing
+verified remote files and resuming partials, then starts the worker with fresh
+pairing/Jupyter secrets. Provider, Hugging Face and Civitai keys stay on the PC. Connect starts the SSH tunnel and
 pairs automatically; it returns the local studio URL. The local app must already
 be running, as in setup.md. Pairing can complete while models are downloading.
 
@@ -111,8 +114,10 @@ outputs are saved. CPU startup checks do not establish GPU generation performanc
 The manual RTX PRO 6000 trial downloaded/verified 99.62 GB in 5m15s and generated
 a 15-second mixed-reference video in 13m23s. These are one-machine observations,
 not guarantees. See REPO/research/infrastructure/VAST-KOREA-BENCHMARK-2026-09-10.md.
-Portable helper tests and live read-only calls pass; its complete rewritten paid
-lifecycle and macOS execution still need validation.
+Ohio startup/pairing and direct-download preparation were live-verified. The new
+PC transfer protocol has interruption/integrity tests; a full cold 100 GB transfer
+and macOS execution remain separate live checks. Do not quote prior direct-download
+times as PC transfer performance.
 
 ### Upgrading from the alternate app launcher
 

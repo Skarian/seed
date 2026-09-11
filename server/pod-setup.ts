@@ -118,66 +118,12 @@ export function deploymentSettings(paths: StudioPaths): Deployment {
   return value;
 }
 export function podEnvironment(paths: StudioPaths) {
-  const credentials = read<{
-    huggingFaceToken?: string;
-    civitaiApiToken?: string;
-  }>(path.join(paths.config, "credentials.json"));
-  if (!credentials?.huggingFaceToken)
-    throw new Error("Run seed setup to save your Hugging Face token.");
   const saved = deploymentSettings(paths);
   return {
     SEED_PAIRING_SECRET: saved.pairingSecret,
     JUPYTER_TOKEN: saved.jupyterToken,
-    HF_TOKEN: credentials.huggingFaceToken,
-    ...(credentials.civitaiApiToken
-      ? { CIVITAI_API_TOKEN: credentials.civitaiApiToken }
-      : {}),
+
   };
-}
-export async function preflightModels(
-  paths: StudioPaths,
-  request: typeof fetch = fetch,
-) {
-  const token = podEnvironment(paths).HF_TOKEN;
-  // HEAD the pinned origin without following signed download redirects or
-  // forwarding credentials to a CDN. HF supplies linked size/digest metadata.
-  for (let index = 0; index < models.length; index += 3) {
-    await Promise.all(
-      models.slice(index, index + 3).map(async (item) => {
-        let response: Response;
-        try {
-          response = await request(item.url, {
-            method: "HEAD",
-            redirect: "manual",
-            signal: AbortSignal.timeout(20000),
-            headers: { Authorization: `Bearer ${token}` },
-          });
-        } catch {
-          throw new Error(
-            `Model access check failed for ${item.path}. Check connectivity and Hugging Face access.`,
-          );
-        }
-        const size = Number(
-          response.headers.get("x-linked-size") ??
-            response.headers.get("content-length"),
-        );
-        const hash = (
-          response.headers.get("x-linked-etag") ??
-          response.headers.get("etag") ??
-          ""
-        ).replaceAll('"', "");
-        if (
-          ![200, 302, 307].includes(response.status) ||
-          size !== item.size ||
-          hash !== item.sha256
-        )
-          throw new Error(
-            `Model access/integrity metadata check failed for ${item.path} (HTTP ${response.status}). Check HF token and gated model access; no storage was created.`,
-          );
-      }),
-    );
-  }
-  return { files: models.length, bytes: modelBytes };
 }
 export function runpodProvider(paths: StudioPaths): Provider {
   const credentials = read<{ runpodApiKey?: string }>(
