@@ -72,3 +72,6 @@ coverage/
 /deployment/*-tests.json
 /deployment/queue.json
 /deployment/post-recreate-queue.json
+
+# Python test cache is disposable
+.pytest_cache/
