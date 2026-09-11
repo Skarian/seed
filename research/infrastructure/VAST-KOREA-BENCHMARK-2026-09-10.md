@@ -68,6 +68,8 @@ The queue was paused after both jobs completed. Seed confirmed no active work or
 
 The temporary NVIDIA monitor and SSH tunnel were stopped. The PC app was returned to its normal launcher and previous connection configuration, and its health endpoint was verified. Both generated outputs remain in the normal PC library. No private configuration or trial scripts were committed.
 
-Restarting this retained trial instance still requires reconnecting the tunnel, starting the worker from its private saved configuration, and pairing through the trial launcher. It is not yet a one-click Vast deployment supported by the released Seed CLI. The existing image worked; the portability changes were confined to ignored trial helpers and the rented container.
+After reviewing the results, the user requested removal of the retained disk. Instance `50544931` was destroyed through the Vast API, deleting its 180 GB local disk and model cache. The subsequent instance listing was empty. Both generated files were verified present on the PC before deletion. No ongoing Vast GPU or disk charges remain for this trial.
+
+A future trial requires a new instance and fresh model preparation. It is not yet a one-click Vast deployment supported by the released Seed CLI. The existing image worked; the portability changes were confined to ignored trial helpers and the rented container.
 
 **Conclusion:** Direct Hugging Face preparation is viable on this observed host: roughly 100 GB ready in five minutes, approximately $0.13 of running time for preparation. Vast delivered available hardware and materially faster generation than the tested A100, but this demanding 15-second reference-video job still takes about 13 minutes. These observations support a practical Vast trial, not an availability guarantee or proof that the current video latency meets the user's needs.
