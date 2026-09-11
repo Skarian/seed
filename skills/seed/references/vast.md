@@ -117,11 +117,14 @@ outputs are saved. CPU startup checks do not establish GPU generation performanc
 The manual RTX PRO 6000 trial downloaded/verified 99.62 GB in 5m15s and generated
 a 15-second mixed-reference video in 13m23s. These are one-machine observations,
 not guarantees. See REPO/research/infrastructure/VAST-KOREA-BENCHMARK-2026-09-10.md.
-Ohio startup/pairing and direct-download preparation were live-verified. The direct-first/fallback helper has local policy, credential and integrity tests;
-its combined cold startup still needs a live GPU check. The
-PC transfer protocol has interruption/integrity tests; a full cold 100 GB transfer
-and macOS execution remain separate live checks. Do not quote prior direct-download
-times as PC transfer performance.
+Direct-first/fallback live validation on 2026-09-11 completed all 14 models in
+6m48s after container readiness. Base models downloaded directly; three Civitai
+failures used PC copies. Disabled fallback and an empty-PC-cache fallback also
+passed in isolated storage. Six generation checks passed across the three
+implemented workflows and both modes. See
+REPO/research/infrastructure/VAST-DIRECT-FALLBACK-VALIDATION-2026-09-11.md.
+Full cold 100 GB PC transfer, maximum-reference 15-second video and macOS execution
+remain separate checks. Do not quote direct-download times as PC transfer speed.
 
 ### Upgrading from the alternate app launcher
 
