@@ -6,6 +6,7 @@ The active plan starts at [STUDIO-MVP](../STUDIO-MVP.md).
 
 | Topic | Contents |
 |---|---|
+| [GPU procurement](infrastructure/GPU-PROCUREMENT-REPORT.md) | September 2026 provider decision, availability evidence, costs and bounded migration proof |
 | [LLMs](llm/README.md) | Preserved model selection, community and multimodal capability research; deferred from the MVP |
 | [Media workflows](workflows/MEDIA-WORKFLOW-PLAN.md) | Supported inputs, model constraints and proposed generation controls |
 | [MiniMax H3](hearmeman_h3/) | Upstream audit, workflow references, optimization and timing research |
