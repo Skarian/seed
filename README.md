@@ -39,8 +39,7 @@ copy of executable code. Users do not need Docker or a source checkout once inst
 
 Media, SQLite history, private settings and optional model cache live in standard
 per-user directories outside the package. Updates preserve them. Models are fetched
-directly on the GPU; the optional PC cache provides fallback. RunPod may reuse a
-network volume; Vast disk is normally disposable.
+directly on the GPU; the optional PC cache provides fallback. Both providers use disposable worker disk for new rentals.
 
 Setup privately requests the selected provider key and Hugging Face token. Civitai
 is optional. Keys are not put in Git or browser storage. Provider keys remain local;

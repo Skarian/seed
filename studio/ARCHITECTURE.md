@@ -15,10 +15,11 @@ worker disk is temporary job storage and a reusable model cache where available.
 | `server/media.ts`, `server/video.ts` | Sharp/FFmpeg/ffprobe media normalization and saved derivatives |
 | `server/storage.ts` | Standard per-user directories, separate media/config/cache/log locations |
 | `server/cli.ts`, `settings.ts`, `credentials.ts`, `lifecycle.ts` | Local setup/start/status/stop and optional Windows sign-in startup |
-| `server/pod-setup.ts` | RunPod private template/network-volume setup; no runtime acquisition in UI |
+| `server/pod-setup.ts` | Legacy volume/template compatibility and local worker secrets |
+| `operations/` | Packaged provider-specific CLI operations, shared SSH/model transfer |
 | `worker/` | Pinned model preparation, authenticated control, transfer spool and Jupyter |
 | `worker/comfy_seed/` | Comfy execution/session integration and native telemetry aggregation |
-| `skills/seed/` | Agent-operated Vast/RunPod setup, acquisition, connection and cleanup |
+| `skills/seed/` | Agent instructions; no executable code |
 | `tests/`, `worker/test_*.py` | Local regression tests; paid lifecycle checks are separate |
 
 Package versions and runtime are pinned in package.json/lockfile and the worker
@@ -38,7 +39,7 @@ engine restart from being mistaken for a continuation. Durable output receipt
 precedes deletion of the worker copy. Queue pause and fresh worker observations
 establish termination safety; disconnected never proves billing is off.
 
-RunPod uses the normal authenticated HTTPS worker protocol and a network volume.
+RunPod uses authenticated HTTPS and disposable disk with global placement.
 Vast uses an SSH tunnel to the fixed loopback endpoint on port 18080. Both
 providers use the normal app launcher; ending a Vast session stops the tunnel,
 leaving the app and its saved connection intact. The image supports both transports directly. Both use the same local Library and job API; provider lifecycle stays

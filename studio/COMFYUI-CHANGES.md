@@ -53,7 +53,7 @@ Audio output: generated, silent (omit track, no reduced-compute promise), or sup
 
 ## I/O, presets and cleanup
 
-Try native private upload/prompt/queue/history/ws/output routes first. Prepared MP4/WAV transfer support and memory use are an early gate; use a narrow authenticated streaming custom-node route only if necessary. All inputs use generated job-specific names. Outputs and terminal manifests go to a network-volume spool. Copy to the PC, acknowledge durable receipt, then clean up. A paired replacement on the same volume can recover pending complete outputs.
+Try native private upload/prompt/queue/history/ws/output routes first. Prepared MP4/WAV transfer support and memory use are an early gate; use a narrow authenticated streaming custom-node route only if necessary. All inputs use generated job-specific names. Outputs and terminal manifests go to a worker spool. Copy to the PC, acknowledge durable receipt, then clean up. A paired replacement can recover pending complete outputs only if the underlying spool survives; disposable disk deletion destroys unsaved outputs.
 
 Mode resolves an exact preset before submission. Keep required technical LoRAs separate. Resolve exact configured assets; bootstrap downloads missing pinned files from HF or explicit LoRA sources into staging, validates them and activates a complete revision atomically. See [release design](RELEASE-AND-INFRASTRUCTURE.md). Queued jobs freeze graph/preset snapshots; retired assets needed by queued jobs cannot be removed. Owner sync runs in exclusive maintenance, never a competing provisioning loop. No full model hash scan at startup.
 

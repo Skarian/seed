@@ -1,18 +1,28 @@
 import { readFile, mkdir, access } from 'node:fs/promises';
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { readJson, saveJson, assertIdle } from './common.mjs';
 import { waitFor } from './wait.mjs';
 import { run, sshArgs } from './vast.mjs';
 import { transferModels } from './model-transfer.mjs';
 
-export async function createPod(app, { gpu, maxHourly }) {
+export function podRequest({gpu, image, disk, datacenters = [], publicKey, environment}) {
+  if (!Number.isSafeInteger(disk) || disk < 150) throw Error('Use at least 150 GB of disposable disk for models and working space.');
+  return {
+    name:'seed', image, cloud:'SECURE', disk,
+    gpu:{id:gpu,count:1,minCudaVersion:'13.0'},
+    ...(datacenters.length ? {dataCenterIds:datacenters} : {}),
+    ports:['8080/http','8888/http','22/tcp'],
+    env:{...environment,PUBLIC_KEY:publicKey,SEED_START_SSH:'1'},
+  };
+}
+
+export async function createPod(app, { gpu, maxHourly, disk = 180, datacenters = [] }) {
   if (!gpu || !Number.isFinite(maxHourly) || maxHourly <= 0) throw Error('Supply --gpu and a positive approved --max-hourly.');
   if (app.state && !app.state.destroyed) throw Error('A recorded or uncertain RunPod rental exists. Reconcile it first.');
   const pods = (await app.api('pods')).pods;
   if (pods.some(p => !['EXITED','ERROR'].includes(p.status))) throw Error('An active RunPod pod already exists.');
-  const saved = await readJson(path.join(app.paths.config, 'pod-deployment.json'));
-  if (!saved?.templateId || !saved.volumeId) throw Error('Run seed pod-setup first.');
-  const volume = await app.api(`network-volumes/${encodeURIComponent(saved.volumeId)}`);
+  if (!Number.isSafeInteger(disk) || disk < 150) throw Error('Use at least 150 GB of disposable disk.');
   const catalog = await app.catalog();
   const selected = catalog.gpus?.find(g => g.id === gpu);
   // Refuse to guess a price: catalog schema is inspected by the caller first.
@@ -23,19 +33,15 @@ export async function createPod(app, { gpu, maxHourly }) {
   const key = path.join(dir,'ssh-key');
   try { await access(key); } catch { await run('ssh-keygen',['-q','-t','ed25519','-f',key,'-N','','-C','seed-runpod']); }
   const publicKey = (await readFile(key+'.pub','utf8')).trim();
-  app.state = { attempt_at:new Date().toISOString(), image:app.image, destroyed:false, hourly:price };
+  const {podEnvironment} = await import(pathToFileURL(path.join(app.repo,'dist/server/pod-setup.js')));
+  const request = podRequest({gpu,image:app.image,disk,datacenters,publicKey,environment:podEnvironment(app.paths)});
+  app.state = { attempt_at:new Date().toISOString(), image:app.image, destroyed:false, hourly:price, disk_gb:disk, placement:datacenters.length?datacenters:'global', existing_pod_ids:pods.map(p=>p.id) };
   await saveJson(app.stateFile,app.state);
-  const pod = await app.api('pods','POST',{
-    name:'seed', templateId:saved.templateId, image:app.image,
-    gpu:{id:gpu,count:1,minCudaVersion:'13.0'}, dataCenterIds:[volume.dataCenter],
-    mounts:{network:[{volumeId:saved.volumeId,path:'/workspace'}]},
-    ports:['8080/http','8888/http','22/tcp'], env:{PUBLIC_KEY:publicKey},
-    args:`bash -lc 'mkdir -p /root/.ssh /run/sshd; printf "%s\\n" "$PUBLIC_KEY" > /root/.ssh/authorized_keys; chmod 700 /root/.ssh; chmod 600 /root/.ssh/authorized_keys; /usr/sbin/sshd; exec /opt/venv/bin/python -m worker.run'`,
-  });
+  const pod = await app.api('pods','POST',request);
   if (!pod?.id) throw Error('Creation outcome is uncertain. Reconcile before retrying.');
   app.state.pod_id=pod.id;
   await saveJson(app.stateFile,app.state);
-  return {pod_id:pod.id,hourly:pod.cost,status:pod.status};
+  return {pod_id:pod.id,hourly:pod.cost,quoted_gpu_hourly:price,status:pod.status,datacenter:pod.dataCenterId,storage:{kind:'disposable',disk_gb:disk},image:app.image};
 }
 
 export async function lifecycle(app, command, id = app.state?.pod_id) {
@@ -43,7 +49,13 @@ export async function lifecycle(app, command, id = app.state?.pod_id) {
     if(!app.state || app.state.destroyed)return {reconciled:true};
     const pods=(await app.api('pods')).pods;
     if(app.state.pod_id && pods.some(p=>p.id===app.state.pod_id)) return {reconciled:true,pod_id:app.state.pod_id};
-    if(!app.state.pod_id && pods.length)throw Error('Uncertain rental: inspect existing pods before retrying.');
+    const candidates=pods.filter(p=>app.state.existing_pod_ids
+      ? !app.state.existing_pod_ids.includes(p.id)
+      : !p.createdAt || !Number.isFinite(Date.parse(p.createdAt)) || Date.parse(p.createdAt)>=Date.parse(app.state.attempt_at)-60000);
+    if(!app.state.pod_id && candidates.length) {
+      delete app.state.absent_since;await saveJson(app.stateFile,app.state);
+      throw Error('Uncertain rental: inspect newly appearing pods before retrying.');
+    }
     if(!app.state.absent_since) {app.state.absent_since=Date.now();await saveJson(app.stateFile,app.state);return {reconciled:false,next:'Repeat after 30 seconds.'};}
     if(Date.now()-app.state.absent_since<30000)return {reconciled:false,next:'Repeat after 30 seconds.'};
     app.state.destroyed=true;await saveJson(app.stateFile,app.state);return {reconciled:true};

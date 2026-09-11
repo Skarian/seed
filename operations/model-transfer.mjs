@@ -6,7 +6,7 @@ import {pipeline} from 'node:stream/promises';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import path from 'node:path';
 
-export async function transferModels(repo, paths, ssh, {workspace='/workspace',say=console.log,invoke:providedInvoke}={}) {
+export async function transferModels(repo, paths, ssh, {workspace='/workspace',say=console.error,invoke:providedInvoke}={}) {
   const {modelManifest,modelFile,cached,downloadModel}=await import(pathToFileURL(path.join(repo,'dist/server/model-cache.js')));
   const entries=await modelManifest(paths);
   const {settings}=await import(pathToFileURL(path.join(repo,'dist/server/settings.js')));

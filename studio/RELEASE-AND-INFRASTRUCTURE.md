@@ -1,27 +1,29 @@
 # Releases and infrastructure
 
-The local app owns user data; the agent operates one authorized GPU. No provider
-daemon, Terraform, model archives, automatic failover or UI rental controls.
-Provider setup and operating steps live in [the skill](../skills/seed/SKILL.md).
+One local Seed package ships the CLI, server, browser build and operational code.
+The GitHub skill is instructions only. npm publication is deferred; build an archive
+with `npm pack` and install it outside the checkout for acceptance testing.
+`seed version` identifies the installed package, Node and pinned worker image.
+Updates happen only when requested, with the local app stopped and user data kept.
+No update daemon, Terraform or UI acquisition service.
 
-`shared/worker-release.ts` is the authoritative immutable GHCR image reference for
-RunPod setup and Vast rental. Rebuild the app after changing it. The worker image
-contains explicit source/static files over the pinned public Comfy base; keep the
-mirror workflow because that base remains required. Setup downloads models from `worker/models.json` into the PC cache; configured
-presets come from private model-presets.json. Deployment pushes verified files
-over SSH. Source credentials stay local; worker pairing/Jupyter secrets are
-runtime inputs, never image contents.
+`shared/worker-release.ts` pins the immutable GHCR worker image. Both providers use
+that pin; existing workers keep their image. Pairing checks protocol compatibility.
+Build candidates with `docker build -t seed-worker:candidate -f worker/Dockerfile worker`.
+The GitHub workflow can publish candidates. Validate startup and change the pin
+only after evidence supports it. The public image contains no user credentials.
 
-Build: `docker build -t seed-worker:candidate -f worker/Dockerfile worker`.
-The existing GitHub workflow publishes candidates after worker changes are pushed.
-Verify the candidate digest and startup modes before changing the release pin.
-CPU startup checks do not prove GPU generation; record live validation separately.
-Existing pods keep their image. RunPod owners rerun `seed pod-setup` to update the
-private template; future Vast rentals use the built application's pin. Recreate
-old instances after saving outputs when their bootstrap contract changes.
+Models are downloaded directly on rented compute. Optional local caching downloads
+at setup and provides fallback. Models and private presets are not package/image
+payloads. HF/Civitai tokens travel transiently via SSH stdin; provider keys stay
+local. Pairing/Jupyter secrets are runtime inputs.
 
-Local distribution uses `npm pack` and local npm installation until registry
-publication is enabled. Rebuild/reinstall and restart the idle app; user data stays
-outside the package. Keep the installed skill synchronized and remove obsolete
-helpers. See [development](DEVELOPMENT.md) for checks and [execution journal](EXECUTION-PLAN.md)
-for decisions and evidence. Public hosting remains owner-managed.
+RunPod creates a globally placed pod with disposable disk; optional datacenter
+constraints remain explicit. Vast selects a particular verified host, prioritizing
+reliability and network speed. Preserve native provider prices/capacity/diagnostics.
+Unknown metrics remain unknown. Resolve uncertain creation before trying again.
+Delete a failed newly created rental after bounded recovery; established sessions
+require safe output saving before teardown. Existing network volumes are untouched.
+
+Checks and platform gaps: [validation](VALIDATION.md). Build/install instructions:
+[development](DEVELOPMENT.md). User workflows: [skill](../skills/seed/SKILL.md).

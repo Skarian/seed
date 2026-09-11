@@ -14,7 +14,7 @@ No UI rental controls, background updater, provider-shopping daemon, Terraform,
 new storage service or multi-package framework. Small modules, shared operations,
 explicit CLI steps and observable progress. Updates only on request.
 
-Vast and RunPod are supported targets. RunPod reuses its network volume. One active
+Vast and RunPod are supported targets. New RunPod workers use global placement and disposable disk. One active
 GPU across providers. Resolve uncertain creation before retrying; clean up failed
 new rentals after bounded recovery. Preserve established sessions and saved media.
 

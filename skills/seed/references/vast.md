@@ -5,8 +5,8 @@ installed package and per-user state; no checkout or helper scripts are needed.
 
 1. `seed gpu vast doctor` checks dependencies and configured credentials.
 2. `seed gpu vast status` lists rentals and local studio state.
-3. `seed gpu vast offers` finds suitable one-GPU offers. Inspect hourly and transfer
-   prices, disk, network and reliability against the user's authorization.
+3. `seed gpu vast offers` finds suitable one-GPU offers. Prioritize verified hosts, high reliability and fast network transfer. Inspect
+   hourly and transfer prices against the user's authorization.
 4. `seed gpu vast rent --offer-id ID --max-hourly USD --disk-gb 180` rents the
    selected offer. It checks current pricing and records intent before creation.
 5. `seed gpu vast wait` waits at most five minutes for running state/direct SSH.
@@ -45,3 +45,10 @@ The September 11 direct-download/fallback run validated all three implemented
 workflows in both modes, with five-second videos. The new packaged CLI and recovery
 commands are undergoing the validation recorded in studio/VALIDATION.md in the repo.
 Do not claim maximum-reference capacity or all desktop platforms are proven.
+
+
+Hardware test searches may lower `--min-vram` and `--min-ram` explicitly; this is
+not a promise those GPUs can run all workflows. Verified-only filtering remains
+the default and there is no verification bypass. Reliability and network speed
+rank ahead of price. Search results retain Vast fields including verification,
+network throughput, transfer prices and reliability so the agent can judge them.

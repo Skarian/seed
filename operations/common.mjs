@@ -1,6 +1,7 @@
 import { readFile, writeFile, mkdir, rename, rm } from "node:fs/promises";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import {providerError} from './provider-error.mjs';
 
 export async function readJson(file, fallback = null) {
   try {
@@ -46,10 +47,9 @@ export async function requestJson(
     );
   }
   if (!response.ok) {
-    await response.body?.cancel();
-    throw new Error(
-      `Service returned HTTP ${response.status}; inspect state before retrying a mutation.`,
-    );
+    let problem;
+    try { problem=await response.json(); } catch { /* Unstructured errors are not echoed. */ }
+    throw providerError(response,problem,{body,headers});
   }
   if (response.status === 204) return null;
   try {

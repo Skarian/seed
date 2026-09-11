@@ -5,7 +5,15 @@ import os from 'node:os';
 import path from 'node:path';
 import {SeedRunpod,podOrigin} from '../../operations/runpod.mjs';
 import {saveJson} from '../../operations/common.mjs';
-import {createPod,lifecycle} from '../../operations/runpod-lifecycle.mjs';
+import {createPod,lifecycle,podRequest} from '../../operations/runpod-lifecycle.mjs';
+test('RunPod defaults to global disposable storage without a template or volume',()=>{
+ const config={gpu:'gpu',image:'pinned-image',disk:180,publicKey:'public-key',environment:{SEED_PAIRING_SECRET:'private'}};
+ const request=podRequest(config);
+ assert.equal(request.disk,180);assert.equal(request.mounts,undefined);assert.equal(request.templateId,undefined);assert.equal(request.dataCenterIds,undefined);
+ assert.equal(request.env.SEED_PAIRING_SECRET,'private');
+ assert.deepEqual(podRequest({...config,datacenters:['US-X']} ).dataCenterIds,['US-X']);
+ assert.throws(()=>podRequest({...config,disk:10}),/150/);
+});
 
 test('RunPod create refuses unknown prices and active rentals before mutation', async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'seed-runpod-'));

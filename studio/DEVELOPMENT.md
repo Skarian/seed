@@ -21,8 +21,7 @@ and retained when switching providers. See the README for environment variables.
 
 Setup is local credential/configuration setup, not proof of provider or model
 access. The agent checks access before rental. For Vast, the CLI's
-`setup` delegates to this flow then checks the Vast account. RunPod `pod-setup`
-preflights models and creates/updates the private template and selected volume.
+`setup` delegates to this flow then checks the Vast account. RunPod creation uses disposable disk and global placement; legacy `pod-setup` remains available only for existing volume/template users.
 
 By default the app listens on http://127.0.0.1:4310. `setup --host LOCAL_IP` saves a
 private LAN address for phone access; verify the actual address and firewall.
@@ -83,7 +82,7 @@ builds are distinct: building this checkout does not update a global installatio
 
 Read [seed](../skills/seed/SKILL.md). Vast uses the published image with a
 private worker bootstrap and a managed SSH tunnel; RunPod reuses the
-private template/network volume and HTTPS protocol. Both use the normal app
+global placement/disposable disk and HTTPS protocol. Both use the normal app
 launcher and replace connections through the same pairing API. No provider rental
 controls are added to the web UI. Never present paused/disconnected as billing off.
 

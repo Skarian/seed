@@ -1,14 +1,14 @@
 # Worker startup and storage
 
 Provider operating steps live in [the Seed skill](../skills/seed/SKILL.md).
-The same pinned image runs on reusable RunPod volumes or disposable Vast disk.
+The same pinned image runs on disposable RunPod or Vast disk. Legacy attached volumes remain compatible but are not required.
 
 | Setting | HTTPS / RunPod | SSH / Vast |
 |---|---|---|
 | `SEED_TRANSPORT` | `https` (default) | `ssh` |
 | `SEED_PUBLIC_URL` | HTTPS origin, default from `RUNPOD_POD_ID` | Fixed `http://127.0.0.1:18080` |
 | Worker/Jupyter bind | `0.0.0.0` | `127.0.0.1` |
-| `SEED_WORKSPACE` | `/workspace`, network volume | `/workspace`, instance disk |
+| `SEED_WORKSPACE` | `/workspace`, pod disk | `/workspace`, instance disk |
 
 The workspace must be absolute and writable, not necessarily a mount point.
 Private pairing and Jupyter secrets require at least 24 characters. New bootstraps
@@ -28,10 +28,10 @@ separate HTTP source. Both verify hashes before files enter the transferable cac
 The PC owns the optional model cache, originals, prepared media, results and SQLite history.
 Vast boot reuses verified files and attempts direct downloads before starting the
 worker. Failed downloads use PC download/transfer only when local fallback is enabled. RunPod may start
-first and wait for transfer; direct SSH access is currently operator-managed. Worker spool
+first and wait for transfer; the CLI configures direct SSH access. Worker spool
 files retain outputs until durable PC receipt; acknowledgment and cleanup are
-repeatable. A retained RunPod volume can preserve spool files across replacement.
-Destroying Vast disk destroys models and unsaved outputs. Disconnection never
+repeatable. Any legacy retained volume can preserve spool files across replacement.
+Destroying disposable disk on either provider destroys models and unsaved outputs. Disconnection never
 proves termination safety or billing state.
 
 Worker identity changes on container startup and engine identity on Comfy restart.

@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 import { spawn } from 'node:child_process';
-import { openSync, closeSync, statSync, renameSync, rmSync } from 'node:fs';
+import { openSync, closeSync, statSync, renameSync, rmSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
@@ -17,7 +17,11 @@ const say = (value: string) => { if (!quiet) console.log(value); };
 try {
   const [major, minor, patch] = process.versions.node.split('.').map(Number);
   if (major !== 26 || minor! < 8 || (minor === 8 && patch! < 2)) throw new Error('seed requires Node 26.8.2 or newer in the 26.x line. Install it from nodejs.org.');
-  if (command === 'gpu') {
+  if (command === 'version') {
+    const {workerRelease} = await import('../shared/worker-release.js');
+    const manifest=JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8'));
+    say(JSON.stringify({package:manifest.name,version:manifest.version,node:process.version,worker_image:workerRelease.image,worker_protocol:1},null,2));
+  } else if (command === 'gpu') {
     const { gpuCommand } = await import('./gpu-cli.js');
     await gpuCommand(args);
   } else {

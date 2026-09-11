@@ -486,3 +486,13 @@ provider doctor. No manual media-binary repair required. Full regression at this
 checkpoint: 51 app +31 operations +40 worker passed, one platform skip.
 RunPod lifecycle additions and provider tests remain in progress. $10 total cap,
 sequential rentals; no compute has been rented for this execution yet.
+
+
+### Owner correction: provider-specific operations
+
+RunPod must use global placement and disposable disk, with the shared direct
+model preparation/fallback path. No network-volume requirement for new launches.
+Retain provider-specific information rather than forcing a lowest-common-denominator
+API. Vast selection prioritizes verified hosts, reliability and network speed;
+removed the verification override used in earlier failed tests. Global RunPod
+creation succeeded on RTX PRO 4000 in EU-RO-1 ($0.57/h); validation in progress.

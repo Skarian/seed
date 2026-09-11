@@ -2,6 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { SeedVast } from '../../operations/vast.mjs';
 import { waitFor } from '../../operations/wait.mjs';
+import {requestJson} from '../../operations/common.mjs';
+
+test('provider errors retain diagnosis and redact submitted secrets and signed URLs',async()=>{
+ await assert.rejects(requestJson('https://example.invalid',{method:'POST',headers:{Authorization:'Bearer private-test-key'},body:{env:{SEED_PAIRING_SECRET:'private-pairing-value'}},fetcher:async()=>new Response(JSON.stringify({detail:'Invalid disk field. private-test-key private-pairing-value https://example.com?token=secret',errors:[{field:'disk',value:'must not echo'}]}),{status:422,headers:{'retry-after':'5'}})}),error=>{
+  assert.match(error.message,/Invalid disk/);
+  assert.ok(!error.message.includes('private-test'));
+  assert.ok(!error.message.includes('private-pairing'));
+  assert.ok(!error.message.includes('?token'));
+  assert.deepEqual(error.provider.fields,['disk']);return true;
+ });
+});
 
 test('uncertain rental requires two separated absence observations', async () => {
   const app = new SeedVast('.');

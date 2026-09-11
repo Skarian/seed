@@ -356,11 +356,14 @@ export class SeedVast {
   async offers({
     disk = 180,
     gpus = ["RTX PRO 6000 WS", "RTX PRO 6000 S"],
+    minVram = 90,
+    minRam = 96,
   } = {}) {
     if (!Number.isSafeInteger(disk) || disk < 120)
       throw new Error(
         "Choose enough disk for the approximately 100 GB manifest and working space.",
       );
+    if (!Number.isFinite(minVram) || minVram<=0 || !Number.isFinite(minRam) || minRam<=0) throw Error('Invalid hardware search limits.');
     const q = {
       verified: { eq: true },
       external: { eq: false },
@@ -368,16 +371,16 @@ export class SeedVast {
       rented: { eq: false },
       num_gpus: { eq: 1 },
       gpu_name: { in: gpus },
-      gpu_ram: { gte: 90000 },
-      cpu_ram: { gte: 96000 },
+      gpu_ram: { gte: minVram * 1000 },
+      cpu_ram: { gte: minRam * 1000 },
       cuda_max_good: { gte: 13 },
       direct_port_count: { gte: 1 },
       disk_space: { gte: disk },
       reliability2: { gte: 0.99 },
       type: "on-demand",
       allocated_storage: disk,
-      order: [["dph_total", "asc"]],
-      limit: 20,
+      order: [["reliability2", "desc"], ["inet_down", "desc"], ["dph_total", "asc"]],
+      limit: 50,
     };
     const r = await this.api("POST", "/api/v0/bundles/", q);
     if (!Array.isArray(r.offers)) throw new Error("Invalid offer listing.");
@@ -397,6 +400,7 @@ export class SeedVast {
         "inet_down_cost",
         "inet_up_cost",
         "reliability2",
+        "verification",
       ]),
     );
   }
@@ -479,8 +483,12 @@ export class SeedVast {
       allocated_storage: disk,
       limit: 100,
     });
-    const offer = r.offers?.find((o) => o.id === offerId);
+    // Search may return a different free one-GPU slice on the same machine.
+    // Keep the approved host/hardware/price constraints when refreshing the slice.
+    const offer = r.offers?.find((o) => o.id === offerId)
+      ?? r.offers?.find(o => o.machine_id === cached.machine_id && o.gpu_name === cached.gpu_name && o.num_gpus === 1 && o.dph_total <= maxHourly);
     validateOffer(offer, cached, maxHourly);
+    offerId = offer.id;
     await mkdir(this.privateDir, { recursive: true, mode: 0o700 });
     if (!(await exists(this.key)))
       await run("ssh-keygen", [
@@ -795,9 +803,16 @@ export async function main(argv) {
       "max-hourly": { type: "string" },
       "disk-gb": { type: "string", default: "180" },
       gpu: { type: "string", multiple: true },
+      'min-vram': { type: 'string', default: '90' },
+      'min-ram': { type: 'string', default: '96' },
     },
   });
   const [command] = positionals;
+  if(command==='help')return {
+    provider:'vast',
+    commands:{doctor:'Local dependencies/configuration',offers:'Verified hosts ordered by reliability and network speed; --gpu NAME (repeatable), --disk-gb, --min-vram, --min-ram',rent:'--offer-id ID --max-hourly USD --disk-gb 180',wait:'Bounded wait for startup/direct SSH',boot:'Prepare models and start worker; rerun to resume',preparation:'Worker preparation status',connect:'Private SSH tunnel and automatic pairing',status:'Provider and local studio status',reconcile:'Resolve uncertain creation before retrying',billing:'Recorded-instance billing and account balance',destroy:'Verify outputs then delete recorded instance/disk',stop:'Explicitly retain billable disk'},
+    selection:'Prioritize verified hosts, high reliability and good transfer speeds; consider compute and transfer prices together.'
+  };
   if (!commands.includes(command) || positionals.length !== 1)
     throw new Error(
       `Usage: node vast.mjs <${commands.join("|")}> --repo <checkout>`,
@@ -816,7 +831,7 @@ export async function main(argv) {
     throw error;
   }
   if (command === "offers")
-    return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu });
+    return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu, minVram:Number(values['min-vram']), minRam:Number(values['min-ram']) });
   if (command === "rent")
     return app.rent({
       offerId: Number(values["offer-id"]),

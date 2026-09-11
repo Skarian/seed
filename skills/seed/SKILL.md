@@ -41,8 +41,7 @@ Use bounded waits and resume preparation. If a newly created worker cannot becom
 usable after bounded recovery, destroy that exact rental and confirm deletion.
 Do not apply this rule to a temporary disconnect of an established session.
 
-When the user finishes, verify all outputs are saved before teardown. Vast disk is
-normally disposable; retain pre-existing RunPod network volumes. Confirm provider
+When the user finishes, verify all outputs are saved before teardown. Both providers use disposable disk for new workers; leave pre-existing RunPod network volumes untouched. Confirm provider
 state and report any remaining billable resource. Preserve the local Library.
 
 ## Credentials and updates
