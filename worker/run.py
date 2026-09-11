@@ -71,14 +71,36 @@ def launch_config(workspace, runtime):
     return ['/opt/venv/bin/python', '/ComfyUI/main.py', '--listen', '127.0.0.1', '--port', '8188', '--disable-auto-launch', '--extra-model-paths-config', str(config), '--input-directory', str(spool/'inputs'), '--output-directory', str(spool/'outputs'), '--user-directory', str(runtime/'comfy-user'), '--disable-all-custom-nodes', '--whitelist-custom-nodes', 'comfy_seed']
 
 
+def startup_config(env):
+    transport = env.get('SEED_TRANSPORT', 'https')
+    workspace = Path(env.get('SEED_WORKSPACE', '/workspace'))
+    if not workspace.is_absolute():
+        raise ValueError('SEED_WORKSPACE must be an absolute path.')
+    if transport == 'ssh':
+        public = env.get('SEED_PUBLIC_URL', 'http://127.0.0.1:18080')
+        if public != 'http://127.0.0.1:18080':
+            raise ValueError('SSH transport requires the Seed loopback tunnel URL.')
+        return str(workspace), public, '127.0.0.1', True
+    if transport != 'https':
+        raise ValueError('SEED_TRANSPORT must be https or ssh.')
+    public = env.get('SEED_PUBLIC_URL')
+    if not public:
+        pod_id = env.get('RUNPOD_POD_ID')
+        if not pod_id:
+            raise ValueError('Set SEED_PUBLIC_URL for HTTPS transport.')
+        public = f'https://{pod_id}-8080.proxy.runpod.net'
+    if not public.startswith('https://'):
+        raise ValueError('HTTPS transport requires an HTTPS URL.')
+    return str(workspace), public, '0.0.0.0', False
+
+
 def main():
     os.umask(0o077)
-    workspace = os.environ.get('SEED_WORKSPACE', '/workspace')
+    workspace, public, bind, local_http = startup_config(os.environ)
     os.environ['SEED_WORKSPACE'] = workspace
     # Created afresh for each container invocation, outside reusable model storage.
     runtime = Path(tempfile.mkdtemp(prefix='seed-runtime-'))
-    public = os.environ.get('SEED_PUBLIC_URL') or f"https://{os.environ['RUNPOD_POD_ID']}-8080.proxy.runpod.net"
-    app = create_app(workspace, runtime, os.environ['SEED_PAIRING_SECRET'], public)
+    app = create_app(workspace, runtime, os.environ['SEED_PAIRING_SECRET'], public, development=local_http)
 
     async def services(app):
         children, handles = [], []
@@ -87,8 +109,10 @@ def main():
         async def start():
             nonlocal preparation_process, messages
             try:
-                if not Path(workspace).is_mount():
-                    raise ValueError('Attach your network volume at ' + workspace + ', then restart the pod.')
+                # A reusable volume and disposable instance disk are both supported.
+                with tempfile.TemporaryFile(dir=workspace) as probe:
+                    probe.write(b'seed')
+                    probe.flush()
                 jupyter_token = os.environ.get('JUPYTER_TOKEN', '')
                 if len(jupyter_token) < 24:
                     raise ValueError('Set a private JUPYTER_TOKEN of at least 24 characters.')
@@ -98,7 +122,7 @@ def main():
                 config = runtime/'jupyter_config.py'
                 config.write_text('c.IdentityProvider.token = ' + repr(jupyter_token) + '\n')
                 jupyter_log = open(runtime/'jupyter.log', 'ab'); handles.append(jupyter_log)
-                children.append(await asyncio.create_subprocess_exec('/opt/venv/bin/jupyter-lab', '--ip=0.0.0.0', '--port=8888', '--ServerApp.port_retries=0', '--allow-root', '--no-browser', '--ServerApp.root_dir='+workspace, '--ServerApp.allow_remote_access=True', '--config='+str(config), env=child_environment(), stdout=jupyter_log, stderr=asyncio.subprocess.STDOUT))
+                children.append(await asyncio.create_subprocess_exec('/opt/venv/bin/jupyter-lab', '--ip=' + bind, '--port=8888', '--ServerApp.port_retries=0', '--allow-root', '--no-browser', '--ServerApp.root_dir='+workspace, '--ServerApp.allow_remote_access=True', '--config='+str(config), env=child_environment(), stdout=jupyter_log, stderr=asyncio.subprocess.STDOUT))
                 app[PREPARATION].update(phase='starting administration', error=None)
                 jupyter = children[-1]
                 for attempt in range(60):
@@ -177,7 +201,7 @@ def main():
         if messages: messages.close()
         for handle in handles: handle.close()
     app.cleanup_ctx.append(services)
-    web.run_app(app, host='0.0.0.0', port=8080, access_log=None, print=None)
+    web.run_app(app, host=bind, port=8080, access_log=None, print=None)
 
 
 if __name__ == '__main__': main()
