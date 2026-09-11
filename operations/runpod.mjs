@@ -3,7 +3,8 @@
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
-import { readJson, requestJson, assertIdle } from "./common.mjs";
+import { readJson, requestJson, assertIdle, saveJson } from "./common.mjs";
+import { waitFor } from './wait.mjs';
 export function podOrigin(id) {
   if (!/^[a-z0-9]+$/.test(id ?? ""))
     throw new Error("Supply the exact RunPod pod ID.");
@@ -23,11 +24,14 @@ export class SeedRunpod {
       pathToFileURL(path.join(this.repo, "dist/server/settings.js"))
     );
     this.paths = resolvePaths(this.env.STUDIO_DEV_ROOT);
+    this.stateFile = path.join(this.paths.config, 'runpod-rental.json');
+    this.state = await readJson(this.stateFile);
+    this.image = (await import(pathToFileURL(path.join(this.repo, 'dist/shared/worker-release.js')))).workerRelease.image;
     const config = settings(this.paths);
     this.origin = `http://${config.host}:${config.port}`;
     return this;
   }
-  async api(route) {
+  async api(route, method = 'GET', body) {
     const creds = await readJson(
       path.join(this.paths.config, "credentials.json"),
       {},
@@ -35,6 +39,7 @@ export class SeedRunpod {
     const key = this.env.RUNPOD_API_KEY?.trim() || creds.runpodApiKey;
     if (!key) throw new Error("Run seed setup --provider runpod first.");
     return requestJson(`https://api.runpod.io/v2/${route}`, {
+      method, body,
       headers: { Authorization: `Bearer ${key}` },
       timeout: 30000,
       fetcher: this.fetcher,
@@ -77,7 +82,8 @@ export class SeedRunpod {
     const deployment = await readJson(
       path.join(this.paths.config, "pod-deployment.json"),
     );
-    if (!deployment?.templateId || pod.template !== deployment.templateId)
+    const recorded = this.state?.pod_id === id && this.state.image === pod.image && pod.image === this.image;
+    if (!deployment?.templateId || (!recorded && pod.template !== deployment.templateId))
       throw new Error(
         "Pod must use your saved private Seed template before sending its pairing secret.",
       );
@@ -107,6 +113,7 @@ export class SeedRunpod {
     await this.local("PUT", "/api/v1/connection", {
       connection_code: pairing.connection_code,
     });
+    if (recorded) { this.state.paired = true; await saveJson(this.stateFile, this.state); }
     return { connected: true, pod_id: id, url: this.origin };
   }
   async safe(id) {
@@ -133,15 +140,21 @@ export async function main(argv) {
     options: {
       repo: { type: "string", default: process.cwd() },
       pod: { type: "string" },
+      gpu: { type: 'string' },
+      'max-hourly': { type: 'string' },
     },
   });
   const [command] = positionals;
   if (
     positionals.length !== 1 ||
-    !["status", "catalog", "connect", "safe"].includes(command)
+    !["status", "catalog", "connect", "safe", "create", "wait", "prepare", "destroy", "reconcile"].includes(command)
   )
     throw new Error("Use status|catalog|connect|safe --repo PATH [--pod ID].");
   const app = await new SeedRunpod(values.repo).init();
+  if (['create','wait','prepare','destroy','reconcile'].includes(command)) {
+    const {createPod,lifecycle} = await import('./runpod-lifecycle.mjs');
+    return command==='create' ? createPod(app,{gpu:values.gpu,maxHourly:Number(values['max-hourly'])}) : lifecycle(app,command,values.pod);
+  }
   return app[command](values.pod);
 }
 if (

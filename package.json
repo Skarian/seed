@@ -7,7 +7,7 @@
     "node": ">=26.8.2 <27"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.server.json && vite build",
+    "build": "tsc -p tsconfig.server.json && node scripts/build-operations.mjs && vite build",
     "typecheck": "tsc --noEmit",
     "start": "node dist/server/main.js",
     "dev": "npm run build && npm start",
@@ -48,6 +48,7 @@
     "dist/server/",
     "dist/shared/",
     "dist/worker/models.json",
-    "dist/web/"
+    "dist/web/",
+    "dist/operations/"
   ]
 }

@@ -4,9 +4,9 @@ import {mkdtemp,rm,stat} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {createServer} from 'node:net';
-import {SeedVast,validateOffer,safeShutdown,workerOrigin,sshArgs,run,freePort,main} from '../scripts/vast.mjs';
+import {SeedVast,validateOffer,safeShutdown,workerOrigin,sshArgs,run,freePort,main} from '../../operations/vast.mjs';
 
-import {assertIdle,requestJson,saveJson,readJson} from '../scripts/common.mjs';
+import {assertIdle,requestJson,saveJson,readJson} from '../../operations/common.mjs';
 
 const idle={queue:{active:0,waiting:0},outputs:{pending:0}};
 test('shutdown refuses a different worker before sending requests',async()=>{

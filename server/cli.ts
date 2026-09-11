@@ -17,13 +17,17 @@ const say = (value: string) => { if (!quiet) console.log(value); };
 try {
   const [major, minor, patch] = process.versions.node.split('.').map(Number);
   if (major !== 26 || minor! < 8 || (minor === 8 && patch! < 2)) throw new Error('seed requires Node 26.8.2 or newer in the 26.x line. Install it from nodejs.org.');
+  if (command === 'gpu') {
+    const { gpuCommand } = await import('./gpu-cli.js');
+    await gpuCommand(args);
+  } else {
   if (!['setup', 'pod-setup', 'models', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
   const known = command === 'models' ? ['--quiet'] : command === 'pod-setup' ? ['--quiet', '--volume', '--create', '--show-secrets'] : ['--quiet', '--startup', '--no-startup', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models'] : [])];
   for (let i = 0; i < args.length; i++) {
     if (!known.includes(args[i]!)) throw new Error(`Unknown option: ${args[i]}`);
     if (args[i] === '--host' || args[i] === '--port' || args[i] === '--volume' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
   }
-  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310] [--startup | --no-startup]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop');
+  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310] [--startup | --no-startup]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|status|reconcile|destroy|billing>\nseed gpu runpod <status|catalog|connect|safe>');
   else {
     prepareStorage(paths);
     if (command === 'setup' || command === 'start') { const { verifyMediaTools } = await import('./media.js'); await verifyMediaTools(); }
@@ -112,5 +116,6 @@ try {
       }
       say(`seed: ${running.url}`);
     }
+  }
   }
 } catch (error) { console.error(error instanceof Error ? error.message : 'seed could not complete the command.'); process.exitCode = 1; }

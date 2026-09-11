@@ -51,6 +51,7 @@ export async function requestJson(
       `Service returned HTTP ${response.status}; inspect state before retrying a mutation.`,
     );
   }
+  if (response.status === 204) return null;
   try {
     return await response.json();
   } catch {

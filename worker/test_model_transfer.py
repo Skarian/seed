@@ -3,7 +3,7 @@ import io
 import hashlib
 from pathlib import Path
 import pytest
-spec=importlib.util.spec_from_file_location('receiver',Path(__file__).parents[1]/'skills/seed/scripts/model_receiver.py')
+spec=importlib.util.spec_from_file_location('receiver',Path(__file__).parents[1]/'operations/model_receiver.py')
 receiver=importlib.util.module_from_spec(spec);spec.loader.exec_module(receiver)
 
 def asset(data=b'model'):
@@ -73,3 +73,4 @@ def test_civitai_redirect_does_not_forward_token(tmp_path,monkeypatch):
     assert file.read_bytes()==b'model'
     assert requests[0].get_header('Authorization')=='Bearer secret-fixture'
     assert requests[1].get_header('Authorization') is None
+

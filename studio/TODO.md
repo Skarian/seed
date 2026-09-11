@@ -1,8 +1,7 @@
 # Seed prioritized action list
 
 Updated 2026-09-11. This is the current review backlog, not authorization to start
-paid resources or a replacement for the execution journal. Discuss the installation
-experience before implementing its redesign. Module restructuring is deferred.
+paid resources or a replacement for the execution journal. Installation and execution plan approved 2026-09-11. Module restructuring is deferred.
 
 ## What the last Vast run actually proved
 
@@ -150,3 +149,12 @@ commit it, and update the current checklist plus dated execution evidence. Keep 
 and distribution decisions as owner checkpoints; handle routine engineering and
 tests unattended. No GPU is currently running and no new paid test is authorized
 by the act of writing this checklist.
+
+
+## Approved execution — 2026-09-11
+
+Owner approved all packaging, docs, reproducible install/recovery and test work.
+One RunPod pod plus one Vast VM, sequentially, combined $10 cap. Defer expensive
+long-video/max-reference tests. Updates explicit only; missing/incompatible Node
+requires consent before installation. Skill lives in GitHub, code in one package;
+npm publishing deferred. Current detailed evidence is in VALIDATION.md.

@@ -3,8 +3,31 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
-import {SeedRunpod,podOrigin} from '../scripts/runpod.mjs';
-import {saveJson} from '../scripts/common.mjs';
+import {SeedRunpod,podOrigin} from '../../operations/runpod.mjs';
+import {saveJson} from '../../operations/common.mjs';
+import {createPod,lifecycle} from '../../operations/runpod-lifecycle.mjs';
+
+test('RunPod create refuses unknown prices and active rentals before mutation', async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'seed-runpod-'));
+ try {
+  await saveJson(path.join(root,'pod-deployment.json'),{templateId:'ours',volumeId:'vol'});
+  const app={paths:{config:root},api:async(route)=>route==='pods'?{pods:[]}:{dataCenter:'DC'},catalog:async()=>({gpus:[{id:'gpu',price:{secure:2}}]})};
+  await assert.rejects(createPod(app,{gpu:'gpu',maxHourly:1}),/hourly limit/);
+  app.state={destroyed:false};
+  await assert.rejects(createPod(app,{gpu:'gpu',maxHourly:3}),/recorded/);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('RunPod failed unpaired launch can be destroyed without worker access',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'seed-runpod-'));
+ try {
+  const calls=[];
+  const app={state:{pod_id:'abc',destroyed:false},stateFile:path.join(root,'rental.json'),local:async()=>({queue:{active:0,waiting:0},outputs:{pending:0}}),api:async(route,method)=>{calls.push([route,method]);return route==='pods'?{pods:[]}:null;}};
+  assert.equal((await lifecycle(app,'destroy')).network_volume_retained,true);
+  assert.deepEqual(calls[0],['pods/abc','DELETE']);
+  assert.equal(app.state.destroyed,true);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
 test('pod origin cannot redirect pairing secrets',()=>{assert.equal(podOrigin('abc123'),'https://abc123-8080.proxy.runpod.net');for(const value of ['https://other','../bad','abc:123',undefined])assert.throws(()=>podOrigin(value));});
 test('pod status never prints provider environment secrets',async()=>{const app=new SeedRunpod('.');app.api=async()=>({pods:[{id:'abc',status:'RUNNING',env:{HF_TOKEN:'private'}}]});app.local=async()=>({});assert.ok(!JSON.stringify(await app.status()).includes('private'));});
 test('pairing rejects a pod outside saved Seed template before contacting worker',async()=>{

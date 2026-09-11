@@ -1,96 +1,63 @@
-# seed
+# Seed
 
-Seed is a local browser app for image and video generation on a disposable GPU.
-Your computer keeps models, uploads, results and history. An agent operates the GPU through
-the [seed skill](skills/seed/SKILL.md); the web UI does not rent or stop hardware.
+Seed is a personal AI art studio in your browser. Your computer keeps uploads,
+finished images/videos and history. A rented GPU runs generation. An agent handles
+installation, finding compute, connecting it and releasing it when you're finished.
 
-## Start from a checkout
+## Start with the skill
 
-Open this repository with your coding agent and ask:
+Install the [Seed skill](skills/seed/SKILL.md) into your agent, or give your agent:
 
-> Read skills/seed/SKILL.md and set up Seed for Vast.
+> Read the Seed skill at https://github.com/Skarian/runpod/tree/feat/studio-mvp/skills/seed
+> and help me install and open Seed. Ask before installing Node or renting compute.
 
-Or choose RunPod. The agent checks dependencies, builds the app, helps you enter
-credentials privately, and starts the local UI. It needs Node **26.8.2–26.x** and,
-for Vast, OpenSSH. Model setup also uses the official Hugging Face `hf` CLI
-with Xet (the Windows installer requires Python 3.10+). No local Docker is needed.
+The skill guides installation of the local Seed package, credentials and optional
+model caching/sign-in startup. The npm package is not published yet; use a package
+archive built from this repository. Do not install the unrelated npm package `seed`.
+The future scoped package name will be settled before publication.
 
-The equivalent source commands, from the repository root:
+Daily use: ask the agent to open Seed within your GPU budget, create in Generate
+and Library, then ask it to finish and release the GPU. Closing the browser does
+not stop GPU billing. Local phone access works through your PC's LAN address.
 
-```sh
-npm ci
-npm run build
-node dist/server/cli.js setup --provider vast
-node dist/server/cli.js start
-```
+## What's included
 
-Use `--provider runpod` for RunPod. Setup saves the choice and reuses it on later
-runs; fresh setup defaults to Vast. The selected provider key and Hugging Face token
-are required; Civitai is optional. Accept any gated model terms on the source site.
-Setup asks whether to keep a local fallback cache. Yes downloads and verifies all models and configured LoRAs immediately (roughly 102 GB); No skips it. Use `--cache-models` / `--no-cache-models` for unattended setup. Run `node dist/server/cli.js models` to resume or update the cache while the app stays running. Models live in the per-user data directory, outside Git.
+- Text-to-image with aspect ratios, batches and seeds.
+- Text-to-video and reference-to-video with image/video/audio inputs and LoRA modes.
+- Library preview, download, reuse and deletion.
+- CLI-managed Vast and RunPod workers; no infrastructure controls in the web UI.
 
-Setup stores credentials in the per-user configuration directory it prints, never
-in Git or browser storage. Environment overrides: VAST_API_KEY, RUNPOD_API_KEY,
-HF_TOKEN and CIVITAI_API_TOKEN. Optional .env import is supported, but no file is
-shipped or written. Switching providers preserves earlier credentials.
+Identity editing is unfinished. Workflow capacity and platform validation are
+tracked explicitly in [validation](studio/VALIDATION.md).
 
-Windows setup asks whether to start the **local app** at sign-in. It does not rent
-a GPU. Use `setup --host LOCAL_IP` for access from another device on your Wi-Fi.
-Stop the local app before changing setup. `status` and `stop` manage the local app,
-not cloud billing. Public hosting/router/tunnel configuration is outside this project.
+One local package contains the CLI, server, built React UI and operational code.
+The [GPU worker image](https://github.com/Skarian/runpod/pkgs/container/seed-worker)
+is separate and pinned by digest. The skill is instructions in GitHub, not another
+copy of executable code. Users do not need Docker or a source checkout once installed.
 
-The npm package is not published. Do not install the unrelated package named `seed`.
-[Development instructions](studio/DEVELOPMENT.md) cover local packaging and tests.
+## Data and credentials
 
-## A normal session
+Media, SQLite history, private settings and optional model cache live in standard
+per-user directories outside the package. Updates preserve them. Models are fetched
+directly on the GPU; the optional PC cache provides fallback. RunPod may reuse a
+network volume; Vast disk is normally disposable.
 
-1. Ask the agent to start Seed with a provider and spending limit. It checks current
-   offers, existing rentals and model access before allocating one GPU.
-2. The agent launches the worker and connects it to Seed. Preparation appears in
-   the UI; automatic pairing avoids copying a connection code.
-3. Use Generate and Library. Keep the PC awake and app running so transfers complete.
-4. Ask the agent to finish. It checks that outputs are saved, then stops or destroys
-   the exact rental according to your instructions and verifies provider state.
+Setup privately requests the selected provider key and Hugging Face token. Civitai
+is optional. Keys are not put in Git or browser storage. Provider keys remain local;
+source tokens can be passed through SSH stdin for downloads. GPU administrators
+can inspect runtime memory. The public image contains no user credentials.
 
-| Provider | Models | Connection | After use |
-|---|---|---|---|
-| Vast | Direct download, optional PC fallback | Private SSH tunnel | Normally destroy instance/disk after saving outputs |
-| RunPod | Reuse your network volume | Authenticated HTTPS worker proxy | Stop/terminate pod; retain separately billed network volume |
+## Development
 
-The software image is public on [GHCR](https://github.com/Skarian/runpod/pkgs/container/seed-worker).
-Model-source tokens are stored on the PC and supplied transiently over SSH stdin for direct downloads; they are not saved in templates or worker configuration. Host administrators could still inspect process memory. Provider keys stay local. The worker keeps its pairing/Jupyter secrets outside the image.
-The skill pins a tested release; users do not need to build a container.
+The repository holds all source; see [development](studio/DEVELOPMENT.md).
 
-## What works, and what still needs checking
+- `server/`, `web/`, `shared/`: local app and contracts.
+- `operations/`: packaged provider, SSH and model-transfer operations.
+- `worker/`: ComfyUI worker image and GPU-side tests.
+- `skills/seed/`: installable agent instructions.
+- `tests/`, `scripts/`: tests and build/release tooling.
+- `studio/`: maintained technical docs and execution evidence.
+- `research/`, `prompting/`: retained research and model prompting material.
 
-Text-to-image, text-to-video and reference-to-video save results locally. Video
-supports 5/10/15-second 720p exports, image/video/audio references and first/last
-image roles. Identity editing remains in development. Owner LoRA choices live in
-private local configuration; see [workflow changes](studio/COMFYUI-CHANGES.md).
-
-The manual Vast trial verified approximately 100 GB of model preparation in
-5m15s, a 15-second mixed-reference video and an image generation; see the
-[measured results](research/infrastructure/VAST-KOREA-BENCHMARK-2026-09-10.md).
-Those times are not a startup guarantee. Existing RunPod generation is also tested.
-The portable skill helpers have offline tests and read-only API checks; their
-new complete paid lifecycles still need validation. macOS has not been executed.
-
-## Repository map
-
-- [Prioritized action list](studio/TODO.md): current review decisions, engineering work and validation gaps.
-
-- [Current direction](studio/CURRENT-DIRECTION.md): current decisions and remaining checkpoints.
-- [MVP](STUDIO-MVP.md), [execution journal](studio/EXECUTION-PLAN.md): product scope and implementation evidence.
-- `web/`, `server/`, `shared/`: local UI, API, media/database and contracts.
-- `worker/`: authenticated ComfyUI worker, model preparation and job spool.
-- `skills/seed/`: agent entrypoint, provider instructions and Node helpers.
-- `studio/`: API, workflow, asset and release specifications.
-- RunPod setup is retained in `server/pod-setup.ts` and the Seed skill. The retired
-  direct-Comfy deployment path is available in Git history.
-- [Research](research/README.md): model/LLM research and infrastructure measurements.
-- `prompting/`: model prompting guides.
-
-Generated media, model weights, tokens, local state and dependencies are ignored.
-Removing the checkout does not back up or delete your separate media library.
-Upstream software and model licenses still apply. Committing code does not deploy it.
-
+Current work: [priorities](studio/TODO.md), [direction](studio/CURRENT-DIRECTION.md),
+[validation](studio/VALIDATION.md), [execution journal](studio/EXECUTION-PLAN.md).

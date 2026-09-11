@@ -4,7 +4,7 @@ import {mkdtemp, mkdir, writeFile, rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import {pathToFileURL} from 'node:url';
-import {transferModels} from '../scripts/model-transfer.mjs';
+import {transferModels} from '../../operations/model-transfer.mjs';
 
 for (const scenario of ['warm','direct','fallback-cached','fallback-missing','disabled']) {
   test(`model preparation: ${scenario}`,async()=>{

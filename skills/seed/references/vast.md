@@ -1,136 +1,47 @@
-# Open Seed on Vast
+# Vast
 
-Complete [setup](setup.md) first. REPO is the app checkout; SKILL is this skill's
-folder. Replace both with absolute paths and keep the quotes. The helper reads
-saved credentials privately; no Vast SDK or CLI is needed.
+Complete [setup](setup.md), then start the local app. These commands use the
+installed package and per-user state; no checkout or helper scripts are needed.
 
-## Inspect before renting
+1. `seed gpu vast doctor` checks dependencies and configured credentials.
+2. `seed gpu vast status` lists rentals and local studio state.
+3. `seed gpu vast offers` finds suitable one-GPU offers. Inspect hourly and transfer
+   prices, disk, network and reliability against the user's authorization.
+4. `seed gpu vast rent --offer-id ID --max-hourly USD --disk-gb 180` rents the
+   selected offer. It checks current pricing and records intent before creation.
+5. `seed gpu vast wait` waits at most five minutes for running state/direct SSH.
+6. `seed gpu vast boot` prepares models and starts the pinned worker. Repeat to
+   reuse verified files after an interruption. Never run during active generation.
+7. `seed gpu vast connect` establishes a private SSH tunnel and pairs automatically.
+8. `seed gpu vast status` verifies the session. Return the local app URL and cost.
 
-```sh
-node "SKILL/scripts/vast.mjs" doctor --repo "REPO"
-node "SKILL/scripts/vast.mjs" status --repo "REPO"
-node "SKILL/scripts/vast.mjs" offers --repo "REPO"
-```
+`offers --gpu NAME` may be repeated for approved hardware alternatives. Rental
+requires at least 120GB disk; allow room for the model manifest and temporary outputs.
+No particular host or startup time is guaranteed.
 
-Doctor should show `built: true`, working SSH tools and configured Vast/HF keys.
-A complete PC cache is optional; rent validates the manifest without requiring
-local weights. Setup downloads the cache immediately when the user opts in.
+## Recovery
 
-Status lists account instances and local studio state. Reuse an existing usable
-session; don't acquire another GPU while one is already active. If RunPod is also
-configured, check it using that guide before allocation.
+If a creation result is uncertain, `seed gpu vast reconcile` checks provider state.
+An absent rental needs a second absence check after 30 seconds. An unidentified
+existing instance blocks further allocation: inspect it instead of editing state.
+After confirmed absence, another approved offer may be selected.
 
-Offers include IDs, GPU/RAM, location, hourly total and network charges. The default
-search is one RTX PRO 6000 WS/Server with approximately 96 GB VRAM, at least 96 GB
-host RAM, CUDA 13+, verified/reliable host and 180 GB disk. Inspect actual power
-limits and download bandwidth. `--gpu NAME` (repeatable) and `--disk-gb GB` change
-the search, but the helper retains its minimum memory filters. It is not an
-arbitrary-GPU optimizer. A100 was substantially slower in our video trial.
+For startup failures, inspect status and retry wait once when there is progress.
+For interrupted downloads, retry boot once; verified files are reused and partials
+resume where supported. If the new worker still cannot be prepared, destroy it.
+No indefinite retries. Do not delete an established session over a transient error.
 
-Choose an offer within the user's budget and explain the price/storage choice.
-If no suitable offer exists, report that result; comparing an authorized alternative
-is reasonable, but repeated allocation attempts are not evidence of availability.
+## Finish
 
-## Acquire, prepare and connect
+`seed gpu vast destroy` verifies safe output saving for paired sessions, deletes
+the recorded instance/disk, stops the tunnel and confirms absence. Unpaired failed
+launches may be destroyed with an idle local queue. Saved local media is preserved.
+`stop` retains billable disk and is only for an explicitly requested pause.
+`billing` reports account/recorded-instance charges; billing can lag provider actions.
 
-```sh
-node "SKILL/scripts/vast.mjs" rent --repo "REPO" --offer-id OFFER_ID --max-hourly RATE
-node "SKILL/scripts/vast.mjs" status --repo "REPO"
-```
+## Evidence
 
-Replace OFFER_ID with a returned integer and RATE with the authorized hourly
-ceiling, for example `1.50`. Rent rechecks the offer and records the instance ID.
-A timeout may still have allocated compute: inspect status and the saved attempt
-before retrying. The helper intentionally blocks another uncertain rental.
-
-Wait for the instance to report running, then:
-
-```sh
-node "SKILL/scripts/vast.mjs" boot --repo "REPO"
-node "SKILL/scripts/vast.mjs" connect --repo "REPO"
-node "SKILL/scripts/vast.mjs" preparation --repo "REPO"
-node "SKILL/scripts/vast.mjs" status --repo "REPO"
-```
-
-Boot reuses verified remote models, then downloads missing base models and LoRAs
-directly. Source tokens arrive over SSH stdin and are not saved by the helper.
-Per-file failures use PC download/transfer only if local fallback is enabled.
-Every file is verified before the worker starts with pairing/Jupyter secrets.
-Connect starts the SSH tunnel and
-pairs automatically; it returns the local studio URL. The local app must already
-be running, as in setup.md. Vast boot completes model preparation before connect.
-
-Preparation reports downloaded bytes and verification timestamps. Status's studio
-section distinguishes preparing/ready/busy/disconnected. Once ready, inspect the
-jobs popover: the queue may be paused. Resume it through the UI when the user wants
-generation to begin. Do not silently release older queued jobs just to test setup.
-Give the user the studio URL, readiness and hourly cost; leave it open for their use.
-
-## Finish and verify billing state
-
-```sh
-node "SKILL/scripts/vast.mjs" destroy --repo "REPO"
-node "SKILL/scripts/vast.mjs" status --repo "REPO"
-node "SKILL/scripts/vast.mjs" billing --repo "REPO"
-```
-
-Use destroy only when deletion is authorized. It pauses dispatch, requires fresh
-output-safety confirmation, deletes the recorded instance/disk and stops the SSH
-tunnel. Seed stays running with its last worker disconnected. Confirm the instance is absent. The Library stays local.
-
-Use `stop` instead of `destroy` if the user wants to retain disk; stopped disk still
-costs money. The helper does not have a resume command: start a stopped instance
-through Vast first, subject to capacity, then boot/connect. After a PC restart,
-start Seed and reconnect if the GPU is still running. Sleep does not stop billing.
-
-## Recover without losing work
-
-- **SSH/boot failure:** use status and inspect the same instance. Startup repairs
-  root ownership and restrictive modes on Vast-injected authorized_keys. If logs
-  show bad ownership/modes, an existing container may need an updated onstart via
-  `/instances/update_template/ID/` (include the image) and authorized in-place
-  recycle; reboot alone does not regenerate the startup script. Preserve work
-  before any recycle. Request logs via `/instances/request_logs/ID/` including
-  its trailing slash. Don't rent another
-  GPU to fix an SSH problem. Retry boot after resolving readiness/access.
-- **Connect failure:** local ports 18080/18888 must be free. The helper stops its
-  tunnel after a failed connection attempt; a failed code exchange preserves the
-  saved connection. Inspect the private tunnel log if cleanup fails. The GPU
-  remains allocated until explicitly stopped or destroyed.
-- **Shutdown refused:** finish/cancel jobs and let outputs save; reconnect/reconcile
-  if status is unknown. A worker that never became usable requires checking that
-  no jobs were submitted before emergency teardown through Vast.
-
-Rental state is in REPO's ignored `.local/seed-vast/state.json`. Per-user config
-contains credentials.json and a seed-vast directory with keys, worker secrets,
-connection backup and logs. The old state-directory name is retained deliberately.
-Never print raw account responses, which may contain keys. For implementation
-changes, inspect scripts/vast.mjs; do not improvise credential-bearing shell commands.
-
-## Current evidence and limits
-
-The worker supports explicit SSH startup and loopback binding. The helper passes
-configuration through SSH and starts it without modifying source. Use the image
-pinned by the built application; older retained images need replacement after
-outputs are saved. CPU startup checks do not establish GPU generation performance.
-
-The manual RTX PRO 6000 trial downloaded/verified 99.62 GB in 5m15s and generated
-a 15-second mixed-reference video in 13m23s. These are one-machine observations,
-not guarantees. See REPO/research/infrastructure/VAST-KOREA-BENCHMARK-2026-09-10.md.
-Direct-first/fallback live validation on 2026-09-11 completed all 14 models in
-6m48s after container readiness. Base models downloaded directly; three Civitai
-failures used PC copies. Disabled fallback and an empty-PC-cache fallback also
-passed in isolated storage. Six generation checks passed across the three
-implemented workflows and both modes. See
-REPO/research/infrastructure/VAST-DIRECT-FALLBACK-VALIDATION-2026-09-11.md.
-Full cold 100 GB PC transfer, maximum-reference 15-second video and macOS execution
-remain separate checks. Do not quote direct-download times as PC transfer speed.
-
-### Upgrading from the alternate app launcher
-
-After jobs finish and outputs are saved, rebuild/reinstall Seed, then run `seed stop`
-and `seed start` once. This replaces any already-running old launcher without
-changing the saved connection or GPU. Reconnect to restore the SSH tunnel if needed.
-Old `app_managed` state and `previous-connection.json` backups are no longer used;
-they may be removed after the normal app starts successfully. Do not restore those
-backups over the current connection.
+The September 11 direct-download/fallback run validated all three implemented
+workflows in both modes, with five-second videos. The new packaged CLI and recovery
+commands are undergoing the validation recorded in studio/VALIDATION.md in the repo.
+Do not claim maximum-reference capacity or all desktop platforms are proven.

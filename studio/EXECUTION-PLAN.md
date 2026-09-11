@@ -1,3 +1,6 @@
+> Historical milestone journal. Current scope and acceptance are maintained in
+> TODO.md and VALIDATION.md; older planning assumptions below are historical.
+
 # seed implementation plan, checkpoints and acceptance
 
 ## Infrastructure research checkpoint — 10 September 2026
@@ -471,3 +474,15 @@ Live pipeline validation found two pre-submission issues: an earlier global npm 
 ## 2026-09-11 — Repository review and next priorities
 
 Vast 50616033 and its disk were destroyed on owner request; provider status confirmed no instances. Reviewed current repository shape and documentation drift. The current prioritized review backlog is [TODO](TODO.md): agree on distribution/update UX, rewrite current documentation, make installation/recovery reproducible, complete validation, then identity editing. Code organization is deferred at the owner's request. Last live success required temporary diagnostics/test scripts and a manual FFmpeg repair; do not present it as an unattended clean-install proof.
+
+
+## 2026-09-11 � Approved packaging/lifecycle simplification
+
+Moved executable skill helpers into packaged operations and tests into the main
+suite. Added CLI dispatch, bounded startup waiting and uncertain Vast rental
+reconciliation. Rental state now belongs to per-user configuration. First clean
+archive installation outside the checkout passed setup/start/status/stop and
+provider doctor. No manual media-binary repair required. Full regression at this
+checkpoint: 51 app +31 operations +40 worker passed, one platform skip.
+RunPod lifecycle additions and provider tests remain in progress. $10 total cap,
+sequential rentals; no compute has been rented for this execution yet.

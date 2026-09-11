@@ -20,7 +20,7 @@ Setup must run with the local app stopped. Keys are masked, saved incrementally,
 and retained when switching providers. See the README for environment variables.
 
 Setup is local credential/configuration setup, not proof of provider or model
-access. The agent checks access before rental. For Vast, the skill helper's
+access. The agent checks access before rental. For Vast, the CLI's
 `setup` delegates to this flow then checks the Vast account. RunPod `pod-setup`
 preflights models and creates/updates the private template and selected volume.
 
@@ -54,13 +54,13 @@ has isolated tests; actual sign-in acceptance is still a user checkpoint.
 npm run typecheck
 npm run build
 npm test
-node --test skills/seed/tests/vast.test.mjs skills/seed/tests/runpod.test.mjs
+node --test tests/operations/vast.test.mjs tests/operations/runpod.test.mjs
 npx playwright install chromium
 npm run test:browser
 ```
 
 Use the worker's requirements-test.txt and Python for worker development tests;
-Python is not a local end-user dependency. Worker startup tests live with the
+Python is needed by the official Windows HF installer when local caching is selected. Worker startup tests live with the
 worker regression suite. Browser tests use isolated data
 and an alternate port. Tests do not establish that a paid GPU lifecycle works.
 
@@ -99,3 +99,18 @@ current-credential secret scan. It stops on failure. Set `SEED_PYTHON` to use a
 different prepared Python environment. Browser tests and paid GPU validation are
 separate. Pytest uses a fresh directory under `.local/tests` rather than shared
 system temp state. The secret check prints file names and match types, not values.
+
+
+## Packaged operations (2026-09-11)
+
+`operations/` is copied to `dist/operations` during build and included in npm pack.
+`seed gpu vast ...` and `seed gpu runpod ...` resolve their own installed package,
+not the current working directory. Skill files contain instructions only.
+Operational rental state is per-user configuration; the legacy checkout Vast
+record is imported when encountered. Never edit state to bypass uncertainty.
+
+Before release, install the actual npm archive in a temporary prefix outside the
+checkout. Use fake credentials, isolated STUDIO_DEV_ROOT and isolated APPDATA for
+setup tests. Do not copy individual compiled modules into a global installation.
+Run `npm run verify` before committing. Actual platform and paid-resource results
+belong in VALIDATION.md. No automatic update checker or npm publication is enabled.

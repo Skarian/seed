@@ -9,6 +9,7 @@ import { parseArgs } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { readJson, saveJson, requestJson, assertIdle } from "./common.mjs";
+import { waitFor } from './wait.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
 export const workerOrigin = "http://127.0.0.1:18080";
@@ -24,6 +25,8 @@ const commands = [
   "stop",
   "destroy",
   "billing",
+  "wait",
+  "reconcile",
 ];
 const pick = (value, keys) =>
   Object.fromEntries(
@@ -191,8 +194,6 @@ export class SeedVast {
     this.checkPort = checkPort;
   }
   async init() {
-    this.stateFile = path.join(this.work, "state.json");
-    this.state = await readJson(this.stateFile);
     const load = (file) =>
       import(pathToFileURL(path.join(this.repo, "dist/server", file)).href);
     try {
@@ -216,6 +217,14 @@ export class SeedVast {
     // Use the same per-user private config convention as Seed; never a repository .env.
     this.credentialFile = path.join(this.paths.config, "credentials.json");
     this.privateDir = path.join(this.paths.config, "seed-vast");
+    this.work = this.privateDir;
+    this.stateFile = path.join(this.work, "state.json");
+    this.state = await readJson(this.stateFile);
+    // Preserve an older checkout's rental record when upgrading in place.
+    if (!this.state) {
+      const legacy = await readJson(path.join(this.repo, ".local/seed-vast/state.json"));
+      if (legacy) { this.state = legacy; await this.saveState(); }
+    }
     this.tunnelPaths = { config: path.join(this.privateDir, "tunnel") };
     this.key = path.join(this.privateDir, "ssh-key");
     this.knownHosts = path.join(this.privateDir, "known-hosts");
@@ -394,6 +403,42 @@ export class SeedVast {
   async requireModels() {
     const { modelManifest } = await import(pathToFileURL(path.join(this.repo, "dist/server/model-cache.js")));
     return modelManifest(this.paths);
+  }
+  async wait() {
+    return waitFor(async () => {
+      const instance = await this.current();
+      if (instance.actual_status !== 'running') return null;
+      try { sshArgs(instance, this.key, this.knownHosts); } catch { return null; }
+      return { ready_for_preparation: true, instance_id: instance.id };
+    });
+  }
+  async reconcile() {
+    if (!this.state || this.state.destroyed) return { reconciled: true, rental: null };
+    const instances = await this.instances();
+    if (this.state.instance_id) {
+      const current = instances.find(i => i.id === this.state.instance_id);
+      if (current) {
+        delete this.state.absent_since;
+        await this.saveState();
+        return { reconciled: true, instance_id: current.id, status: current.actual_status };
+      }
+    } else if (instances.length) {
+      delete this.state.absent_since;
+      await this.saveState();
+      throw new Error('Uncertain rental and instances exist. Inspect provider state; no new rental is permitted.');
+    }
+    // A read after an uncertain mutation may race provider propagation. Require a
+    // second empty observation on a later command before allowing another rental.
+    if (!this.state.absent_since) {
+      this.state.absent_since = new Date().toISOString();
+      await this.saveState();
+      return { reconciled: false, next: 'Run reconcile again after 30 seconds to confirm absence.' };
+    }
+    if (Date.now() - Date.parse(this.state.absent_since) < 30000)
+      return { reconciled: false, next: 'Wait 30 seconds after the first absence check.' };
+    this.state.destroyed = true;
+    await this.saveState();
+    return { reconciled: true, rental: null };
   }
   async rent({ offerId, maxHourly, disk = 180 }) {
     if (
@@ -673,10 +718,7 @@ export class SeedVast {
     if (!["stop", "destroy"].includes(action))
       throw new Error("Invalid teardown action.");
     const instance = await this.current();
-    if (
-      instance.cur_state === "running" ||
-      instance.actual_status === "running"
-    )
+    if (this.state.paired_worker)
       await safeShutdown(
         this.state,
         await readJson(this.connectionFile),
