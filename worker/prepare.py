@@ -4,6 +4,7 @@ import json
 import os
 import re
 import shutil
+import time
 from pathlib import Path
 from urllib.parse import urlsplit
 from worker.app import atomic_json
@@ -63,6 +64,17 @@ def prepare(workspace, manifest, token, report=lambda **status: None, fetch=hf_f
         if not warm:
             report(phase='verifying ' + item['path'], bytes_done=done, bytes_total=total, error=None)
             if not matches(target, item):
+                if not token:
+                    report(phase='waiting for PC transfer: ' + item['path'], bytes_done=done, bytes_total=total, error=None)
+                    while not target.is_file() or target.stat().st_size != item['size']:
+                        time.sleep(1)
+                    if not matches(target, item):
+                        raise ValueError('Transferred model failed integrity verification.')
+                    stat = target.stat()
+                    atomic_json(receipt, {'sha256': item['sha256'], 'size': stat.st_size, 'mtime_ns': stat.st_mtime_ns})
+                    done += item['size']
+                    report(phase='checking models', bytes_done=done, bytes_total=total, error=None)
+                    continue
                 # Keep a previous complete model until its replacement is verified.
                 stage = workspace / '.seed/downloads' / item['sha256']
                 if not stage.resolve().is_relative_to(workspace):

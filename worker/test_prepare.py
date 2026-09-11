@@ -70,3 +70,21 @@ def test_complete_staging_recovers_without_duplicate_disk_space(tmp_path, monkey
     monkeypatch.setattr(module.shutil, 'disk_usage', lambda _: SimpleNamespace(free=100))
     prepare(tmp_path, [asset], 'test-only', fetch=lambda *args: pytest.fail('Complete stage downloaded again'))
     assert (tmp_path / 'ComfyUI/models' / asset['path']).read_bytes() == b'model'
+
+
+def test_pc_transfer_preparation_never_downloads(tmp_path):
+    asset = item(b'model')
+    target=tmp_path/'ComfyUI/models'/asset['path']
+    target.parent.mkdir(parents=True); target.write_bytes(b'model')
+    prepare(tmp_path,[asset],'',fetch=lambda *args:pytest.fail('Offline preparation contacted model source'))
+    assert len(list((tmp_path/'.seed/models').glob('*.json')))==1
+
+
+def test_waits_for_atomic_pc_delivery(tmp_path, monkeypatch):
+    import worker.prepare as module
+    asset=item(b'model'); target=tmp_path/'ComfyUI/models'/asset['path']
+    def deliver(_):
+        target.parent.mkdir(parents=True,exist_ok=True); target.write_bytes(b'model')
+    monkeypatch.setattr(module.time,'sleep',deliver)
+    prepare(tmp_path,[asset],'',fetch=lambda *args:pytest.fail('Offline download'))
+    assert target.read_bytes()==b'model'

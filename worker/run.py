@@ -117,8 +117,6 @@ def main():
                 if len(jupyter_token) < 24:
                     raise ValueError('Set a private JUPYTER_TOKEN of at least 24 characters.')
                 token = os.environ.get('HF_TOKEN', '')
-                if not token:
-                    raise ValueError('Set HF_TOKEN using your Hugging Face credential.')
                 config = runtime/'jupyter_config.py'
                 config.write_text('c.IdentityProvider.token = ' + repr(jupyter_token) + '\n')
                 jupyter_log = open(runtime/'jupyter.log', 'ab'); handles.append(jupyter_log)
