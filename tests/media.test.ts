@@ -1,7 +1,7 @@
 import {it,expect} from 'vitest';
 import {mkdtempSync,mkdirSync,rmSync,writeFileSync,utimesSync} from 'node:fs';
 import sharp from 'sharp';
-import {Media} from '../server/media.js';
+import {Media,transcode,verifyMediaTools} from '../server/media.js';
 import {openDatabase} from '../server/db.js';
 import {prepareStorage} from '../server/storage.js';
 import path from 'node:path';
@@ -67,4 +67,21 @@ it('prepares a saved generation that has no upload state metadata',async()=>{
     const prepared=await media.prepare({id:'ref',asset_id:'saved',kind:'image',role:'reference'},'16:9',5);
     expect((await sharp(prepared.file).metadata()).format).toBe('png');
   }finally{await media.close();db.close();rmSync(root,{recursive:true,force:true});}
+});
+
+
+it('restores saved video metadata and prepares its soundtrack from the Library',async()=>{
+  const root=mkdtempSync(path.resolve('.local/tests/saved-video-')),paths=resolvePaths(root);prepareStorage(paths);const db=openDatabase(paths.data),media=new Media(db,paths);
+  try {
+    const file=path.join(media.directory,'video.mp4');
+    await transcode(['-f','lavfi','-i','color=c=green:s=64x64:r=24','-f','lavfi','-i','sine=frequency=440:sample_rate=32000','-t','3','-c:v','libx264','-c:a','aac',file]);
+    db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('video','video','Video','media/originals/video.mp4',JSON.stringify({sha256:'a'.repeat(64),mime_type:'video/mp4'}),new Date().toISOString());
+    expect((await media.describe('video')).metadata).toMatchObject({has_audio:true,width:64,height:64,duration:3});
+    const prepared=await media.prepare({id:'video',asset_id:'video',kind:'video',role:'reference',range:{start_seconds:0,duration_seconds:3},include_audio:true},'16:9',5);
+    expect(prepared.audio_file).toBeTruthy();expect(media.get('video').metadata.has_audio).toBe(true);
+  } finally {await media.close();db.close();rmSync(root,{recursive:true,force:true});}
+});
+it('reports missing media executables before startup',async()=>{
+  await expect(verifyMediaTools('missing-ffmpeg-fixture')).rejects.toThrow('install scripts enabled');
+  await verifyMediaTools();
 });

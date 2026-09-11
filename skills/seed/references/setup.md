@@ -34,7 +34,10 @@ node dist/server/cli.js help
 
 Expected result: the build creates `dist/server/` and `dist/web/`, and help lists
 setup/start/status/stop. If installation or native dependencies fail, resolve that
-before renting a GPU. No local Docker or desktop wrapper is required. Optional local model setup
+before renting a GPU. Do not use `npm install --ignore-scripts` for a fresh
+installation: FFmpeg requires its install step. Setup/start checks both media
+executables. Close the local app before a full global reinstall on Windows,
+where loaded SQLite binaries can be locked. No local Docker or desktop wrapper is required. Optional local model setup
 uses the official Hugging Face `hf` CLI with Xet. Check `hf version` (or the
 installer default at `~/.local/bin/hf`) and install it from
 https://huggingface.co/docs/huggingface_hub/guides/cli when missing. The official

@@ -26,6 +26,7 @@ try {
   if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310] [--startup | --no-startup]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop');
   else {
     prepareStorage(paths);
+    if (command === 'setup' || command === 'start') { const { verifyMediaTools } = await import('./media.js'); await verifyMediaTools(); }
     if (command === 'models') {
       const { prepareModels } = await import('./model-cache.js');
       await prepareModels(paths, say);

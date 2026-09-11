@@ -13,6 +13,11 @@ const ffmpeg = createRequire(import.meta.url)('ffmpeg-static') as string | null;
 import ffprobe from 'ffprobe-static';
 import type { StudioPaths } from './storage.js';
 const exec = promisify(execFile);
+export async function verifyMediaTools(encoder = ffmpeg, inspector = ffprobe.path) {
+  if (!encoder || !existsSync(encoder) || !existsSync(inspector)) throw new Error('FFmpeg or FFprobe is missing. Reinstall Seed with npm install scripts enabled.');
+  try { for (const file of [encoder, inspector]) await exec(file, ['-version'], {windowsHide:true, timeout:10000, maxBuffer:65536}); }
+  catch { throw new Error('Seed media tools could not run. Repair the FFmpeg/FFprobe installation before starting.'); }
+}
 export async function probe(file: string) {
   const { stdout } = await exec(ffprobe.path, ['-v','error','-show_streams','-show_format','-of','json',file], { maxBuffer: 2*1024*1024, timeout: 60000, windowsHide: true });
   const data = JSON.parse(stdout); const video = data.streams.find((s:any)=>s.codec_type==='video'), audio = data.streams.find((s:any)=>s.codec_type==='audio');
@@ -25,6 +30,15 @@ export class Media {
   directory: string; private chain: Promise<unknown> = Promise.resolve(); private timer?: ReturnType<typeof setInterval>; private activeUploads = new Set<string>(); private store?: FileStore;
   constructor(private db: Database.Database, private paths: StudioPaths) { this.directory=path.join(paths.data,'media/originals'); mkdirSync(this.directory,{recursive:true}); }
   get(id:string) { const row=this.db.prepare('SELECT * FROM assets WHERE id=?').get(id) as any; return row ? {...row,metadata:JSON.parse(row.metadata_json)} : null; }
+  async describe(id:string) {
+    const item=this.get(id);
+    if(item && item.kind!=='image' && (item.metadata.state??'ready')==='ready' && (!item.metadata.duration || typeof item.metadata.has_audio!=='boolean')) {
+      const file=path.resolve(this.paths.data,item.relative_path);
+      if(!file.startsWith(path.resolve(this.paths.data)+path.sep))throw new Error('Invalid input path');
+      const info=await probe(file);this.mark(id,info);item.metadata={...item.metadata,...info};
+    }
+    return item;
+  }
   async register(app:FastifyInstance) {
     this.store = new FileStore({directory:this.directory});
     const tus=new Server({path:'/api/v1/uploads',relativeLocation:true,datastore:this.store,namingFunction:()=>randomUUID(),disableTerminationForFinishedUploads:true,
@@ -38,7 +52,7 @@ export class Media {
     app.addContentTypeParser('application/offset+octet-stream',(_request,_payload,done)=>done(null));
     const handle=async(req:any,reply:any)=>{const id=String(req.params?.['*']??'');this.activeUploads.add(id);try{reply.hijack();await tus.handle(req.raw,reply.raw);if(req.method==='DELETE'&&reply.raw.statusCode===204)this.mark(id,{state:'error',error:'Upload cancelled.'});}finally{this.activeUploads.delete(id);}};
     app.all('/api/v1/uploads',handle);app.all('/api/v1/uploads/*',handle);
-    app.get('/api/v1/assets/:id',async(req,reply)=>{const item=this.get((req.params as any).id);return item?{id:item.id,kind:item.kind,...item.metadata}:reply.code(404).send({error:{message:'File not found.'}});});
+    app.get('/api/v1/assets/:id',async(req,reply)=>{const item=await this.describe((req.params as any).id);return item?{id:item.id,kind:item.kind,...item.metadata}:reply.code(404).send({error:{message:'File not found.'}});});
     this.timer=setInterval(()=>void this.scan(),2000);void this.scan();
 
   }
@@ -61,10 +75,8 @@ export class Media {
     }
   });this.chain=task.catch(()=>{});return task;}
   async prepare(ref:InputReference,aspect:string,seconds:number):Promise<PreparedReference>{
-    const item=this.get(ref.asset_id);if(!item||(item.metadata.state??'ready')!=='ready'||item.kind!==ref.kind)throw new Error('Wait for references to finish uploading.');
+    const item=await this.describe(ref.asset_id);if(!item||(item.metadata.state??'ready')!=='ready'||item.kind!==ref.kind)throw new Error('Wait for references to finish uploading.');
     const original=path.resolve(this.paths.data,item.relative_path);if(!original.startsWith(path.resolve(this.paths.data)+path.sep))throw new Error('Invalid input path');
-    // Saved generations predate upload metadata; probe their duration when reused.
-    if(ref.kind!=='image'&&!item.metadata.duration)item.metadata.duration=(await probe(original)).duration;
     const key=createHash('sha256').update(JSON.stringify({ref,aspect,seconds,source:item.metadata.sha256,recipe:2})).digest('hex');
     const extension=ref.kind==='image'?'.png':ref.kind==='video'?'.mp4':'.wav';const filename=key+extension,file=path.join(this.paths.data,'media/prepared',filename);
     const [width,height]=aspect==='16:9'?[1344,768]:[768,1344];
