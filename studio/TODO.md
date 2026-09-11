@@ -11,6 +11,8 @@ publication and identity editing are deferred.
 - Agent asks before installing/upgrading Node. Updates occur only on request.
 - Provider commands retain native capability/price/error information.
 - Vast prioritizes verified hosts, high reliability and network performance.
+- Strongly prefer compute under $2/hour; this is not a hard ceiling. Exhaust
+  reasonable cheaper candidates before considering a higher-priced test rental.
 - RunPod defaults to global placement and disposable disk; existing volumes stay untouched.
 - Direct model downloads first, optional PC cache/fallback. User data stays on PC.
 - Bounded recovery; verify uncertain outcomes before retrying. Clean up failed new

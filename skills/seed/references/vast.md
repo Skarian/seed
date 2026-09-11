@@ -50,5 +50,5 @@ Do not claim maximum-reference capacity or all desktop platforms are proven.
 Hardware test searches may lower `--min-vram` and `--min-ram` explicitly; this is
 not a promise those GPUs can run all workflows. Verified-only filtering remains
 the default and there is no verification bypass. Reliability and network speed
-rank ahead of price. Search results retain Vast fields including verification,
+matter alongside the shared under-$2/hour preference in SKILL.md. Search results retain Vast fields including verification,
 network throughput, transfer prices and reliability so the agent can judge them.

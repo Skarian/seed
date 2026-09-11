@@ -28,6 +28,13 @@ never the unrelated unscoped npm package named `seed`.
 4. Return a clickable local/LAN URL, Preparing or Ready status and hourly cost.
    Leave the session available for the user; ending your response is not shutdown.
 
+Strongly prefer GPU compute under $2/hour on either provider; this is a preference,
+not a hard ceiling. Search reasonable cheaper alternatives before considering a
+higher price, while retaining suitable hardware, host reliability and network speed.
+Explain the tradeoff when selecting a more expensive offer within the user's
+authorization. Include disk, transfers and expected runtime in the total budget;
+a generous total budget is not a reason to disregard the hourly preference.
+
 The app supports text-to-image, text-to-video and reference-to-video, Library
 reuse and SFW/LoRA-enabled modes. Identity editing is unfinished. Do not submit
 paid generation tests unless requested. Model prompting research is optional
@@ -37,6 +44,8 @@ reference material, not part of normal setup.
 
 Inspect provider state after uncertain creation before allocating again. Another
 suitable offer is allowed within the user's approved provider and spending bounds.
+One vanished offer or empty search is not enough to conclude capacity is unavailable:
+refresh and try suitable GPU alternatives before reporting a blocker.
 Use bounded waits and resume preparation. If a newly created worker cannot become
 usable after bounded recovery, destroy that exact rental and confirm deletion.
 Do not apply this rule to a temporary disconnect of an established session.
