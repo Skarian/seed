@@ -15,6 +15,6 @@ export async function gpuCommand(args: string[]): Promise<void> {
       stdio: 'inherit', windowsHide: true, shell: false,
     });
     child.once('error', reject);
-    child.once('exit', code => code === 0 ? resolve() : reject(new Error(`GPU command failed (exit ${code}).`)));
+    child.once('exit', code => { if(code!==0)process.exitCode=code??1; resolve(); });
   });
 }

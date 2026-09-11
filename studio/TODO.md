@@ -33,8 +33,9 @@ publication and identity editing are deferred.
 - [x] Reusable package acceptance harness with isolated APPDATA and Seed data.
 - [x] Startup timeout, uncertain-creation reconciliation, unpaired failed-launch teardown.
 - [x] Sanitized provider diagnostics; RunPod log and billing commands.
-- [ ] Final current-archive installation and installed-skill update.
-- [ ] Real Windows sign-in acceptance with owner; actual Linux/macOS coverage.
+- [x] Final current-archive installation and installed-skill update.
+- [x] Actual Linux package install/setup/start/status/stop in Node Debian container.
+- [ ] Real Windows sign-in acceptance with owner; actual macOS coverage.
 - [ ] Distinct-version upgrade/failure rollback acceptance (idle reinstall is proven).
 
 ## Validation
@@ -44,7 +45,8 @@ publication and identity editing are deferred.
 - [x] Global RunPod creation with no network storage.
 - [ ] RunPod startup, prepare, pair, reconnect and confirmed teardown.
 - [ ] Vast verified-host acquisition, prepare, pair and confirmed teardown.
-- [ ] Record final spend, provider state and passed/failed/not-tested matrix.
+- [x] Record provider state and passed/failed/not-tested matrix.
+- [ ] Record settled provider charges (billing has not posted).
 - [ ] Owner desktop/mobile review and actual sign-in check.
 
 See [VALIDATION.md](VALIDATION.md) for measured evidence and limitations. Unavailable

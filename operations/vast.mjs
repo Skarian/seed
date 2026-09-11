@@ -358,14 +358,17 @@ export class SeedVast {
     gpus = ["RTX PRO 6000 WS", "RTX PRO 6000 S"],
     minVram = 90,
     minRam = 96,
+    maxHourly,
+    minDownload = 0,
   } = {}) {
     if (!Number.isSafeInteger(disk) || disk < 120)
       throw new Error(
         "Choose enough disk for the approximately 100 GB manifest and working space.",
       );
     if (!Number.isFinite(minVram) || minVram<=0 || !Number.isFinite(minRam) || minRam<=0) throw Error('Invalid hardware search limits.');
+    if ((maxHourly!==undefined && (!Number.isFinite(maxHourly) || maxHourly<=0)) || !Number.isFinite(minDownload) || minDownload<0)throw Error('Invalid price or network search limit.');
     const q = {
-      verified: { eq: true },
+      verification: { eq: 'verified' },
       external: { eq: false },
       rentable: { eq: true },
       rented: { eq: false },
@@ -377,6 +380,8 @@ export class SeedVast {
       direct_port_count: { gte: 1 },
       disk_space: { gte: disk },
       reliability2: { gte: 0.99 },
+      ...(maxHourly===undefined ? {} : {dph_total:{lte:maxHourly}}),
+      ...(minDownload ? {inet_down:{gte:minDownload}} : {}),
       type: "on-demand",
       allocated_storage: disk,
       order: [["reliability2", "desc"], ["inet_down", "desc"], ["dph_total", "asc"]],
@@ -384,8 +389,10 @@ export class SeedVast {
     };
     const r = await this.api("POST", "/api/v0/bundles/", q);
     if (!Array.isArray(r.offers)) throw new Error("Invalid offer listing.");
-    await saveJson(path.join(this.work, "offers.json"), r.offers);
-    return r.offers.map((o) =>
+    // Validate the returned status too: provider filter aliases have changed.
+    const offers=r.offers.filter(o=>o.verification==='verified' && o.reliability2>=0.99);
+    await saveJson(path.join(this.work, "offers.json"), offers);
+    return offers.map((o) =>
       pick(o, [
         "id",
         "machine_id",
@@ -488,6 +495,7 @@ export class SeedVast {
     const offer = r.offers?.find((o) => o.id === offerId)
       ?? r.offers?.find(o => o.machine_id === cached.machine_id && o.gpu_name === cached.gpu_name && o.num_gpus === 1 && o.dph_total <= maxHourly);
     validateOffer(offer, cached, maxHourly);
+    if(cached.verification && (offer.verification!=='verified' || offer.reliability2<0.99))throw Error('Host verification or reliability changed; select another verified offer.');
     offerId = offer.id;
     await mkdir(this.privateDir, { recursive: true, mode: 0o700 });
     if (!(await exists(this.key)))
@@ -805,6 +813,7 @@ export async function main(argv) {
       gpu: { type: "string", multiple: true },
       'min-vram': { type: 'string', default: '90' },
       'min-ram': { type: 'string', default: '96' },
+      'min-download-mbps': {type:'string',default:'0'},
     },
   });
   const [command] = positionals;
@@ -831,7 +840,7 @@ export async function main(argv) {
     throw error;
   }
   if (command === "offers")
-    return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu, minVram:Number(values['min-vram']), minRam:Number(values['min-ram']) });
+    return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu, minVram:Number(values['min-vram']), minRam:Number(values['min-ram']),maxHourly:values['max-hourly']===undefined?undefined:Number(values['max-hourly']),minDownload:Number(values['min-download-mbps']) });
   if (command === "rent")
     return app.rent({
       offerId: Number(values["offer-id"]),
@@ -848,7 +857,7 @@ if (
   main(process.argv.slice(2))
     .then((result) => console.log(JSON.stringify(result, null, 2)))
     .catch((error) => {
-      console.error(error.message);
+      console.error(JSON.stringify({error:{message:error.message,...(error.provider?{provider:error.provider}:{})}},null,2));
       process.exitCode = 1;
     });
 }

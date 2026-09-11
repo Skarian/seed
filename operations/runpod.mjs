@@ -177,6 +177,6 @@ if (
   main(process.argv.slice(2))
     .then((result) => console.log(JSON.stringify(result, null, 2)))
     .catch((error) => {
-      console.error(error.message);
+      console.error(JSON.stringify({error:{message:error.message,...(error.provider?{provider:error.provider}:{})}},null,2));
       process.exitCode = 1;
     });

@@ -496,3 +496,7 @@ Retain provider-specific information rather than forcing a lowest-common-denomin
 API. Vast selection prioritizes verified hosts, reliability and network speed;
 removed the verification override used in earlier failed tests. Global RunPod
 creation succeeded on RTX PRO 4000 in EU-RO-1 ($0.57/h); validation in progress.
+
+### Final packaging validation, 2026-09-11
+
+RunPod creation and failed-pod cleanup passed. Missing SSH was fixed in the worker image, published and locally verified. Corrected-image live placement failed for capacity. Vast had no qualifying verified offer. No new GPU remains active; billing has not posted. Live prepare/pair/reconnect validation remains incomplete. Final local checks: 51 app, 36 operations, 42 worker tests passed, one platform skip; secret scan clean. Windows archive reinstall and Linux container install passed. See VALIDATION.md and TODO.md for remaining acceptance checks.

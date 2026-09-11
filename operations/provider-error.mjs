@@ -2,6 +2,14 @@
 export function providerError(response, problem, {body, headers}) {
   const hidden = [headers.Authorization?.replace(/^Bearer /i,''), ...Object.values(body?.env ?? {})]
     .filter(value=>typeof value==='string' && value.length>5);
+  const collect = value => {
+    if(!value || typeof value!=='object')return;
+    for(const [key,item] of Object.entries(value)) {
+      if(/key|secret|token|password|credential|connection_code/i.test(key) && typeof item==='string' && item.length>5)hidden.push(item);
+      else if(typeof item==='object')collect(item);
+    }
+  };
+  collect(body);
   const clean = value => {
     if(typeof value!=='string')return undefined;
     let text=value.slice(0,2000);

@@ -8,6 +8,18 @@ import {SeedVast,validateOffer,safeShutdown,workerOrigin,sshArgs,run,freePort,ma
 
 import {assertIdle,requestJson,saveJson,readJson} from '../../operations/common.mjs';
 
+test('offers reject nonverified provider results and preserve price/network constraints',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'seed-offers-'));
+ try {
+  const app=new SeedVast(root);app.work=root;let query;
+  app.api=async(method,url,body)=>{query=body;return {offers:[{id:1,verification:'verified',reliability2:.999,inet_down:5000},{id:2,verification:'deverified',reliability2:1},{id:3,verification:'verified',reliability2:.8}]};};
+  const offers=await app.offers({maxHourly:2,minDownload:1000});
+  assert.deepEqual(offers.map(o=>o.id),[1]);
+  assert.deepEqual(query.dph_total,{lte:2});assert.deepEqual(query.inet_down,{gte:1000});
+  assert.deepEqual(query.order.slice(0,2),[['reliability2','desc'],['inet_down','desc']]);
+ }finally{await rm(root,{recursive:true,force:true});}
+});
+
 const idle={queue:{active:0,waiting:0},outputs:{pending:0}};
 test('shutdown refuses a different worker before sending requests',async()=>{
   let calls=0;await assert.rejects(safeShutdown({paired_worker:'one'},{worker_instance_id:'two',endpoint:workerOrigin},async()=>{calls++;}),/not paired/);assert.equal(calls,0);
