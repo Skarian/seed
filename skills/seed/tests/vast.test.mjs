@@ -4,7 +4,9 @@ import {mkdtemp,rm,stat} from 'node:fs/promises';
 import path from 'node:path';
 import os from 'node:os';
 import {createServer} from 'node:net';
-import {SeedVast,validateOffer,assertIdle,safeShutdown,workerOrigin,sshArgs,requestJson,run,saveJson,readJson,freePort,main} from '../scripts/vast.mjs';
+import {SeedVast,validateOffer,safeShutdown,workerOrigin,sshArgs,run,freePort,main} from '../scripts/vast.mjs';
+
+import {assertIdle,requestJson,saveJson,readJson} from '../scripts/common.mjs';
 
 const idle={queue:{active:0,waiting:0},outputs:{pending:0}};
 test('shutdown refuses a different worker before sending requests',async()=>{
@@ -64,11 +66,11 @@ test('doctor explains missing build on a clean checkout',async()=>{
 test('ambiguous rental is journaled and cannot allocate again on retry',async()=>{
   const root=await mkdtemp(path.join(os.tmpdir(),'seed-vast-'));
   try{
-    const ops=new SeedVast(root);ops.work=path.join(root,'work');ops.privateDir=path.join(root,'private');ops.key=path.join(ops.privateDir,'key');ops.stateFile=path.join(ops.work,'state.json');
+    const ops=new SeedVast(root);ops.image='ghcr.io/example/worker@sha256:'+ 'a'.repeat(64);ops.work=path.join(root,'work');ops.privateDir=path.join(root,'private');ops.key=path.join(ops.privateDir,'key');ops.stateFile=path.join(ops.work,'state.json');
     await saveJson(ops.key,{});await saveJson(ops.key+'.pub',{});
     const offer={id:42,machine_id:7,gpu_name:'RTX PRO 6000 WS',num_gpus:1,dph_total:1.45};
     await saveJson(path.join(ops.work,'offers.json'),[offer]);ops.instances=async()=>[];
-    let creations=0;ops.api=async(method,route)=>{if(route.endsWith('/bundles/'))return {offers:[offer]};if(route.endsWith('/asks/42/')){creations++;throw new Error('lost response');}return {success:true};};
+    let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))return {offers:[offer]};if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);creations++;throw new Error('lost response');}return {success:true};};
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/lost response/);
     assert.equal((await readJson(ops.stateFile)).offer_id,42);
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/uncertain attempt/);assert.equal(creations,1);
