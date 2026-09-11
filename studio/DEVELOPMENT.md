@@ -1,203 +1,91 @@
-# Local development
+# Developing Seed
 
-The first implementation slice is a disconnected studio shell: Generate/Library,
-four workflow forms, browser workflow drafts, standard storage directories, SQLite,
-and a loopback HTTP server. Browser reference selection and previews work; pairing, durable uploads, transfers and generation are not implemented.
-The npm CLI lifecycle is implemented; the source and packaged launch paths follow.
+## Build and run
 
-## Run and verify
+Use Node 26.8.2–26.x (see `.node-version` and package.json):
 
-Use **Node 26.8.2**, pinned in [`.node-version`](../.node-version), and the committed
-lockfile. The system Node installation on this PC was upgraded to that version.
-The existing better-sqlite3 13.0.3 works with it (SQLite 3.53.4). Node 22.13 had
-previously crashed opening SQLite; that historical workaround is no longer needed.
-
-```powershell
+```sh
 npm ci
+npm run build
+node dist/server/cli.js setup --provider vast
+node dist/server/cli.js start
+node dist/server/cli.js status
+node dist/server/cli.js stop
+```
+
+Use `--provider runpod` for that deployment path. Setup remembers the provider,
+requires only its key plus HF, and offers optional Civitai. Windows asks about
+sign-in startup; `--startup`/`--no-startup` changes it. No service starts a GPU.
+Setup must run with the local app stopped. Keys are masked, saved incrementally,
+and retained when switching providers. See the README for environment variables.
+
+Setup is local credential/configuration setup, not proof of provider or model
+access. The agent checks access before rental. For Vast, the skill helper's
+`setup` delegates to this flow then checks the Vast account. RunPod `pod-setup`
+preflights models and creates/updates the private template and selected volume.
+
+By default the app listens on http://127.0.0.1:4310. `setup --host LOCAL_IP` saves a
+private LAN address for phone access; verify the actual address and firewall.
+The user's development portal was configured at http://192.168.1.212:4310;
+DHCP may change it. Never hard-code this into another user's setup.
+
+For isolated development/tests, set `STUDIO_DEV_ROOT` to an unused directory
+before starting commands. Set environment variables using your shell or a parent
+Node process; no PowerShell is required. `npm start` runs a foreground server;
+CLI `start` manages a background server. Don't mix them on the same port/data root.
+
+## Storage and lifecycle
+
+`server/storage.ts` uses env-paths with the retained internal name RunpodStudio.
+The display name is Seed; retaining directory names preserves existing libraries.
+On Windows durable data is under `%LOCALAPPDATA%/RunpodStudio/Data`.
+Media and SQLite live outside the checkout/package; rebuilding keeps them.
+Logs and credentials follow the platform's per-user directories. Credentials use
+private file permissions, not application-level encryption. Web-server environment
+filtering strips both providers' keys and source tokens.
+
+Sign-in setup currently supports Windows only and writes one per-user seed.vbs
+entry invoking Node hidden. No desktop wrapper or bundled runtime. Startup itself
+has isolated tests; actual sign-in acceptance is still a user checkpoint.
+
+## Tests
+
+```sh
 npm run typecheck
 npm run build
 npm test
-
-# Use isolated development data rather than your permanent user library.
-$env:STUDIO_DEV_ROOT = "$PWD/.local/preview"
-npm start
-```
-
-For another checkout, install the pinned system runtime from the
-[official Node distribution](https://nodejs.org/dist/v26.8.2/). This is the Current
-release line. The future npm package uses system Node; it does not bundle a runtime
-or silently upgrade Node. `seed setup/start/status/stop` are implemented, but not published. Setup detects Windows and asks whether to start automatically on sign-in; other platforms skip that step.
-
-Open `http://127.0.0.1:4310`. Stop the foreground process with Ctrl+C. A second
-server cannot bind the same port; it exits instead of starting a second listener.
-The CLI start command reuses its managed instance. A server launched directly with npm start is a foreground developer process, not CLI-managed.
-`STUDIO_PORT` is an optional developer override. Without `STUDIO_DEV_ROOT`, storage
-uses `env-paths('RunpodStudio', {suffix:''})`; on Windows, durable data is under
-`%LOCALAPPDATA%\RunpodStudio\Data`. Rebuilding does not delete these directories.
-
-```powershell
-$env:PLAYWRIGHT_BROWSERS_PATH = "$PWD/.local/browsers"
+node --test skills/seed-gpu/scripts/seed-vast.test.mjs skills/seed-gpu/scripts/runpod.test.mjs
 npx playwright install chromium
 npm run test:browser
 ```
 
-Browser tests start their own server on port 4311 with `.local/browser-tests`
-data, and capture desktop/mobile screenshots under ignored `test-results/`.
-Run in a normal Windows shell: restricted process permissions blocked Playwright's
-server teardown during the first run; the normal-permission run exits cleanly.
+Use the worker's requirements-test.txt and Python for worker development tests;
+Python is not a local end-user dependency. The Vast worker adapter has separate
+`skills/seed-gpu/scripts/test_worker.py` coverage. Browser tests use isolated data
+and an alternate port. Tests do not establish that a paid GPU lifecycle works.
 
-## Current boundaries
+## Local package installation
 
-For an explicitly requested home-network preview, set `STUDIO_PREVIEW_ADDRESS`
-to an assigned private IPv4 address and set `STUDIO_DEV_ROOT` to a separate
-preview directory before starting. The default stays loopback. Host/Origin checks
-match the selected address exactly; this does not enable general public hosting.
-On 9 September the preview was started at `http://192.168.1.212:4310` using
-`.local/lan-preview`. The local HTTP check passed. Creating a subnet-restricted
-Windows Firewall rule failed with access denied; the owner subsequently confirmed
-that the LAN link is accessible. Use this approach for future UI reviews and
-portal access, verifying the current LAN IP each time. Keep test data isolated;
-Use `seed setup --host 192.168.1.212` to persist this address. If DHCP changes it, rerun setup with the new address.
+```sh
+npm pack
+npm install -g ./skarian-seed-0.1.0.tgz
+seed setup --provider vast
+seed start
+```
 
-- `server/storage.ts`: standard paths and directory creation, no media deletion.
-- `server/db.ts`: transactional migrations, WAL, FULL synchronous durability and
-  initial asset/job/dispatcher tables. Setup/reopen preserves existing data.
-- `server/http.ts`: health, disconnected status, first-page asset listing and
-  queue pause; resume rejects until worker integration exists. Only `dist/web`
-  is served. Host, Origin and browser fetch-site checks protect loopback access;
-  this slice does not yet support an external reverse proxy.
-- `web/`: responsive forms/navigation and versioned browser workflow drafts.
-  Output controls are a UI preview; they do not submit requests or claim a
-  validated capability. SFW/NSFW can be selected in the UI draft for review; generation stays disabled
-  and mode selection does not activate a LoRA. Real submission must validate presets.
-- `tests/`: storage preservation/cache separation, host/origin rejection,
-  disconnected safety, private-file denial, drafts/navigation and mobile layout.
+The package is private/unpublished. Stop Seed before replacing the installed
+package. To uninstall a Windows sign-in installation, run `seed setup --no-startup`
+first. Uninstalling does not remove media/config. A changed global Node/npm path
+may require rerunning setup to repair the shortcut. Source and installed app
+builds are distinct: building this checkout does not update a global installation.
 
-The web app never loads credentials or calls RunPod's control plane. Use seed setup
-to save required credentials in the per-user configuration.
-Public model access may not need HF credentials; exact asset access still needs
-preflight. Do not put secrets into browser drafts, screenshots or Git.
+## Provider operations
 
-The worker routes in [POD-BOOTSTRAP](POD-BOOTSTRAP.md) are specified but not deployed.
-Initial API additions `GET /api/v1/health` and `GET /api/v1/assets` support this
-slice; asset listing currently returns at most 50 rows without cursor support.
-Pagination and media content routes must be implemented before real libraries are
-accepted. Queue and pending-output counts are empty-foundation values, not a live
-GPU observation. Termination safety remains unknown.
+Read [seed-gpu](../skills/seed-gpu/SKILL.md). Vast uses the published image with a
+narrow compatibility adapter and a managed SSH launcher; RunPod reuses the
+private template/network volume and normal HTTPS protocol. Restore the Vast
+launcher before switching back to normal RunPod operation. No provider rental
+controls are added to the web UI. Never present paused/disconnected as billing off.
 
-## First UI review decisions
-
-Display name: **seed** (internal app identifier/storage locations unchanged).
-Use a compact prompt-first form, shape-based frame choices and a reset-current-form
-button. Draft schema v2 saves prompt, mode, aspect and duration per workflow;
-existing `studio.drafts.v2` drafts and v1 prompts are read as fallbacks. New writes
-use `seed.drafts.v2`. Reset restores that workflow's
-fields and prompt height, without touching other workflows or Library data.
-A bottom-right handle resizes the prompt with pointer/touch or arrow keys.
-
-Pod and job icons in the top-right open native light-dismiss/Escape popovers.
-Only show an output panel once a real job is submitted; there is none in the
-current disconnected shell. Loading output should use the simple frame logo,
-without tagline/placeholder paragraphs. No new jobs page or backend operation is
-introduced by these UI changes.
-
-## Batch and Advanced controls
-
-Each workflow draft includes generation count (1â€“16, default 1), random seed
-(default), and a fixed starting seed. Advanced is collapsed initially. Controls
-persist across reloads; Reset restores one generation/random seed and collapses
-Advanced. Fixed seed validation accounts for the full batch range. Only add
-additional Advanced controls when the model actually supports them.
-
-These controls currently edit drafts; they do not execute jobs. Future execution
-expands a submission into individually tracked, sequential generations as defined
-in [the API contract](API-CONTRACT.md). No simultaneous model batch or new queue
-system is introduced.
-
-## CLI and package verification
-
-After building, use `node dist/server/cli.js setup`, then `start`, `status`, or
-`stop`. Windows interactive setup asks about sign-in startup; noninteractive
-setup preserves its saved choice. Explicit `--startup`/`--no-startup` changes it.
-No startup setting is automatically enabled by npm installation. Setup takes
-`--host` (loopback or an assigned private IPv4) and `--port`; stop before changing
-settings. Existing `STUDIO_*` developer overrides remain supported.
-
-`npm pack` builds the artifact. Install the resulting tarball using
-`npm install -g ./skarian-seed-0.1.0.tgz`; this registers the `seed` command.
-The npm registry package is not published. Stop seed before updating/uninstalling;
-uninstall does not delete media or configuration. Before uninstalling, run
-`seed setup --no-startup` to remove an enabled sign-in entry. An update at the same
-global prefix keeps its startup path valid; rerun setup if Node or package paths move.
-
-Logs: `server.log` under the standard log directory (rotated once above 5 MB on
-start). CLI control metadata is private app configuration, never browser data.
-The generated per-user `seed.vbs` launches system Node directly with quoted paths
-and a hidden window. Windows Script Host must be enabled. Real sign-in acceptance
-is still pending; isolated execution of the actual entry passes.
-
-Verification: typecheck/build, seven storage/API/CLI tests; clean global tarball
-install, running status, stop/restart, reinstall and uninstall with preserved
-media/database. CLI integration tests cover concurrent start, unauthenticated
-stop rejection, repeated startup setup and the generated Windows entry, all in
-isolated test directories. No startup setting was enabled for the owner's account.
-
-## Owner portal and upload review
-
-The locally packed npm package is now installed in the owner's normal npm prefix.
-The CLI-managed portal uses standard app directories and the configured LAN URL
-`http://192.168.1.212:4310`. Sign-in startup remains disabled by default. Use
-`seed status/start/stop` from a normal terminal; rerun `seed setup` to choose
-sign-in startup. The old isolated developer preview data remains preserved.
-
-Refresh the page for the upload UI. Image-to-image and reference-to-video support
-browser-local file previews, roles, deletion/download, and editable source clip
-ranges. Reload loses these file selections; no durable upload or generation is
-claimed. Text-to-image/text-to-video have no reference picker. Six browser tests
-pass, including mobile and actual audio/video playback; seven server/CLI tests pass.
-
-Latest upload UI: collapsible thumbnail drop box and reusable full-screen dialog
-in web/media-preview.tsx. Metadata is under Info, downloads retrieve the original,
-and role/range controls sit beneath media. The viewer restores scrolling/focus on
-close. Replace and the temporary notice are removed; files remain browser-local.
-
-## Credential setup
-
-`seed setup` requires RunPod and Hugging Face tokens, and offers an optional
-Civitai token (Enter skips). HF covers base models and other HF assets, not only
-LoRAs. Gated model terms still need account approval. All three live in the same
-per-user config/credentials.json, separate from ordinary settings and npm files.
-Setup prints that path, never the token values. No .env file or template is shipped in the repo. Optional .env import remains supported.
-
-For each token, precedence is environment, saved credential, then an optional .env file in the current directory. Names: RUNPOD_API_KEY, HF_TOKEN, CIVITAI_API_TOKEN.
-Masked prompts ask only for missing tokens. Noninteractive setup fails if either
-required token is absent; Civitai remains optional. Existing RunPod-only files are
-reused and the new prompts fill remaining fields. Entered tokens are saved as each
-step completes, so cancellation does not erase earlier entries. An explicit
-environment value can rotate a saved token.
-
-This is per-user file storage, not OS-vault encryption; mode 0600 on POSIX and
-existing per-user directory ACLs on Windows. All three tokens are removed from the
-spawned web-server environment. Browser routes never load credentials.json/.env.
-Future worker setup receives only necessary model-download credentials privately,
-never the RunPod control-plane key. No live provider verification or spending is
-implied by saving tokens. Twelve server/CLI/credential tests pass using fixtures.
-
-
-### Worker connection development
-
-The first M2 connection implementation is in `worker/app.py` and
-`server/worker.ts`. Worker test dependencies are pinned in
-`worker/requirements-test.txt`; run `python -m pytest worker` from the
-repository root in a separate Python environment. Node tests include the private
-worker client and portal route boundary. The Python service is not a complete
-pod launcher yet: model preparation, the engine session hook and supervisor must
-be supplied before deployment. Its preparation and unresolved-output fields must
-not be mistaken for a completed generation integration.
-
-Model preparation is isolated in `worker/prepare.py`; `worker/models.json` pins
-only the required base/identity/turbo files. Owner content LoRAs are not baked into
-that inventory. Preparation uses the official Hugging Face client's
-[`hf_hub_download` local-directory support](https://huggingface.co/docs/huggingface_hub/package_reference/file_download)
-for partial-download reuse, then checks full SHA256 before promotion. Completed
-receipts use file size/mtime to avoid rehashing unchanged weights on every boot.
+API, asset and workflow specifications remain in this directory; historical
+implementation decisions and test evidence belong in EXECUTION-PLAN.md.

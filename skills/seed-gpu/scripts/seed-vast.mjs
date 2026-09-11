@@ -5,7 +5,6 @@ import {fileURLToPath, pathToFileURL} from 'node:url';
 import {spawn} from 'node:child_process';
 import {randomBytes, randomUUID} from 'node:crypto';
 import {createServer, isIP} from 'node:net';
-import {createRequire} from 'node:module';
 import {parseArgs} from 'node:util';
 import {setTimeout as delay} from 'node:timers/promises';
 
@@ -122,17 +121,15 @@ export class SeedVast {
     return {platform:process.platform,tools,built:true,state_present:Boolean(this.state),credentials:{vast:Boolean(this.env.VAST_API_KEY||c.vastApiKey),hf:Boolean(this.env.HF_TOKEN||c.huggingFaceToken),civitai:Boolean(this.env.CIVITAI_API_TOKEN||c.civitaiApiToken)}};
   }
   async setup(){
-    const c=await this.credentials();let token=this.env.VAST_API_KEY?.trim()||c.vastApiKey;
-    if(!token){
-      if(!process.stdin.isTTY)throw new Error('Run setup in an interactive terminal, or provide VAST_API_KEY through the environment.');
-      const require=createRequire(path.join(this.repo,'package.json'));
-      const module=require('@inquirer/password');const password=module.default??module;
-      token=(await password({message:'Vast API key:',mask:true})).trim();
-    }
-    if(!token||/\s/.test(token))throw new Error('Enter an API key without whitespace.');
-    const u=await requestJson('https://console.vast.ai/api/v0/users/current/',{headers:{Authorization:`Bearer ${token}`},fetcher:this.fetcher});
-    await saveJson(this.credentialFile,{...c,vastApiKey:token});return {authenticated:true,credit:u.credit};
+    // One shared setup owns provider credentials, app directories and sign-in preference.
+    await new Promise((resolve,reject)=>{
+      const child=spawn(process.execPath,[path.join(this.repo,'dist/server/cli.js'),'setup','--provider','vast'],{cwd:this.repo,env:this.env,windowsHide:true,shell:false,stdio:'inherit'});
+      child.once('error',()=>reject(new Error('Seed setup could not start.')));
+      child.once('close',code=>code===0?resolve():reject(new Error('Seed setup did not complete.')));
+    });
+    const u=await this.api('GET','/api/v0/users/current/');return {authenticated:true,credit:u.credit};
   }
+
   async offers({disk=180,gpus=['RTX PRO 6000 WS','RTX PRO 6000 S']}={}){
     if(!Number.isSafeInteger(disk)||disk<120)throw new Error('Choose enough disk for the approximately 100 GB manifest and working space.');
     const q={verified:{eq:true},external:{eq:false},rentable:{eq:true},rented:{eq:false},num_gpus:{eq:1},gpu_name:{in:gpus},gpu_ram:{gte:90000},cpu_ram:{gte:96000},cuda_max_good:{gte:13},direct_port_count:{gte:1},disk_space:{gte:disk},reliability2:{gte:0.99},type:'on-demand',allocated_storage:disk,order:[['dph_total','asc']],limit:20};

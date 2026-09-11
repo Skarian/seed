@@ -1,0 +1,24 @@
+# RunPod operations
+
+Use the existing Seed RunPod path, not the Vast entrypoint patch or SSH launcher. Keep the network volume and private template unless the user asks to remove them. The RunPod implementation uses REST v2 in `server/pod-setup.ts`; do not replace it with an old GraphQL script.
+
+## Setup and launch
+
+1. Run `node dist/server/cli.js setup --provider runpod`, then `start`. This saves only required RunPod/HF and optional Civitai credentials. Do not run setup while work is active. `seed stop` stops the PC app, not paid compute.
+2. Run `node dist/server/cli.js pod-setup --volume ID` to reuse an explicitly selected existing volume, or plain `pod-setup` to reuse saved configuration. It checks HF model access and creates/updates the private **seed** template. A fresh account without a volume uses `pod-setup --create`, which presents location, capacity and cost before creation. Never silently create extra regional copies. This command mutates storage/template configuration but does not create a GPU pod. No `--show-secrets` is needed for normal operation.
+3. Read saved IDs from the per-user `pod-deployment.json` without displaying its secrets. Inspect exact volume metadata, template and existing pods. `node <skill>/scripts/runpod.mjs status --repo PATH` omits secret pod environment values. `catalog` reads GPU pricing/availability. Check datacenter-specific stock too; the volume constrains placement to its datacenter.
+4. Prefer restarting a compatible saved stopped pod if requested, otherwise deploy ONE compatible GPU using the saved private template and network volume. Use available RunPod MCP tools or current `runpodctl`; inspect the installed tool's help/schema before choosing flags. If neither is installed, use the official CLI release matching the OS from https://github.com/runpod/runpodctl/releases, not an old handwritten provisioning script. RunPod's public https://api.runpod.io/v2/openapi.json is authoritative for exact API contracts.
+5. Node can read `runpodApiKey` from Seed's private credentials file and pass `RUNPOD_API_KEY` only in a child tool's environment. Never put it in arguments, chat or printed output. Raw pod/template responses can contain HF/Civitai/pairing secrets: select public fields before displaying them. Do not send the RunPod control-plane key to the worker.
+6. Check current price, CUDA compatibility and memory; use the tested image's CUDA 13 requirement and one GPU. Honor the authorized hardware/budget. Record the intended resource name, template, volume, GPU, maximum approved hourly price and returned pod ID in ignored local state. Record intent before creation; after timeouts inspect actual pods rather than blindly repeating creation. Catalogue stock can be stale. On capacity failure, report it and offer another approved candidate; do not allocate in another region without compatible storage and explicit agreement.
+7. Once its port 8080 is reachable, run `node <skill>/scripts/runpod.mjs connect --repo PATH --pod ID`. The helper verifies the saved private template, unlocks with the saved secret, creates a one-use code and pairs through Seed locally. No user code copying is required. Pairing can happen during model preparation. Use normal `seed start`, not the Vast compatibility launcher. After switching from Vast, finish its restore/teardown first.
+8. Check the local studio status and actual worker readiness. Report preparing versus ready; a RUNNING provider status alone is insufficient. Don't submit paid benchmark jobs unless requested.
+
+## Finish
+
+Run `node <skill>/scripts/runpod.mjs safe --repo PATH --pod ID` immediately before stopping/terminating. It checks the paired endpoint, pauses dispatch and requires fresh `safe_to_terminate=true`. If false/unknown, wait for transfers or reconcile; do not treat disappearance from the UI as saved output evidence. A worker that never became usable requires inspecting its logs and confirming no work was submitted before emergency teardown.
+
+Then use the provider tool's stop or terminate operation for that exact ID, following the user's storage choice. Confirm provider state after the action. Stopping can retain paid pod disk; terminating removes pod-local storage but retains separately billed network volumes. Do not delete the network volume as part of routine session teardown. Report ongoing storage cost. No app-side automatic shutdown or background GPU shopping.
+
+## Validation boundary
+
+Existing Seed template/bootstrap, HTTPS pairing and generation were validated in earlier RunPod work. The shared skill's new automatic pairing helper has fixture coverage and read-only checks; its new end-to-end agent lifecycle still needs an authorized live test. Vast uses disposable model downloads over SSH; RunPod currently uses its region-bound network volume and HTTPS proxy. This skill does not claim to fix provider capacity or the historical proxy-upload complaints.

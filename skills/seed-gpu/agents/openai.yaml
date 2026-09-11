@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seed GPU sessions"
+  short_description: "Run Seed on Vast or RunPod and clean up safely"
+  default_prompt: "Use $seed-gpu to find a suitable GPU on Vast or RunPod and connect my Seed app."

@@ -49,5 +49,18 @@ test('malformed config is preserved and all setup credentials are omitted from w
   const { root, paths, file } = fixture(); writeFileSync(file, 'broken-json');
   await expect(ensureCredentials(paths, { interactive: false, env: {}, cwd: root })).rejects.toThrow('Cannot read seed credentials');
   expect(readFileSync(file, 'utf8')).toBe('broken-json');
-  expect(webServerEnvironment({ RUNPOD_API_KEY: 'fixture', hf_token: 'fixture', CIVITAI_API_TOKEN: 'fixture', PATH: 'keep' })).toEqual({ PATH: 'keep' });
+  expect(webServerEnvironment({ RUNPOD_API_KEY: 'fixture', hf_token: 'fixture', CIVITAI_API_TOKEN: 'fixture', VAST_API_KEY: 'fixture', PATH: 'keep' })).toEqual({ PATH: 'keep' });
+});
+
+
+test('Vast onboarding collects only Vast, HF and optional Civitai, then switches without losing keys', async () => {
+  const { root, paths, file } = fixture();
+  const prompt = vi.fn().mockResolvedValueOnce('fixture-vast').mockResolvedValueOnce('fixture-hf').mockResolvedValueOnce('');
+  await ensureCredentials(paths, { provider: 'vast', interactive: true, env: {}, cwd: root, prompt });
+  expect(prompt.mock.calls.map(call => call[0])).toEqual(expect.arrayContaining(['Vast API key']));
+  expect(prompt.mock.calls.some(call => call[0].includes('RunPod'))).toBe(false);
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ vastApiKey: 'fixture-vast', huggingFaceToken: 'fixture-hf' });
+  await ensureCredentials(paths, { provider: 'runpod', interactive: false, env: { RUNPOD_API_KEY: 'fixture-rp' }, cwd: root });
+  await ensureCredentials(paths, { provider: 'vast', interactive: false, env: {}, cwd: root });
+  expect(JSON.parse(readFileSync(file, 'utf8'))).toEqual({ vastApiKey: 'fixture-vast', runpodApiKey: 'fixture-rp', huggingFaceToken: 'fixture-hf' });
 });

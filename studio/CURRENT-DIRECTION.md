@@ -1,53 +1,43 @@
-# Current seed direction
+# Current Seed direction
 
-## Provider-neutral review — 10 September 2026
+## Adopted operating model � 10 September 2026
 
-The owner reopened the infrastructure direction: evaluate the complete click-to-result workflow across GPU providers, without preferring Modal, Colab, RunPod, or a storage vendor. See the [dstack/SkyPilot comparison and proof plan](../research/infrastructure/multi-provider-orchestration.md). Recommendation: a bounded dstack session-worker proof, with SkyPilot as the comparator; reuse Seed's job/media protocol and direct Hugging Face sources. This is not an adopted migration. RunPod-only statements below describe the existing baseline, not a restriction on this evaluation. No new runtime or paid infrastructure was deployed by this review.
+The agent operates Vast **or RunPod** through the repository's [seed-gpu skill](../skills/seed-gpu/SKILL.md).
+One local browser app keeps permanent inputs/outputs/history; one authorized GPU
+runs generations. The UI does not acquire hardware. No Terraform, orchestrator
+service, multi-region replication or automatic provider failover.
 
-Revision 5 product direction, 9 September 2026. The [local application foundation](DEVELOPMENT.md) has started; GPU infrastructure/runtime changes remain pending. This replaces the Terraform, exe.dev hosting, GHCR model-artifact and PC model-packaging proposals. Current implementation evidence is in the [milestone journal](EXECUTION-PLAN.md).
+Setup selects a provider, collects its key plus HF and optional Civitai, remembers
+the choice and preserves other saved keys. Windows sign-in startup is optional
+and starts only the local app. The repo contains ordinary React/Node app code,
+worker code and a skill; copying the UI into skill instructions is unnecessary.
 
-## Agreed shape
+Vast uses disposable disk/direct model downloads and SSH. RunPod retains private
+template/network-volume/HTTPS support. Stop and destroy are distinct; permanent
+PC media is retained. Verify fresh output safety before teardown and verify the
+provider state afterward. PC sleep does not stop billing.
 
-- Persistent studio on the owner's PC, storing originals, prepared media, generated files and SQLite job/history records outside the application installation directory.
-- RunPod only. Manual deployment/termination using one published template and a reusable network volume. No Terraform, provider adapters, automatic GPU shopping, lifecycle controller or duplicate-pod guard.
-- A small local runpod-setup utility reads the RunPod key from per-user credentials.json populated by seed setup, creates/reuses a volume, asks for data center/capacity, shows current storage cost before creation and prints deployment instructions. Save exact volume ID and pairing secret locally; reruns reuse them. Resolve ambiguous resources instead of guessing by name. Final command spelling remains implementation detail.
-- Keep the software image in GHCR, with pinned application/worker dependencies and Jupyter administration. Jupyter is separate from studio authentication.
-- Pod connection page on port 8080 starts before model preparation. Unlock with pairing secret; copy a short-lived single-use connection value into the PC studio. The PC exchanges it for a worker credential kept server-side. Pairing works during preparation. No central code-directory service; copied value can include endpoint and opaque exchange token.
-- Models/reusable caches live on the RunPod volume. A temporary per-job spool there preserves complete pending outputs across pod replacement. The PC is the permanent media home. Delete worker copies only after durable PC receipt; no S3 credentials or separate storage service.
-- Retain the four workflows, full reference inputs, modes, meaningful Advanced, waiting queue, client preflight and resumable uploads. First implementation uses the agreed custom Generate/Library UI; earlier SwarmUI exploration remains a deferred alternative.
+### Next checkpoints
 
-## PC application setup
+- Shared onboarding and provider-specific skill tests, including clean configuration.
+- Live portable Vast lifecycle and new RunPod automatic-pairing path, one authorized
+  GPU at a time, with current offer/budget and teardown agreement.
+- User fresh-start/LAN UI review. No new generation UI redesign is required.
+- Identity editing remains a separate unfinished workflow.
 
-Owner revision, 9 September 2026: the app is **seed**, installed as a Node.js CLI from npm, serving the existing browser UI. Use the system Node runtime and a compatible pinned SQLite dependency; no desktop wrapper, bundled Node or separate Windows installer. `seed setup` detects the OS and offers Windows users an optional "Would you like seed to start automatically when you sign in?" prompt. Reruns update/remove one per-user startup entry without touching data. Other OSes skip that Windows step. `seed start/status/stop` manage one background local server; start prints local/LAN URLs and reuses a running instance. Keep media/config outside the npm package. Normal setup does not silently upgrade system Node. Owner explicitly requested this PC's Node upgrade separately. Hosting/router/tunnel remains owner-managed.
+## Retained product decisions
 
-## Preferred model-source revision
+Four workflow pages/forms, SFW/NSFW presets, meaningful Advanced controls,
+sequential jobs and a local Library remain in scope. Native ComfyUI events and
+history supply generation timing/progress; the PC records usage and durable
+receipts. Do not add a second telemetry framework.
 
-The latest proposal is direct Hugging Face download on first pod startup, avoiding model copies/artifact packaging on the PC. Core graph filenames were located on Hugging Face; see [source inventory](RELEASE-AND-INFRASTRUCTURE.md). Exact revisions, metadata and actual downloads still need validation. Use the Civitai API for owner-configured content LoRA metadata and downloads; exact model-version/file selections remain pinned. Do not silently restrict the model choices to Hugging Face.
+Models are fetched directly from pinned Hugging Face sources; owner-selected
+LoRAs may use Civitai. No PC weight bundle or new storage service. New downloads
+are verified; completed caches are reused. GHCR holds software, not credentials.
 
-Use a read-scoped HF token when required and preflight gated access before paid preparation. No paid inference API is involved. No full hashes every startup; stage and verify new downloads, reuse completed ones. GPU time during first preparation is accepted. GHCR software pull and HF cold downloads remain external availability dependencies.
-
-## Progress and shutdown
-
-Worker status: Preparing, Ready, Busy, Disconnected; preparation failures have explicit reasons. Job progress: Uploading → Input saved → Sending to GPU → Queued/Generating → Retrieving output → Verifying and saving → Saved, cleaning up → Complete.
-
-Generation, transfer and cleanup failures remain distinct. Safe to terminate requires dispatch paused, no active generation and no unsaved outputs, based on a fresh worker observation. Cleanup-only failures after durable receipt do not mean data is unsafe. Disconnected means safety/billing state is unknown. The product never terminates pods itself.
-
-## Hosting boundary
-
-The studio runs locally on the owner's PC. Public hosting, tunnels, relay/VPS provisioning, domain/DNS configuration, TLS and external browser login are owner-managed and outside this project. No specific tunnel product is required, and choosing one is not an MVP readiness gate.
-
-The application exposes a configurable HTTP port, keeps data in a persistent directory outside the installation, and supports ordinary reverse-proxy operation: configured public origin when used, explicit trusted-proxy settings, correct streamed/Range responses and resumable uploads. Bind to loopback by default. Public exposure requires an owner-provided authenticated access boundary; do not trust arbitrary identity/forwarding headers or add a bespoke account system. Preserve origin/CSRF checks within the app.
-
-Pod pairing and authenticated PC↔RunPod requests remain studio responsibilities. They do not depend on the owner's browser tunnel. Acceptance covers local operation and a representative proxy compatibility test, not deployment of external hosting infrastructure.
-
-PC availability and upstream bandwidth matter. Gigabit download does not establish gigabit upload or end-to-end throughput; do not promise it outperforms hosted services. PC sleep/reboot pauses studio access and transfers, but does not stop GPU billing. Preserve pending outputs in the volume spool.
-
-## Remaining gates
-
-Source/revision/access inventory including content LoRAs; generic proxy compatibility; single-use exchange expiry/retry behavior; large media transfer proof; blank/warm model-cache proof; durable acknowledgment/cleanup and replacement recovery; frontend fit. All logins first with owner present before implementation, then one authorized pod/GPU at a time and verified compute off after each test session. Historical percentage scores do not establish current readiness.
-
-Owner confirmed shutdown-status semantics, reuse of native ComfyUI execution APIs with narrow pairing/receipt additions, and Civitai API LoRA updates. These are agreed directions; live validation still applies.
-
-## Implementation process
-
-The [execution plan](EXECUTION-PLAN.md) defines the owner-present credential/access checklist, fresh worktree backup and selective cleanup, implementation branch/baseline commit, M0–M5 milestones, owner demos and independent review gates, commit/publication boundaries, spending authorization and verified shutdown. This is process planning only; no credentials were changed, resources started or commits made by writing it.
+Jupyter remains an administration tool separate from Seed authentication. Public
+hosting, DNS and home-network tunnels are owner-managed. LAN testing remains the
+preferred user-review path. The user reviews UI/experience decisions; routine
+implementation and tests proceed unattended. Decisions and validation evidence
+belong in EXECUTION-PLAN.md; commit at coherent verified milestones.

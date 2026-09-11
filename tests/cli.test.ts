@@ -16,7 +16,7 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
   delete env.STUDIO_PORT; delete env.STUDIO_PREVIEW_ADDRESS; delete env.SEED_MANAGED;
   const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
   try {
-    await run('setup', '--port', String(port), '--no-startup');
+    await run('setup', '--provider', 'runpod', '--port', String(port), '--no-startup');
     const original = path.join(root, 'data/media/originals/keep.txt'); writeFileSync(original, 'unique media');
     if (process.platform === 'win32') {
       await run('setup', '--startup'); await run('setup', '--startup');
@@ -42,3 +42,18 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
   } finally { await run('stop'); }
 }, 45000);
 
+
+
+test('fresh Vast setup needs no RunPod key and remembers provider on rerun', async () => {
+  mkdirSync('.local/tests', { recursive: true });
+  const root = mkdtempSync(path.resolve('.local/tests/cli-vast-'));
+  const env: NodeJS.ProcessEnv = { ...process.env, STUDIO_DEV_ROOT: root, VAST_API_KEY: 'fixture-vast', HF_TOKEN: 'fixture-hf', APPDATA: path.join(root, 'profile') };
+  delete env.RUNPOD_API_KEY;
+  const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
+  const first = await run('setup', '--provider', 'vast', '--no-startup');
+  expect(first.stdout).toContain('Vast and Hugging Face configured');
+  expect(first.stdout).not.toContain('fixture-vast');
+  expect((await run('setup', '--no-startup')).stdout).toContain('Vast and Hugging Face configured');
+  expect(JSON.parse(readFileSync(path.join(root, 'config/credentials.json'), 'utf8')).runpodApiKey).toBeUndefined();
+  await expect(run('setup', '--provider', 'unknown')).rejects.toThrow();
+});

@@ -18,17 +18,17 @@ try {
   const [major, minor, patch] = process.versions.node.split('.').map(Number);
   if (major !== 26 || minor! < 8 || (minor === 8 && patch! < 2)) throw new Error('seed requires Node 26.8.2 or newer in the 26.x line. Install it from nodejs.org.');
   if (!['setup', 'pod-setup', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
-  const known = command === 'pod-setup' ? ['--quiet', '--volume', '--create', '--show-secrets'] : ['--quiet', '--startup', '--no-startup', '--host', '--port'];
+  const known = command === 'pod-setup' ? ['--quiet', '--volume', '--create', '--show-secrets'] : ['--quiet', '--startup', '--no-startup', '--host', '--port', ...(command === 'setup' ? ['--provider'] : [])];
   for (let i = 0; i < args.length; i++) {
     if (!known.includes(args[i]!)) throw new Error(`Unknown option: ${args[i]}`);
-    if (args[i] === '--host' || args[i] === '--port' || args[i] === '--volume') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
+    if (args[i] === '--host' || args[i] === '--port' || args[i] === '--volume' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
   }
-  if (command === 'help') say('seed setup [--host LOCAL_IP] [--port 4310] [--startup | --no-startup]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed start [--quiet]\nseed status\nseed stop');
+  if (command === 'help') say('seed setup [--provider vast|runpod] [--host LOCAL_IP] [--port 4310] [--startup | --no-startup]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed start [--quiet]\nseed status\nseed stop');
   else {
     prepareStorage(paths);
     if (command === 'pod-setup') {
       const interactive = Boolean(process.stdin.isTTY) && !quiet;
-      await ensureCredentials(paths, { interactive });
+      await ensureCredentials(paths, { interactive, provider: 'runpod' });
       const { setupPod, podEnvironment, preflightModels } = await import('./pod-setup.js');
       if (args.includes('--show-secrets')) {
         if (quiet || args.includes('--create') || args.includes('--volume')) throw new Error('Use --show-secrets by itself; it displays private deployment values.');
@@ -49,7 +49,10 @@ try {
       current.port = Number(value('--port') ?? current.port);
       const { validateAddress } = await import('./address.js'); validateAddress(current.host, current.port);
       if (args.includes('--startup') && args.includes('--no-startup')) throw new Error('Choose --startup or --no-startup.');
-      const credentials = await ensureCredentials(paths, { interactive: Boolean(process.stdin.isTTY) && !quiet });
+      const provider = value('--provider') ?? current.provider ?? 'vast';
+      if (provider !== 'vast' && provider !== 'runpod') throw new Error('Choose --provider vast or --provider runpod.');
+      const credentials = await ensureCredentials(paths, { provider, interactive: Boolean(process.stdin.isTTY) && !quiet });
+      current.provider = provider;
       if (process.platform === 'win32') {
         if (args.includes('--startup')) current.startup = true;
         else if (args.includes('--no-startup')) current.startup = false;
@@ -64,7 +67,7 @@ try {
         windowsStartup(current.startup, process.execPath, fileURLToPath(import.meta.url));
       } else if (args.includes('--startup')) throw new Error('Automatic sign-in setup is currently supported on Windows only.');
       saveSettings(paths, current);
-      say(`Setup complete. RunPod and Hugging Face configured.\nCivitai: ${credentials.civitaiConfigured ? 'configured' : 'skipped (optional)'}\nCredentials: ${credentials.file}\nThe repository .env is not modified.\nData: ${paths.data}\nSign-in startup: ${process.platform === 'win32' && current.startup ? 'enabled' : 'disabled'}\nRun seed start.`);
+      say(`Setup complete. ${current.provider === 'vast' ? 'Vast' : 'RunPod'} and Hugging Face configured.\nCivitai: ${credentials.civitaiConfigured ? 'configured' : 'skipped (optional)'}\nCredentials: ${credentials.file}\nThe repository .env is not modified.\nData: ${paths.data}\nSign-in startup: ${process.platform === 'win32' && current.startup ? 'enabled' : 'disabled'}\nRun seed start.`);
     } else if (command === 'status') {
       const running = await control(paths, 'status'); say(running ? `Running: ${running.url}` : 'seed is stopped.');
     } else if (command === 'stop') {

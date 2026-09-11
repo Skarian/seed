@@ -1,0 +1,61 @@
+#!/usr/bin/env node
+// Seed-specific pairing and sanitized reads. Use the provider CLI/MCP for provisioning.
+import path from 'node:path';
+import {fileURLToPath, pathToFileURL} from 'node:url';
+import {parseArgs} from 'node:util';
+import {readJson, requestJson, assertIdle} from './seed-vast.mjs';
+export function podOrigin(id){
+  if(!/^[a-z0-9]+$/.test(id??''))throw new Error('Supply the exact RunPod pod ID.');
+  return `https://${id}-8080.proxy.runpod.net`;
+}
+export class SeedRunpod {
+  constructor(repo,{fetcher=fetch,env=process.env}={}){this.repo=path.resolve(repo);this.fetcher=fetcher;this.env=env;}
+  async init(){
+    const {resolvePaths}=await import(pathToFileURL(path.join(this.repo,'dist/server/storage.js')));
+    const {settings}=await import(pathToFileURL(path.join(this.repo,'dist/server/settings.js')));
+    this.paths=resolvePaths(this.env.STUDIO_DEV_ROOT);const config=settings(this.paths);
+    this.origin=`http://${config.host}:${config.port}`;return this;
+  }
+  async api(route){
+    const creds=await readJson(path.join(this.paths.config,'credentials.json'),{});
+    const key=this.env.RUNPOD_API_KEY?.trim()||creds.runpodApiKey;
+    if(!key)throw new Error('Run seed setup --provider runpod first.');
+    return requestJson(`https://api.runpod.io/v2/${route}`,{headers:{Authorization:`Bearer ${key}`},timeout:30000,fetcher:this.fetcher});
+  }
+  async local(method,route,body){return requestJson(this.origin+route,{method,body,headers:{Origin:this.origin},fetcher:this.fetcher});}
+  async status(){
+    const data=await this.api('pods');
+    if(!Array.isArray(data.pods))throw new Error('Invalid pod listing.');
+    const pods=data.pods.map(({id,name,status,gpu,cost,dataCenterId,template})=>({id,name,status,gpu,cost,dataCenterId,template}));
+    let studio=null;try{studio=await this.local('GET','/api/v1/studio');}catch{}
+    return {pods,studio};
+  }
+  async catalog(){return this.api('catalog/gpus?include=AVAILABILITY&product=POD&gpuCount=1');}
+  async connect(id){
+    const endpoint=podOrigin(id);const pod=await this.api(`pods/${id}`);
+    const deployment=await readJson(path.join(this.paths.config,'pod-deployment.json'));
+    if(!deployment?.templateId||pod.template!==deployment.templateId)throw new Error('Pod must use your saved private Seed template before sending its pairing secret.');
+    assertIdle(await this.local('GET','/api/v1/studio'));
+    const response=await this.fetcher(endpoint+'/worker/v1/unlock',{method:'POST',redirect:'error',signal:AbortSignal.timeout(10000),headers:{Origin:endpoint,'Content-Type':'application/json'},body:JSON.stringify({pairing_secret:deployment.pairingSecret})});
+    if(!response.ok){await response.body?.cancel();throw new Error(`Worker unlock failed (HTTP ${response.status}).`);}
+    const cookie=response.headers.getSetCookie().map(c=>c.split(';')[0]).join('; ');await response.body?.cancel();
+    const pairing=await requestJson(endpoint+'/worker/v1/pairing-codes',{method:'POST',body:{},headers:{Origin:endpoint,Cookie:cookie},fetcher:this.fetcher});
+    await this.local('PUT','/api/v1/connection',{connection_code:pairing.connection_code});
+    return {connected:true,pod_id:id,url:this.origin};
+  }
+  async safe(id){
+    const connection=await readJson(path.join(this.paths.config,'worker-connection.json'));
+    if(connection?.endpoint!==podOrigin(id))throw new Error('Seed is not paired to this pod. Reconcile before teardown.');
+    await this.local('POST','/api/v1/queue/pause',{});
+    const status=await this.local('GET','/api/v1/studio');
+    if(status.safe_to_terminate!==true)throw new Error('No fresh safe-to-terminate confirmation. Wait for work and transfers; check again.');
+    return {safe_to_terminate:true,pod_id:id};
+  }
+}
+export async function main(argv){
+  const {values,positionals}=parseArgs({args:argv,allowPositionals:true,options:{repo:{type:'string',default:process.cwd()},pod:{type:'string'}}});
+  const [command]=positionals;
+  if(positionals.length!==1||!['status','catalog','connect','safe'].includes(command))throw new Error('Use status|catalog|connect|safe --repo PATH [--pod ID].');
+  const app=await new SeedRunpod(values.repo).init();return app[command](values.pod);
+}
+if(process.argv[1]&&path.resolve(process.argv[1])===fileURLToPath(import.meta.url))main(process.argv.slice(2)).then(result=>console.log(JSON.stringify(result,null,2))).catch(error=>{console.error(error.message);process.exitCode=1;});

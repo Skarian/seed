@@ -312,3 +312,39 @@ confirmed only original f7vnixgws1 remains. Temporary S3 key revoked in console,
 empty key list verified, local secret copy deleted. Original pod q4x2jnxkt81ept
 remains EXITED. Existing storage is unchanged; no GPU compute started. Native
 Comfy metrics still need the two live generation tests when capacity is available.
+
+
+### September 10 — shared onboarding and Seed GPU skill
+
+Owner requested a fresh-checkout experience and expanded the skill to both Vast
+and RunPod. Replaced separate Vast credential prompting with shared app setup:
+`seed setup --provider vast|runpod`; fresh setup defaults to Vast, saves selection,
+and preserves keys for the other provider. HF remains required, Civitai optional.
+Vast credentials are now also stripped from normal web-server child environments.
+RunPod pod-setup explicitly requests its own credentials regardless of selection.
+
+Renamed the skill source from seed-vast to seed-gpu; retained provider-specific
+Vast state paths to avoid breaking existing saved state. RunPod instructions reuse
+native provider tools for compute and existing private-template/volume setup.
+Added a small Node helper for sanitized RunPod status/catalog, automatic pairing
+and fresh pre-teardown safety checks. No new provider orchestrator or UI controls.
+
+Cleanup replaced stale README/development instructions and condensed current
+infrastructure direction. Retained RunPod code/deployment guides and all research;
+removed duplicate old skill source via rename rather than keeping two competing
+entrypoints. No user media or private state was deleted.
+
+Validation: build/typecheck, all 39 app tests and 17 Node helper tests passed.
+The initial 16 helper tests also passed in a local Linux container with networking off;
+an additional successful pairing-exchange fixture passed on Windows.
+The Windows shortcut integration needed normal user permissions outside sandbox.
+Live read-only RunPod status passed; existing pods were EXITED, no jobs pending.
+Portable helpers still require a new full paid lifecycle; no GPU was rented here.
+Next user checkpoint: approve a current offer/budget for the live test, then review
+fresh-start and LAN access. Earlier manual Vast benchmark remains valid historical
+evidence, not validation of the rewritten helper lifecycle.
+
+Installed CLI refreshed from the local npm artifact and normal app restarted at
+http://192.168.1.212:4310. Combined seed-gpu installed and validated; superseded
+installed seed-vast removed. User data/credentials retained. No paid resources
+created or altered. Unrelated regional research note left untouched/uncommitted.

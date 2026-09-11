@@ -1,8 +1,10 @@
 # seed MVP
 
-Infrastructure review, 10 September 2026: [multi-provider orchestration research](research/infrastructure/multi-provider-orchestration.md) evaluates dstack and SkyPilot against the existing Seed worker. Provider selection and storage are being reconsidered together; the operational baseline below remains until a live proof passes.
-
-Scope revision 5, 9 September 2026. The [local application foundation](studio/DEVELOPMENT.md) is implemented; full MVP integration and deployment remain pending. This replaces the earlier LLM-first design. Existing operational instructions remain in [LEAN-SETUP](deployment/LEAN-SETUP.md).
+Current infrastructure direction: [agent-operated Vast and RunPod](studio/CURRENT-DIRECTION.md).
+The persistent app, generation UI and storage ownership below still apply.
+Current setup is in [README](README.md), current implementation evidence in the
+[execution journal](studio/EXECUTION-PLAN.md). No Terraform or standalone provider
+orchestrator is planned.
 
 ## Product
 
@@ -41,15 +43,15 @@ Official H3 limits and installed-node timing rules are distinct. The UI validate
 
 ## Windows setup
 
-Install seed from npm and use the system Node.js runtime. No desktop wrapper, bundled Node runtime or Windows application installer. `seed setup` initializes standard per-user data/config/cache locations and detects Windows; on Windows it asks "Would you like seed to start automatically when you sign in?" (Yes/No). Rerunning setup can enable/disable one per-user Startup entry and preserves data. Non-Windows setup skips Windows startup integration. `seed start` runs/reuses a background server and prints local/LAN URLs; `seed status` and `seed stop` manage that local process. Sign-in startup stays quiet. Package dependencies must work with the tested supported Node release; setup reports incompatible versions rather than silently changing system Node. RunPod still uses its container image; Docker is not needed to run seed. CLI/package publication remains to be implemented.
+Install Seed from a locally packed npm artifact and use the system Node.js runtime; registry publication remains pending. No desktop wrapper, bundled Node runtime or Windows application installer. `seed setup` initializes standard per-user data/config/cache locations and detects Windows; on Windows it asks "Would you like seed to start automatically when you sign in?" (Yes/No). Rerunning setup can enable/disable one per-user Startup entry and preserves data. Non-Windows setup skips Windows startup integration. `seed start` runs/reuses a background server and prints local/LAN URLs; `seed status` and `seed stop` manage that local process. Sign-in startup stays quiet. Package dependencies must work with the tested supported Node release; setup reports incompatible versions rather than silently changing system Node. RunPod still uses its container image; Docker is not needed to run seed. CLI/package publication remains to be implemented.
 
 ## Deployment and storage
 
-RunPod only, manual deploy/terminate, one published software template and a reusable network volume. A small local setup utility creates/reuses storage, shows current cost before creation, saves volume ID/pairing secret and prints launch instructions. No Terraform, model packaging, external storage service or provider adapters.
+The agent operates Vast or RunPod through seed-gpu, with one authorized GPU and no provider lifecycle controls in the UI. Vast uses disposable local disk and SSH; RunPod reuses a private template and network volume. RunPod setup shows storage cost before creating anything. No Terraform, model packaging, external storage service or automatic provider failover.
 
 Preferred model source is direct Hugging Face download into the volume, with read credentials where needed and explicit exceptions for owner-selected LoRAs. No mandatory local model copies. Keep the GHCR software image and pinned dependency/model manifests. See [source inventory](studio/RELEASE-AND-INFRASTRUCTURE.md).
 
-A port-8080 connection page is available while preparation runs. Unlock with pairing secret, paste a short-lived single-use value into the PC studio, and exchange it for a worker credential. Browser refresh retains the connection; replacement pods require pairing. Jupyter stays separate for administration.
+A port-8080 connection page is available while preparation runs. The skill unlocks it and exchanges a short-lived single-use code for a worker credential automatically. Manual copying remains a fallback. Browser refresh retains the connection; replacement workers require pairing. Jupyter stays separate for administration.
 
 Permanent uploads, prepared media, generated results and SQLite records live on PC disk. A temporary volume spool retains pending completed outputs across replacement. Delete worker copies only after durable local receipt; retry transfers/acknowledgments without duplicate Library entries. No automatic regeneration of ambiguous jobs.
 
