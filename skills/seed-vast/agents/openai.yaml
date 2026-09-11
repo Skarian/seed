@@ -1,0 +1,4 @@
+interface:
+  display_name: "Seed on Vast"
+  short_description: "Find, run and clean up a Vast GPU for Seed"
+  default_prompt: "Use $seed-vast to find a suitable Vast GPU and get my Seed app connected."

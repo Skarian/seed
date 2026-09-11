@@ -1,5 +1,11 @@
 # seed
 
+Agent-operated Vast deployment is available as a [Seed on Vast skill](skills/seed-vast/SKILL.md).
+The skill is the agent entry point; this repository continues to contain the normal web app,
+worker and supporting scripts. It finds/prices GPUs, prepares models directly from Hugging Face,
+connects over SSH and handles teardown. No GPU rental controls are added to the UI.
+The manual Vast trial passed; the reusable helper's next paid lifecycle remains to be validated.
+
 **seed** is a local browser app for image and video generation with ComfyUI on disposable RunPod GPUs. Models live on a reusable network volume; permanent media belongs on your PC. Image generation and the first video workflows save verified results locally; identity editing remains in development.
 
 The MVP targets text-to-image, identity editing, text-to-video and reference-to-video using Krea 2 and MiniMax H3. The older direct-Comfy deployment is documented separately below.
