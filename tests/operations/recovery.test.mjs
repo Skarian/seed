@@ -56,13 +56,27 @@ test('uncertain rental never clears state while an unidentified instance exists'
   assert.equal(app.state.absent_since, undefined);
 });
 
-test('startup wait succeeds after delay and bounds an unavailable worker', async () => {
+test('an explicit wait deadline is respected when a caller supplies one', async () => {
   let time = 0, calls = 0;
   const options = { timeout: 10, interval: 5, sleep: async n => { time += n; }, now: () => time, say: () => {} };
   assert.equal(await waitFor(async () => ++calls === 2 ? 'ready' : null, options), 'ready');
   time = 0;
   await assert.rejects(waitFor(async () => null, options), /timed out/);
   assert.equal(time, 10);
+});
+
+test('default startup wait continues beyond eight minutes with elapsed progress',async()=>{
+  let time=0;const messages=[];
+  const ready=await waitFor(async()=>time>=540000?'ready':null,{sleep:async n=>{time+=n;},now:()=>time,say:message=>messages.push(message)});
+  assert.equal(ready,'ready');assert.equal(time,540000);
+  assert.ok(messages.some(message=>message.includes('480s elapsed')));
+  assert.ok(messages.every(message=>!message.includes('NaN')));
+});
+
+test('startup wait still propagates a reported failure immediately',async()=>{
+  await assert.rejects(waitFor(async()=>{throw Error('Provider startup failed');}),/Provider startup failed/);
+  const app=new SeedVast('.');app.current=async()=>({actual_status:'error'});
+  await assert.rejects(app.wait(),/Vast startup failed/);
 });
 
 test('Vast readiness requires a successful SSH command, not just running status and ports',async()=>{

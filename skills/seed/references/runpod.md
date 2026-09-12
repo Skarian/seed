@@ -23,7 +23,8 @@ disk and other charges must also fit the user's total budget. Optional repeated
 The pinned image, SSH public key and private pairing credentials are configured
 by Seed. HF/Civitai tokens are not persisted in the pod environment.
 
-`seed gpu runpod wait` waits for startup/direct SSH, up to five minutes.
+`seed gpu runpod wait` waits for startup/direct SSH without a fixed startup deadline.
+It reports progress every 30 seconds. Ctrl+C stops waiting, not the pod.
 `seed gpu runpod prepare` downloads models directly with optional PC fallback.
 `seed gpu runpod connect --pod ID` pairs to the recorded pod and pinned image.
 `seed gpu runpod status` reports provider state, permitted actions, SSH/runtime

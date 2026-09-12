@@ -416,6 +416,7 @@ export class SeedVast {
   async wait({probe = run, ...options} = {}) {
     return waitFor(async () => {
       const instance = await this.current();
+      if (instance.actual_status === 'error') throw new Error('Vast startup failed. Inspect provider logs before recovery.');
       if (instance.actual_status !== 'running') return null;
       try { await probe('ssh', [...sshArgs(instance, this.key, this.knownHosts), 'true']); } catch { return null; }
       return { ready_for_preparation: true, instance_id: instance.id };
@@ -816,7 +817,7 @@ export async function main(argv) {
   if(values['all-gpus'] && values.gpu)throw Error('Choose --all-gpus or --gpu, not both.');
   if(command==='help')return {
     provider:'vast',
-    commands:{doctor:'Local dependencies/configuration',offers:'Verified hosts ordered by reliability and network speed; --gpu NAME (repeatable) or --all-gpus, --disk-gb, --min-vram, --min-ram, --max-hourly, --min-download-mbps',rent:'--offer-id ID --max-hourly USD --disk-gb 180',wait:'Bounded wait for startup/direct SSH',boot:'Prepare models and start worker; rerun to resume',preparation:'Worker preparation status',connect:'Private SSH tunnel and automatic pairing; --proxy for provider SSH proxy',reconnect:'Restore recorded worker tunnel without re-pairing or interrupting jobs; optional --proxy',status:'Provider and local studio status',reconcile:'Resolve uncertain creation before retrying',logs:'Save redacted provider logs before cleanup; --daemon-logs for host diagnostics',billing:'Recorded-instance billing and account balance',destroy:'Verify outputs then delete recorded instance/disk',stop:'Explicitly retain billable disk'},
+    commands:{doctor:'Local dependencies/configuration',offers:'Verified hosts ordered by reliability and network speed; --gpu NAME (repeatable) or --all-gpus, --disk-gb, --min-vram, --min-ram, --max-hourly, --min-download-mbps',rent:'--offer-id ID --max-hourly USD --disk-gb 180',wait:'Wait for startup/direct SSH with progress; no fixed deadline',boot:'Prepare models and start worker; rerun to resume',preparation:'Worker preparation status',connect:'Private SSH tunnel and automatic pairing; --proxy for provider SSH proxy',reconnect:'Restore recorded worker tunnel without re-pairing or interrupting jobs; optional --proxy',status:'Provider and local studio status',reconcile:'Resolve uncertain creation before retrying',logs:'Save redacted provider logs before cleanup; --daemon-logs for host diagnostics',billing:'Recorded-instance billing and account balance',destroy:'Verify outputs then delete recorded instance/disk',stop:'Explicitly retain billable disk'},
     selection:'Prioritize verified hosts, high reliability and good transfer speeds; consider compute and transfer prices together.'
   };
   if (!commands.includes(command) || positionals.length !== 1)

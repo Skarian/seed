@@ -158,7 +158,7 @@ export async function main(argv) {
   const [command] = positionals;
   if(command==='help') return {
     provider:'runpod',
-    commands:{catalog:'GPU prices, CUDA and per-region capacity',datacenters:'Region capabilities and availability',status:'Provider state, SSH/runtime and local studio',create:'--gpu ID --max-hourly USD [--disk-gb 180] [--datacenter ID (repeatable)]; global disposable placement by default',wait:'Wait up to five minutes for direct SSH',prepare:'Direct model preparation and optional PC fallback',connect:'--pod ID; pair recorded worker',logs:'[--pod ID]; bounded sanitized log tail',billing:'[--pod ID]; provider billing may lag',reconcile:'Inspect uncertain rental before retrying',safe:'--pod ID; verify saved outputs',destroy:'Delete recorded pod and disposable disk'},
+    commands:{catalog:'GPU prices, CUDA and per-region capacity',datacenters:'Region capabilities and availability',status:'Provider state, SSH/runtime and local studio',create:'--gpu ID --max-hourly USD [--disk-gb 180] [--datacenter ID (repeatable)]; global disposable placement by default',wait:'Wait for direct SSH with progress; no fixed deadline',prepare:'Direct model preparation and optional PC fallback',connect:'--pod ID; pair recorded worker',logs:'[--pod ID]; bounded sanitized log tail',billing:'[--pod ID]; provider billing may lag',reconcile:'Inspect uncertain rental before retrying',safe:'--pod ID; verify saved outputs',destroy:'Delete recorded pod and disposable disk'},
     unknown_metrics:['Host reliability','Measured host network throughput'],
   };
   if (

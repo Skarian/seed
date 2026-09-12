@@ -11,7 +11,7 @@ installed package and per-user state; no checkout or helper scripts are needed.
    selected offer. It checks the fresh listing's price and records intent before
    creation. Listings expire after 60 seconds; refresh with the same disk size if
    necessary. It accepts that exact offer ID without a second host/slice search.
-5. `seed gpu vast wait` waits about five minutes for running state and a successful
+5. `seed gpu vast wait` waits without a fixed startup deadline for running state and a successful
    authenticated SSH probe; port mappings alone do not prove readiness.
 6. `seed gpu vast boot` prepares models and starts the pinned worker. Repeat to
    reuse verified files after an interruption. Never run during active generation.
@@ -50,7 +50,9 @@ An absent rental needs a second absence check after 30 seconds. An unidentified
 existing instance blocks further allocation: inspect it instead of editing state.
 After confirmed absence, another approved offer may be selected.
 
-For startup failures, inspect status and retry wait once when there is progress.
+Startup progress is reported every 30 seconds. Ctrl+C stops waiting, not the rental.
+Do not restart a wait or abandon a host solely because five minutes passed.
+For actual startup failures, inspect status and logs before choosing recovery.
 For interrupted downloads, retry boot once; verified files are reused and partials
 resume where supported. If the new worker still cannot be prepared, destroy it.
 No indefinite retries. Do not delete an established session over a transient error.

@@ -68,8 +68,10 @@ Inspect provider state after uncertain creation before allocating again. Another
 suitable offer is allowed within the user's approved provider and spending bounds.
 One vanished offer or empty search is not enough to conclude capacity is unavailable:
 refresh and try suitable GPU alternatives before reporting a blocker.
-Use bounded waits and resume preparation. If a newly created worker cannot become
-usable after bounded recovery, destroy that exact rental and confirm deletion.
+Startup has no elapsed-time cutoff. Keep reporting progress while the provider
+prepares the container; an eight-minute startup is not itself a failure. Diagnose
+reported errors or lack of progress, and stay within the approved spending budget.
+If a newly created worker cannot become usable after recovery, destroy that exact rental and confirm deletion.
 Do not apply this rule to a temporary disconnect of an established session.
 
 When the user finishes, verify all outputs are saved before teardown. Both providers use disposable disk for new workers; leave pre-existing RunPod network volumes untouched. Confirm provider

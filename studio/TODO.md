@@ -21,6 +21,8 @@ publication and identity editing are deferred.
 
 ## Decisions
 
+- Startup waits have no fixed elapsed-time cutoff on either provider. Report progress every 30 seconds; diagnose actual errors or lack of progress within the spending authorization. Eight minutes of startup alone is not a failure. Ctrl+C stops the wait without deleting compute.
+
 - Standing owner authorization: always collect failure logs before cleanup,
   including Vast's S3-backed provider log export; no repeated permission request.
 - One npm package contains local executable code; skill instructions live in GitHub.
