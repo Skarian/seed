@@ -79,3 +79,5 @@ benchmarks and identity editing remain separate work.
 - No GPU rental needed for this closeout. RunPod old pods/volume were explicitly
   deleted; prior preservation notes describe historical actions only.
 - npm publication, identity editing and maximum-reference capacity tests stay deferred.
+
+- [x] Retired volume/template CLI, provisioning and pairing fallback; kept only current rental secrets.

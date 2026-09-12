@@ -4,6 +4,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
 import {SeedRunpod,podOrigin} from '../../operations/runpod.mjs';
+import {podEnvironment} from '../../operations/runpod-secrets.mjs';
 import {saveJson} from '../../operations/common.mjs';
 import {createPod,lifecycle,podRequest} from '../../operations/runpod-lifecycle.mjs';
 test('RunPod defaults to global disposable storage without a template or volume',()=>{
@@ -31,16 +32,16 @@ test('RunPod failed unpaired launch can be destroyed without worker access',asyn
  try {
   const calls=[];
   const app={state:{pod_id:'abc',destroyed:false},stateFile:path.join(root,'rental.json'),local:async()=>({queue:{active:0,waiting:0},outputs:{pending:0}}),api:async(route,method)=>{calls.push([route,method]);return route==='pods'?{pods:[]}:null;}};
-  assert.equal((await lifecycle(app,'destroy')).network_volume_retained,true);
+  assert.equal((await lifecycle(app,'destroy')).disposable_disk_deleted,true);
   assert.deepEqual(calls[0],['pods/abc','DELETE']);
   assert.equal(app.state.destroyed,true);
  }finally{await rm(root,{recursive:true,force:true});}
 });
 test('pod origin cannot redirect pairing secrets',()=>{assert.equal(podOrigin('abc123'),'https://abc123-8080.proxy.runpod.net');for(const value of ['https://other','../bad','abc:123',undefined])assert.throws(()=>podOrigin(value));});
 test('pod status never prints provider environment secrets',async()=>{const app=new SeedRunpod('.');app.api=async()=>({pods:[{id:'abc',status:'RUNNING',env:{HF_TOKEN:'private'}}]});app.local=async()=>({});assert.ok(!JSON.stringify(await app.status()).includes('private'));});
-test('pairing rejects a pod outside saved Seed template before contacting worker',async()=>{
+test('pairing rejects an unrecorded pod even when its legacy template matches',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'seed-runpod-'));
- try{const app=new SeedRunpod('.',{fetcher:()=>{throw new Error('Must not contact worker');}});app.paths={config:root};await saveJson(path.join(root,'pod-deployment.json'),{templateId:'ours',pairingSecret:'secret'});app.api=async()=>({template:'other'});await assert.rejects(app.connect('abc'),/private Seed template/);}finally{await rm(root,{recursive:true,force:true});}
+ try{const app=new SeedRunpod('.',{fetcher:()=>{throw new Error('Must not contact worker');}});app.paths={config:root};await saveJson(path.join(root,'pod-deployment.json'),{templateId:'ours',pairingSecret:'secret'});app.api=async()=>({template:'ours'});await assert.rejects(app.connect('abc'),/recorded Seed rental/);}finally{await rm(root,{recursive:true,force:true});}
 });
 test('safe requires matching pod and fresh affirmative worker status',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'seed-runpod-'));
@@ -67,7 +68,8 @@ test('pairing exchanges the code locally without returning credentials',async()=
   const app=new SeedRunpod('.',{fetcher:async(url,options)=>{fetched.push({url,options});return url.endsWith('/unlock')?new Response('{}',{headers:{'Set-Cookie':'seed_unlock=private; Path=/worker/v1'}}):new Response(JSON.stringify({connection_code:'private-code'}));}});
   app.paths={config:root};app.origin='http://127.0.0.1:4310';
   await saveJson(path.join(root,'pod-deployment.json'),{templateId:'ours',pairingSecret:'secret'});
-  app.api=async()=>({template:'ours'});app.local=async(method,route,body)=>{local.push({method,route,body});return {queue:{active:0,waiting:0},outputs:{pending:0}};};
+  app.image='pinned';app.state={pod_id:'abc',image:'pinned'};app.stateFile=path.join(root,'rental.json');
+  app.api=async()=>({image:'pinned'});app.local=async(method,route,body)=>{local.push({method,route,body});return {queue:{active:0,waiting:0},outputs:{pending:0}};};
   const result=await app.connect('abc');
   assert.equal(fetched[0].url,podOrigin('abc')+'/worker/v1/unlock');
   assert.equal(fetched[1].options.headers.Cookie,'seed_unlock=private');
@@ -75,3 +77,14 @@ test('pairing exchanges the code locally without returning credentials',async()=
   assert.deepEqual(result,{connected:true,pod_id:'abc',url:app.origin});
  }finally{await rm(root,{recursive:true,force:true});}
 });
+
+ test('RunPod secrets are generated once and corrupt settings fail closed',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'seed-runpod-'));
+ try {
+  const first=podEnvironment({config:root});
+  assert.match(first.SEED_PAIRING_SECRET,/^[\w-]{43}$/);
+  assert.deepEqual(podEnvironment({config:root}),first);
+  await saveJson(path.join(root,'pod-deployment.json'),{version:1,pairingSecret:'bad'});
+  assert.throws(()=>podEnvironment({config:root}),/Invalid/);
+ }finally{await rm(root,{recursive:true,force:true});}
+ });

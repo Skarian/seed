@@ -89,9 +89,9 @@ export class SeedRunpod {
       path.join(this.paths.config, "pod-deployment.json"),
     );
     const recorded = this.state?.pod_id === id && this.state.image === pod.image && pod.image === this.image;
-    if (!deployment?.pairingSecret || (!recorded && (!deployment.templateId || pod.template !== deployment.templateId)))
+    if (!deployment?.pairingSecret || !recorded)
       throw new Error(
-        "Pod must use your saved private Seed template before sending its pairing secret.",
+        "Pod must match the recorded Seed rental and pinned image before sending its pairing secret.",
       );
     assertIdle(await this.local("GET", "/api/v1/studio"));
     const response = await this.fetcher(endpoint + "/worker/v1/unlock", {

@@ -55,3 +55,16 @@ synthetic upgrade/failed-start rollback and credential/media preservation.
 Current Markdown links were checked. The updated archive and skill were installed
 on the owner's PC, the retired startup entry removed, and the app restarted at its
 configured LAN address. No GPU was created for closeout.
+
+## Retired provisioning cleanup
+
+Removed the legacy pod-setup command, volume/template provisioning and template-
+based pairing fallback. Current RunPod creation retains a small secret helper;
+pairing requires the recorded rental and pinned image. The existing private
+configuration filename is retained solely to preserve secrets for reconnecting
+current disposable rentals. GHCR base-image mirroring remains a live dependency.
+
+Verification passed: 44 app tests, 44 operational tests, 42 worker tests (one
+skip), build/typecheck and secret scan. Archive contents exclude pod-setup and
+include the secret helper. Isolated package lifecycle, reinstall and rollback
+acceptance passed. No GPU was rented for this removal.

@@ -1,7 +1,7 @@
 # Worker startup and storage
 
 Provider operating steps live in [the Seed skill](../skills/seed/SKILL.md).
-The same pinned image runs on disposable RunPod or Vast disk. Legacy attached volumes remain compatible but are not required.
+The same pinned image runs on disposable RunPod or Vast disk. Volume/template provisioning is retired.
 
 | Setting | HTTPS / RunPod | SSH / Vast |
 |---|---|---|

@@ -15,7 +15,7 @@ worker disk is temporary job storage and a reusable model cache where available.
 | `server/media.ts`, `server/video.ts` | Sharp/FFmpeg/ffprobe media normalization and saved derivatives |
 | `server/storage.ts` | Standard per-user directories, separate media/config/cache/log locations |
 | `server/cli.ts`, `settings.ts`, `credentials.ts`, `lifecycle.ts` | Local setup/start/status/stop |
-| `server/pod-setup.ts` | Legacy volume/template compatibility and local worker secrets |
+| `operations/runpod-secrets.mjs` | Local pairing/Jupyter secrets for recorded disposable rentals |
 | `operations/` | Packaged provider-specific CLI operations, shared SSH/model transfer |
 | `worker/` | Pinned model preparation, authenticated control, transfer spool and Jupyter |
 | `worker/comfy_seed/` | Comfy execution/session integration and native telemetry aggregation |

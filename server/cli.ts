@@ -25,34 +25,19 @@ try {
     const { gpuCommand } = await import('./gpu-cli.js');
     await gpuCommand(args);
   } else {
-  if (!['setup', 'pod-setup', 'models', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
-  const known = command === 'models' ? ['--quiet'] : command === 'pod-setup' ? ['--quiet', '--volume', '--create', '--show-secrets'] : ['--quiet', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models'] : [])];
+  if (!['setup', 'models', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
+  const known = command === 'models' ? ['--quiet'] : ['--quiet', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models'] : [])];
   for (let i = 0; i < args.length; i++) {
     if (!known.includes(args[i]!)) throw new Error(`Unknown option: ${args[i]}`);
-    if (args[i] === '--host' || args[i] === '--port' || args[i] === '--volume' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
+    if (args[i] === '--host' || args[i] === '--port' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
   }
-  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|status|reconcile|destroy|billing>\nseed gpu runpod <help|catalog|datacenters|status|create|wait|prepare|connect|safe|logs|billing|reconcile|destroy>');
+  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310]\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|status|reconcile|destroy|billing>\nseed gpu runpod <help|catalog|datacenters|status|create|wait|prepare|connect|safe|logs|billing|reconcile|destroy>');
   else {
     prepareStorage(paths);
     if (command === 'setup' || command === 'start') { const { verifyMediaTools } = await import('./media.js'); await verifyMediaTools(); }
     if (command === 'models') {
       const { prepareModels } = await import('./model-cache.js');
       await prepareModels(paths, say);
-    } else if (command === 'pod-setup') {
-      const interactive = Boolean(process.stdin.isTTY) && !quiet;
-      await ensureCredentials(paths, { interactive, provider: 'runpod' });
-      const { setupPod, podEnvironment } = await import('./pod-setup.js');
-      if (args.includes('--show-secrets')) {
-        if (quiet || args.includes('--create') || args.includes('--volume')) throw new Error('Use --show-secrets by itself; it displays private deployment values.');
-        say('Private worker environment values. Copy into RunPod deployment settings; do not share or commit.');
-        say(JSON.stringify(podEnvironment(paths), null, 2));
-      } else {
-        const { prepareModels } = await import('./model-cache.js');
-        if (settings(paths).localModelCache === true) await prepareModels(paths, say);
-        const prompt = interactive ? createInterface({ input: process.stdin, output: process.stdout }) : undefined;
-        try { await setupPod(paths, { say, question: prompt ? message => prompt.question(message) : undefined, volumeId: args.includes('--volume') ? args[args.indexOf('--volume') + 1] : undefined, create: args.includes('--create') }); }
-        finally { prompt?.close(); }
-      }
     } else if (command === 'setup') {
       const current = settings(paths);
       const value = (flag: string) => args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;

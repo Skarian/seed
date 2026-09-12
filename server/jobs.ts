@@ -314,7 +314,7 @@ export class Jobs {
       job.output_save_state = "not_applicable";
     } else if (job.state === "needs_attention")
       throw new Error(
-        "The previous execution is uncertain. Reconnect its volume to recover it.",
+        "The previous execution is uncertain. Reconnect the original worker if it still exists to recover it.",
       );
     else job.state = "cancel_requested";
     this.safe = null;
@@ -407,7 +407,7 @@ export class Jobs {
         if (!terminal.includes(job.state)) {
           job.state = "needs_attention";
           job.error =
-            "Reconnect the original model volume to recover this job.";
+            "Reconnect the original worker if it still exists to recover this job.";
           this.save(job);
         }
         continue;
@@ -581,7 +581,7 @@ export class Jobs {
       !finalQueue.queue_running.length &&
       !finalQueue.queue_pending.length;
     this.reason = orphan
-      ? "The volume has work from another seed library. Recover it before stopping or generating."
+      ? "The worker has work from another seed library. Recover it before stopping or generating."
       : foreign
         ? "The pod is running work outside seed."
         : unresolved
@@ -709,7 +709,7 @@ export class Jobs {
               .run(
                 id,
                 output.mime_type === "video/mp4" ? "video" : "image",
-                (output.mime_type === "video/mp4" ? "Video · " : "Image · ") +
+                (output.mime_type === "video/mp4" ? "Video Â· " : "Image Â· ") +
                   job.request.mode.toUpperCase(),
                 "media/outputs/" +
                   id +

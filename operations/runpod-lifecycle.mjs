@@ -1,6 +1,6 @@
 import { readFile, mkdir, access } from 'node:fs/promises';
 import path from 'node:path';
-import { pathToFileURL } from 'node:url';
+import { podEnvironment } from './runpod-secrets.mjs';
 import { readJson, saveJson, assertIdle } from './common.mjs';
 import { waitFor } from './wait.mjs';
 import { run, sshArgs } from './vast.mjs';
@@ -33,7 +33,6 @@ export async function createPod(app, { gpu, maxHourly, disk = 180, datacenters =
   const key = path.join(dir,'ssh-key');
   try { await access(key); } catch { await run('ssh-keygen',['-q','-t','ed25519','-f',key,'-N','','-C','seed-runpod']); }
   const publicKey = (await readFile(key+'.pub','utf8')).trim();
-  const {podEnvironment} = await import(pathToFileURL(path.join(app.repo,'dist/server/pod-setup.js')));
   const request = podRequest({gpu,image:app.image,disk,datacenters,publicKey,environment:podEnvironment(app.paths)});
   app.state = { attempt_at:new Date().toISOString(), image:app.image, destroyed:false, hourly:price, disk_gb:disk, placement:datacenters.length?datacenters:'global', existing_pod_ids:pods.map(p=>p.id) };
   await saveJson(app.stateFile,app.state);
@@ -79,7 +78,7 @@ export async function lifecycle(app, command, id = app.state?.pod_id) {
     await app.api(`pods/${id}`,'DELETE');
     await waitFor(async()=>!(await app.api('pods')).pods.some(p=>p.id===id),{timeout:60000});
     app.state.destroyed=true;await saveJson(app.stateFile,app.state);
-    return {confirmed:'destroy',pod_id:id,network_volume_retained:true};
+    return {confirmed:'destroy',pod_id:id,disposable_disk_deleted:true};
   }
   throw Error('Unknown lifecycle command.');
 }
