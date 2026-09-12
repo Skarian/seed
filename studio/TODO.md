@@ -1,22 +1,23 @@
-# Networking implementation checklist
+# SSH-only reliability checklist
 
-Active [design](NETWORKING.md), [review decisions](reviews/NETWORKING-REVIEW.md).
+Active proposed [implementation plan](SSH-RELIABILITY.md). Owner approval is the
+next checkpoint; this pass changes planning documents, not runtime behavior.
 
-- [x] Owner approves implementation, retiring RunPod HTTPS, and low-cost networking tests on both providers.
-- [x] PC Tailscale installed and signed in.
-- [x] Pin official Tailscale/tusd container digests; local tusd restart/resume/hash gate passes.
-- [x] Apply owner-approved restricted tailnet policy and confirm saved access tests.
-- [x] Obtain scoped enrollment credential.
-- [x] Prove authenticated tusd integration and containerboot enrollment/restart locally.
-- [x] Singleton preparation API and stable rental identity; shared HTTP client over SSH (local validation).
-- [x] Explicit SSH/Tailscale route selection on both providers; retire old preparation/proxy paths (live validation below).
-- [x] Publish/pin candidate and update installed Windows app and skill; package preservation checks pass.
-- [x] Both-provider SSH transfer, output hashes, receipts and forced tunnel recovery.
-- [x] Vast Tailscale enrollment, transfer/resume and route restoration.
-- [x] Investigate RunPod Tailscale slowdown on another affected host before teardown: sender comparisons, curl and packet capture completed.
-- [ ] RunPod Tailscale bulk-download performance: userspace TCP retransmission issue remains; SSH is the validated route. See research/infrastructure/2026-09-12-runpod-tailscale-throughput.md.
-- [ ] Reconcile the previously discarded frame job before the main-app user checkpoint.
-- [ ] Reconcile posted RunPod test charges (Vast posted $0.02; RunPod records still pending).
-- [ ] Full frame generation/durable delivery and user Library checkpoint if real GPU needed.
+- [x] Verify RunPod pods and network volumes empty; Vast instances and standalone volumes empty.
+- [x] Audit real retry gaps and pinned Comfy input publication behavior.
+- [x] Independent reviewer wave, challenge wave, and synthesized-plan review.
+- [ ] Owner approves the implementation plan.
+- [ ] Add production-entry-point unattended failure tests, initially exposing current gaps.
+- [ ] Implement preparation retry, stream inactivity handling, immutable input publication,
+  safe submission reconciliation and actionable permanent failures.
+- [ ] Remove Tailscale and verify saved-connection/config upgrade without losing Library/jobs.
+- [ ] Publish/pin one corrected candidate, package-test, then validate on both providers.
+- [ ] Capture evidence before deleting test VM/disks; verify inventories and reconcile charges.
+- [ ] Update installed package/skill and reconcile the previously discarded frame job.
+- [ ] Owner reviews recovery status and Library through the existing LAN address.
 
-Public frontend, Funnel and login remain deferred. No test rental is currently active.
+The previous [networking log](NETWORKING.md) and
+[RunPod investigation](../research/infrastructure/2026-09-12-runpod-tailscale-throughput.md)
+remain evidence. Tunnel reconnection and protocol resume tests are not substitutes
+for unattended full-operation acceptance. Public frontend/Funnel/login and new
+provider work remain out of scope. No VM is active for planning.

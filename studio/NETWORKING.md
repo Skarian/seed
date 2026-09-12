@@ -1,5 +1,10 @@
 # Reliable worker networking
 
+Historical proposal and implementation log. The active proposed next plan is
+[SSH-only reliability](SSH-RELIABILITY.md), which removes Tailscale and requires
+unattended operation-level recovery tests. The entries below describe prior work,
+not the current recommendation.
+
 Recommended design after adversarial reviewer waves, September 12, 2026.
 Branch: `feat/tailscale-networking`. Implementation authorized by owner September 12, 2026. Low-cost networking-test
 instances on Vast and RunPod are explicitly allowed outside normal GPU selection
