@@ -312,3 +312,38 @@ Missing/old metadata, an engine previously started, or any spool content require
 normal reconciliation. The latch lives in existing identity metadata; no new
 service. Local suite: 67 app, 47 operations, 41 Python pass (one OS skip).
 The package install/start/upgrade/rollback/data-preservation acceptance test passed.
+
+Final candidate publication: Actions run 34709993106 passed. Anonymous GHCR
+manifest inspection verified digest 104ec310c1cc38f73b975a3b24a2822ad9d47e9069b7273c4c0bb716221d2bd3;
+shared/worker-release.ts pins it. The final local integrated network test passed,
+including half-open cancellation, restart/resume, both routes and receipt cleanup.
+The final Python suite has 42 passes (one platform skip). Windows package acceptance
+passed again; installed app and installed skill were updated, preserving user data.
+
+RunPod follow-up: EU-RO-1 pod 6yhjhxustvhc1a, RTX 2000 Ada, $0.24/hour,
+150 GB disposable disk. Early API and SSH pairing passed. SSH uploaded 16 MiB in
+3.698 s, Tailscale enrollment/route change took 13.789 s, and resuming the remaining
+48 MiB over Tailscale took 4.518 s. The bearer and worker identity stayed unchanged.
+However, downloading 64 MiB over Tailscale hit the test's 120-second timeout.
+A second bounded comparison verified 8 MiB over SSH in 2.038 s, while Tailscale
+received only 6,457,704 bytes before 60 seconds. A direct peer path was observed;
+this is not evidence of DERP being responsible. No production timeout was extended.
+
+The full 64 MiB output subsequently passed its hash over SSH in 6.120 s, followed
+by acknowledged receipt and worker output cleanup. Forced SSH-child termination
+recovered in 3.170 s (authenticated listener returned 401 to an unauthenticated
+probe). Collected worker/provider logs and deleted the pod and disk through the
+normal CLI. Both provider listings were empty afterward. Vast posted $0.02;
+RunPod billing still returned no records, so final charges remain unconfirmed.
+
+RunPod Tailscale bulk-download performance remains an open gate. Similar userspace
+proxy symptoms appear in [Tailscale issue 20026](https://github.com/tailscale/tailscale/issues/20026)
+and userspace TCP loss recovery in [issue 20893](https://github.com/tailscale/tailscale/issues/20893).
+These are investigation leads, not a diagnosis of our connection. SSH is proven
+on both providers; Tailscale bulk transfers passed on Vast but not this RunPod host.
+Do not silently auto-select routes or claim the both-provider performance gate passed.
+
+The owner's old frame test 7214742a-0f79-45ca-93c3-c4a7b056a822 remains recorded
+as copy_pending even though the owner authorized discarding its remote files and
+deleted that earlier rental. Installation preserved it. Reconcile that historical
+record before a new main-app pairing; isolated networking tests did not modify it.
