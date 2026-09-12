@@ -350,6 +350,15 @@ peer paths each time. This isolates sendfile versus buffered writes without
 rewriting transfers. If unchanged, collect a Tailscale diagnostic trace rather
 than adding speculative MTU, chunking or netstack changes. Not yet executed.
 
+Follow-up executed on September 12 after explicit owner request. A second
+EU-RO-1 host reproduced the slowdown. Buffered sending and an in-memory response
+did not resolve it; curl was also slow. Packet capture showed unnecessary TCP
+retransmissions on the Tailscale userspace path. See the
+[full investigation](../research/infrastructure/2026-09-12-runpod-tailscale-throughput.md)
+for controlled comparisons, limitations and upstream references. SSH verified
+64 MiB in 6.280 s. VM ye7zsefqfzlzj5 and its disk were deleted after logs/capture
+and output cleanup. No runtime workaround or automatic route fallback was added.
+
 The owner's old frame test 7214742a-0f79-45ca-93c3-c4a7b056a822 remains recorded
 as copy_pending even though the owner authorized discarding its remote files and
 deleted that earlier rental. Installation preserved it. Reconcile that historical
