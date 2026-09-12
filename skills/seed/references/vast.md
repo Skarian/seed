@@ -31,6 +31,15 @@ adjustable, not a universal budget rule. Use `--min-download-mbps` for the netwo
 
 ## Recovery
 
+If an established session loses its SSH tunnel, use `seed gpu vast reconnect`.
+It restores the tunnel only when the local pairing matches the recorded worker.
+It keeps credentials and in-flight jobs unchanged, so finished GPU outputs can
+resume transfer without another generation. Use `connect` for initial pairing;
+do not re-pair or rerun boot during a job.
+`connect --proxy` or `reconnect --proxy` explicitly selects the provider-reported
+Vast SSH proxy route if the direct route is unreliable. It is an alternative to
+test, not a guarantee of better speed. The default remains direct SSH.
+
 For a failed test, run `seed gpu vast logs` before cleanup. It saves redacted
 container logs under Seed's private diagnostics directory. Use `logs --daemon-logs`
 for host startup/network errors or empty container logs. The owner has authorized

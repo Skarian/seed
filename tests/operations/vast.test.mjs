@@ -125,6 +125,32 @@ for (const fail of [false,true]) test(`connect uses only a tunnel and pairing; e
   }finally{await rm(root,{recursive:true,force:true});}
 });
 
+test('reconnect restores only the recorded worker tunnel without pairing or changing active jobs',async()=>{
+  const root=await mkdtemp(path.join(os.tmpdir(),'seed-reconnect-'));
+  try {
+    const calls=[];
+    const ops=new SeedVast(root,{checkPort:async()=>{},startBackground:async()=>calls.push('tunnel'),fetcher:async(url)=>{assert.equal(url,workerOrigin);return new Response('ok');}});
+    ops.state={instance_id:42,paired_worker:'worker'};ops.privateDir=root;ops.tunnelPaths={config:path.join(root,'tunnel')};ops.connectionFile=path.join(root,'connection.json');
+    ops.key='key';ops.knownHosts='hosts';ops.stopTunnel=async()=>{};
+    ops.current=async()=>({actual_status:'running',public_ipaddr:'127.0.0.1',ports:{'22/tcp':[{HostPort:22}]}});
+    ops.local=async()=>{throw Error('Reconnect must not pair, submit or mutate the queue');};
+    const saved={worker_instance_id:'worker',endpoint:workerOrigin,credential:'unchanged'};
+    await saveJson(ops.connectionFile,{...saved,worker_instance_id:'different'});
+    await assert.rejects(ops.connect({reconnect:true}),/existing pairing/);assert.equal(calls.length,0);
+    await saveJson(ops.connectionFile,saved);
+    assert.equal((await ops.connect({reconnect:true})).connected,true);
+    assert.deepEqual(calls,['tunnel']);assert.deepEqual(await readJson(ops.connectionFile),saved);
+  }finally{await rm(root,{recursive:true,force:true});}
+});
+
+test('SSH proxy route accepts only provider proxy hosts and valid ports',()=>{
+  const instance={ssh_host:'ssh2.vast.ai',ssh_port:28650};
+  const args=sshArgs(instance,'key','known',true);
+  assert.equal(args.at(-1),'root@ssh2.vast.ai');assert.equal(args[args.indexOf('-p')+1],'28650');
+  assert.throws(()=>sshArgs({...instance,ssh_host:'elsewhere.example'},'key','known',true));
+  assert.throws(()=>sshArgs({...instance,ssh_port:0},'key','known',true));
+});
+
 test('destroy stops the tunnel and retains the saved connection without app lifecycle calls',async()=>{
   const root=await mkdtemp(path.join(os.tmpdir(),'seed-destroy-'));
   try {

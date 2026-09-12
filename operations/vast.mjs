@@ -21,6 +21,7 @@ const commands = [
   "status",
   "boot",
   "connect",
+  "reconnect",
   "preparation",
   "stop",
   "destroy",
@@ -155,13 +156,14 @@ export async function safeShutdown(
     "No fresh safe-shutdown confirmation. Reconnect and reconcile before teardown.",
   );
 }
-export function sshArgs(instance, key, knownHosts) {
-  const port = Number(instance.ports?.["22/tcp"]?.[0]?.HostPort);
+export function sshArgs(instance, key, knownHosts, proxy = false) {
+  const port = Number(proxy ? instance.ssh_port : instance.ports?.["22/tcp"]?.[0]?.HostPort);
+  const host = proxy ? instance.ssh_host : instance.public_ipaddr;
   if (
     !Number.isInteger(port) ||
     port < 1 ||
     port > 65535 ||
-    !isIP(instance.public_ipaddr ?? "")
+    (proxy ? !/^ssh\d+\.vast\.ai$/.test(host ?? '') : !isIP(host ?? ""))
   )
     throw new Error("Direct SSH is not ready.");
   return [
@@ -179,7 +181,7 @@ export function sshArgs(instance, key, knownHosts) {
     "StrictHostKeyChecking=accept-new",
     "-o",
     `UserKnownHostsFile="${knownHosts.replaceAll("\\", "/").replaceAll('"', '\\"')}"`,
-    `root@${instance.public_ipaddr}`,
+    `root@${host}`,
   ];
 }
 export class SeedVast {
@@ -611,14 +613,18 @@ export class SeedVast {
     }
     throw new Error("The existing SSH tunnel did not stop.");
   }
-  async connect() {
+  async connect({ reconnect = false, proxy = false } = {}) {
     const instance = await this.current();
     if (instance.actual_status !== "running")
       throw new Error("The instance is not running.");
-    assertIdle(await this.local("GET", "/api/v1/studio"));
+    if (reconnect) {
+      const connection = await readJson(this.connectionFile);
+      if (!this.state?.paired_worker || connection?.worker_instance_id !== this.state.paired_worker || connection?.endpoint !== workerOrigin)
+        throw new Error('Reconnect requires the existing pairing to this recorded worker. Use connect while idle.');
+    } else assertIdle(await this.local("GET", "/api/v1/studio"));
     await this.stopTunnel();
     for (const port of [18080, 18888]) await this.checkPort(port);
-    const args = sshArgs(instance, this.key, this.knownHosts);
+    const args = sshArgs(instance, this.key, this.knownHosts, proxy);
     const target = args.pop();
     args.push(
       "-N",
@@ -658,6 +664,7 @@ export class SeedVast {
         throw new Error(
           "Tunnel/worker is not ready. Run status and boot diagnostics.",
         );
+      if (reconnect) return { connected: true, url: this.origin, route: proxy ? 'proxy' : 'direct', pairing: 'preserved; pending jobs resume observation and transfer' };
       const secret = await readJson(this.secretFile());
       const response = await this.fetcher(workerOrigin + "/worker/v1/unlock", {
         method: "POST",
@@ -798,6 +805,7 @@ export async function main(argv) {
       "disk-gb": { type: "string", default: "180" },
       gpu: { type: "string", multiple: true },
       'all-gpus': {type:'boolean',default:false},
+      proxy: {type:'boolean',default:false},
       'daemon-logs': {type:'boolean',default:false},
       'min-vram': { type: 'string', default: '90' },
       'min-ram': { type: 'string', default: '96' },
@@ -808,7 +816,7 @@ export async function main(argv) {
   if(values['all-gpus'] && values.gpu)throw Error('Choose --all-gpus or --gpu, not both.');
   if(command==='help')return {
     provider:'vast',
-    commands:{doctor:'Local dependencies/configuration',offers:'Verified hosts ordered by reliability and network speed; --gpu NAME (repeatable) or --all-gpus, --disk-gb, --min-vram, --min-ram, --max-hourly, --min-download-mbps',rent:'--offer-id ID --max-hourly USD --disk-gb 180',wait:'Bounded wait for startup/direct SSH',boot:'Prepare models and start worker; rerun to resume',preparation:'Worker preparation status',connect:'Private SSH tunnel and automatic pairing',status:'Provider and local studio status',reconcile:'Resolve uncertain creation before retrying',logs:'Save redacted provider logs before cleanup; --daemon-logs for host diagnostics',billing:'Recorded-instance billing and account balance',destroy:'Verify outputs then delete recorded instance/disk',stop:'Explicitly retain billable disk'},
+    commands:{doctor:'Local dependencies/configuration',offers:'Verified hosts ordered by reliability and network speed; --gpu NAME (repeatable) or --all-gpus, --disk-gb, --min-vram, --min-ram, --max-hourly, --min-download-mbps',rent:'--offer-id ID --max-hourly USD --disk-gb 180',wait:'Bounded wait for startup/direct SSH',boot:'Prepare models and start worker; rerun to resume',preparation:'Worker preparation status',connect:'Private SSH tunnel and automatic pairing; --proxy for provider SSH proxy',reconnect:'Restore recorded worker tunnel without re-pairing or interrupting jobs; optional --proxy',status:'Provider and local studio status',reconcile:'Resolve uncertain creation before retrying',logs:'Save redacted provider logs before cleanup; --daemon-logs for host diagnostics',billing:'Recorded-instance billing and account balance',destroy:'Verify outputs then delete recorded instance/disk',stop:'Explicitly retain billable disk'},
     selection:'Prioritize verified hosts, high reliability and good transfer speeds; consider compute and transfer prices together.'
   };
   if (!commands.includes(command) || positionals.length !== 1)
@@ -829,6 +837,9 @@ export async function main(argv) {
     throw error;
   }
   if(command==='logs')return (await import('./vast-logs.mjs')).vastLogs(app,{daemon:values['daemon-logs']});
+  if(values.proxy && !['connect','reconnect'].includes(command))throw Error('--proxy applies only to connect or reconnect.');
+  if(command==='reconnect')return app.connect({reconnect:true,proxy:values.proxy});
+  if(command==='connect')return app.connect({proxy:values.proxy});
   if (command === "offers")
     return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu, allGpus:values['all-gpus'], minVram:Number(values['min-vram']), minRam:Number(values['min-ram']),maxHourly:values['max-hourly']===undefined?undefined:Number(values['max-hourly']),minDownload:Number(values['min-download-mbps']) });
   if (command === "rent")

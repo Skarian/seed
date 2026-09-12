@@ -31,7 +31,7 @@ try {
     if (!known.includes(args[i]!)) throw new Error(`Unknown option: ${args[i]}`);
     if (args[i] === '--host' || args[i] === '--port' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
   }
-  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310]\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|status|reconcile|destroy|billing>\nseed gpu runpod <help|catalog|datacenters|status|create|wait|prepare|connect|safe|logs|billing|reconcile|destroy>');
+  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310]\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|reconnect|status|reconcile|destroy|billing>\nseed gpu runpod <help|catalog|datacenters|status|create|wait|prepare|connect|safe|logs|billing|reconcile|destroy>');
   else {
     prepareStorage(paths);
     if (command === 'setup' || command === 'start') { const { verifyMediaTools } = await import('./media.js'); await verifyMediaTools(); }

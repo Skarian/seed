@@ -37,7 +37,7 @@ not implemented. Send prompt, mode (`sfw` or configured `nsfw`), output, optiona
 seed/count and video references/audio where applicable. Unknown fields fail.
 Exact request validation lives in server/workflows.ts and server/video.ts.
 
-Output: image `1mp`; video `720p`, 5/10/15 seconds; portrait 9:16 or landscape
+Output: image `1mp`; video `720p`, whole seconds from 5 through 15 on current workers; portrait 9:16 or landscape
 16:9. Video audio is generated or silent. Supplied final soundtrack replacement,
 arbitrary advanced model controls and native export settings are not implemented.
 

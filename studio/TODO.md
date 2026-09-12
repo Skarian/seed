@@ -9,6 +9,7 @@
 - [x] Local synthetic desktop/mobile review app, app/worker/browser regression checks.
 - [x] Review desktop/mobile scrubber and Keep only selection; approve budget for live export validation.
 - [ ] Validate and release the accepted feature. Identity-edit LoRA remains retained.
+- [ ] Finish live output recovery/Library validation: GPU generation passed (120 PNGs, 128.393 seconds), but this host's SSH transport failed. Temporary authenticated HTTPS recovery requires owner approval; do not discard unsaved GPU outputs. See VALIDATION.md.
 
 The completed checklist below records the previous infrastructure scope. Its
 identity-edit deferral does not prevent this new planning work.
