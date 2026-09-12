@@ -183,3 +183,36 @@ no network volume was used.
 Saved preparation/readiness/provider logs before teardown. GPU and disk deletion
 confirmed, followed by an empty Vast instance list. Posted charge was $0.177,
 with bandwidth billing still incomplete; credit $37.8237. No inference jobs ran.
+
+## Different host with corrected full-workload hardware
+
+The user's different-host request began 2026-09-12 02:20:39 UTC. An initial
+RTX 5090 rental `50683392` was an operator selection mistake: an old permission
+for small script-test GPUs was incorrectly reused. It and its disk were deleted
+before testing. The user clarified that 96 GB RTX PRO 6000 Server/Max-Q or WS is
+the preferred hardware for infrastructure tests too; alternatives need explicit
+confirmation. Repository and installed skill guidance now reflect this.
+
+Replacement `50683866` used RTX PRO 6000 WS, 96 GB, on different Japan machine
+14398 (previous machine was 142232), offer 50214231, $1.5667/hour. Startup wait
+began 02:25:44.590 UTC and authenticated SSH passed at 02:32:43.478: 6m59s.
+The first five-minute wait timed out; logs were collected and the documented one
+additional wait succeeded without key repair/reboot. Host logs show shared layers
+already existed, while remaining image layers were downloaded. Image pull ran
+02:25:47–02:32:10 (6m23s), followed by Vast's startup-layer setup. This is a
+different-host/partially cached test, not proof of a completely empty host cache.
+
+Boot completed 02:41:22.566 (8m39s after SSH), paired at 02:41:26.630, and Ready
+was confirmed at 02:41:33.241. Thus message-to-Ready was 20m54s including the
+wrong rental, correction and guidance update; replacement wait-to-Ready was
+15m49s. Preserve both rather than resetting the user's stopwatch.
+
+All 14 files downloaded directly, with three presets activated; no Civitai 403
+or PC fallback. The LoRAs overlapped base preparation. Base 99.6248 GB download
+and verification took 502.364s (8m22s), effective 198.31 MB/s, substantially slower
+than the prior host despite higher advertised networking. No inference was run.
+
+Saved host/container/readiness/preparation evidence, then deleted GPU and disk;
+an empty Vast instance list confirmed cleanup. Posted charge $0.521 and credit
+$37.1976 at cleanup, subject to delayed bandwidth/final billing. Request host and
+container log exports separately to avoid overlapping exports for one instance.
