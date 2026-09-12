@@ -1,5 +1,5 @@
 import { Media, type PreparedReference } from "./media.js";
-import { videoRoute } from "./video.js";
+import { videoRoute, HIGH_VIDEO_PROFILE, VIDEO_PROFILE_REVISION } from "./video.js";
 import type Database from "better-sqlite3";
 import { createHash, randomUUID } from "node:crypto";
 import {
@@ -51,6 +51,7 @@ type Job = {
   request: ImageRequest;
   seed: string;
   preset: Preset | null;
+  video_profile?: typeof HIGH_VIDEO_PROFILE;
   graph: ReturnType<typeof graphFor>;
   workspace_id: string;
   engine_session_id?: string;
@@ -225,6 +226,12 @@ export class Jobs {
         "Resolve the previous interrupted job before generating.",
       );
     const isVideo = request.workflow !== "text-to-image";
+    if (isVideo && request.output.size === 'native' && cap.video?.native_export !== true)
+      throw new Error('Update the worker to preserve native video output.');
+    if (isVideo && request.quality === 'high' && (cap.video?.quality?.high !== true || cap.video.profile_revision !== VIDEO_PROFILE_REVISION))
+      throw new Error('Update the worker to use High Quality.');
+    if (isVideo && request.quality !== 'high' && cap.video?.quality?.fast === false)
+      throw new Error('Fast video is not available on this worker.');
     if (isVideo && request.output.format === 'images' && !cap.video?.image_export)
       throw new Error('Update the worker to export images.');
     if (isVideo && ![5,10,15].includes(request.output.duration_seconds!) && cap.video?.duration_step !== 1)
@@ -280,6 +287,7 @@ export class Jobs {
         request,
         seed,
         preset,
+        ...(isVideo && request.quality === 'high' ? {video_profile: HIGH_VIDEO_PROFILE} : {}),
         graph: graphFor(request, id, seed, preset, prepared),
         ...(prepared.length ? { prepared } : {}),
         workspace_id: cap.workspace_id,
@@ -609,7 +617,7 @@ export class Jobs {
     try {
       const response = await this.worker.request('/comfy/prompt', {
         method: 'POST', session,
-        body: {prompt_id: job.id, prompt: job.graph, preset: job.preset},
+        body: {prompt_id: job.id, prompt: job.graph, preset: job.preset, ...(job.video_profile ? {video_profile: job.video_profile} : {})},
       });
       if (!response.ok) {
         const rejection = await response.json().catch(() => null);

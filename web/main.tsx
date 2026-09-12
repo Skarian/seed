@@ -94,6 +94,13 @@ function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
     return {};
   }
 }
+function loadHighQuality(): boolean {
+  try {
+    return localStorage.getItem("seed.video.high-quality") === "true";
+  } catch {
+    return false;
+  }
+}
 function SeedMark() {
   return (
     <svg viewBox="0 0 32 32" fill="none" aria-hidden="true">
@@ -207,6 +214,7 @@ function App() {
   );
   const [workflow, setWorkflow] = useState<WorkflowId>("text-to-image");
   const [drafts, setDrafts] = useState(loadDrafts);
+  const [highQuality, setHighQuality] = useState(loadHighQuality);
   const references = useReferences();
   const [promptHeight, setPromptHeight] = useState(240);
   const [advancedOpen, setAdvancedOpen] = useState(false);
@@ -239,7 +247,7 @@ function App() {
   >([]);
   const [capability, setCapability] = useState<{
     revision: string | null;
-    workflows: Record<string, { enabled: boolean; modes: string[]; export_formats?: string[]; duration_seconds?: {step?:number} }>;
+    workflows: Record<string, { enabled: boolean; modes: string[]; export_formats?: string[]; duration_seconds?: {step?:number}; qualities?: string[]; native_export?: boolean }>;
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -338,11 +346,12 @@ function App() {
   useEffect(() => {
     try {
       localStorage.setItem("seed.drafts.v2", JSON.stringify(drafts));
+      localStorage.setItem("seed.video.high-quality", String(highQuality));
       setDraftError(false);
     } catch {
       setDraftError(true);
     }
-  }, [drafts]);
+  }, [drafts, highQuality]);
   useEffect(() => {
     const onPopState = () =>
       setPage(location.pathname === "/library" ? "library" : "generate");
@@ -354,6 +363,16 @@ function App() {
     history.pushState(null, "", next === "library" ? "/library" : "/");
   }
   const video = workflow.endsWith("video");
+  const videoCapability = capability?.workflows[workflow];
+  const videoQualityIssue = video && capability?.revision
+    ? !videoCapability?.native_export
+      ? "Update the worker to preserve native video quality."
+      : highQuality && !videoCapability.qualities?.includes("high")
+        ? "Update the worker to use High Quality."
+        : !highQuality && !videoCapability.qualities?.includes("fast")
+          ? "Fast video is unavailable. Turn on High Quality to continue."
+        : ""
+    : "";
   const seedValid =
     draft.randomSeed ||
     (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) &&
@@ -364,6 +383,7 @@ function App() {
       ? referencePromptIssue(draft.prompt, references.groups.video)
       : "";
   const canGenerate =
+    !videoQualityIssue &&
     !missingReference &&
     (!video || (!draft.exportImages || capability?.workflows[workflow]?.export_formats?.includes("images"))) &&
     (!video || [5,10,15].includes(Number(draft.duration)) || capability?.workflows[workflow]?.duration_seconds?.step===1) &&
@@ -403,13 +423,13 @@ function App() {
       mode,
       output: {
         aspect: draft.aspect,
-        size: video ? "720p" : "1mp",
+        size: video ? "native" : "1mp",
         ...(video ? { duration_seconds: Number(draft.duration), ...(draft.exportImages ? {format:"images"} : {}) } : {}),
       },
       seed: draft.randomSeed ? "random" : draft.seed,
       count: draft.count,
       ...(uploaded ? { references: uploaded } : {}),
-      ...(video ? { audio: { output: draft.audio ?? "generated" } } : {}),
+      ...(video ? { quality: highQuality ? "high" : "fast", audio: { output: draft.audio ?? "generated" } } : {}),
     });
     if (pendingSubmission.current?.body !== body)
       pendingSubmission.current = {
@@ -1007,6 +1027,8 @@ function App() {
                   </fieldset>
                 )}
               </div>
+              {video && <label className="export-images" title="Prioritizes acting, motion and dialogue. Takes longer."><input type="checkbox" checked={highQuality} onChange={e=>setHighQuality(e.target.checked)}/>High Quality</label>}
+              {videoQualityIssue && <p role="status">{videoQualityIssue}</p>}
               {video && <label className="export-images"><input type="checkbox" checked={Boolean(draft.exportImages)} onChange={e=>updateDraft({exportImages:e.target.checked})}/>Export as images</label>}
               {video && draft.exportImages && capability?.revision && !capability.workflows[workflow]?.export_formats?.includes('images') && <p>Update the worker to export images.</p>}
               <div className="generation-options">

@@ -99,6 +99,48 @@ it('accepts random-seed batches and preserves their concrete seeds on retry', as
   expect(retry.jobs.map((job: any) => job.id)).toEqual(first.jobs.map((job: any) => job.id));
 }));
 
+it('freezes the HQ profile and verified preset separately and replays without changing quality', async () => fixture(async ({ jobs, request, fake, state, db }: any) => {
+  const json=fake.json.bind(fake), send=fake.request.bind(fake);
+  let submitted:any;
+  fake.json=async(route:string,options:any)=>{
+    const result=await json(route,options);
+    if(route==='/comfy/capabilities'||route==='/comfy/session') result.video={...result.video,native_export:true,quality:{fast:true,high:true},profile_revision:'h3-quality-v1',nsfw:{fl:result.nsfw}};
+    return result;
+  };
+  fake.request=async(route:string,options:any)=>{if(route==='/comfy/prompt')submitted=options.body;return send(route,options);};
+  const high={...request,workflow:'text-to-video',mode:'nsfw',quality:'high',output:{aspect:'16:9',size:'native',duration_seconds:5}};
+  const first=await jobs.submit(high,'hq-frozen-profile-key');
+  const job=first.jobs[0];
+  expect(job.video_profile).toBe('h3-high-v1');
+  expect(job.preset.strength_model).toBe(1);
+  expect(job.graph['18'].inputs.strength_model).toBe(0.8);
+  const stored=JSON.parse(db.prepare('SELECT snapshot_json FROM jobs WHERE id=?').get(job.id).snapshot_json);
+  expect(stored.video_profile).toBe('h3-high-v1');
+  expect(stored.graph).toEqual(job.graph);
+  const replay=await jobs.submit(high,'hq-frozen-profile-key');
+  expect(replay.jobs[0].id).toBe(job.id);
+  await expect(jobs.submit({...high,quality:'fast'},'hq-frozen-profile-key')).rejects.toThrow('different settings');
+  await jobs.reconcile();
+  expect(submitted).toMatchObject({video_profile:'h3-high-v1',preset:{strength_model:1},prompt:{'18':{inputs:{strength_model:0.8}}}});
+  expect(state.submits).toBe(1);
+}));
+
+it('rejects unavailable native and HQ profiles instead of silently producing Fast', async () => fixture(async ({ jobs, request, fake }: any) => {
+  const high={...request,workflow:'text-to-video',quality:'high',output:{aspect:'16:9',size:'native',duration_seconds:5}};
+  await expect(jobs.submit(high,'hq-unsupported-key1')).rejects.toThrow('native');
+  const json=fake.json.bind(fake);
+  let revision='unknown';
+  fake.json=async(route:string,options:any)=>{
+    const result=await json(route,options);
+    if(route==='/comfy/capabilities')result.video={...result.video,native_export:true,quality:{fast:false,high:true},profile_revision:revision};
+    return result;
+  };
+  await expect(jobs.submit(high,'hq-unsupported-key2')).rejects.toThrow('High Quality');
+  revision='h3-quality-v1';
+  await expect(jobs.submit({...high,quality:'fast'},'fast-unsupported-key')).rejects.toThrow('Fast video');
+  expect((await jobs.submit(high,'hq-supported-key-3')).jobs[0].video_profile).toBe('h3-high-v1');
+}));
+
 it('recovers transfer and acknowledgment independently without regeneration or duplicate Library rows', async () => fixture(async ({ jobs, request, state, finish, paths, db, image }: any) => {
   const { jobs: [job] } = await jobs.submit(request, 'submission-key-0001');
   await jobs.reconcile(); expect(state.submits).toBe(1);

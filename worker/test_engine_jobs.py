@@ -68,6 +68,7 @@ async def engine(tmp_path, monkeypatch, valid=True):
     spec = importlib.util.spec_from_file_location(package.__name__ + '.jobs', Path(__file__).parent / 'comfy_seed/jobs.py')
     module = importlib.util.module_from_spec(spec)
     spec.loader.exec_module(module)
+    monkeypatch.setitem(sys.modules, spec.name, module)
     server = types.SimpleNamespace(routes=web.RouteTableDef(), prompt_queue=NativeQueue(), number=0, send_sync=lambda *args: None)
     queue_server = server
     server.prompt_queue.server = queue_server
@@ -246,5 +247,80 @@ async def test_frame_set_manifest(tmp_path, monkeypatch, invalid):
             assert len(record['manifest']['outputs']) == 120
             assert record['manifest']['outputs'][-1]['id'] == '119'
             assert record['manifest']['outputs'][0]['mime_type'] == 'image/png'
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_quality_readiness_does_not_require_turbo_for_high(tmp_path, monkeypatch):
+    client, _, _, _ = await engine(tmp_path, monkeypatch)
+    try:
+        models = {
+            'diffusion_models': ['minimax_h3_fl2va_pruned_int8_convrot.safetensors', 'minimax_h3_ref2va_pruned_int8_convrot.safetensors'],
+            'text_encoders': ['qwen3vl_32b_minimax_h3_int8_convrot.safetensors'],
+            'vae': ['minimax_h3_video_vae_fp16.safetensors', 'minimax_h3_audio_vae_fp32.safetensors'],
+            'loras': [],
+        }
+        monkeypatch.setattr(sys.modules['folder_paths'], 'get_filename_list', lambda category: models.get(category, []))
+        monkeypatch.setitem(sys.modules, 'nodes', types.SimpleNamespace(NODE_CLASS_MAPPINGS=dict.fromkeys(['ModelAttentionBackend', 'BlockSparseAttention', 'MiniMaxH3SigmaShift'])))
+        monkeypatch.setitem(sys.modules, 'torch', types.SimpleNamespace(cuda=types.SimpleNamespace(is_available=lambda: True), device=lambda value: value))
+        ck = types.SimpleNamespace(sol_attn_is_available=lambda device: True)
+        monkeypatch.setitem(sys.modules, 'comfy_kitchen', ck)
+        monkeypatch.setitem(sys.modules, 'comfy.ldm.modules', types.SimpleNamespace(attention=types.SimpleNamespace(COMFY_KITCHEN_INT8_ATTENTION_IS_AVAILABLE=True)))
+        video = (await (await client.get('/studio/capabilities')).json())['video']
+        assert video['ready'] and video['quality'] == {'high': True, 'fast': False}
+        assert video['native_export'] and video['profile_revision'] == 'h3-quality-v1'
+        models['loras'] = [f'minimax_h3_{route}2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors' for route in ('fl', 'ref')]
+        ck.sol_attn_is_available = lambda device: False
+        video = (await (await client.get('/studio/capabilities')).json())['video']
+        assert video['quality'] == {'high': False, 'fast': True}
+        models['vae'] = []
+        video = (await (await client.get('/studio/capabilities')).json())['video']
+        assert not video['ready'] and not any(video['quality'].values())
+    finally:
+        await client.close()
+
+
+def high_graph(job_id, preset):
+    return {
+        '7': {'class_type': 'BasicGuider', 'inputs': {'model': ['19', 0]}},
+        '9': {'class_type': 'KSamplerSelect', 'inputs': {'sampler_name': 'res_multistep'}},
+        '10': {'class_type': 'BasicScheduler', 'inputs': {'model': ['19', 0], 'scheduler': 'simple', 'steps': 30, 'denoise': 1}},
+        '14': {'class_type': 'SeedVideoSave', 'inputs': {'filename_prefix': f'seed/{job_id}/video', 'export_version': 'native-v1'}},
+        '16': {'class_type': 'MiniMaxH3SigmaShift', 'inputs': {'model': ['1', 0], 'shift_video': 12, 'shift_audio': 3}},
+        '17': {'class_type': 'ModelAttentionBackend', 'inputs': {'model': ['18', 0], 'attention': 'comfy kitchen attention'}},
+        '18': {'class_type': 'LoraLoaderModelOnly', 'inputs': {'model': ['16', 0], 'lora_name': preset['filename'], 'strength_model': 0.8}},
+        '19': {'class_type': 'BlockSparseAttention', 'inputs': {'model': ['17', 0], 'selection': 'sol-attn', 'selection.tau': 1.3, 'start_percent': 0.2, 'end_percent': 1, 'dense_blocks': '', 'min_tokens': 12288, 'extra_tokens': 256, 'sink_conditioning': 'exact_kv_and_rows'}},
+    }
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('change', [None, 'no-profile', 'wrong-profile', 'strength', 'steps', 'turbo', 'filename', 'audio-protection'])
+async def test_high_quality_effective_preset_strength_is_bound_to_profile(tmp_path, monkeypatch, change):
+    client, queue, _, _ = await engine(tmp_path, monkeypatch)
+    try:
+        digest = hashlib.sha256(b'preset').hexdigest()
+        preset = {'sha256': digest, 'filename': f'seed-{digest}.safetensors', 'strength_model': 1}
+        asset = tmp_path / preset['filename']
+        asset.write_bytes(b'preset')
+        receipt = tmp_path / 'volume/.seed/presets/assets' / (digest + '.json')
+        spool.atomic(receipt, {'sha256': digest, 'size': asset.stat().st_size, 'mtime_ns': asset.stat().st_mtime_ns})
+        job_id = str(uuid.uuid4())
+        graph = high_graph(job_id, preset)
+        body = {'prompt_id': job_id, 'prompt': graph, 'preset': preset, 'video_profile': 'h3-high-v1'}
+        if change == 'no-profile': del body['video_profile']
+        if change == 'wrong-profile': body['video_profile'] = 'anything'
+        if change == 'strength': graph['18']['inputs']['strength_model'] = 0.7
+        if change == 'steps': graph['10']['inputs']['steps'] = 8
+        if change == 'turbo': graph['5'] = {'class_type': 'LoraLoaderModelOnly'}
+        if change == 'filename': graph['18']['inputs']['lora_name'] = 'different.safetensors'
+        if change == 'audio-protection': graph['19']['inputs']['sink_conditioning'] = 'off'
+        response = await client.post('/studio/prompt', json=body, headers=HEADERS)
+        assert response.status == (422 if change else 200)
+        assert queue.put_count == (0 if change else 1)
+        assert preset['strength_model'] == 1
+        if not change:
+            record = spool.read_record(spool.job_directory(tmp_path / 'volume', job_id))
+            assert record['submission']['video_profile'] == 'h3-high-v1'
     finally:
         await client.close()

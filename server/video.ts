@@ -1,8 +1,11 @@
 import type { ImageRequest, Preset } from './workflows.js';
 import type { PreparedReference } from './media.js';
+export const VIDEO_PROFILE_REVISION = 'h3-quality-v1';
+export const HIGH_VIDEO_PROFILE = 'h3-high-v1';
 export function videoRequest(value:any):ImageRequest {
-  if(!value||Object.keys(value).some(k=>!['workflow','capabilities_revision','prompt','mode','output','seed','count','references','audio'].includes(k))||!['text-to-video','reference-to-video'].includes(value.workflow)||typeof value.capabilities_revision!=='string'||typeof value.prompt!=='string'||!value.prompt.trim()||value.prompt.length>12000||!['sfw','nsfw'].includes(value.mode))throw new Error('Check the video settings.');
-  if(!value.output||Object.keys(value.output).some(k=>!['aspect','size','duration_seconds','format'].includes(k))||!['16:9','9:16'].includes(value.output.aspect)||value.output.size!=='720p'||(!Number.isInteger(value.output.duration_seconds)||value.output.duration_seconds<5||value.output.duration_seconds>15)|| (value.output.format!==undefined&&!['video','images'].includes(value.output.format)))throw new Error('Choose a supported video size and length.');
+  if(!value||Object.keys(value).some(k=>!['workflow','capabilities_revision','prompt','mode','quality','output','seed','count','references','audio'].includes(k))||!['text-to-video','reference-to-video'].includes(value.workflow)||typeof value.capabilities_revision!=='string'||typeof value.prompt!=='string'||!value.prompt.trim()||value.prompt.length>12000||!['sfw','nsfw'].includes(value.mode)||(value.quality!==undefined&&!['fast','high'].includes(value.quality)))throw new Error('Check the video settings.');
+  if(!value.output||Object.keys(value.output).some(k=>!['aspect','size','duration_seconds','format'].includes(k))||!['16:9','9:16'].includes(value.output.aspect)||!['720p','native'].includes(value.output.size)||(!Number.isInteger(value.output.duration_seconds)||value.output.duration_seconds<5||value.output.duration_seconds>15)|| (value.output.format!==undefined&&!['video','images'].includes(value.output.format)))throw new Error('Choose a supported video size and length.');
+  if(value.quality==='high'&&value.output.size!=='native')throw new Error('High Quality requires native output.');
   const count=value.count??1,seed=value.seed??'random';if(!Number.isInteger(count)||count<1||count>16||typeof seed!=='string'||(seed!=='random'&&(!/^(0|[1-9][0-9]{0,15})$/.test(seed)||BigInt(seed)+BigInt(count-1)>9007199254740991n)))throw new Error('Check the generation count and seed.');
   const references=value.references??[];if(!Array.isArray(references)||references.length>12||(value.workflow==='reference-to-video'&&!references.length)||(value.workflow==='text-to-video'&&references.length))throw new Error('Check the video references.');
   const ids=new Set();for(const ref of references){if(!ref||Object.keys(ref).some(k=>!['id','asset_id','kind','role','range','include_audio','framing'].includes(k))||typeof ref.id!=='string'||!/^[-\w]{1,100}$/.test(ref.id)||ids.has(ref.id)||typeof ref.asset_id!=='string'||!/^[-\w]{1,100}$/.test(ref.asset_id)||!['image','video','audio'].includes(ref.kind)||!['reference','first_frame','last_frame'].includes(ref.role)||(ref.kind!=='image'&&ref.role!=='reference')||(ref.framing!==undefined&&!['fit','fill'].includes(ref.framing))||(ref.include_audio!==undefined&&typeof ref.include_audio!=='boolean'))throw new Error('Invalid reference settings.');ids.add(ref.id);
@@ -19,6 +22,7 @@ export function videoRequest(value:any):ImageRequest {
 }
 export function videoRoute(request:ImageRequest){return request.references?.some(r=>r.role==='reference')?'ref':'fl';}
 export function videoGraph(request:ImageRequest,id:string,seed:string,preset:Preset|null,refs:PreparedReference[]=[]){
+  const high=request.quality==='high';
   const route=videoRoute(request);const seconds=request.output.duration_seconds!;const [width,height]=request.output.aspect==='16:9'?[1344,768]:[768,1344];
   const graph:Record<string,{class_type:string;inputs:Record<string,any>}>= {
     '1':{class_type:'UNETLoader',inputs:{unet_name:`minimax_h3_${route}2va_pruned_int8_convrot.safetensors`,weight_dtype:'default'}},
@@ -34,14 +38,25 @@ export function videoGraph(request:ImageRequest,id:string,seed:string,preset:Pre
     '11':{class_type:'SamplerCustomAdvanced',inputs:{noise:['8',0],guider:['7',0],sampler:['9',0],sigmas:['10',0],latent_image:['6',1]}},
     '12':{class_type:'VAEDecode',inputs:{samples:['11',0],vae:['3',0]}},
     '13':{class_type:'VAEDecodeAudio',inputs:{samples:['11',0],vae:['4',0]}},
-    '14':{class_type:'SeedVideoSave',inputs:{images:['12',0],audio:['13',0],seconds,filename_prefix:'seed/'+id+'/video',audio_mode:request.audio?.output??'generated'}},
+    '14':{class_type:'SeedVideoSave',inputs:{images:['12',0],audio:['13',0],seconds,filename_prefix:'seed/'+id+'/video',audio_mode:request.audio?.output??'generated',...(request.output.size==='native'?{export_version:'native-v1'}:{})}},
   };
   if(request.output.format==='images'){
     delete graph['13'];
     graph['15']={class_type:'ImageFromBatch',inputs:{image:['12',0],batch_index:0,length:seconds*24}};
     graph['14']={class_type:'SaveImage',inputs:{images:['15',0],filename_prefix:'seed/'+id+'/frames'}};
   }
-  if(preset)graph['18']={class_type:'LoraLoaderModelOnly',inputs:{model:['5',0],lora_name:preset.filename,strength_model:preset.strength_model}};
+  if(preset)graph['18']={class_type:'LoraLoaderModelOnly',inputs:{model:[high?'16':'5',0],lora_name:preset.filename,strength_model:high?0.8:preset.strength_model}};
+  if(high){
+    delete graph['5'];
+    graph['16']={class_type:'MiniMaxH3SigmaShift',inputs:{model:['1',0],shift_video:12,shift_audio:3}};
+    graph['17']={class_type:'ModelAttentionBackend',inputs:{model:[preset?'18':'16',0],attention:'comfy kitchen attention'}};
+    // v0.35.0 DynamicCombo inputs use the flat API form, not its normalized Python dictionary.
+    graph['19']={class_type:'BlockSparseAttention',inputs:{model:['17',0],selection:'sol-attn','selection.tau':1.3,start_percent:0.2,end_percent:1,dense_blocks:'',min_tokens:12288,extra_tokens:256,sink_conditioning:'exact_kv_and_rows',verbose:true}};
+    graph['7']!.inputs.model=['19',0];
+    graph['9']!.inputs.sampler_name='res_multistep';
+    graph['10']!.inputs.model=['19',0];
+    graph['10']!.inputs.steps=30;
+  }
   let node=20,image=0,video=0,audio=0;let positive:any=['6',0];
   for(const ref of refs){const key=String(node++),filename='seed/'+id+'/'+ref.filename;
     graph[key]={class_type:ref.kind==='image'?'LoadImage':ref.kind==='audio'?'LoadAudio':'SeedLoadVideo',inputs:{[ref.kind==='image'?'image':ref.kind==='audio'?'audio':'filename']:filename}};

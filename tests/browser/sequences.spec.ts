@@ -74,7 +74,7 @@ test('sequence slider inspects originals, selects frames, confirms keep-only and
 
 test('image export uses the existing video request and whole-second duration',async({page})=>{
   await page.route('**/api/v1/studio',r=>r.fulfill({json:{worker:{state:'ready',connected:true,stale:false},queue:{active:0,waiting:0}}}));
-  await page.route('**/api/v1/capabilities',r=>r.fulfill({json:{revision:'frames',workflows:{'text-to-video':{enabled:true,modes:['sfw'],export_formats:['video','images'],duration_seconds:{min:5,max:15,step:1}}}}}));
+  await page.route('**/api/v1/capabilities',r=>r.fulfill({json:{revision:'frames',workflows:{'text-to-video':{enabled:true,modes:['sfw'],native_export:true,qualities:['fast','high'],export_formats:['video','images'],duration_seconds:{min:5,max:15,step:1}}}}}));
   await page.route('**/api/v1/jobs',r=>r.fulfill({status:r.request().method()==='POST'?202:200,json:r.request().method()==='POST'?{jobs:[]}:{items:[]}}));
   await page.goto('/');await page.getByLabel('Workflow').selectOption('text-to-video');
   await page.getByLabel('Prompt',{exact:true}).fill('Clouds above a meadow');

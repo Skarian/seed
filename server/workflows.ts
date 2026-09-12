@@ -3,8 +3,8 @@ import type { InputReference, PreparedReference } from './media.js';
 import { randomBytes } from 'node:crypto';
 
 export type Preset = { filename: string; sha256: string; strength_model: number; revision: string };
-export type Capabilities = { revision: string; ready: boolean; nsfw: Preset | null; workspace_id: string; engine_session_id: string; video?: { image_export?:boolean; duration_step?:number; ready:boolean; nsfw: Partial<Record<'fl'|'ref',Preset>> } };
-export type ImageRequest = { workflow: 'text-to-image' | 'text-to-video' | 'reference-to-video'; capabilities_revision: string; prompt: string; mode: 'sfw' | 'nsfw'; output: { aspect: '16:9' | '9:16'; size: '1mp' | '720p'; duration_seconds?: number; format?: 'video' | 'images' }; references?: InputReference[]; audio?: {output:'generated'|'silent'}; seed: string; count: number };
+export type Capabilities = { revision: string; ready: boolean; nsfw: Preset | null; workspace_id: string; engine_session_id: string; video?: { image_export?:boolean; duration_step?:number; native_export?:boolean; quality?:{fast:boolean;high:boolean}; profile_revision?:string; ready:boolean; nsfw: Partial<Record<'fl'|'ref',Preset>> } };
+export type ImageRequest = { workflow: 'text-to-image' | 'text-to-video' | 'reference-to-video'; capabilities_revision: string; prompt: string; mode: 'sfw' | 'nsfw'; quality?: 'fast' | 'high'; output: { aspect: '16:9' | '9:16'; size: '1mp' | '720p' | 'native'; duration_seconds?: number; format?: 'video' | 'images' }; references?: InputReference[]; audio?: {output:'generated'|'silent'}; seed: string; count: number };
 
 export function imageRequest(value: unknown): ImageRequest {
   const v = value as ImageRequest;

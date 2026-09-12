@@ -6,6 +6,7 @@ import fastifyStatic from '@fastify/static';
 import { randomUUID } from 'node:crypto';
 import { existsSync, createReadStream, statSync, realpathSync, unlinkSync } from 'node:fs';
 import { Jobs } from './jobs.js';
+import { VIDEO_PROFILE_REVISION } from './video.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listAssets, openDatabase } from './db.js';
@@ -142,7 +143,22 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     })();
     return reply.code(204).send();
   }));
-  app.get('/api/v1/capabilities', async () => ({ revision: jobs.capabilities?.revision ?? null, workflows: { 'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 }, ...Object.fromEntries(['text-to-video','reference-to-video'].map(id => [id,{enabled:Boolean(jobs.capabilities?.video?.ready),modes:jobs.capabilities?.video?.nsfw.fl && jobs.capabilities?.video?.nsfw.ref ? ['sfw','nsfw'] : ['sfw'],count_max:16,export_formats:jobs.capabilities?.video?.image_export?['video','images']:['video'],duration_seconds:jobs.capabilities?.video?.duration_step===1?{min:5,max:15,step:1}:{values:[5,10,15]}}])) } }));
+  app.get('/api/v1/capabilities', async () => {
+    const video = jobs.capabilities?.video;
+    const qualities = [
+      ...(video?.ready && video.quality?.fast !== false ? ['fast'] : []),
+      ...(video?.ready && video.quality?.high === true && video.profile_revision === VIDEO_PROFILE_REVISION && video.native_export === true ? ['high'] : []),
+    ];
+    return { revision: jobs.capabilities?.revision ?? null, workflows: {
+      'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 },
+      ...Object.fromEntries(['text-to-video','reference-to-video'].map(id => [id, {
+        enabled:Boolean(video?.ready), modes:video?.nsfw.fl && video?.nsfw.ref ? ['sfw','nsfw'] : ['sfw'], count_max:16,
+        qualities, native_export:video?.native_export === true,
+        export_formats:video?.image_export?['video','images']:['video'],
+        duration_seconds:video?.duration_step===1?{min:5,max:15,step:1}:{values:[5,10,15]},
+      }]))
+    }};
+  });
   app.post('/api/v1/jobs', async (request, reply) => {
     try { const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''))); return reply.code(202).send(result); }
     catch (error) { return fail(reply, 409, 'submission_failed', (error as Error).message, request.id); }

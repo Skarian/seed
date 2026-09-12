@@ -1,9 +1,9 @@
 import { test, expect, type Page } from '@playwright/test';
 import sharp from 'sharp';
 
-async function readyVideo(page: Page) {
+async function readyVideo(page: Page, high = true, native = true) {
   await page.route('**/api/v1/studio', route => route.fulfill({ json: { worker: { state: 'ready', stale: false, connected: true }, queue: { paused: false, active: 0, waiting: 0 }, implementation: { generation: true } } }));
-  await page.route('**/api/v1/capabilities', route => route.fulfill({ json: { revision: 'video-test', workflows: Object.fromEntries(['text-to-video', 'reference-to-video'].map(id => [id, { enabled: true, modes: ['sfw', 'nsfw'] }])) } }));
+  await page.route('**/api/v1/capabilities', route => route.fulfill({ json: { revision: 'video-test', workflows: Object.fromEntries(['text-to-image', 'text-to-video', 'reference-to-video'].map(id => [id, { enabled: true, modes: ['sfw', 'nsfw'], qualities: high ? ['fast', 'high'] : ['fast'], native_export: native }])) } }));
   await page.route('**/api/v1/jobs', route => route.fulfill({ status: route.request().method() === 'POST' ? 202 : 200, json: route.request().method() === 'POST' ? { submission_id: 'test', jobs: [] } : { items: [] } }));
 }
 
@@ -24,8 +24,84 @@ test('video submission preserves selected mode, soundtrack, duration, batch and 
     const sent = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/api/v1/jobs'));
     await page.getByRole('button', { name: 'Create 2 videos' }).click();
     const request = await sent;
-    expect(request.postDataJSON()).toEqual({ workflow: 'text-to-video', capabilities_revision: 'video-test', prompt: 'A sailboat crossing a garden pond', mode: mode!.toLowerCase(), output: { aspect: '9:16', size: '720p', duration_seconds: 10 }, seed: '142', count: 2, audio: { output: audio } });
+    expect(request.postDataJSON()).toEqual({ workflow: 'text-to-video', capabilities_revision: 'video-test', prompt: 'A sailboat crossing a garden pond', mode: mode!.toLowerCase(), quality: 'fast', output: { aspect: '9:16', size: 'native', duration_seconds: 10 }, seed: '142', count: 2, audio: { output: audio } });
     expect(request.headers()['idempotency-key']).toMatch(/^[a-f0-9]{32}$/);
+  }
+});
+
+test('High Quality defaults off, persists across video workflows and Spicy, and never enters image requests', async ({ page }) => {
+  await readyVideo(page);
+  await page.goto('/');
+  await page.getByLabel('Workflow').selectOption('text-to-video');
+  const quality = page.getByRole('checkbox', { name: 'High Quality', exact: true });
+  await expect(quality).not.toBeChecked();
+  await quality.check();
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
+  await expect(quality).toBeChecked();
+  await page.getByRole('button', { name: 'Seed', exact: true }).click({ delay: 900 });
+  await expect(quality).toBeChecked();
+  await page.getByLabel('Workflow').selectOption('text-to-video');
+  await page.getByLabel('Prompt', { exact: true }).fill('A natural conversation');
+  const high = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/api/v1/jobs'));
+  await page.getByRole('button', { name: 'Create video' }).click();
+  expect((await high).postDataJSON()).toMatchObject({ quality: 'high', mode: 'nsfw', output: { size: 'native' } });
+  await page.reload();
+  await page.getByLabel('Workflow').selectOption('text-to-video');
+  await expect(quality).toBeChecked();
+  await page.getByLabel('Workflow').selectOption('text-to-image');
+  await expect(quality).toHaveCount(0);
+  await page.getByLabel('Prompt', { exact: true }).fill('A garden');
+  const image = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/api/v1/jobs'));
+  await page.getByRole('button', { name: /^Create image/ }).click();
+  const body = (await image).postDataJSON();
+  expect(body).not.toHaveProperty('quality');
+  expect(body.output.size).toBe('1mp');
+});
+
+test('unsupported High Quality stays selected and blocks submission instead of falling back', async ({ page }) => {
+  await readyVideo(page, false);
+  await page.goto('/');
+  await page.getByLabel('Workflow').selectOption('text-to-video');
+  await page.getByLabel('Prompt', { exact: true }).fill('A natural conversation');
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeEnabled();
+  await page.getByRole('checkbox', { name: 'High Quality' }).check();
+  await expect(page.getByText('Update the worker to use High Quality.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
+  await expect(page.getByRole('checkbox', { name: 'High Quality' })).toBeChecked();
+});
+
+test('legacy workers cannot silently downsize new video submissions', async ({ page }) => {
+  await readyVideo(page, false, false);
+  await page.goto('/');
+  await page.getByLabel('Workflow').selectOption('text-to-video');
+  await page.getByLabel('Prompt', { exact: true }).fill('A natural conversation');
+  await expect(page.getByText('Update the worker to preserve native video quality.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
+});
+
+test('a worker without Turbo requires selecting its available High Quality profile', async ({ page }) => {
+  await readyVideo(page);
+  await page.route('**/api/v1/capabilities', route => route.fulfill({ json: { revision: 'high-only', workflows: { 'text-to-video': { enabled: true, modes: ['sfw'], qualities: ['high'], native_export: true } } } }));
+  await page.goto('/');
+  await page.getByLabel('Workflow').selectOption('text-to-video');
+  await page.getByLabel('Prompt', { exact: true }).fill('A natural conversation');
+  await expect(page.getByText('Fast video is unavailable. Turn on High Quality to continue.')).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
+  await page.getByRole('checkbox', { name: 'High Quality' }).check();
+  await expect(page.getByRole('button', { name: 'Create video' })).toBeEnabled();
+});
+
+test('the single quality checkbox fits desktop and mobile video forms', async ({ page }) => {
+  await readyVideo(page);
+  await page.goto('/');
+  await page.getByLabel('Workflow').selectOption('text-to-video');
+  await page.getByRole('checkbox', { name: 'High Quality', exact: true }).check();
+  for (const [name, width, height] of [['desktop', 1280, 900], ['mobile', 390, 844]] as const) {
+    await page.setViewportSize({ width, height });
+    await expect(page.getByRole('checkbox', { name: 'High Quality', exact: true })).toHaveCount(1);
+    await expect(page.getByRole('checkbox', { name: 'High Quality', exact: true })).toBeVisible();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    await page.screenshot({ path: test.info().outputPath(`high-quality-${name}.png`), fullPage: true });
   }
 });
 

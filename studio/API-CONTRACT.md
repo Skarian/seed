@@ -37,9 +37,16 @@ not implemented. Send prompt, mode (`sfw` or configured `nsfw`), output, optiona
 seed/count and video references/audio where applicable. Unknown fields fail.
 Exact request validation lives in server/workflows.ts and server/video.ts.
 
-Output: image `1mp`; video `720p`, whole seconds from 5 through 15 on current workers; portrait 9:16 or landscape
-16:9. Video audio is generated or silent. Supplied final soundtrack replacement,
-arbitrary advanced model controls and native export settings are not implemented.
+Output: image `1mp`; new video requests use `native`, whole seconds from 5 through
+15, portrait 9:16 or landscape 16:9. Native means the generated 768x1344 or
+1344x768 canvas is preserved in the saved output. Legacy `720p` requests remain
+accepted with their original export semantics. Video-only `quality: "fast" | "high"`
+is optional; omission retains Fast behavior. HQ requires native output. The UI
+starts with HQ off and sends both quality and native output explicitly.
+Video capabilities expose `qualities` and `native_export`; incompatible workers
+cannot silently downgrade the selected profile. Video audio is generated or
+silent. Supplied final soundtrack replacement and arbitrary sampler controls
+are not implemented.
 
 Count defaults to 1, maximum 16; jobs execute sequentially. Fixed seed strings may
 span 0–9007199254740991, including the batch increment. Random seeds currently use
@@ -51,6 +58,9 @@ References use saved asset IDs, stable reference IDs, kinds, roles and clip rang
 The server validates readiness and resolves FL/Ref routing, derivatives and native
 prompt labels. Never silently substitute an asset when labels become invalid.
 Freeze settings, resolved seed, graph, preset and prepared inputs in each job.
+HQ jobs also freeze `video_profile: "h3-high-v1"`; its authorized effective Spicy
+strength is 0.8 and does not rewrite the verified preset. The worker validates
+that profile against its submitted graph. Existing frozen jobs are not migrated.
 
 ## Durability and sessions
 

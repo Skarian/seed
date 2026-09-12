@@ -33,7 +33,7 @@ test('gallery video references submit existing IDs without uploading duplicates'
   await page.route('**/api/v1/assets/saved-image',r=>r.fulfill({json:{mime_type:'image/png'}}));
   await page.route('**/api/v1/assets/saved-image/content',r=>r.fulfill({contentType:'image/png',body:image}));
   await page.route('**/api/v1/studio',r=>r.fulfill({json:{worker:{state:'ready',stale:false,connected:true},queue:{paused:false,active:0,waiting:0},implementation:{generation:true}}}));
-  await page.route('**/api/v1/capabilities',r=>r.fulfill({json:{revision:'test',workflows:{'reference-to-video':{enabled:true,modes:['sfw','nsfw']}}}}));
+  await page.route('**/api/v1/capabilities',r=>r.fulfill({json:{revision:'test',workflows:{'reference-to-video':{enabled:true,modes:['sfw','nsfw'],native_export:true,qualities:['fast','high']}}}}));
   await page.route('**/api/v1/jobs',r=>r.fulfill({json:r.request().method()==='POST'?{submission_id:'test',jobs:[]}:{items:[]}}));
   let uploads=0; page.on('request',r=>{if(r.url().includes('/api/v1/uploads'))uploads++;});
   await page.goto('/');
