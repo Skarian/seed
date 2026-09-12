@@ -7,10 +7,10 @@ unattended acceptance tests are underway. The next owner checkpoint is the LAN a
 - [x] Audit real retry gaps and pinned Comfy input publication behavior.
 - [x] Independent reviewer wave, challenge wave, and synthesized-plan review.
 - [x] Owner approves the implementation plan.
-- [ ] Add production-entry-point unattended failure tests, initially exposing current gaps.
-- [ ] Implement preparation retry, stream inactivity handling, immutable input publication,
+- [x] Add production-entry-point unattended failure tests, initially exposing current gaps.
+- [x] Implement preparation retry, stream inactivity handling, immutable input publication,
   safe submission reconciliation and actionable permanent failures.
-- [ ] Remove Tailscale and verify saved-connection/config upgrade without losing Library/jobs.
+- [x] Remove Tailscale and verify saved-connection/config upgrade without losing Library/jobs.
 - [ ] Publish/pin one corrected candidate, package-test, then validate on both providers.
 - [ ] Capture evidence before deleting test VM/disks; verify inventories and reconcile charges.
 - [ ] Update installed package/skill and reconcile the previously discarded frame job.
@@ -21,3 +21,11 @@ The previous [networking log](NETWORKING.md) and
 remain evidence. Tunnel reconnection and protocol resume tests are not substitutes
 for unattended full-operation acceptance. Public frontend/Funnel/login and new
 provider work remain out of scope. No paid VM is active at the start of implementation.
+
+Implementation checkpoints: `bfeeb07` contains the SSH-only recovery changes;
+`db2e9ac` fences late uploads against completed receipt cleanup. Local acceptance
+evidence is in [the recovery report](../research/infrastructure/2026-09-12-ssh-recovery.md).
+Seed's exact OAuth client was revoked and its three stored credential copies were
+removed. The personal Tailscale client and other devices/policy remain unchanged.
+Browser regressions: 22 passed; the sandboxed runner needed its test web-server
+process terminated during teardown (diagnostics retained), not an application fix.

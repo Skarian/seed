@@ -66,3 +66,13 @@ test('spawn errors retry and backoff caps at thirty seconds',async()=>{
   });
   assert.deepEqual(waits,[1000,2000,4000,8000,16000,30000,30000,30000]);
 });
+
+test('stop waits for an already-signalled SSH child before releasing control',async()=>{
+  let stop,controlClosed=false,exited=false;
+  await superviseTunnel([],{
+    startControl:async callback=>{stop=callback;return async()=>{assert.equal(exited,true);controlClosed=true;};},
+    spawnProcess:()=>{const p=child();queueMicrotask(()=>{p.killed=true;void stop();setImmediate(()=>{assert.equal(controlClosed,false);exited=true;p.exitCode=0;p.emit('close',0);});});return p;},
+    say:()=>{},
+  });
+  assert.equal(controlClosed,true);
+});

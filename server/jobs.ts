@@ -85,6 +85,7 @@ export class Jobs {
   private ticking = false;
   private stopped = false;
   private transfer?: {id: string; abort: AbortController};
+  private attempts = new Map<string, number>();
   public capabilities: Capabilities | null = null;
   public checkedAt: number | null = null;
   public safe: boolean | null = null;
@@ -124,6 +125,12 @@ export class Jobs {
     job.recovery_blocked = true;
     job.error = `${error instanceof Error ? error.message : 'Transfer failed.'} Files are retained. Fix the problem, then resume the queue.`;
     this.pause(true); this.save(job);
+  }
+  private attempt(job: Job, operation: string, offset = 0) {
+    const key = job.id + ':' + operation;
+    const attempt = (this.attempts.get(key) ?? 0) + 1;
+    this.attempts.set(key, attempt);
+    console.info(JSON.stringify({at: new Date().toISOString(), job_id: job.id, operation, attempt, offset}));
   }
   invalidate() {
     this.safe = null;
@@ -542,6 +549,7 @@ export class Jobs {
         }
         const abort = new AbortController(); this.transfer = {id: next.id, abort};
         try {
+          if (next.prepared?.length) this.attempt(next, 'upload-inputs');
           for (const ref of next.prepared ?? []) {
             await this.worker.upload(next.id, ref.file, ref.filename, abort.signal);
             if (ref.audio_file && ref.audio_filename)
@@ -594,6 +602,7 @@ export class Jobs {
             : "No active work or unsaved outputs.";
   }
   private async dispatch(job: Job, session: string) {
+    this.attempt(job, 'submit');
     job.state = 'submitting'; job.submission_pending = true;
     if (job.metrics && !job.metrics.submitted_at) job.metrics.submitted_at = new Date().toISOString();
     this.save(job);
@@ -694,6 +703,7 @@ export class Jobs {
               offset = 0;
             }
             if (offset < output.size) {
+              this.attempt(job, 'download-output-' + output.id, offset);
               const response = await this.worker.request(
                 `/worker/v1/jobs/${job.id}/outputs/${output.id}`,
                 { range: offset, signal: abort.signal },
@@ -794,6 +804,7 @@ export class Jobs {
   }
   private async acknowledgeOutputs(job: Job, digest: string) {
     try {
+      this.attempt(job, 'receipt');
       const receipt = await this.worker.json(
         "/worker/v1/jobs/" + job.id + "/receipt",
         { method: "POST", body: { manifest_digest: digest } },

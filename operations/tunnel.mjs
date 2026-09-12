@@ -13,7 +13,7 @@ export function terminalSshError(text) {
 
 // Any HTTP response proves the tunnel carried traffic, even a worker error or 401.
 export async function tunnelResponds() {
-  try { await fetch('http://127.0.0.1:18080/worker/v1/status',{redirect:'manual',signal:AbortSignal.timeout(5000)}); return true; }
+  try { const response = await fetch('http://127.0.0.1:18080/worker/v1/status',{redirect:'manual',signal:AbortSignal.timeout(5000)}); await response.body?.cancel(); return true; }
   catch { return false; }
 }
 
@@ -23,7 +23,7 @@ export async function superviseTunnel(args,{startControl,spawnProcess=spawn,slee
   async function stop(){
     if(stopping)return;
     stopping=true;retry.abort();
-    if(child&&child.exitCode===null&&!child.killed){child.kill();await closed;}
+    if(child&&child.exitCode===null){if(!child.killed)child.kill();await closed;}
     await closeControl?.();
   }
   const signal=()=>void stop();

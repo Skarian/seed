@@ -40,6 +40,13 @@ Browser tests require Playwright Chromium. Package tests use an isolated archive
 install. See scripts/verify.mjs and scripts/test-package.mjs for actual steps.
 Paid provider tests require spending authorization and are separate from these.
 
+For SSH recovery acceptance, build a local worker image and set
+`SEED_NETWORK_TEST_IMAGE` to it. Run `node scripts/test-preparation-recovery.mjs`
+and `node scripts/test-ssh-recovery.mjs`; both use disposable Docker fixtures and
+save private evidence under `.local/networking`. The preparation test needs local
+port 18080 free. Fault variants and remote-host instructions are in
+[the recovery report](../research/infrastructure/2026-09-12-ssh-recovery.md).
+
 ## Package and installation
 
 ```sh
