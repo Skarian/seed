@@ -1,5 +1,16 @@
 # Seed execution checklist
 
+## Current feature planning
+
+- [x] Create `feat/h3-image-edit` and document the proposed implementation.
+- [ ] Review [H3 image editing plan](H3-IMAGE-EDIT.md); approve recipe tests and budget.
+- [ ] Prove short-sequence edit quality before implementing the frame chooser.
+- [ ] Implement durable frame sets, local selection and UI; pass owner checkpoints.
+- [ ] Validate and release the accepted feature. Identity-edit LoRA remains retained.
+
+The completed checklist below records the previous infrastructure scope. Its
+identity-edit deferral does not prevent this new planning work.
+
 Approved 2026-09-11. Current scope: simplify package/commands, rewrite operational
 docs, validate installation/recovery and test RunPod/Vast. $10 combined live-test
 cap; one active GPU at a time. No long-video/max-reference benchmarks. npm
