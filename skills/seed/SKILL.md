@@ -19,7 +19,8 @@ never the unrelated unscoped npm package named `seed`.
 
 ## Open the studio
 
-1. Check `seed status` and provider state. Reuse a working session.
+1. Check `seed status` and provider state. Run `seed start` if the app is stopped.
+   Reuse a working session; a local Library visit does not require renting compute.
 2. If compute is needed, read [Vast](references/vast.md) or
    [RunPod](references/runpod.md). Obtain provider, spending authorization and any
    missing credentials. Keep one active GPU across both providers.

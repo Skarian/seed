@@ -28,7 +28,7 @@ The execution journal records successful runs on the 96 GB RTX PRO 6000:
 - Video: 5 s text-only 183.70 s including loading; 5 s mixed-reference 265.82 s; 15 s portrait 476.51 s.
 - Mixed-reference proof used image, video with paired audio, and standalone audio. 15 s proof was text-only. **Maximum references combined with 15 s is not validated.**
 
-The newer native Comfy measurements are implemented but the requested two-job live test is still blocked. Consequently no trustworthy minimum VRAM, host-RAM peak or comparative H100 performance can be asserted yet. See [execution journal](../../studio/EXECUTION-PLAN.md) and [measurement semantics](../../studio/JOB-MEASUREMENTS.md).
+The newer native Comfy measurements are implemented but the requested two-job live test is still blocked. Consequently no trustworthy minimum VRAM, host-RAM peak or comparative H100 performance can be asserted yet. See [execution journal](../development/HISTORICAL-EXECUTION-PLAN.md) and [measurement semantics](../../studio/JOB-MEASUREMENTS.md).
 
 ## Audit of failed RunPod allocations
 

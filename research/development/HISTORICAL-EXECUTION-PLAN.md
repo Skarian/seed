@@ -1,15 +1,20 @@
+# Historical record — superseded
+
+Current status: [Seed checklist](../../studio/TODO.md).
+Entries below describe the state at their original date, not current instructions.
+
 > Historical milestone journal. Current scope and acceptance are maintained in
 > TODO.md and VALIDATION.md; older planning assumptions below are historical.
 
 # seed implementation plan, checkpoints and acceptance
 
-## Infrastructure research checkpoint — 10 September 2026
+## Infrastructure research checkpoint â€” 10 September 2026
 
-Owner requested a provider-neutral review of dstack and SkyPilot rather than committing to each suggested provider in turn. [Research and proposed proof sequence](../research/infrastructure/multi-provider-orchestration.md) is complete at the documentation/code-inspection level. dstack is the first experimental candidate, not an adopted dependency. Key findings: provider-local volumes stay geographically constrained; HTTP autoscaling does not understand Seed's asynchronous generation/receipt lifecycle; dstack's container-backend idle exceptions require explicit session shutdown; task port forwarding may avoid an extra gateway. Seed currently hardcodes RunPod endpoint validation and a mounted workspace, so migration is not a configuration-only change.
+Owner requested a provider-neutral review of dstack and SkyPilot rather than committing to each suggested provider in turn. [Research and proposed proof sequence](../../research/infrastructure/multi-provider-orchestration.md) is complete at the documentation/code-inspection level. dstack is the first experimental candidate, not an adopted dependency. Key findings: provider-local volumes stay geographically constrained; HTTP autoscaling does not understand Seed's asynchronous generation/receipt lifecycle; dstack's container-backend idle exceptions require explicit session shutdown; task port forwarding may avoid an extra gateway. Seed currently hardcodes RunPod endpoint validation and a mounted workspace, so migration is not a configuration-only change.
 
 No orchestrator installed, GPU started, credentials changed, or workflow code modified. Next checkpoint is local control/transport proof followed by one image generation on two owner-enabled providers, sequentially, then video/recovery proof. Confirm missing provider access and numerical experiment budget before paid testing. Preserve existing M4 work and the operational deployment while this decision is evaluated; do not duplicate the job queue or replace the frontend.
 
-Revision 12. The local npm CLI/UI, worker packaging, operator setup, prepared-volume startup/pairing and durable text-to-image generation are implemented and live-tested. M4 is in progress with text-to-video and reference-to-video ahead of image-to-image. Video uploads, FL/Ref routing, playback and both content presets are implemented; live acceptance is running. Cold-download and pending-output pod-replacement proof remain separate outstanding gates. This document is the working execution plan and milestone journal. Product scope is [STUDIO-MVP](../STUDIO-MVP.md); technical references are [architecture](ARCHITECTURE.md), [API](API-CONTRACT.md), [worker](POD-BOOTSTRAP.md), [setup](RELEASE-AND-INFRASTRUCTURE.md) and [workflows](COMFYUI-CHANGES.md).
+Revision 12. The local npm CLI/UI, worker packaging, operator setup, prepared-volume startup/pairing and durable text-to-image generation are implemented and live-tested. M4 is in progress with text-to-video and reference-to-video ahead of image-to-image. Video uploads, FL/Ref routing, playback and both content presets are implemented; live acceptance is running. Cold-download and pending-output pod-replacement proof remain separate outstanding gates. This document is the working execution plan and milestone journal. Product scope is [STUDIO-MVP](../../STUDIO-MVP.md); technical references are [architecture](../../studio/ARCHITECTURE.md), [API](../../studio/API-CONTRACT.md), [worker](../../studio/POD-BOOTSTRAP.md), [setup](../../studio/RELEASE-AND-INFRASTRUCTURE.md) and [workflows](../../studio/COMFYUI-CHANGES.md).
 
 ## 0. Owner-present kickoff: obtain all access first
 
@@ -31,12 +36,12 @@ Generate the pairing secret during setup; the owner does not need to supply it. 
 
 At this checkpoint confirm the proposed Generate/Library custom frontend baseline or any result of the owner's SwarmUI evaluation. This is a product implementation choice, not a prerequisite for independent setup/transport work.
 
-## 1. Checkout baseline — completed
+## 1. Checkout baseline â€” completed
 
 Implementation branch: `feat/studio-mvp`. The initial local baseline is `332a0a0`;
 subsequent curation removes obsolete plans/reviewer reports and fixed-run helpers.
 Current deployment code, workflows, active specifications and LLM research are
-retained. Research is organized through [the topic index](../research/README.md).
+retained. Research is organized through [the topic index](../../research/README.md).
 
 Verified backups remain in ignored local `backups/`, including private material;
 never publish them. No remote push, deployment, installation or paid resource
@@ -51,7 +56,7 @@ Each milestone produces a demonstrable result and a short evidence record. Local
 |---|---|---|---|
 | M0: access and baseline | Verified access checklist, fresh backup, reviewed plan, organized branch. Finish exact worker pairing/status/receipt/preset contracts; choose the small worker process implementation. | Kickoff while owner is present; summarize scope, spending and missing inputs. | Plan/baseline, then finalized contracts. |
 | M1: local application | npm-installed Node CLI, built UI shell, standard env-paths storage, SQLite, and optional Windows sign-in startup. Use system Node. No Docker runtime requirement. Test clean global npm install, OS detection, fresh/repeated setup, startup opt-in/out, duplicate launch, stop/restart, upgrade/uninstall data preservation, local-only access and optional proxy configuration. | Show the actual setup and Generate/Library shell. Confirm usability before polishing or expanding the UI. | Local app, then npm CLI/setup. |
-| M2: setup and worker connection | runpod-setup reuses volume ID/secret, shows live storage cost before creation, preflights HF/Civitai access. Pinned GHCR worker/template; port 8080 works during preparation; single-use pairing and progress work. Test blank/warm cache, interrupted downloads, expired/reused codes and lost exchange replies. | Demonstrate deploy → pair while preparing. Present any unavoidable extra user steps. | Setup/source manifest, then worker bootstrap/pairing. |
+| M2: setup and worker connection | runpod-setup reuses volume ID/secret, shows live storage cost before creation, preflights HF/Civitai access. Pinned GHCR worker/template; port 8080 works during preparation; single-use pairing and progress work. Test blank/warm cache, interrupted downloads, expired/reused codes and lost exchange replies. | Demonstrate deploy â†’ pair while preparing. Present any unavoidable extra user steps. | Setup/source manifest, then worker bootstrap/pairing. |
 | M3: one reliable round trip | One real image job goes through native ComfyUI APIs, saves durably on PC and acknowledges cleanup. Reconnect/replacement recovers a deliberately retained completed output. Test copy interruption, duplicate receipt, cleanup-only failure, uncertain submission and safe-to-terminate state. | Show a saved result and recovery behavior. This is the first end-to-end product proof. | Image vertical slice, then recovery/receipt behavior. |
 | M4: four expressive workflows | Text/image creation/edit and text/reference video, shared media handling, Library, queue, Civitai preset sync. Test mobile fixtures, reference labels/roles, first/last frames, mixed images/audio/video, legal input budgets, selected/effective ranges, exact exports and meaningful LoRA influence. | Review representative image/edit/video results and controls; owner assesses output usefulness as well as technical correctness. | Separate image, video/reference and preset changes as useful. |
 | M5: acceptance and handover | Fresh setup/relaunch, worker replacement, PC restart, disk-full paths, backup/restore, update/rollback and agreed workflow matrix. Verify only the retired Qwen checkpoint/redownload hooks are removed during authorized maintenance. Document start/pair/terminate/update/recover. | Final walkthrough; identify any failed or deferred requirements explicitly. | Acceptance fixes, then release/docs with tested versions. |
@@ -104,23 +109,23 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 
 ### Milestone journal
 
-#### M0 — In progress: baseline, access and contracts
+#### M0 â€” In progress: baseline, access and contracts
 
 - **2026-09-09, completed:** checkout backed up and curated on `feat/studio-mvp`; local commits `332a0a0` and `014db4e`. Obsolete plans and fixed-run helpers removed; LLM research retained in topic buckets. Current documentation links checked, 49 maintenance Python files parsed without execution, and credential scan passed. Two pre-existing missing assets in copied upstream research remain outside the active specifications. No pods were operated or remote changes made.
 - **2026-09-09, owner-agreed:** collaborate on UX, output quality and consequential API behavior using concrete previews/comparisons; hand off bounded engineering and tests for unattended execution. Keep decisions and implementation evidence in the relevant milestone/specification sections.
 - **2026-09-09, access checked:** RunPod MCP read access works; existing pod `m6k75q8bdelebh` reports `EXITED`, volume `f7vnixgws1` is 150 GB in EUR-IS-1. GitHub remote read works. Docker is installed but its daemon is off. Standalone RunPod key, HF and Civitai credentials are absent in checked environment/conventional local locations; ignored `.env` prepared from `.env.example`. Existing private Jupyter configuration is present but not tested against a running pod. No compute was started; no publication or storage change occurred.
-- **2026-09-09, specified:** focused agent pass completed exact [worker protocol](POD-BOOTSTRAP.md) and [API save/cleanup semantics](API-CONTRACT.md), reusing native ComfyUI. These are design specifications, not verified worker behavior. Actual pinned-runtime streaming/hooks, restart recovery and preset activation need live proof.
+- **2026-09-09, specified:** focused agent pass completed exact [worker protocol](../../studio/POD-BOOTSTRAP.md) and [API save/cleanup semantics](../../studio/API-CONTRACT.md), reusing native ComfyUI. These are design specifications, not verified worker behavior. Actual pinned-runtime streaming/hooks, restart recovery and preset activation need live proof.
 - **Next:** finish missing access and establish explicit hourly/session spending limits (question pending). Model-source access, GHCR publication access and npm publication access still needs verification. Public ungated downloads may not need HF credentials. No paid tests until their access/limits are settled.
 
-#### M1 — In progress: local application
+#### M1 â€” In progress: local application
 
-- **2026-09-09, implemented:** React/Vite Generate/Library shell and four workflow selectors, per-workflow browser prompt drafts, loopback Fastify server, standard env-paths layout and SQLite migration. Pairing/uploads/generation intentionally unavailable. Preview runs on port 4310 using isolated `.local/preview` data. [Development guide](DEVELOPMENT.md) records code boundaries and commands.
+- **2026-09-09, implemented:** React/Vite Generate/Library shell and four workflow selectors, per-workflow browser prompt drafts, loopback Fastify server, standard env-paths layout and SQLite migration. Pairing/uploads/generation intentionally unavailable. Preview runs on port 4310 using isolated `.local/preview` data. [Development guide](../../studio/DEVELOPMENT.md) records code boundaries and commands.
 - **Verified:** TypeScript check and production build; six storage/API tests; two browser tests covering draft reload, workflow controls, navigation and 390 px mobile layout. Desktop/mobile screenshots inspected. Dependency audit reported zero vulnerabilities. Node 22.13 crashed in SQLite; official Node 22.23.2 ZIP was checksum-verified and native SQLite works. Runtime minimum and `.node-version` now match tested version. Independent code review found no further blocking issues for this disconnected foundation. Browser-test teardown required normal Windows process permissions; rerun passed and exited cleanly.
 - **Owner checkpoint pending:** try Generate/Library and the workflow selector; assess layout/wording before UI expansion. Question sent with preview URL. No approval or preference inferred yet.
 - **2026-09-09, owner-requested LAN preview:** separate isolated preview listens on the PC's assigned address `192.168.1.212:4310`; Host/Origin protections remain enabled and normal startup remains loopback. Local health request returned 200. A firewall rule restricted to the home subnet could not be created because Windows denied access; the owner subsequently confirmed access from the same Wi-Fi. No firewall modification was needed to establish that successful access. No router or public exposure changes.
 - **2026-09-09, first owner UI review:** working name is Studio with a simple frame logo. Remove introductory/tagline copy and fixed megapixel labels; prompt first, visible resize handle, shape-based frame controls, reset current form, and no output panel before submission. Pod and jobs controls belong at the top-right with popovers and a job-count badge. Apply the same approach to all workflows. These decisions are owner-agreed; the revised layout still awaits their next review.
 - **Implemented and checked:** Studio branding/title/footer, compact forms, working SFW/NSFW draft toggle (identity edit has no toggle), visual frame and duration choices, current-workflow reset, and native dismissible popovers. Prompt resize supports pointer/touch and keyboard. Version-2 browser drafts preserve prompt/mode/frame/duration per workflow and migrate earlier prompts. Reset leaves other workflows' drafts intact. Blank output preview removed; future submitted/loading output should use the logo without placeholder prose. Generation remains disabled, so changing mode does not load or claim any LoRA. Typecheck/build and two updated browser tests passed; desktop/mobile screenshots inspected and LAN page confirmed serving the new build.
-- **2026-09-09, owner-requested batch/Advanced controls:** all workflows need multiple generations per submission and an Advanced disclosure for seeds and later supported controls. Implemented UI defaults to one generation and random seed; count 1–16, fixed starting seed, per-workflow persistence and reset. Proposed execution semantics: one atomic submission creates independent sequential jobs, random seeds differ, fixed seed increments per child, no graph-level GPU batching or extra queue service. Backend batch expansion remains M3/M4 work; see the API contract. Typecheck/build and all three browser tests pass, including four-workflow persistence, reset, seed-range overflow and mobile layout. The first test exposed an ambiguous batch selector label (fixed); the next corrected its expectation that Advanced stays open across a workflow change.
+- **2026-09-09, owner-requested batch/Advanced controls:** all workflows need multiple generations per submission and an Advanced disclosure for seeds and later supported controls. Implemented UI defaults to one generation and random seed; count 1â€“16, fixed starting seed, per-workflow persistence and reset. Proposed execution semantics: one atomic submission creates independent sequential jobs, random seeds differ, fixed seed increments per child, no graph-level GPU batching or extra queue service. Backend batch expansion remains M3/M4 work; see the API contract. Typecheck/build and all three browser tests pass, including four-workflow persistence, reset, seed-range overflow and mobile layout. The first test exposed an ambiguous batch selector label (fixed); the next corrected its expectation that Advanced stays open across a workflow change.
 - **2026-09-09, owner-agreed and implemented where noted:** app display name is now **seed**. Title/header/footer and server identification updated; existing storage paths and API identifiers retained, with old browser drafts read into the new seed draft key. Distribution is an npm-installed CLI using system Node, not a desktop wrapper or bundled runtime. Candidate local package name is `@skarian/seed`; unscoped `seed` is occupied, scope publication rights remain unverified, and the package is still private/unpublished. Planned `seed setup` detects Windows and asks "Would you like seed to start automatically when you sign in?" Yes creates/updates one per-user startup entry; No removes it; other OSes skip the Windows step. These CLI commands and startup behavior are not implemented yet.
 - **System runtime verified:** owner-authorized upgrade to official Node 26.8.2 Current succeeded after the MSI required Windows administrator approval. Download checksums and MSI signature verified. Existing better-sqlite3 13.0.3 works with SQLite 3.53.4; no library replacement needed. Typecheck, production build and six storage/API tests pass on the upgraded system runtime. All four browser tests pass, including legacy draft preservation, mobile layout and batch/seed controls. Refreshed LAN health and HTML return seed branding at `http://192.168.1.212:4310`. Credential scan found zero matches. No remote publication or GPU operation.
 - **2026-09-09, owner-requested next UI checkpoint:** after CLI commands, optional Windows sign-in setup, npm installation/lifecycle tests and the setup/launch demonstration, do another upload UI pass before advancing to worker integration. Provide the usual Wi-Fi preview for phone testing: file selection, image/audio/video previews where applicable, removal/replacement, multiple-reference layout, and clear client-side validation feedback based on confirmed workflow requirements. Let the owner assess the controls and layout; explicitly distinguish browser-local previews from implemented durable upload, preparation or GPU transfer. This checkpoint does not require a running GPU or claim model acceptance. Record feedback here and update the relevant workflow/media specifications.
@@ -167,12 +172,12 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 - **Remaining M2:** cold model download and interrupted-download recovery on the actual provider path, plus owner deploy/pair walkthrough. Prepared-volume startup, node/model availability, pairing, credential behavior, warm reuse and replacement are verified. New paid-volume creation was tested with a fake provider; this session reused the owner's existing volume and did not allocate more storage.
 - **Next owner checkpoint:** demonstrate manual deploy and pairing during preparation after live validation.
 
-#### M3 — In progress: durable image round trip
+#### M3 â€” In progress: durable image round trip
 
 - **2026-09-09, owner direction:** proceed with text-to-image generation and saved-result UI review, without making rate-limit changes a prerequisite. SFW is the base model; NSFW adds the owner-selected content adapter only. Research official workflows and model/adapter author guidance rather than preserving the old graph by default. Owner stopped the pod; provider audit confirmed both existing pods EXITED before further engineering.
-- **Workflow choice:** official Comfy INT8 Turbo baseline, eight Euler/simple steps, CFG1, EmptyLatentImage and ConditioningZeroOut; optional model-only content adapter. No hidden prompt enhancement. Author identifies selected SNOFS v1.4 as LoKR: load/key coverage and useful visible influence require GPU evidence. Strength1.0 is a trial default, not an author recommendation. [Research](../research/workflows/krea2-m3.md) preserves official and author sources plus a two-stage quality challenger for later comparison if needed.
+- **Workflow choice:** official Comfy INT8 Turbo baseline, eight Euler/simple steps, CFG1, EmptyLatentImage and ConditioningZeroOut; optional model-only content adapter. No hidden prompt enhancement. Author identifies selected SNOFS v1.4 as LoKR: load/key coverage and useful visible influence require GPU evidence. Strength1.0 is a trial default, not an author recommendation. [Research](../../research/workflows/krea2-m3.md) preserves official and author sources plus a two-stage quality challenger for later comparison if needed.
 - **Implemented locally:** SQLite v2 migration preserving v1 data; durable idempotent batch submissions, frozen seeds/mode/graph/preset; one serialized dispatcher using native Comfy queue; session-guarded receipt-before-submit, native terminal-history manifests, authenticated output Range streams, PC hash/length verification and SQLite save before worker receipt/cleanup. Missing NSFW preset fails closed. Images appear in results/Library with a full-screen download viewer. Jobs expose generation/save/cancel status and queue pause. Existing video/edit selectors remain disabled for generation.
-- **Verification:** 24 Node tests passed; nine existing browser tests plus the new both-mode generation UI test passed. Worker suite:22 passed/one Windows symlink skip. New tests cover duplicate batch keys, seed expansion, base/adapter graph separation, transfer and acknowledgment retries without re-generation/duplicate Library rows, unknown spool work, session replacement, exact receipt, Range, path containment, native enqueue/cancel/terminal hooks. Local Docker image built. Actual pinned Comfy ran in a CPU-only isolated container: built-in EmptyImage→SaveImage produced a terminal manifest and verified digest. Container stopped/removed. This is protocol evidence, not Krea quality/LoRA compatibility evidence.
+- **Verification:** 24 Node tests passed; nine existing browser tests plus the new both-mode generation UI test passed. Worker suite:22 passed/one Windows symlink skip. New tests cover duplicate batch keys, seed expansion, base/adapter graph separation, transfer and acknowledgment retries without re-generation/duplicate Library rows, unknown spool work, session replacement, exact receipt, Range, path containment, native enqueue/cancel/terminal hooks. Local Docker image built. Actual pinned Comfy ran in a CPU-only isolated container: built-in EmptyImageâ†’SaveImage produced a terminal manifest and verified digest. Container stopped/removed. This is protocol evidence, not Krea quality/LoRA compatibility evidence.
 - **Review corrections:** block unknown unacknowledged spool work before safety/dispatch; distinguish explicit pre-acceptance rejection from uncertain transport failure; fsync output before publishing success; immutable content-addressed preset filenames plus prepared-file receipts checked at submission. A receipt without a terminal manifest now returns409 without acknowledging anything. Pending ambiguities never rerun automatically. Live replacement/transfer and owner-facing acceptance remain open.
 - **Preset operation boundary:** M3 includes worker-side operator utility `python -m worker.preset --version ... --file-id ... --sha256 ... --strength 1`, using optional pod CIVITAI_API_TOKEN and exact file verification. SFW remains base-only. The full local `seed presets sync` interface, broad preset editing and remaining video/identity modes remain M4 work; do not imply those are shipped.
 - **Local release follow-up:** added explicit acknowledgment of uncertain outcomes so they do not permanently block future work; they are never automatically rerun and late complete manifests remain recoverable. Library cursor pagination/Load more and chronological job pagination implemented. LAN submission keys use getRandomValues (randomUUID is unavailable on ordinary LAN HTTP); retry retains the key on server/network failure. Current local validation:24 Node tests and10 browser tests pass;22 Python tests pass/one platform skip. M3 candidate publication is building from81901f3; no GPU restarted yet.
@@ -184,9 +189,9 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 
 - **Owner test correction, 2026-09-09:** default random seeds failed before submission because `crypto.randomInt(0, 2 ** 48)` exceeds Node's permitted range. Earlier live tests used fixed seeds and missed this default path. Replaced it with six cryptographically random bytes decoded as an exact 48-bit integer. Added a regression exercising actual batch submission, distinct valid seeds, graph propagation and idempotent retry; it reproduced the owner's exact error before the fix and passed afterward. All four job tests and production build passed. Installed PC app updated; worker image and running pod unchanged.
 
-- **Library deletion, 2026-09-09:** owner requested a floating × at the top-right of every Library thumbnail, with confirmation. Implemented native confirmation, same-origin DELETE for any asset kind, on-disk deletion and Library removal, retained job history with removed output references, and retry/error handling. Files still awaiting worker cleanup cannot be deleted. Tests cover confirmation cancel/accept/failure, actual file/record removal, idempotent retry and outside-storage rejection. Nine focused server tests and the mobile browser test passed; production build passed. Desktop Library visually checked with the owner's existing images; none were deleted during verification. Installed app updated; pod unchanged.
+- **Library deletion, 2026-09-09:** owner requested a floating Ã— at the top-right of every Library thumbnail, with confirmation. Implemented native confirmation, same-origin DELETE for any asset kind, on-disk deletion and Library removal, retained job history with removed output references, and retry/error handling. Files still awaiting worker cleanup cannot be deleted. Tests cover confirmation cancel/accept/failure, actual file/record removal, idempotent retry and outside-storage rejection. Nine focused server tests and the mobile browser test passed; production build passed. Desktop Library visually checked with the owner's existing images; none were deleted during verification. Installed app updated; pod unchanged.
 
-- **Generate deletion follow-up:** the same floating red × and confirmation now appear on saved results beneath Create. Deletion updates both views, removes the result card, and keeps failures visible. Both generation and Library browser tests passed; mobile result layout visually checked. Updated the installed PC app without modifying the pod.
+- **Generate deletion follow-up:** the same floating red Ã— and confirmation now appear on saved results beneath Create. Deletion updates both views, removes the result card, and keeps failures visible. Both generation and Library browser tests passed; mobile result layout visually checked. Updated the installed PC app without modifying the pod.
 
 - **Library NSFW opt-in:** added Show NSFW, off by default and reset on reload. Uses saved generation mode (including existing job metadata); hidden items do not render thumbnails. Nine focused server tests and two Library browser tests passed. Installed app updated; graceful shutdown stalled after jobs were saved, requiring termination of the verified seed process only. Investigate shutdown latency separately; no GPU change.
 
@@ -194,24 +199,24 @@ Before starting or resuming a slice, read its milestone entry and the relevant t
 
 Next owner checkpoint: inspect the saved SFW/NSFW images and Library viewer on mobile/desktop. Agree on quality/defaults before M4. Remaining M3 acceptance: pod replacement with a pending output, additional quality prompts and owner review; do not convert successful protocol checks into a blanket quality claim.
 
-#### M4 — In progress: video workflows first
+#### M4 â€” In progress: video workflows first
 
 Owner priority update: text-to-video and reference-to-video precede image-to-image. Close the Krea variety concern at the owner's request. Implement the shared upload/video output path, FL and Ref graphs, required technical adapters and route-specific content presets; validate live and commit coherent slices. Next owner checkpoint: test video controls/uploads, play and download saved clips, and compare representative results. Image-to-image follows this checkpoint. Record chosen defaults, reference handling and quality feedback separately from technical test results.
 
-### M4 first video slice — owner review ready, 2026-09-09
+### M4 first video slice â€” owner review ready, 2026-09-09
 
 - Implemented PC originals/prepared-media storage with tus resumable uploads, sharp orientation/normalization, pinned FFmpeg/ffprobe, native FL/Ref graph routing, first/last anchors, generated/silent audio, video playback/download and durable MP4 retrieval/receipt cleanup. The owner-provided FL and Ref content adapters are verified and selected only in the other mode; required turbo adapters remain in both modes.
 - Independent review corrected untrusted inline MIME, rotated-photo distortion, stale upload reservations, terminal failure/cancel cleanup and native first-frame conditioning. A second UI review corrected native prompt tags silently changing targets after deletion or role changes; tags now follow stable IDs and missing references block submission. Client raster-format checks reject known unsupported images before upload; server validation remains defensive.
 - Local verification: 33 Node tests, 16 browser tests and 24 Python tests pass (one Windows symlink test skipped). Browser coverage includes real tus upload and verified asset bytes, reuse without a duplicate upload, both video modes/audio options, batch/seed/settings, and stable tag remapping. The Windows browser suite needs normal process permissions for clean teardown. Graceful installed-app stop/start passed during both idle upgrades without terminating its process manually.
 - Worker candidates were published in coherent commits. Reviewed runtime is `1e56ce0e6c42273d143fc3df16ac7bc854d5971c63add805900bd2f893855fdc` from821b356 ([build34436686831](https://github.com/Skarian/runpod/actions/runs/34436686831)). Anonymous manifest pull and digest verification passed. Initial video proof used candidate dfa92e10; subsequent mixed/long/anchor proof uses the reviewed runtime. M3 digest64813a94 remains rollback.
 - Live tests reuse nuhyo7bawg960s with f7vnixgws1, one RTX PRO6000 Blackwell96GB in EUR-IS-1 at $2.09/hour. All base models reused the completed cache. Only the two selected MiniMax content adapters were acquired: exact FL155,095,800bytes and Ref137,654,280bytes, resolved once each through the PC's authorized Civitai session and SHA256-verified on the volume. No HF cold-download/rate-limit retest.
-- Completed live evidence: text-only SFW a6ea3a29 (5s landscape, H.264/AAC,120frames); image-reference SFW991600f5 (5s landscape); mixed-reference NSFW252024e5 (image, video with paired audio, standalone audio;5s landscape); text-only NSFW3b695135 (15s portrait,720×1280,360frames, no audio stream). Each completed with verified PC output and acknowledged worker cleanup. Text-only and image-reference playback were inspected in the app; portrait playback scales correctly. First text-only run183.70s including model load; mixed-reference run265.82s;15s portrait476.51s. These are observed runs, not latency guarantees or quality benchmarks.
+- Completed live evidence: text-only SFW a6ea3a29 (5s landscape, H.264/AAC,120frames); image-reference SFW991600f5 (5s landscape); mixed-reference NSFW252024e5 (image, video with paired audio, standalone audio;5s landscape); text-only NSFW3b695135 (15s portrait,720Ã—1280,360frames, no audio stream). Each completed with verified PC output and acknowledged worker cleanup. Text-only and image-reference playback were inspected in the app; portrait playback scales correctly. First text-only run183.70s including model load; mixed-reference run265.82s;15s portrait476.51s. These are observed runs, not latency guarantees or quality benchmarks.
 - Final live check passed: first/last-frame SFW f880ce95,10s landscape,240frames with AAC audio,251.53s native runtime. Browser playback starts with the resting-fox source and ends closely matching the distinct standing-fox last-frame reference. All five jobs have persisted receipts and zero remaining worker input/output files. Paused idle reconciliation returned safe_to_terminate=true with no pending outputs. This proves the exercised anchors, not every possible image combination.
 - Scope deliberately remains a first owner-review slice: source-soundtrack replacement/raw native AV retention, full local preset-sync CLI, maximum-count/large-input stress tests, and image-to-image remain follow-up. Inputs from a never-submitted cancellation or definite rejection can remain on the worker without a terminal manifest. Cold-download proof and pending-output pod replacement remain separate M2/M3 gates. Do not claim the entire MVP or all model combinations are accepted.
 
 - Release: shared template tt0cmuwu3t is now named seed worker and pins the reviewed video digest. The CLI uses the same digest. Pod nuhyo7bawg960s remains running for the authorized owner review at $2.09/hour; no second GPU was active. Test clips and inputs remain in the PC Library. Next owner check: upload references, choose modes/durations, play/download clips and review quality before image-to-image. Permanent storage still bills independently of compute.
 
-#### M5 — Not started: acceptance and handover
+#### M5 â€” Not started: acceptance and handover
 
 Next owner checkpoint: perform the daily start/pair/generate/save/terminate flow and review remaining limitations. Record acceptance evidence, release/rollback references and verified final compute state.
 
@@ -227,7 +232,7 @@ Before each paid session verify no other authorized test GPU is active, inspect 
 
 Completion requires live validation across setup, pairing, downloads, transfers, updates and all four workflows, plus a final owner walkthrough and known-limitations record. The app should keep unique media safe, avoid duplicate paid work and accurately distinguish generation/transfer/cleanup outcomes. End with relevant commits recorded, no unexplained authored changes, preserved local-only assets and verified compute off. No numerical confidence claim replaces acceptance evidence.
 
-### M4 owner iteration — Gallery references (2026-09-09)
+### M4 owner iteration â€” Gallery references (2026-09-09)
 
 Added a shared Gallery overlay to every current input/reference field (image-to-image and reference-to-video). It shows selectable thumbnails, selected/existing counts and the maximum, with explicit Select/Cancel actions. Existing inputs consume slots; image editing permits two images, video references permit nine images/three videos/three audio assets and twelve combined. NSFW stays opt-in, and pagination makes older media available. Saved assets are reused by ID rather than reuploaded. Browser decoding still checks whether selected media is usable; regular role/range controls apply after selection.
 
@@ -247,7 +252,7 @@ Progress release deployed: commit 8c61603, GitHub Actions run 34442245918, worke
 
 Progress visibility follow-up: owner reported no percentage during generation. Latest completed job had received 37%, confirming telemetry reached the PC, but UI suppressed the percentage before the first sampling event. Running jobs now show 0% until sampling reports a value. Frontend-only files updated without restarting services; refresh required. This is a sampling indicator, so model loading/prompt preparation remain at 0%. No new generation run.
 
-Owner wording refinement: jobs show "Model loading…" before a positive sampling update, then "Generating N%". This initial label covers model loading and prompt preparation; it is not a separately measured model-loading phase. Frontend-only update applied without restarting the app or pod.
+Owner wording refinement: jobs show "Model loadingâ€¦" before a positive sampling update, then "Generating N%". This initial label covers model loading and prompt preparation; it is not a separately measured model-loading phase. Frontend-only update applied without restarting the app or pod.
 
 ### Private RunPod templates (2026-09-10; supersedes public-template deployment)
 
@@ -256,18 +261,18 @@ Owner wording refinement: jobs show "Model loading…" before a positive samplin
 Terminated failed pod swyoff3etls55g per owner request; network volume f7vnixgws1 retained. Converted template tt0cmuwu3t to private and renamed it seed before adding saved credentials. No replacement pod started. Eight setup tests pass, including private credential population and lost-response reconciliation. Next launch: select seed, attach the existing volume, choose one GPU, deploy, then pair through port 8080.
 
 
-### September 10 — per-job hardware measurements
+### September 10 â€” per-job hardware measurements
 
 User requested actual usage evidence for GPU selection. Added lightweight worker
 execution timing and sampled GPU/host-RAM summaries, persisted in the spool and
 PC job snapshots alongside reference counts/bytes and existing exact job settings.
-See [measurement semantics and validation](JOB-MEASUREMENTS.md). Local build,
+See [measurement semantics and validation](../../studio/JOB-MEASUREMENTS.md). Local build,
 typecheck, seven job tests and fifteen engine/spool tests passed. New worker image
 deployment and live GPU sampling remain the next checkpoint; no pod started or
 restarted and no claim of retroactive metrics for existing generations.
 
 
-### September 10 � measurement release published
+### September 10 — measurement release published
 
 Owner authorized publication but no pod startup. GHCR build 34510122554 succeeded;
 public manifest digest f445e5e50393d2c2845563479e73c68582fbc2f76c7fb2ee28217a6bd243993b
@@ -278,7 +283,7 @@ and final build passed. Owner will start the pod and validate actual GPU samples
 later; no live measurement claim yet. See JOB-MEASUREMENTS.md.
 
 
-### September 10 � simplify measurements using native Comfy APIs
+### September 10 — simplify measurements using native Comfy APIs
 
 Replaced NVIDIA subprocess sampling and custom execution clock with private
 Comfy /system_stats snapshots and native history timestamps. Retain only bounded
@@ -296,7 +301,7 @@ now carry client_id so Comfy emits execution_start even without a browser socket
 Local app accepts both metric versions. 22 targeted tests passed; GPU validation
 remains deferred to the owner's next run.
 
-### September 10 — live metrics validation blocked by capacity; temporary migration probe
+### September 10 â€” live metrics validation blocked by capacity; temporary migration probe
 
 Owner authorized one GPU and a temporary S3 key, with no application integration.
 Existing pod start and replacement allocation in EUR-IS-1 failed. Additional
@@ -317,7 +322,7 @@ remains EXITED. Existing storage is unchanged; no GPU compute started. Native
 Comfy metrics still need the two live generation tests when capacity is available.
 
 
-### September 10 � shared onboarding and Seed GPU skill
+### September 10 — shared onboarding and Seed GPU skill
 
 Owner requested a fresh-checkout experience and expanded the skill to both Vast
 and RunPod. Replaced separate Vast credential prompting with shared app setup:
@@ -397,19 +402,19 @@ paths; doctor confirms build/tools/credential presence; skill links resolve.
 No GPU allocated, app restarted or credentials changed.
 
 
-## 2026-09-10 — Architecture baggage audit
+## 2026-09-10 â€” Architecture baggage audit
 
-Scanned all 272 tracked files and traced the current entrypoints, dependencies and provider lifecycle. [Audit and prioritized simplification](../research/maintenance/REPO-ARCHITECTURE-AUDIT-2026-09-10.md). Main findings: remove the alternate Vast app launcher/connection restoration, replace remote worker source patching with supported configuration, and retire the old direct-Comfy deployment path while keeping current RunPod support. Research and durable job/media handling remain useful. No runtime changes or GPU operations in this audit. Typecheck and all 17 provider-helper tests passed; paid end-to-end validation remains outstanding.
+Scanned all 272 tracked files and traced the current entrypoints, dependencies and provider lifecycle. [Audit and prioritized simplification](../../research/maintenance/REPO-ARCHITECTURE-AUDIT-2026-09-10.md). Main findings: remove the alternate Vast app launcher/connection restoration, replace remote worker source patching with supported configuration, and retire the old direct-Comfy deployment path while keeping current RunPod support. Research and durable job/media handling remain useful. No runtime changes or GPU operations in this audit. Typecheck and all 17 provider-helper tests passed; paid end-to-end validation remains outstanding.
 
 
-## 2026-09-11 — One local application launcher
+## 2026-09-11 â€” One local application launcher
 
 Implemented the first architecture-audit checkpoint. Normal Seed accepts the exact loopback SSH worker endpoint alongside RunPod HTTPS. Deleted the alternate studio.mjs launcher and Vast app restart/backup/restore code; connect and teardown now manage only the tunnel and pairing. Failed exchange retains the prior saved connection; teardown retains the app and connection. Operator docs explain the one-time restart for old launcher installations. The remote worker adapter remains for the next image checkpoint.
 
 Validation: build/typecheck passed; 41 application tests and 20 provider-helper tests passed. New coverage includes normal app startup with saved SSH connection, failed exchange persistence, tunnel-only connect and teardown. Fixed an initialization race in the new restart test found on the first suite run. No GPU rented or stopped; live provider lifecycle still requires an authorized GPU.
 
 
-## 2026-09-11 — Complete simplification follow-through
+## 2026-09-11 â€” Complete simplification follow-through
 
 Removed the retired direct-Comfy deployment tree (36 tracked files) while retaining current RunPod setup/template/volume support, base-image mirroring and all research. Removed the duplicate rebalanced prompting document. Reduced bootstrap/release runbooks to maintained responsibilities and linked the skill for operating instructions; corrected disposable-disk output semantics and stale skill names.
 
@@ -421,7 +426,7 @@ The shared worker release pin replaces duplicated image constants. General provi
 Completion evidence: GitHub run https://github.com/Skarian/runpod/actions/runs/34564842278 published `ghcr.io/skarian/seed-worker@sha256:212ec3c491923e70d6e6c0a621b01c5743894878af873a5fa2e5053dec3c83a8`. Pulled that digest anonymously and verified both connection-service modes in CPU-only network-disabled containers. Updated the single release pin. All 18 browser tests passed; desktop/mobile/viewer screenshots inspected. The remaining live check is model loading and generation on an authorized GPU, not an unfinished source refactor. No existing RunPod template or pod was changed. Net tracked files drop from 272 to 237 for this follow-through; research and user data remain intact.
 
 
-## 2026-09-11 — Virginia live startup corrections
+## 2026-09-11 â€” Virginia live startup corrections
 
 Reserved Vast instance 50601850, offer 47084317, RTX PRO 6000 S 96 GB/600 W, $1.664/h including 180 GB disk. No other active GPU. Live SSH revealed two issues: quote UserKnownHostsFile for OpenSSH parsing of Windows paths with spaces, and repair ownership/modes of Vast-injected authorized_keys at onstart. Regression tests include real ssh -G parsing. Logs confirmed bad ownership/modes despite matching attached public key. Updated onstart through update_template with explicit existing image; reboot does not regenerate its script. In-place recreation is awaiting user approval after automatic review rejection. Worker/model preparation has not started; no generation submitted.
 
@@ -443,15 +448,15 @@ Worker release: GitHub run 34615766667 published ghcr.io/skarian/seed-worker@sha
 
 Verification: full suite passed (45 app, 23 helper, 37 worker, one Windows symlink skip) before removing the obsolete preflight test; subsequent targeted tests passed. Added CDN credential-stripping, resume/hash/path tests and real interrupted/resumed 1 MiB SSH delivery in an isolated VM directory, removed after verification. Confirmed installed CLI help includes seed models, SQLite binding works, and existing app remains running. Source token-free bootstrap/preset transfer does not restart the current worker. Full cold 100 GB PC-to-VM timing is still unmeasured. Initial local 101.48 GB cache population is in progress, not yet complete; this must not be described as completed or used as evidence of cold transfer speed.
 
-## 2026-09-11 — Official Hugging Face downloads on the PC
+## 2026-09-11 â€” Official Hugging Face downloads on the PC
 
 Replaced the custom Hugging Face HTTP path with the official hf CLI/Xet. Installed hf 1.31.0 and hf_xet 1.6.0 in the official isolated Windows environment; Seed remains Node-based. Civitai retains the existing HTTP downloader. Two files run concurrently with normal Xet parallelism on this 16 GB PC. Credentials are passed through the child environment, never arguments, and other provider credentials are excluded. Pinned commit, size and SHA256 checks remain mandatory before cache promotion. Existing verified files are reused; incompatible old HTTP partials are removed only after replacement verification.
 
-Observed Ethernet receive rates of 123–125 MB/s during transfer, close to this PC's physical 1 Gbps link. This is not an end-to-end throughput claim: the first 13.49 GB Krea and 20.97 GB MiniMax FL files finished download plus verification at 560 and 586 seconds respectively. Remaining cache population continues. PC-to-GPU full transfer speed remains unmeasured. Current Seed app and Ohio GPU were not restarted or changed.
+Observed Ethernet receive rates of 123â€“125 MB/s during transfer, close to this PC's physical 1 Gbps link. This is not an end-to-end throughput claim: the first 13.49 GB Krea and 20.97 GB MiniMax FL files finished download plus verification at 560 and 586 seconds respectively. Remaining cache population continues. PC-to-GPU full transfer speed remains unmeasured. Current Seed app and Ohio GPU were not restarted or changed.
 
 Validation: build/typecheck passed, 48 app tests, 23 provider-helper tests and 37 worker tests passed (one Windows symlink skip). Initial full app run timed out under download load; all passed with a 30-second test timeout, without changing production code or persistent test settings. Installed skill validated. Future setup uses the official CLI, retaining local models and source keys.
 
-## 2026-09-11 — Direct GPU downloads with optional PC fallback
+## 2026-09-11 â€” Direct GPU downloads with optional PC fallback
 
 User approved direct-first preparation and an optional PC cache. Setup asks whether to keep a local fallback cache; Yes downloads and verifies all configured base models and LoRAs during setup, No skips local preparation. --cache-models and --no-cache-models support unattended setup; a new unattended install defaults off, reruns retain the saved choice. The preference is saved before downloads to support recovery. Explicit seed models remains available without changing the preference. This user's 14 files / 101.48 GB have all finished local verification and the cache is retained/enabled.
 
@@ -463,20 +468,20 @@ Verification: setup choice persistence and download invocation/skip tests; helpe
 
 Completion evidence: full verification passed: build/typecheck, 49 app tests, 28 helper tests, 40 worker tests and one Windows symlink skip; no secret matches. Installed CLI modules and operating skill updated/validated without restarting the web app. Saved this user's localModelCache=true. Seed remains reachable at its existing LAN address; no GPU running.
 
-## 2026-09-11 — Live reference reuse corrections
+## 2026-09-11 â€” Live reference reuse corrections
 
 Live pipeline validation found two pre-submission issues: an earlier global npm install with scripts disabled had omitted FFmpeg, and saved generated videos lacked has_audio metadata when selected as references. Restored the matching FFmpeg binary; setup/start now validate FFmpeg and FFprobe execution. Media.describe lazily probes and persists missing saved-video/audio metadata for the API and reference preparation. The app was restarted only while idle, keeping the GPU/tunnel and saved media intact. Full checks passed: 51 app, 28 helper, 40 worker tests, one Windows symlink skip; no credential matches. Mixed image/video/soundtrack reference generation was accepted after the fix. Remaining live result evidence follows below.
 
-## 2026-09-11 — Direct-first pipeline live acceptance
+## 2026-09-11 â€” Direct-first pipeline live acceptance
 
-[Full live report](../research/infrastructure/VAST-DIRECT-FALLBACK-VALIDATION-2026-09-11.md). Vast 50616033 on a single RTX PRO 6000 S 96 GB/600 W; $1.5167/hour. Base models downloaded directly (99.62 GB, 282.48 seconds wall span), three Civitai failures used verified PC fallback; all 14 models verified and presets activated. Full preparation 408.468 seconds after container readiness. Cold-PC fallback and disabled-fallback branches also passed in isolated temporary storage, then cleaned up. Repeated boot reused the worker. All six generation cases (three workflows × both modes, five-second videos) completed, saved and passed content hashes with cleanup complete. Mixed references included a Library image and video with soundtrack; peak VRAM reached 87.6 GiB. No telemetry sample failures. Local media-tool and saved-video metadata issues were corrected in 8c609a7 and pushed. Worker left Ready for owner use; no other active GPU. Long-duration/max-reference benchmarking remains separate.
+[Full live report](../../research/infrastructure/VAST-DIRECT-FALLBACK-VALIDATION-2026-09-11.md). Vast 50616033 on a single RTX PRO 6000 S 96 GB/600 W; $1.5167/hour. Base models downloaded directly (99.62 GB, 282.48 seconds wall span), three Civitai failures used verified PC fallback; all 14 models verified and presets activated. Full preparation 408.468 seconds after container readiness. Cold-PC fallback and disabled-fallback branches also passed in isolated temporary storage, then cleaned up. Repeated boot reused the worker. All six generation cases (three workflows Ã— both modes, five-second videos) completed, saved and passed content hashes with cleanup complete. Mixed references included a Library image and video with soundtrack; peak VRAM reached 87.6 GiB. No telemetry sample failures. Local media-tool and saved-video metadata issues were corrected in 8c609a7 and pushed. Worker left Ready for owner use; no other active GPU. Long-duration/max-reference benchmarking remains separate.
 
-## 2026-09-11 — Repository review and next priorities
+## 2026-09-11 â€” Repository review and next priorities
 
-Vast 50616033 and its disk were destroyed on owner request; provider status confirmed no instances. Reviewed current repository shape and documentation drift. The current prioritized review backlog is [TODO](TODO.md): agree on distribution/update UX, rewrite current documentation, make installation/recovery reproducible, complete validation, then identity editing. Code organization is deferred at the owner's request. Last live success required temporary diagnostics/test scripts and a manual FFmpeg repair; do not present it as an unattended clean-install proof.
+Vast 50616033 and its disk were destroyed on owner request; provider status confirmed no instances. Reviewed current repository shape and documentation drift. The current prioritized review backlog is [TODO](../../studio/TODO.md): agree on distribution/update UX, rewrite current documentation, make installation/recovery reproducible, complete validation, then identity editing. Code organization is deferred at the owner's request. Last live success required temporary diagnostics/test scripts and a manual FFmpeg repair; do not present it as an unattended clean-install proof.
 
 
-## 2026-09-11 � Approved packaging/lifecycle simplification
+## 2026-09-11 — Approved packaging/lifecycle simplification
 
 Moved executable skill helpers into packaged operations and tests into the main
 suite. Added CLI dispatch, bounded startup waiting and uncertain Vast rental

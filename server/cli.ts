@@ -6,7 +6,7 @@ import { fileURLToPath } from 'node:url';
 import { createInterface } from 'node:readline/promises';
 import { setTimeout as delay } from 'node:timers/promises';
 import { prepareStorage, resolvePaths } from './storage.js';
-import { settings, saveSettings, windowsStartup } from './settings.js';
+import { settings, saveSettings } from './settings.js';
 import { control } from './lifecycle.js';
 import { ensureCredentials, webServerEnvironment } from './credentials.js';
 
@@ -26,12 +26,12 @@ try {
     await gpuCommand(args);
   } else {
   if (!['setup', 'pod-setup', 'models', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
-  const known = command === 'models' ? ['--quiet'] : command === 'pod-setup' ? ['--quiet', '--volume', '--create', '--show-secrets'] : ['--quiet', '--startup', '--no-startup', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models'] : [])];
+  const known = command === 'models' ? ['--quiet'] : command === 'pod-setup' ? ['--quiet', '--volume', '--create', '--show-secrets'] : ['--quiet', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models'] : [])];
   for (let i = 0; i < args.length; i++) {
     if (!known.includes(args[i]!)) throw new Error(`Unknown option: ${args[i]}`);
     if (args[i] === '--host' || args[i] === '--port' || args[i] === '--volume' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
   }
-  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310] [--startup | --no-startup]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|status|reconcile|destroy|billing>\nseed gpu runpod <help|catalog|datacenters|status|create|wait|prepare|connect|safe|logs|billing|reconcile|destroy>');
+  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310]\nseed pod-setup [--volume ID | --create]\nseed pod-setup --show-secrets\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|status|reconcile|destroy|billing>\nseed gpu runpod <help|catalog|datacenters|status|create|wait|prepare|connect|safe|logs|billing|reconcile|destroy>');
   else {
     prepareStorage(paths);
     if (command === 'setup' || command === 'start') { const { verifyMediaTools } = await import('./media.js'); await verifyMediaTools(); }
@@ -60,25 +60,11 @@ try {
       current.host = value('--host') ?? current.host;
       current.port = Number(value('--port') ?? current.port);
       const { validateAddress } = await import('./address.js'); validateAddress(current.host, current.port);
-      if (args.includes('--startup') && args.includes('--no-startup')) throw new Error('Choose --startup or --no-startup.');
       if (args.includes('--cache-models') && args.includes('--no-cache-models')) throw new Error('Choose --cache-models or --no-cache-models.');
       const provider = value('--provider') ?? current.provider ?? 'vast';
       if (provider !== 'vast' && provider !== 'runpod') throw new Error('Choose --provider vast or --provider runpod.');
       const credentials = await ensureCredentials(paths, { provider, interactive: Boolean(process.stdin.isTTY) && !quiet });
       current.provider = provider;
-      if (process.platform === 'win32') {
-        if (args.includes('--startup')) current.startup = true;
-        else if (args.includes('--no-startup')) current.startup = false;
-        else if (process.stdin.isTTY && !quiet) {
-          const prompt = createInterface({ input: process.stdin, output: process.stdout });
-          try {
-            let answer = '';
-            while (!['yes', 'no', 'y', 'n'].includes(answer)) answer = (await prompt.question('Would you like seed to start automatically when you sign in? (Yes/No) ')).trim().toLowerCase();
-            current.startup = answer === 'yes' || answer === 'y';
-          } finally { prompt.close(); }
-        }
-        windowsStartup(current.startup, process.execPath, fileURLToPath(import.meta.url));
-      } else if (args.includes('--startup')) throw new Error('Automatic sign-in setup is currently supported on Windows only.');
       if (args.includes('--cache-models')) current.localModelCache = true;
       else if (args.includes('--no-cache-models')) current.localModelCache = false;
       else if (process.stdin.isTTY && !quiet) {
@@ -96,7 +82,7 @@ try {
         await prepareModels(paths, say);
       }
       say(`Local model fallback: ${current.localModelCache ? 'enabled' : 'disabled'}. GPU downloads are attempted first.`);
-      say(`Setup complete. ${current.provider === 'vast' ? 'Vast' : 'RunPod'} and Hugging Face configured.\nCivitai: ${credentials.civitaiConfigured ? 'configured' : 'skipped (optional)'}\nCredentials: ${credentials.file}\nThe repository .env is not modified.\nData: ${paths.data}\nSign-in startup: ${process.platform === 'win32' && current.startup ? 'enabled' : 'disabled'}\nRun seed start.`);
+      say(`Setup complete. ${current.provider === 'vast' ? 'Vast' : 'RunPod'} and Hugging Face configured.\nCivitai: ${credentials.civitaiConfigured ? 'configured' : 'skipped (optional)'}\nCredentials: ${credentials.file}\nThe repository .env is not modified.\nData: ${paths.data}\nRun seed start.`);
     } else if (command === 'status') {
       const running = await control(paths, 'status'); say(running ? `Running: ${running.url}` : 'seed is stopped.');
     } else if (command === 'stop') {

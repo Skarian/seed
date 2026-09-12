@@ -12,7 +12,7 @@ Install the [Seed skill](skills/seed/SKILL.md) into your agent, or give your age
 > and help me install and open Seed. Ask before installing Node or renting compute.
 
 The skill guides installation of the local Seed package, credentials and optional
-model caching/sign-in startup. The npm package is not published yet; use a package
+model caching. The npm package is not published yet; use a package
 archive built from this repository. Do not install the unrelated npm package `seed`.
 The future scoped package name will be settled before publication.
 
@@ -59,4 +59,4 @@ The repository holds all source; see [development](studio/DEVELOPMENT.md).
 - `research/`, `prompting/`: retained research and model prompting material.
 
 Current work: [priorities](studio/TODO.md), [direction](studio/CURRENT-DIRECTION.md),
-[validation](studio/VALIDATION.md), [execution journal](studio/EXECUTION-PLAN.md).
+[validation](studio/VALIDATION.md), [historical journal](research/development/HISTORICAL-EXECUTION-PLAN.md).

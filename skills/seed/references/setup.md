@@ -5,7 +5,7 @@ executable helpers. Seed's installable package supplies all commands.
 
 ## Installation
 
-Check `node --version` and `seed help`. Supported Node: 26.8.2–26.x.
+Check `node --version` and `seed help`. Supported Node: 26.8.2â€“26.x.
 If Node is absent or incompatible, pause and ask permission to install/upgrade it;
 explain that administrator approval may be needed. Use official Node downloads.
 Also check OpenSSH (`ssh`, `ssh-keygen`). Optional local model downloads use the
@@ -25,11 +25,10 @@ terminal. The CLI checks media binaries and asks for masked credentials:
 - Hugging Face token: required; accept any gated model terms on Hugging Face.
 - Civitai token: optional, needed for the user's selected restricted LoRAs.
 
-Setup offers optional local model caching and Windows sign-in startup. Cache yes
-immediately downloads/verifies the pinned files. Cache no skips local downloads.
-Unattended flags: `--cache-models` / `--no-cache-models`, `--startup` / `--no-startup`.
-Use `seed models` to resume local downloads. It preserves the cache preference.
-Windows startup starts the local app only, never a GPU.
+Setup offers optional local model caching. Yes downloads/verifies the pinned files
+immediately; no skips local downloads. Unattended flags: `--cache-models` or
+`--no-cache-models`. Use `seed models` to resume; it preserves the preference.
+The agent starts the local app on demand with `seed start`. No sign-in entry is installed.
 
 Setup prints private configuration and data paths. Credentials, presets, model
 cache and Library live outside the installation. Environment overrides are

@@ -22,7 +22,7 @@ const cli=path.join(root,'node_modules/@skarian/seed/dist/server/cli.js');
 const probe=createServer();await new Promise(r=>probe.listen(0,'127.0.0.1',r));const port=probe.address().port;await new Promise(r=>probe.close(r));
 await run([npm,'install','--prefix',root,archive,'--no-audit','--no-fund']);
 try {
- await run([cli,'setup','--provider','vast','--no-cache-models','--no-startup','--port',String(port)]);
+ await run([cli,'setup','--provider','vast','--no-cache-models','--port',String(port)]);
  const marker=path.join(env.STUDIO_DEV_ROOT,'data','media','originals','preserved.txt');await writeFile(marker,'preserve me');
  assert.match(await run([cli,'gpu','vast','doctor']),/"built": true/);
  await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);await run([cli,'stop']);

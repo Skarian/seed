@@ -35,37 +35,18 @@ Failed/cancelled jobs retain metrics when native completion runs; abrupt process
 termination leaves an incomplete last snapshot. Late samples after completion
 are discarded. GPU sampling remains on the worker so PC disconnection does not
 stop collection.
-Worker measurements remain in the volume spool for recovery and copy into the PC
+Worker measurements remain in the worker spool for recovery and copy into the PC
 record before outputs are acknowledged. Old jobs/workers remain compatible but
 cannot retrospectively supply measurements. Existing job details are local data,
 not anonymized exports.
 
-## Delivery and next validation
+## Interpretation and next work
 
-Implemented locally September 10, 2026. Unit/integration checks cover aggregation,
-unavailable GPU data, execution hooks, failed jobs and statistics surviving cleanup
-retries. Published worker image `ghcr.io/skarian/seed-worker@sha256:f445e5e50393d2c2845563479e73c68582fbc2f76c7fb2ee28217a6bd243993b`.
-GitHub build [34510122554](https://github.com/Skarian/runpod/actions/runs/34510122554)
-succeeded; anonymous registry manifest and digest verified. Private seed template
-`tt0cmuwu3t` and stopped pod `q4x2jnxkt81ept` now pin this image. Pod remained EXITED;
-credentials and mounts were verified unchanged. Installed local CLI/server updated
-and restarted; jobs API returned HTTP 200. Live GPU measurements await the owner’s
-later test; no pod started or generation submitted.
-No statistics dashboard is added in this pass; existing job APIs expose the data.
+The worker image pin is owned by shared/worker-release.ts; do not copy historical
+image digests or private pod/template IDs into this specification. Current release
+and live evidence are in [validation](VALIDATION.md).
 
-Next compare the same 15-second heavy-reference job across candidate GPUs: exact
-graph/model configuration, input counts/types, execution seconds, sampled VRAM,
-RAM, success/failure and visual result. Keep cold and repeated runs separate;
-retained graphs alone do not prove whether Comfy reused cached computation.
-
-## Native collection revision
-
-September 10: switched to native Comfy statistics/history after reviewing the
-pinned upstream implementation. Version 1 records remain readable; new records
-use version 2. Live validation still requires a user-started pod. Release pin
-for this revision is recorded in EXECUTION-PLAN.md.
-
-Current native-metrics image:
-`ghcr.io/skarian/seed-worker@sha256:f7f4453a199ae43aacfdfcd62f089b31cd42f3967e0dc5f3f2bb3bfd4977d054`.
-Private template and stopped pod updated; no GPU run performed. This supersedes
-the version-1 image recorded above.
+A fair hardware comparison holds model, graph, input count/types, seed and output
+settings fixed and separates cold from repeated runs. Compare runtime, sampled
+memory, success and visual/audio quality. The maximum-reference 15-second matrix
+is deferred. No additional telemetry dashboard or external collector is planned.

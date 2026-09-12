@@ -35,7 +35,7 @@ publication and identity editing are deferred.
 - [x] Align architecture, bootstrap, release and storage contracts with disposable disk.
 - [x] Mark the old execution journal historical; maintain this single current checklist.
 - [x] Audit relative documentation links and update CLI/provider command help.
-- [ ] Final owner walkthrough.
+- [x] Owner accepted desktop/mobile use; no repeat walkthrough required.
 
 ## Installation and recovery
 
@@ -46,7 +46,8 @@ publication and identity editing are deferred.
 - [x] Sanitized provider diagnostics; RunPod log and billing commands.
 - [x] Final current-archive installation and installed-skill update.
 - [x] Actual Linux package install/setup/start/status/stop in Node Debian container.
-- [ ] Real Windows sign-in acceptance with owner; actual macOS coverage.
+- [x] Owner tested Windows sign-in successfully; automatic startup removed afterward by request.
+- [ ] macOS validation — deferred by owner.
 - [x] Synthetic distinct-version upgrade and failed-start rollback, with credentials/media preserved.
 
 ## Validation
@@ -61,11 +62,20 @@ publication and identity editing are deferred.
 - [x] Overlap base and preset preparation with two bounded lanes; join before activation and on failure; serialize shared hashes.
 - [x] Live-test overlapping preparation and the Civitai header fix: all 14 files downloaded directly; Ready 5m42s after the message on the previously used Japan host. Record cache-related comparison limits.
 - [x] Record provider state and passed/failed/not-tested matrix.
-- [ ] Record settled provider charges (billing has not posted).
-- [ ] Owner desktop/mobile review and actual sign-in check.
+- [x] Rechecked posted charges: Vast $0.558 for latest run.
+- [ ] RunPod final bill — still unposted; retain ~$0.65 estimate.
+- [x] Owner desktop/mobile acceptance.
 
 See [VALIDATION.md](VALIDATION.md) for measured evidence and limitations. Unavailable
 platforms or provider failures must remain explicitly untested/failed, never inferred
 from fixtures. Infrastructure tests use the preferred full-workload hardware;
 alternative GPU types require explicit confirmation. Inference capacity
 benchmarks and identity editing remain separate work.
+
+## Closeout decisions
+
+- [x] Removed automatic Windows sign-in startup and this PC's old entry.
+- [x] Rewrote current docs; historical journals are separate in research/development.
+- No GPU rental needed for this closeout. RunPod old pods/volume were explicitly
+  deleted; prior preservation notes describe historical actions only.
+- npm publication, identity editing and maximum-reference capacity tests stay deferred.

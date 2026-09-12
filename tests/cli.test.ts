@@ -20,15 +20,8 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
   delete env.STUDIO_PORT; delete env.STUDIO_PREVIEW_ADDRESS; delete env.SEED_MANAGED;
   const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
   try {
-    await run('setup', '--provider', 'runpod', '--port', String(port), '--no-startup');
+    await run('setup', '--provider', 'runpod', '--port', String(port));
     const original = path.join(root, 'data/media/originals/keep.txt'); writeFileSync(original, 'unique media');
-    if (process.platform === 'win32') {
-      await run('setup', '--startup'); await run('setup', '--startup');
-      const startup = path.join(env.APPDATA!, 'Microsoft/Windows/Start Menu/Programs/Startup/seed.vbs');
-      expect(existsSync(startup)).toBe(true);
-      // Execute the actual generated entry, including the isolated profile path with spaces.
-      await exec('cscript.exe', ['//Nologo', startup], { env, timeout: 15000 });
-    }
     const starts = await Promise.all([run('start'), run('start')]);
     expect(starts[0].stdout).toContain(`http://127.0.0.1:${port}`);
     const before = JSON.parse(readFileSync(path.join(root, 'config/running.json'), 'utf8'));
@@ -38,8 +31,7 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
     expect((await run('status')).stdout).toContain('Running:');
     await run('stop'); await run('stop');
     expect((await run('status')).stdout).toContain('stopped');
-    await run('setup', '--no-startup');
-    expect(existsSync(path.join(env.APPDATA!, 'Microsoft/Windows/Start Menu/Programs/Startup/seed.vbs'))).toBe(false);
+    await run('setup');
     await run('start'); expect(readFileSync(original, 'utf8')).toBe('unique media');
     await run('stop');
     expect(readFileSync(original, 'utf8')).toBe('unique media');
@@ -57,10 +49,10 @@ test('fresh Vast setup needs no RunPod key and remembers provider on rerun', asy
   env.NODE_OPTIONS=`--import=${pathToFileURL(hook).href}`;
   delete env.RUNPOD_API_KEY;
   const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
-  const first = await run('setup', '--provider', 'vast', '--no-startup');
+  const first = await run('setup', '--provider', 'vast');
   expect(first.stdout).toContain('Vast and Hugging Face configured');
   expect(first.stdout).not.toContain('fixture-vast');
-  expect((await run('setup', '--no-startup')).stdout).toContain('Vast and Hugging Face configured');
+  expect((await run('setup')).stdout).toContain('Vast and Hugging Face configured');
   expect(JSON.parse(readFileSync(path.join(root, 'config/credentials.json'), 'utf8')).runpodApiKey).toBeUndefined();
   await expect(run('setup', '--provider', 'unknown')).rejects.toThrow();
 });
@@ -74,7 +66,7 @@ test('setup persists opt-in cache and skips downloads when disabled', async () =
   const fixture=`import {writeFileSync} from 'node:fs'; export async function prepareModels(){writeFileSync(${JSON.stringify(marker)},'yes');}`;
   writeFileSync(hook,`import {registerHooks} from 'node:module';registerHooks({resolve(s,c,next){if(s==='./model-cache.js'&&c.parentURL?.endsWith('/cli.js'))return {url:${JSON.stringify('data:text/javascript,'+encodeURIComponent(fixture))},shortCircuit:true};return next(s,c);}});`);
   const env={...process.env,STUDIO_DEV_ROOT:root,VAST_API_KEY:'fixture-vast',HF_TOKEN:'fixture-hf',APPDATA:path.join(root,'profile'),NODE_OPTIONS:`--import=${pathToFileURL(hook).href}`};
-  const run=(...args:string[])=>exec(process.execPath,['dist/server/cli.js','setup','--provider','vast','--no-startup',...args],{env,timeout:15000});
+  const run=(...args:string[])=>exec(process.execPath,['dist/server/cli.js','setup','--provider','vast',...args],{env,timeout:15000});
   await run('--no-cache-models');
   expect(existsSync(marker)).toBe(false);
   expect(JSON.parse(readFileSync(path.join(root,'config/settings.json'),'utf8')).localModelCache).toBe(false);

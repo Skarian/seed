@@ -12,7 +12,7 @@ SSH inputs on the GPU, not template or container-image contents.
 
 No UI rental controls, background updater, provider-shopping daemon, Terraform,
 new storage service or multi-package framework. Small modules, shared operations,
-explicit CLI steps and observable progress. Updates only on request.
+explicit CLI steps and observable progress. Updates only on request. The agent starts the local app when needed; no sign-in startup.
 
 Vast and RunPod are supported targets. New RunPod workers use global placement and disposable disk. One active
 GPU across providers. Resolve uncertain creation before retrying; clean up failed

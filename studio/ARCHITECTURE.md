@@ -14,7 +14,7 @@ worker disk is temporary job storage and a reusable model cache where available.
 | `server/workflows.ts` | Trusted image/video graphs, reference roles and validation |
 | `server/media.ts`, `server/video.ts` | Sharp/FFmpeg/ffprobe media normalization and saved derivatives |
 | `server/storage.ts` | Standard per-user directories, separate media/config/cache/log locations |
-| `server/cli.ts`, `settings.ts`, `credentials.ts`, `lifecycle.ts` | Local setup/start/status/stop and optional Windows sign-in startup |
+| `server/cli.ts`, `settings.ts`, `credentials.ts`, `lifecycle.ts` | Local setup/start/status/stop |
 | `server/pod-setup.ts` | Legacy volume/template compatibility and local worker secrets |
 | `operations/` | Packaged provider-specific CLI operations, shared SSH/model transfer |
 | `worker/` | Pinned model preparation, authenticated control, transfer spool and Jupyter |
@@ -48,11 +48,10 @@ outside the browser UI. See the skill references for compatibility limits.
 ## Local application
 
 A Node CLI starts/reuses one background server; authenticated loopback control
-handles status/stop without trusting a saved PID alone. Windows sign-in startup
-is optional. No desktop wrapper, bundled Node runtime or local Docker requirement.
+handles status/stop without trusting a saved PID alone. The agent starts the app on demand. No desktop wrapper, bundled Node runtime or local Docker requirement.
 Public hosting, router settings and external authentication remain owner-managed.
 The app defaults to loopback; a configured private LAN address enables phone use.
 
 Current commands/tests are in [DEVELOPMENT](DEVELOPMENT.md), API details in
 [API-CONTRACT](API-CONTRACT.md), and decisions/evidence in
-[EXECUTION-PLAN](EXECUTION-PLAN.md). Avoid duplicating those specifications here.
+[validation](VALIDATION.md). Avoid duplicating those specifications here.

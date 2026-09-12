@@ -57,8 +57,8 @@ launches may be destroyed with an idle local queue. Saved local media is preserv
 ## Evidence
 
 The September 11 direct-download/fallback run validated all three implemented
-workflows in both modes, with five-second videos. The new packaged CLI and recovery
-commands are undergoing the validation recorded in studio/VALIDATION.md in the repo.
+workflows in both modes, with five-second videos. The packaged CLI lifecycle has passed live tests on full-size workers. Current
+evidence and remaining limits are in studio/VALIDATION.md in the repo.
 Do not claim maximum-reference capacity or all desktop platforms are proven.
 
 
