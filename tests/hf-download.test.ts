@@ -43,3 +43,29 @@ test('HF source parsing rejects traversal, URL credentials and mutable revisions
  expect(hfSource(url).filename).toBe('vae/test.safetensors');
  for(const bad of [url.replace('a'.repeat(40),'main'),url.replace('vae/test.safetensors','%2e%2e/test'),url+'?token=private',url.replace('huggingface.co','private@huggingface.co')])expect(()=>hfSource(bad)).toThrow();
 });
+
+test('cancelling HF runner waits for its real child process to exit',async()=>{
+ const {runHf}=await import('../server/hf-download.js');
+ const p=await fixture(),pidFile=path.join(p.cache,'test-child.pid');
+ const controller=new AbortController();
+ const running=runHf(process.execPath,['-e',"require('node:fs').writeFileSync(process.argv[1],String(process.pid));setInterval(()=>{},1000)",pidFile],process.env,controller.signal);
+ // Attach rejection observation before triggering cancellation.
+ const outcome=running.then(()=>null,error=>error);
+ let pid=0;
+ try{
+  for(let i=0;i<100;i++){try{pid=Number(await readFile(pidFile,'utf8'));break;}catch{await new Promise(resolve=>setTimeout(resolve,10));}}
+  expect(pid).toBeGreaterThan(0);
+  controller.abort();
+  expect((await outcome).name).toBe('AbortError');
+  expect(()=>process.kill(pid,0)).toThrow();
+ }finally{controller.abort();await outcome;}
+});
+
+test('fallback forwards cancellation to the official downloader without promoting',async()=>{
+ const p=await fixture(),controller=new AbortController();
+ const official:typeof downloadHuggingFace=async(_url,_stage,_token,_cache,_run,signal)=>{
+  expect(signal).toBe(controller.signal);controller.abort();signal!.throwIfAborted();return '';
+ };
+ await expect(downloadModel(p,item,'',fetch,()=>{},official,controller.signal)).rejects.toMatchObject({name:'AbortError'});
+ expect(await cached(p,item)).toBe(false);
+});

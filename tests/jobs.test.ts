@@ -11,7 +11,7 @@ async function fixture(run: (f: any) => Promise<void>) {
   mkdirSync('.local/tests', { recursive: true }); const root = mkdtempSync(path.resolve('.local/tests/jobs-'));
   const paths = resolvePaths(root); prepareStorage(paths); const db = openDatabase(paths.data);
   const image = Buffer.from('test-image-bytes'); const sha = createHash('sha256').update(image).digest('hex');
-  const state = { modelsReady: true, session: 'engine-one', running: [] as any[], records: {} as Record<string, any>, submits: 0, acknowledgments: 0, failReceipt: false, failTransfer: false, orphan: false };
+  const state = { modelsReady: true, session: 'engine-one', running: [] as any[], records: {} as Record<string, any>, submits: 0, attempts: 0, losePrompt: '', acknowledgments: 0, failReceipt: false, failTransfer: false, orphan: false, transferStatus: 0, corrupt: false };
   const cap = () => ({ video:{ready:true,image_export:true,duration_step:1,nsfw:{}}, revision: 'test-v1', ready: state.modelsReady, workspace_id: 'volume-one', engine_session_id: state.session, nsfw: { filename: 'seed-' + 'a'.repeat(64) + '.safetensors', sha256: 'a'.repeat(64), strength_model: 1, revision: 'test' } });
   const fake = {
     connected: true, identity: { workspace_id: 'volume-one', worker_instance_id: 'worker-one' },
@@ -24,14 +24,18 @@ async function fixture(run: (f: any) => Promise<void>) {
     },
     async request(route: string, options: any = {}) {
       if (route === '/comfy/prompt') {
+        state.attempts++;
+        if (state.losePrompt === 'before') { state.losePrompt = ''; throw new Error('lost request'); }
         state.submits++; const id = options.body.prompt_id; state.running = [[0, id]];
         state.records[id] = { submission: { job_id: id, workspace_id: 'volume-one', engine_session_id: state.session } };
+        if (state.losePrompt === 'after') { state.losePrompt = ''; throw new Error('lost response'); }
         return Response.json({ prompt_id: id });
       }
       if (route.includes('/outputs/')) {
+        if (state.transferStatus) return new Response(null, {status: state.transferStatus});
         if (state.failTransfer) throw new Error('disconnected');
         const offset = options.range ?? 0;
-        return new Response(image.subarray(offset), { status: offset ? 206 : 200, headers: offset ? { 'Content-Range': `bytes ${offset}-${image.length - 1}/${image.length}` } : {} });
+        return new Response(state.corrupt ? Buffer.alloc(image.length-offset) : image.subarray(offset), { status: offset ? 206 : 200, headers: offset ? { 'Content-Range': `bytes ${offset}-${image.length - 1}/${image.length}` } : {} });
       }
       return state.records[route.split('/')[4]!] ? Response.json({}) : new Response(null, { status: 404 });
     },
@@ -174,3 +178,39 @@ it('missing models block generation but allow verified idle shutdown', async () 
   expect(jobs.safe).toBe(false);
 }));
 
+
+it.each(['before', 'after'])('recovers a lost prompt %s acceptance using the original job', async loss => fixture(async ({jobs,state,request}:any) => {
+  state.losePrompt = loss;
+  const {jobs:[job]} = await jobs.submit(request, 'lost-prompt-recovery');
+  await jobs.reconcile();
+  expect(jobs.get(job.id).submission_pending).toBe(true);
+  await jobs.reconcile();
+  expect(jobs.get(job.id).state).toBe('running');
+  expect(state.submits).toBe(1);
+  expect(state.attempts).toBe(loss === 'before' ? 2 : 1);
+  expect(Object.keys(state.records)).toEqual([job.id]);
+}));
+
+it('does not replay an absent submission after the engine changes', async () => fixture(async ({jobs,state,request}:any) => {
+  state.losePrompt = 'before';
+  const {jobs:[job]} = await jobs.submit(request, 'lost-prompt-new-engine');
+  await jobs.reconcile(); state.session = 'engine-two'; await jobs.reconcile();
+  expect(state.attempts).toBe(1); expect(jobs.get(job.id).state).toBe('needs_attention');
+}));
+
+it.each([403,409,507])('pauses permanent output HTTP %s until explicit queue resume', async code => fixture(async ({jobs,state,request,finish}:any) => {
+  const {jobs:[job]} = await jobs.submit(request,'permanent-output-fault');
+  await jobs.reconcile(); finish(job.id); state.transferStatus=code;
+  await jobs.reconcile(); expect(jobs.get(job.id).recovery_blocked).toBe(true); expect(jobs.paused).toBe(true);
+  state.transferStatus=0; await jobs.reconcile(); expect(state.acknowledgments).toBe(0);
+  jobs.resumeRecovery(); jobs.pause(false); await jobs.reconcile();
+  expect(jobs.get(job.id).state).toBe('completed'); expect(state.submits).toBe(1);
+}));
+
+it('retries one corrupt output then pauses without acknowledging it', async()=>fixture(async({jobs,state,request,finish}:any)=>{
+  const {jobs:[job]}=await jobs.submit(request,'corrupt-output-fault');
+  await jobs.reconcile(); finish(job.id); state.corrupt=true;
+  await jobs.reconcile(); expect(jobs.get(job.id).recovery_blocked).not.toBe(true);
+  await jobs.reconcile(); expect(jobs.get(job.id).recovery_blocked).toBe(true);
+  expect(state.acknowledgments).toBe(0); expect(jobs.get(job.id).error).toContain('integrity');
+}));

@@ -81,7 +81,7 @@ export class SeedRunpod {
     validatePodId(id);
     return this.api(`billing/pods?podId=${id}&lastN=24`);
   }
-  async connect(id=this.state?.pod_id,{route,reconnect=false}={}) {
+  async connect(id=this.state?.pod_id,{reconnect=false}={}) {
     validatePodId(id);
     const pod=await this.api(`pods/${id}`);
     const deployment=await readJson(path.join(this.paths.config,'pod-deployment.json'));
@@ -95,7 +95,7 @@ export class SeedRunpod {
         if(!direct||direct.username!=='root')throw Error('Direct root SSH is not ready.');
         return sshArgs({public_ipaddr:direct.host,ports:{'22/tcp':[{HostPort:direct.port}]}},path.join(dir,'ssh-key'),path.join(dir,'known-hosts'));
       },
-      secret:deployment.pairingSecret,route,reconnect,
+      secret:deployment.pairingSecret,reconnect,
     });
   }
   async safe(id, { sleep = delay, attempts = 30 } = {}) {
@@ -124,7 +124,6 @@ export async function main(argv) {
     allowPositionals: true,
     options: {
       repo: { type: "string", default: process.cwd() },
-      route: {type:'string'},
       pod: { type: "string" },
       gpu: { type: 'string' },
       'max-hourly': { type: 'string' },
@@ -144,7 +143,7 @@ export async function main(argv) {
   )
     throw new Error("Use seed gpu runpod help for commands and options.");
   const app = await new SeedRunpod(values.repo).init();
-  if(['connect','reconnect'].includes(command))return app.connect(values.pod,{route:values.route,reconnect:command==='reconnect'});
+  if(['connect','reconnect'].includes(command))return app.connect(values.pod,{reconnect:command==='reconnect'});
   if(command==='logs') {const {podLogs}=await import('./runpod-logs.mjs');return podLogs(app,values.pod);}
   if (['create','wait','prepare','destroy','reconcile'].includes(command)) {
     const {createPod,lifecycle} = await import('./runpod-lifecycle.mjs');

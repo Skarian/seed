@@ -72,9 +72,9 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try { return await jobs.serialize(async () => { jobs.invalidate(); await worker.pair((request.body as { connection_code: string }).connection_code.trim()); return { connected: true }; }); }
     catch (error) { return fail(reply, 400, 'connection_failed', (error as Error).message, request.id); }
   });
-  app.put('/api/v1/connection/route', { schema: { body: { type: 'object', required: ['endpoint'], additionalProperties: false, properties: { endpoint: { type: 'string', maxLength: 200 } } } } }, async (request, reply) => {
-    try { return await jobs.serialize(async () => { await worker.changeRoute((request.body as { endpoint: string }).endpoint); jobs.invalidate(); return { connected: true }; }); }
-    catch (error) { return fail(reply, 409, 'route_failed', (error as Error).message, request.id); }
+  app.post('/api/v1/connection/reconnect', { schema: { body: { type: 'object', additionalProperties: false, maxProperties: 0 } } }, async (request, reply) => {
+    try { return await jobs.serialize(async () => { await worker.reconnect(); jobs.invalidate(); return { connected: true }; }); }
+    catch (error) { return fail(reply, 409, 'reconnect_failed', (error as Error).message, request.id); }
   });
   app.delete('/api/v1/connection', async (request, reply) => {
     db.prepare('UPDATE dispatcher_state SET paused = 1 WHERE id = 1').run();
@@ -83,7 +83,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   });
   for (const [action, paused] of [['pause', 1], ['resume', 0]] as const) {
     app.post(`/api/v1/queue/${action}`, { schema: { body: { type: 'object', additionalProperties: false, maxProperties: 0 } } }, async (request, reply) => {
-      try { return await jobs.serialize(async () => { if (!paused) await jobs.inspectCapabilities(); jobs.pause(Boolean(paused)); return { paused: Boolean(paused) }; }); }
+      try { return await jobs.serialize(async () => { if (!paused) { await jobs.inspectCapabilities(); jobs.resumeRecovery(); } jobs.pause(Boolean(paused)); return { paused: Boolean(paused) }; }); }
       catch { return fail(reply, 409, 'worker_unavailable', 'Connect a ready worker before resuming.', request.id); }
     });
   }
@@ -150,7 +150,9 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.get('/api/v1/jobs', async request => { const cursor = String((request.query as { cursor?: string }).cursor ?? ''); const items = jobs.list(51, cursor); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/jobs/:id', async (request, reply) => jobs.get((request.params as { id: string }).id) ?? fail(reply, 404, 'not_found', 'Job not found.', request.id));
   app.post('/api/v1/jobs/:id/cancel', async (request, reply) => {
-    try { return await jobs.serialize(() => jobs.cancel((request.params as { id: string }).id)); }
+    const id = (request.params as { id: string }).id;
+    jobs.interrupt(id);
+    try { return await jobs.serialize(() => jobs.cancel(id)); }
     catch (error) { return fail(reply, 409, 'cancel_failed', (error as Error).message, request.id); }
   });
   app.post('/api/v1/jobs/:id/acknowledge', async (request, reply) => {

@@ -22,11 +22,8 @@ async function ready(){
   }
   throw Error('Local tusd did not become ready');
 }
-const results={started_at:new Date().toISOString(),scope:'Official binaries and local tusd persistence; not worker authentication or Tailscale enrollment'};
+const results={started_at:new Date().toISOString(),scope:'Official tusd binary and local persistence; not worker authentication'};
 try {
-  results.tailscale_version=await docker('run','--rm','--entrypoint','/usr/local/bin/tailscale',pins.tailscale.image,'version');
-  assert.ok(results.tailscale_version.startsWith(pins.tailscale.version));
-  await docker('run','--rm','--entrypoint','/bin/sh',pins.tailscale.image,'-c','test -x /usr/local/bin/containerboot && test -x /usr/local/bin/tailscaled');
   results.tusd_version=await docker('run','--rm',pins.tusd.image,'-version');
   assert.ok(results.tusd_version.includes(pins.tusd.version));
   await docker('run','-d','--name',name,'-p','127.0.0.1::8080',pins.tusd.image,'-host','0.0.0.0','-port','8080','-upload-dir','/tmp/seed-test-uploads');

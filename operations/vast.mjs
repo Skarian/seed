@@ -69,7 +69,7 @@ export async function safeShutdown(
   if (
     !state?.paired_worker ||
     connection?.worker_instance_id !== state.paired_worker ||
-    connection.endpoint !== (state.route==='tailscale'?state.tailscale_endpoint:workerOrigin)
+    connection.endpoint !== workerOrigin
   )
     throw new Error(
       "Seed is not paired to this recorded worker. Reconnect before teardown.",
@@ -481,13 +481,13 @@ export class SeedVast {
     return (await import('./preparation.mjs')).prepareWorker(this);
   }
   async stopTunnel() { return (await import('./connection.mjs')).stopTunnel(this); }
-  async connect({reconnect=false,proxy=false,route}={}) {
+  async connect({reconnect=false,proxy=false}={}) {
     const instance=await this.current();
     if(instance.actual_status!=='running')throw Error('The instance is not running.');
     const secret=await readJson(this.secretFile());
     if(!secret?.SEED_PAIRING_SECRET)throw Error('No launch secret for this recorded worker.');
     return (await import('./connection.mjs')).connectWorker(this,{
-      ssh:()=>sshArgs(instance,this.key,this.knownHosts,proxy),secret:secret.SEED_PAIRING_SECRET,route,reconnect,
+      ssh:()=>sshArgs(instance,this.key,this.knownHosts,proxy),secret:secret.SEED_PAIRING_SECRET,reconnect,
     });
   }
   async preparation() { return (await import('./connection.mjs')).workerRequest(this,'/worker/v1/preparation'); }
@@ -567,7 +567,6 @@ export async function main(argv) {
     allowPositionals: true,
     strict: true,
     options: {
-      route: {type:'string'},
       repo: { type: "string", default: process.cwd() },
       "offer-id": { type: "string" },
       "max-hourly": { type: "string" },
@@ -607,8 +606,8 @@ export async function main(argv) {
   }
   if(command==='logs')return (await import('./vast-logs.mjs')).vastLogs(app,{daemon:values['daemon-logs']});
   if(values.proxy && !['connect','reconnect'].includes(command))throw Error('--proxy applies only to connect or reconnect.');
-  if(command==='reconnect')return app.connect({reconnect:true,proxy:values.proxy,route:values.route});
-  if(command==='connect')return app.connect({proxy:values.proxy,route:values.route});
+  if(command==='reconnect')return app.connect({reconnect:true,proxy:values.proxy});
+  if(command==='connect')return app.connect({proxy:values.proxy});
   if (command === "offers")
     return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu, allGpus:values['all-gpus'], minVram:Number(values['min-vram']), minRam:Number(values['min-ram']),maxHourly:values['max-hourly']===undefined?undefined:Number(values['max-hourly']),minDownload:Number(values['min-download-mbps']) });
   if (command === "rent")

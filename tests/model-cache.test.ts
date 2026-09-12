@@ -30,3 +30,14 @@ test('hash mismatch is never promoted; HTTP errors omit private response data',a
 test('rejects traversal and credential-bearing model sources',()=>{
  for(const change of [{path:'../outside'},{url:'https://huggingface.co/a/b/resolve/main/file'},{url:'https://civitai.com/api/download/models/12?fileId=34&token=secret'}])expect(()=>validateModel({...item,...change})).toThrow();
 });
+
+test('cancelling an active source body retains partial bytes without promotion',async()=>{
+ const p=await fixture(),controller=new AbortController();
+ let cancelled=false;
+ const response=new Response(new ReadableStream({start(stream){stream.enqueue(bytes.subarray(0,4));},cancel(){cancelled=true;}}));
+ const timeout=setTimeout(()=>controller.abort(),100);
+ try{await expect(downloadModel(p,item,'',async()=>response,()=>{},undefined,controller.signal)).rejects.toMatchObject({name:'AbortError'});}
+ finally{clearTimeout(timeout);}
+ expect(cancelled).toBe(true);expect(await readFile(modelFile(p,item)+'.part')).toEqual(bytes.subarray(0,4));
+ expect(await cached(p,item)).toBe(false);
+});

@@ -33,22 +33,35 @@ export function hfEnvironment(token: string, cache: string, env: NodeJS.ProcessE
     HF_XET_HIGH_PERFORMANCE: totalmem() >= 64 * 1024 ** 3 ? '1' : '0',
   };
 }
-export type HfRunner = (executable: string, args: string[], env: NodeJS.ProcessEnv) => Promise<void>;
-const runHf: HfRunner = (executable, args, env) => new Promise((resolve, reject) => {
+export type HfRunner = (executable: string, args: string[], env: NodeJS.ProcessEnv, signal?: AbortSignal) => Promise<void>;
+export const runHf: HfRunner = (executable, args, env, signal) => new Promise((resolve, reject) => {
+  signal?.throwIfAborted();
   const child = spawn(executable, args, { env, shell: false, windowsHide: true, stdio: ['ignore', 'ignore', 'pipe'] });
-  let diagnostic = '';
+  let diagnostic = '', startupError = false, killTimer: ReturnType<typeof setTimeout> | undefined;
+  const abort = () => {
+    child.kill();
+    killTimer ??= setTimeout(() => child.kill('SIGKILL'), 5000);
+    killTimer.unref();
+  };
+  signal?.addEventListener('abort', abort, {once:true});
+  if(signal?.aborted)abort();
   child.stderr.on('data', chunk => { if (diagnostic.length < 65536) diagnostic += chunk.toString(); });
-  child.once('error', () => reject(Error('Hugging Face CLI could not start. Install hf from https://huggingface.co/docs/huggingface_hub/guides/cli or set SEED_HF_CLI to its executable.')));
+  child.once('error', () => { startupError = true; });
   child.once('close', code => {
+    clearTimeout(killTimer);signal?.removeEventListener('abort',abort);
+    if(signal?.aborted)return reject(signal.reason);
+    if(startupError)return reject(Error('Hugging Face CLI could not start. Install hf from https://huggingface.co/docs/huggingface_hub/guides/cli or set SEED_HF_CLI to its executable.'));
     if (code === 0) return resolve();
     // Upstream diagnostics may contain signed URLs. Expose only known status codes.
     const status = diagnostic.match(/\b(401|403|404|429)\b/)?.[1];
     reject(Error(`Hugging Face download failed${status ? ` (HTTP ${status})` : ''}. Its partial download is retained; rerun seed models to resume.`));
   });
 });
-export async function downloadHuggingFace(url: string, staging: string, token: string, cache: string, run: HfRunner = runHf) {
+export async function downloadHuggingFace(url: string, staging: string, token: string, cache: string, run: HfRunner = runHf, signal?: AbortSignal) {
+  signal?.throwIfAborted();
   const source = hfSource(url);
   await mkdir(staging, { recursive: true });
-  await run(hfExecutable(), ['download', source.repository, source.filename, '--revision', source.revision, '--local-dir', staging, '--quiet'], hfEnvironment(token, cache));
+  await run(hfExecutable(), ['download', source.repository, source.filename, '--revision', source.revision, '--local-dir', staging, '--quiet'], hfEnvironment(token, cache), signal);
+  signal?.throwIfAborted();
   return path.join(staging, ...source.filename.split('/'));
 }

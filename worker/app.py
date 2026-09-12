@@ -172,7 +172,7 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
             active = queue['queue_running'][0][1] if queue['queue_running'] else None
         except Exception:
             state, engine_session_id, active = 'preparing', None, None
-        return web.json_response({'protocol_version': 1, 'networking_version': 1 if managed_preparation else 0, 'worker_instance_id': instance_id, 'workspace_id': workspace_id,
+        return web.json_response({'protocol_version': 1, 'worker_instance_id': instance_id, 'workspace_id': workspace_id,
             'engine_session_id': engine_session_id, 'state': state, 'observed_at': clock(), 'preparation': dict(preparation),
             'active_prompt_id': active, 'pending_output_count': None, 'unresolved_job_count': None,
             'active_preset_revision': None, 'preset_preparation': None})
@@ -198,8 +198,6 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
     if managed_preparation:
         from worker.preparation import install as install_preparation
         manager = install_preparation(app, workspace, runtime, authenticated)
-        from worker.network import install as install_network
-        install_network(app, runtime, instance_id, authenticated)
         from worker.uploads import install as install_uploads
         install_uploads(app, manager, authenticated)
     from worker.jobs import install

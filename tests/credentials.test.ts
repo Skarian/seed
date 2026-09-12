@@ -49,7 +49,7 @@ test('malformed config is preserved and all setup credentials are omitted from w
   const { root, paths, file } = fixture(); writeFileSync(file, 'broken-json');
   await expect(ensureCredentials(paths, { interactive: false, env: {}, cwd: root })).rejects.toThrow('Cannot read seed credentials');
   expect(readFileSync(file, 'utf8')).toBe('broken-json');
-  expect(webServerEnvironment({ RUNPOD_API_KEY: 'fixture', hf_token: 'fixture', CIVITAI_API_TOKEN: 'fixture', VAST_API_KEY: 'fixture', PATH: 'keep' })).toEqual({ PATH: 'keep' });
+  expect(webServerEnvironment({ RUNPOD_API_KEY: 'fixture', hf_token: 'fixture', CIVITAI_API_TOKEN: 'fixture', VAST_API_KEY: 'fixture', TAILSCALE_CLIENT_SECRET: 'retired', tailscale_client_id: 'retired', TS_AUTHKEY: 'retired', PATH: 'keep' })).toEqual({ PATH: 'keep' });
 });
 
 

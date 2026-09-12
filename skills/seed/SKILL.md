@@ -81,7 +81,7 @@ state and report any remaining billable resource. Preserve the local Library.
 
 Collect keys through masked setup prompts, never chat. Provider keys stay local.
 HF/Civitai tokens are sent transiently through the authenticated worker API over
-the selected SSH tunnel or Tailscale connection for model downloads;
+the SSH tunnel for model downloads;
 never put them in command arguments, templates or logs. A host administrator can
 inspect runtime memory. The optional PC cache provides fallback after direct
 model downloads fail.

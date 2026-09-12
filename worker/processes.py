@@ -24,7 +24,7 @@ async def stop_process(process):
     if process is None:
         return
     # Every owned Linux subprocess starts a new session. Kill descendants even
-    # when the leader has already exited (containerboot can leave tailscaled).
+    # when the leader has already exited and its children remain.
     def send(hard=False):
         try:
             if os.name == 'posix': os.killpg(process.pid, signal.SIGKILL if hard else signal.SIGTERM)

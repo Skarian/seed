@@ -13,10 +13,9 @@ installed package and per-user state; no checkout or helper scripts are needed.
    necessary. It accepts that exact offer ID without a second host/slice search.
 5. `seed gpu vast wait` waits without a fixed startup deadline for running state and a successful
    authenticated SSH probe; port mappings alone do not prove readiness.
-6. `seed gpu vast connect --route ssh` pairs through the early worker API. Use
-   `--route tailscale` when configured to enroll and switch to the private tailnet.
-7. `seed gpu vast boot` prepares models through the selected API route. The worker
-   starts ComfyUI after verification. Repeat to resume preparation when idle.
+6. `seed gpu vast connect` pairs through the early worker API over SSH.
+7. `seed gpu vast boot` prepares models through the authenticated API. The worker
+   starts ComfyUI after verification. Let the command recover temporary connection failures without rerunning it.
 8. `seed gpu vast status` verifies the session. Return the local app URL and cost.
 
 `offers --gpu NAME` may be repeated for approved hardware alternatives. Rental
@@ -34,13 +33,11 @@ adjustable, not a universal budget rule. Use `--min-download-mbps` for the netwo
 
 Established SSH tunnels reconnect automatically after a disconnect, with retry
 delays increasing from one second to at most 30 seconds. Pairing and jobs stay
-unchanged; file transfer resumes when the route is usable. Explicit stop/destroy
+unchanged. Model uploads and output downloads resume saved bytes after recovery;
+reference uploads restart the same file before generation. Explicit stop/destroy
 cancels reconnects. A permanently bad route still needs diagnosis.
 
 If the supervisor itself has stopped, use `seed gpu vast reconnect`.
-`--route ssh` or `--route tailscale` explicitly changes the recorded worker route.
-Tailscale reconnect uses the saved peer address and does not require SSH. There is
-no automatic cross-route failover; neither route change re-pairs nor submits jobs.
 It restores the connection only when the local pairing matches the recorded worker.
 It keeps credentials and in-flight jobs unchanged, so finished GPU outputs can
 resume transfer without another generation. Use `connect` for initial pairing;
@@ -62,9 +59,9 @@ After confirmed absence, another approved offer may be selected.
 Startup progress is reported every 30 seconds. Ctrl+C stops waiting, not the rental.
 Do not restart a wait or abandon a host solely because five minutes passed.
 For actual startup failures, inspect status and logs before choosing recovery.
-For interrupted downloads, retry boot once; verified files are reused and partials
-resume where supported. If the new worker still cannot be prepared, destroy it.
-No indefinite retries. Do not delete an established session over a transient error.
+Do not rerun boot while it reports automatic recovery. If it exits with a permanent
+error, collect logs and fix that cause before retrying the same recorded rental.
+If a failed new worker cannot be repaired within the agreed budget, destroy it. Do not delete an established session over a transient error.
 
 ## Finish
 

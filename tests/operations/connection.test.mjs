@@ -3,8 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import path from 'node:path';
 import {tmpdir} from 'node:os';
-import {connectWorker,startTunnel,workerOrigin,cancelUnusedPreparation} from '../../operations/connection.mjs';
-import {enrollmentKey,tailscaleOrigin} from '../../operations/tailscale.mjs';
+import {connectWorker,startTunnel,workerOrigin,cancelUnusedPreparation,workerRequest} from '../../operations/connection.mjs';
 import {saveJson,readJson} from '../../operations/common.mjs';
 
 async function fixture(t){
@@ -42,20 +41,46 @@ test('SSH waits for the detached supervisor to register its control endpoint',as
   await startTunnel(app,['root@worker']);
   assert.ok(checks>=2);
 });
-test('Tailscale reconnect needs neither SSH nor a new enrollment key',async t=>{
+test('SSH reconnect verifies the saved pairing before retiring old route fields',async t=>{
   const {app,calls,config}=await fixture(t);
-  app.state={paired_worker:'worker',route:'tailscale',tailscale_endpoint:'http://100.100.1.2:8080'};
-  await saveJson(path.join(config,'worker-connection.json'),{worker_instance_id:'worker',endpoint:app.state.tailscale_endpoint,worker_credential:'unchanged'});
+  app.state={paired_worker:'worker',route:'tailscale',tailscale_endpoint:'http://100.100.1.2:8080',tailscale_peer:'old',instance_id:123};
+  await saveJson(path.join(config,'worker-connection.json'),{worker_instance_id:'worker',endpoint:workerOrigin,worker_credential:'unchanged'});
   const saved=await readJson(path.join(config,'worker-connection.json'));
-  await connectWorker(app,{reconnect:true,ssh:()=>{throw Error('Must not require SSH');}});
-  assert.deepEqual(calls.filter(x=>x[0]==='PUT'),[['PUT','/api/v1/connection/route']]);
-  assert.equal(calls.some(x=>x[0]==='fetch'||x[0]==='tunnel'),false);
+  await connectWorker(app,{reconnect:true,ssh:['root@worker']});
+  assert.deepEqual(calls.filter(x=>x[0]==='POST'),[['POST','/api/v1/connection/reconnect']]);
+  assert.equal(calls.filter(x=>x[0]==='tunnel').length,1);
+  assert.equal(calls.some(x=>String(x[1]).includes('/unlock')),false);
   assert.deepEqual(await readJson(path.join(config,'worker-connection.json')),saved);
+  assert.deepEqual(app.state,{paired_worker:'worker',instance_id:123});
 });
+
+test('failed reconnect preserves old rental metadata for diagnosis',async t=>{
+  const {app,config}=await fixture(t);
+  const original={paired_worker:'worker',route:'tailscale',tailscale_peer:'old',instance_id:123};
+  app.state={...original};
+  await saveJson(path.join(config,'worker-connection.json'),{worker_instance_id:'worker',endpoint:workerOrigin,worker_credential:'unchanged'});
+  app.local=async()=>{throw Error('Unexpected worker identity');};
+  await assert.rejects(connectWorker(app,{reconnect:true,ssh:['root@worker']}),/identity/);
+  assert.deepEqual(app.state,original);
+});
+
 test('reconnect refuses unrelated pairing before opening any transport',async t=>{
   const {app,calls}=await fixture(t);
   app.state.paired_worker='worker';
   await assert.rejects(connectWorker(app,{reconnect:true}),/existing pairing/);
+  assert.equal(calls.length,0);
+});
+
+test('worker requests remain inactive until a migrated SSH connection is verified',async t=>{
+  const {app,config,calls}=await fixture(t);
+  app.state.paired_worker='worker';
+  for(const connection of [
+    {endpoint:workerOrigin,reconnect_required:true},
+    {endpoint:'http://100.100.1.2:8080'},
+  ]){
+    await saveJson(path.join(config,'worker-connection.json'),{...connection,worker_instance_id:'worker',worker_credential:'unchanged'});
+    await assert.rejects(workerRequest(app,'/worker/v1/preparation'),/Reconnect/);
+  }
   assert.equal(calls.length,0);
 });
 test('unused-worker cleanup requires cancellation and matching worker/workspace proof',async t=>{
@@ -71,16 +96,4 @@ test('unused-worker cleanup requires cancellation and matching worker/workspace 
   await assert.rejects(cancelUnusedPreparation(app),/Finish or cancel/);
   app.fetcher=async()=>{throw Error('disconnected');};
   await assert.rejects(cancelUnusedPreparation(app),/Service request failed/);
-});
-test('enrollment issues only a one-use ephemeral worker-tag key',async t=>{
-  const {config}=await fixture(t);const calls=[];
-  const key=await enrollmentKey({config},{env:{TAILSCALE_CLIENT_ID:'fixture',TAILSCALE_CLIENT_SECRET:'secret'},fetcher:async(url,options)=>{
-    calls.push([url,options]);return Response.json(url.endsWith('/token')?{access_token:'temporary'}:{key:'tskey-auth-fixture'});
-  }});
-  assert.equal(key,'tskey-auth-fixture');
-  assert.equal(calls[0][1].body.get('scope'),'auth_keys');assert.equal(calls[0][1].body.get('tags'),'tag:seed-worker');
-  assert.deepEqual(JSON.parse(calls[1][1].body).capabilities.devices.create,{reusable:false,ephemeral:true,preauthorized:true,tags:['tag:seed-worker']});
-  assert.equal(JSON.parse(calls[1][1].body).expirySeconds,600);
-  assert.equal(tailscaleOrigin('100.100.1.2'),'http://100.100.1.2:8080');
-  for(const ip of ['127.0.0.1','100.128.1.2','100.63.1.2','100.100.1.2:8080'])assert.throws(()=>tailscaleOrigin(ip));
 });

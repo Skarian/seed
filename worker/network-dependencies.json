@@ -1,8 +1,4 @@
 {
-  "tailscale": {
-    "version": "1.102.3",
-    "image": "tailscale/tailscale@sha256:8c42c4574ab066384fcb72f69e086a2ff1dd3652eb6f56856cee34bcf0d2f680"
-  },
   "tusd": {
     "version": "v2.10.0",
     "image": "tusproject/tusd@sha256:9610f0f8edf4cceeb26f1b3ac9fa4bb4803d61a878e222c1573cda63c9e23374"

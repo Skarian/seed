@@ -4,9 +4,12 @@ import {
   renameSync,
   rmSync,
   openAsBlob,
+  createReadStream,
+  statSync,
 } from "node:fs";
 import path from "node:path";
-import { randomUUID } from "node:crypto";
+import { randomUUID, createHash } from "node:crypto";
+import { transferFetch, WorkerHttpError } from './worker-transfer.js';
 import type { StudioPaths } from "./storage.js";
 export type WorkerStatus = {
   protocol_version: 1;
@@ -23,7 +26,7 @@ export type WorkerStatus = {
 };
 type Connection = {
   endpoint: string;
-  tailscale_endpoint?: string;
+  reconnect_required?: boolean;
   worker_credential: string;
   worker_instance_id: string;
   workspace_id: string;
@@ -52,11 +55,7 @@ export function validateWorkerEndpoint(
     url.protocol === "http:"
   )
     return url.origin;
-  const octets = url.hostname.split('.').map(Number);
-  if (url.protocol === 'http:' && url.port === '8080' && octets.length === 4 &&
-      octets.every(n => Number.isInteger(n) && n >= 0 && n <= 255) &&
-      octets[0] === 100 && octets[1]! >= 64 && octets[1]! <= 127) return url.origin;
-  throw new Error('Use the private Seed SSH or Tailscale worker address.');
+  throw new Error('Use the private Seed SSH worker address.');
 }
 async function jsonRequest(url: string, init: RequestInit) {
   const response = await fetch(url, {
@@ -64,7 +63,7 @@ async function jsonRequest(url: string, init: RequestInit) {
     redirect: "error",
     signal: AbortSignal.timeout(7000),
   });
-  if (!response.ok) throw new Error(`Worker returned HTTP ${response.status}.`);
+  if (!response.ok) { await response.body?.cancel(); throw new WorkerHttpError(response.status); }
   if (!response.body) throw new Error("Empty worker response.");
   const reader = response.body.getReader();
   const chunks: Uint8Array[] = [];
@@ -98,6 +97,8 @@ export class WorkerConnection {
   private readonly file: string;
   private revision = 0;
   private changing = false;
+  private verified = false;
+  private verificationError: Error | null = null;
   private cached: { at: number; value: WorkerStatus | null } | null = null;
   private inFlight: Promise<WorkerStatus | null> | null = null;
   constructor(
@@ -109,12 +110,22 @@ export class WorkerConnection {
       const value = JSON.parse(readFileSync(this.file, "utf8"));
       if (!validConnection(value))
         throw new Error("Invalid saved worker connection.");
+      // Only the retired Seed tailnet format is eligible for this one-time upgrade.
+      const legacy = /^http:\/\/100\.(?:6[4-9]|[7-9]\d|1[01]\d|12[0-7])\.(?:25[0-5]|2[0-4]\d|1?\d?\d)\.(?:25[0-5]|2[0-4]\d|1?\d?\d):8080\/?$/.test(value.endpoint);
+      if (legacy) {
+        value.endpoint = localTestOrigin ?? 'http://127.0.0.1:18080';
+        value.reconnect_required = true;
+      }
       value.endpoint = validateWorkerEndpoint(value.endpoint, localTestOrigin);
+      const obsolete = value as Connection & { tailscale_endpoint?: string; tailscale_peer?: string; route?: string };
+      const changed = legacy || ['tailscale_endpoint', 'tailscale_peer', 'route'].some(field => Object.hasOwn(value, field));
+      delete obsolete.tailscale_endpoint; delete obsolete.tailscale_peer; delete obsolete.route;
+      if (changed) this.save(value);
       this.connection = value;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code !== "ENOENT")
         throw new Error(
-          "Saved worker connection is invalid. Remove worker-connection.json to reconnect.",
+          "Saved worker connection is invalid. Repair its configuration before reconnecting; existing jobs and credentials have been preserved.",
         );
     }
   }
@@ -129,26 +140,46 @@ export class WorkerConnection {
         }
       : null;
   }
-  async upload(jobId: string, file: string, filename: string) {
-    if (!this.connection) throw new Error("Connect a pod first.");
+  private save(connection: Connection) {
+    const temporary = `${this.file}.${randomUUID()}.tmp`;
+    try {
+      writeFileSync(temporary, JSON.stringify(connection), { mode: 0o600, flag: 'wx' });
+      renameSync(temporary, this.file);
+    } finally { rmSync(temporary, { force: true }); }
+  }
+  private async requireVerified() {
+    const connection = this.connection;
+    if (!connection) throw new Error('Connect a pod first.');
+    if (this.changing || connection.reconnect_required) throw new Error('Reconnect the recorded worker over SSH first.');
+    if (!this.verified) await this.status();
+    if (connection !== this.connection || !this.verified)
+      throw this.verificationError ?? new Error('Worker identity has not been verified.');
+    return connection;
+  }
+  async upload(jobId: string, file: string, filename: string, signal?: AbortSignal) {
+    const connection = await this.requireVerified();
+    const digest = createHash('sha256');
+    for await (const chunk of createReadStream(file, { signal })) digest.update(chunk);
+    const sha256 = digest.digest('hex'), size = statSync(file).size;
     const form = new FormData();
     form.append("image", await openAsBlob(file), filename);
     form.append("subfolder", "seed/" + jobId);
     form.append("type", "input");
     form.append("overwrite", "true");
-    const response = await fetch(this.connection.endpoint + "/comfy/upload", {
+    const response = await transferFetch(connection.endpoint + "/comfy/upload", {
       method: "POST",
-      headers: { Authorization: "Bearer " + this.connection.worker_credential },
+      headers: { Authorization: "Bearer " + connection.worker_credential,
+        'X-Seed-Input-SHA256': sha256, 'X-Seed-Input-Size': String(size) },
       body: form,
+      signal,
       redirect: "error",
-      signal: AbortSignal.timeout(600000),
     });
-    if (!response.ok) throw new Error("Reference transfer failed.");
+    if (!response.ok) { await response.body?.cancel(); throw new WorkerHttpError(response.status); }
     const result = await response.json();
     if (
       result.name !== filename ||
       result.subfolder !== "seed/" + jobId ||
-      result.type !== "input"
+      result.type !== "input" || result.size !== size || result.sha256 !== sha256
     )
       throw new Error("Invalid uploaded reference");
   }
@@ -159,26 +190,24 @@ export class WorkerConnection {
       body?: unknown;
       session?: string;
       range?: number;
+      signal?: AbortSignal;
     } = {},
   ) {
-    const connection = this.connection;
-    if (!connection) throw new Error("Connect a pod first.");
+    const connection = await this.requireVerified();
     if (
       !/^\/(comfy\/(session|queue|capabilities|prompt|cancel)|worker\/v1\/jobs(?:[/?].*)?)$/.test(
         route,
       )
     )
       throw new Error("Unsupported worker operation.");
-    return fetch(connection.endpoint + route, {
+    const send = options.range !== undefined ? transferFetch : fetch;
+    return send(connection.endpoint + route, {
       method: options.method ?? "GET",
       redirect: "error",
-      signal: AbortSignal.timeout(
-        options.range !== undefined
-          ? 600000
-          : route === "/comfy/prompt"
-            ? 65000
-            : 10000,
-      ),
+      signal: options.range !== undefined ? options.signal : AbortSignal.any([
+        ...(options.signal ? [options.signal] : []),
+        AbortSignal.timeout(route === "/comfy/prompt" ? 65000 : 10000),
+      ]),
       headers: {
         Authorization: `Bearer ${connection.worker_credential}`,
         ...(options.body === undefined
@@ -196,12 +225,12 @@ export class WorkerConnection {
   }
   async json(
     route: string,
-    options: { method?: string; body?: unknown; session?: string } = {},
+    options: { method?: string; body?: unknown; session?: string; signal?: AbortSignal } = {},
   ) {
     const response = await this.request(route, options);
     if (!response.ok) {
       await response.body?.cancel();
-      throw new Error(`Worker returned HTTP ${response.status}.`);
+      throw new WorkerHttpError(response.status);
     }
     const reader = response.body!.getReader();
     const chunks: Uint8Array[] = [];
@@ -292,6 +321,8 @@ export class WorkerConnection {
         );
       }
       this.connection = saved;
+      this.verified = false;
+      this.verificationError = null;
       this.revision++;
       this.cached = null;
       this.inFlight = null;
@@ -304,44 +335,39 @@ export class WorkerConnection {
       throw new Error("A connection change is already in progress.");
     rmSync(this.file, { force: true });
     this.connection = null;
+    this.verified = false;
+    this.verificationError = null;
     this.revision++;
     this.cached = null;
     this.inFlight = null;
   }
-  async changeRoute(value: string) {
+  async reconnect() {
     if (this.changing || !this.connection) throw new Error('Connect the recorded worker first.');
     this.changing = true;
+    this.verified = false;
     try {
-      const endpoint = validateWorkerEndpoint(value, this.localTestOrigin);
       const current = this.connection;
-      if (endpoint !== 'http://127.0.0.1:18080' && endpoint !== this.localTestOrigin && endpoint !== current.tailscale_endpoint) {
-        const network = await jsonRequest(current.endpoint + '/worker/v1/network', {
-          headers: { Authorization: 'Bearer ' + current.worker_credential },
-        });
-        if (network.state !== 'ready' || `http://${network.address}:8080` !== endpoint)
-          throw new Error('The current worker has not advertised this Tailscale route.');
-      }
+      const endpoint = this.localTestOrigin ?? 'http://127.0.0.1:18080';
       const status = await jsonRequest(endpoint + '/worker/v1/status', {
         headers: { Authorization: 'Bearer ' + current.worker_credential },
       });
       if (status.protocol_version !== current.protocol_version ||
           status.worker_instance_id !== current.worker_instance_id || status.workspace_id !== current.workspace_id)
-        throw new Error('The proposed route does not lead to the recorded worker.');
-      const saved = { ...current, endpoint,
-        ...(endpoint.startsWith('http://100.') ? { tailscale_endpoint: endpoint } : {}) };
-      const temporary = `${this.file}.${randomUUID()}.tmp`;
-      try {
-        writeFileSync(temporary, JSON.stringify(saved), { mode: 0o600, flag: 'wx' });
-        renameSync(temporary, this.file);
-      } finally { rmSync(temporary, { force: true }); }
+        throw new Error('The SSH tunnel does not lead to the recorded worker.');
+      const saved = { ...current, endpoint, reconnect_required: false };
+      this.save(saved);
       this.connection = saved;
+      this.verified = true;
+      this.verificationError = null;
       this.revision++;
+    } finally {
       this.cached = null;
       this.inFlight = null;
-    } finally { this.changing = false; }
+      this.changing = false;
+    }
   }
   async status(): Promise<WorkerStatus | null> {
-    if (!this.connection) return null;
+    if (!this.connection || this.connection.reconnect_required || this.changing) return null;
     if (this.cached && Date.now() - this.cached.at < 2000)
       return this.cached.value;
     if (this.inFlight) return this.inFlight;
@@ -349,6 +375,7 @@ export class WorkerConnection {
       revision = this.revision;
     const promise = (async () => {
       let value: WorkerStatus | null = null;
+      let failure: Error | null = null;
       try {
         const result = await jsonRequest(
           connection.endpoint + "/worker/v1/status",
@@ -393,10 +420,12 @@ export class WorkerConnection {
               : {}),
           },
         };
-      } catch {
-        /* Failed or inconsistent probes remain disconnected, never ready. */
+      } catch (error) {
+        failure = error instanceof Error ? error : new Error("Worker identity check failed.");
       }
       if (revision !== this.revision) return null;
+      this.verified = value !== null;
+      this.verificationError = failure;
       this.cached = { at: Date.now(), value };
       return value;
     })();

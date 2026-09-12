@@ -29,9 +29,9 @@ export async function modelManifest(paths: StudioPaths): Promise<ModelFile[]> {
   if (new Set(result.map(x => x.path)).size !== result.length || new Set(presets.map(x => x.route)).size !== presets.length) throw Error('Duplicate model path or preset route.');
   return result;
 }
-export async function digest(file: string) {
+export async function digest(file: string, signal?: AbortSignal) {
   const hash = createHash('sha256');
-  for await (const chunk of createReadStream(file)) hash.update(chunk);
+  for await (const chunk of createReadStream(file, {signal})) hash.update(chunk);
   return hash.digest('hex');
 }
 export async function cached(paths: StudioPaths, item: ModelFile) {
@@ -46,14 +46,14 @@ export async function requireModelCache(paths: StudioPaths) {
   for (const item of entries) if (!await cached(paths, item)) throw Error(`Local model missing or changed: ${item.path}. Run seed models before renting a GPU.`);
   return entries;
 }
-async function downloadResponse(item: ModelFile, token: string, offset: number, end: number, request: typeof fetch, resolved: {url?:string}) {
+async function downloadResponse(item: ModelFile, token: string, offset: number, end: number, request: typeof fetch, resolved: {url?:string}, signal?: AbortSignal) {
   let url = resolved.url ?? item.url;
   for (let redirects = 0; redirects < 6; redirects++) {
     const headers: Record<string,string> = { Range: `bytes=${offset}-${end}` };
     if (url === item.url && token) headers.Authorization = `Bearer ${token}`;
     let response: Response;
-    try { response = await request(url, { headers, redirect:'manual', signal:AbortSignal.timeout(120000) }); }
-    catch { throw Error(`Download interrupted for ${item.path}; rerun seed models to resume.`); }
+    try { const timeout=AbortSignal.timeout(120000);response = await request(url, { headers, redirect:'manual', signal:signal?AbortSignal.any([signal,timeout]):timeout }); }
+    catch { signal?.throwIfAborted();throw Error(`Download interrupted for ${item.path}; rerun seed models to resume.`); }
     if ([301,302,303,307,308].includes(response.status)) {
       const location = response.headers.get('location'); await response.body?.cancel();
       const next = new URL(location ?? '', url);
@@ -66,19 +66,21 @@ async function downloadResponse(item: ModelFile, token: string, offset: number, 
   }
   throw Error('Too many model download redirects.');
 }
-export async function downloadModel(paths: StudioPaths, item: ModelFile, token: string, request: typeof fetch = fetch, progress: (bytes:number)=>void = ()=>{}, hfDownload: typeof downloadHuggingFace = downloadHuggingFace) {
+export async function downloadModel(paths: StudioPaths, item: ModelFile, token: string, request: typeof fetch = fetch, progress: (bytes:number)=>void = ()=>{}, hfDownload: typeof downloadHuggingFace = downloadHuggingFace, signal?: AbortSignal) {
+  signal?.throwIfAborted();
   validateModel(item);
   await mkdir(modelDirectory(paths), { recursive:true });
   if (await cached(paths,item)) return;
   const file = modelFile(paths,item), partial = file + '.part';
   // A completed but unreceipted file can be recovered after an interrupted setup.
-  try { if ((await stat(file)).size === item.size && await digest(file) === item.sha256) { const s=await stat(file); await writeFile(file+'.json',JSON.stringify({sha256:item.sha256,size:s.size,mtimeMs:s.mtimeMs})); return; } } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
+  try { if ((await stat(file)).size === item.size && await digest(file,signal) === item.sha256) { const s=await stat(file); await writeFile(file+'.json',JSON.stringify({sha256:item.sha256,size:s.size,mtimeMs:s.mtimeMs})); return; } } catch (e) { if ((e as NodeJS.ErrnoException).code !== 'ENOENT') throw e; }
   if (new URL(item.url).hostname === 'huggingface.co') {
     const staging = path.join(modelDirectory(paths), 'hf', item.sha256);
-    const downloaded = await hfDownload(item.url, staging, token, path.join(paths.cache, 'huggingface'));
+    const downloaded = await hfDownload(item.url, staging, token, path.join(paths.cache, 'huggingface'), undefined, signal);
+    signal?.throwIfAborted();
     const expected = path.join(staging, ...hfSource(item.url).filename.split('/'));
     if (path.resolve(downloaded) !== path.resolve(expected)) throw Error('Unexpected Hugging Face output path.');
-    if ((await stat(downloaded)).size !== item.size || await digest(downloaded) !== item.sha256) {
+    if ((await stat(downloaded)).size !== item.size || await digest(downloaded,signal) !== item.sha256) {
       await rm(downloaded, {force:true});
       throw Error(`Model verification failed: ${item.path}.`);
     }
@@ -94,23 +96,24 @@ export async function downloadModel(paths: StudioPaths, item: ModelFile, token: 
   if (disk.bavail * disk.bsize < item.size - offset + 1024 ** 3) throw Error('Not enough local disk space for models plus 1 GiB working space.');
   const resolved: {url?:string} = {};
   while (offset < item.size) {
+    signal?.throwIfAborted();
     const end = Math.min(offset + 64 * 1024 * 1024, item.size) - 1;
-    const response = await downloadResponse(item,token,offset,end,request,resolved);
+    const response = await downloadResponse(item,token,offset,end,request,resolved,signal);
     const append = offset > 0 && response.status === 206;
     if (response.status === 206 && response.headers.get('content-range') !== `bytes ${offset}-${end}/${item.size}`) { await response.body?.cancel(); throw Error('Invalid resumed model response.'); }
     if (!response.body) throw Error('Empty model response.');
     let transferred = 0;
     const limit = response.status === 206 ? end-offset+1 : item.size;
     const bound = new Transform({transform(chunk,_encoding,done){transferred+=chunk.length;done(transferred>limit?Error('Model response exceeded expected size'):null,chunk);}});
-    try { await pipeline(Readable.fromWeb(response.body as never),bound,createWriteStream(partial,{flags:append?'a':'w'})); }
-    catch { throw Error(`Download interrupted for ${item.path}; rerun seed models to resume.`); }
+    try { await pipeline(Readable.fromWeb(response.body as never),bound,createWriteStream(partial,{flags:append?'a':'w'}),{signal}); }
+    catch { signal?.throwIfAborted();throw Error(`Download interrupted for ${item.path}; rerun seed models to resume.`); }
     const received = (await stat(partial)).size;
     if (received <= offset || received > item.size) throw Error('Invalid model download length.');
     offset = received;
     progress(offset);
   }
 
-  if ((await stat(partial)).size !== item.size || await digest(partial) !== item.sha256) { await rm(partial); throw Error(`Model verification failed: ${item.path}.`); }
+  if ((await stat(partial)).size !== item.size || await digest(partial,signal) !== item.sha256) { await rm(partial); throw Error(`Model verification failed: ${item.path}.`); }
   await rename(partial,file);
   const s = await stat(file);
   await writeFile(file+'.json',JSON.stringify({sha256:item.sha256,size:s.size,mtimeMs:s.mtimeMs}));

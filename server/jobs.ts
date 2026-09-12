@@ -13,6 +13,7 @@ import { open } from "node:fs/promises";
 import path from "node:path";
 import type { StudioPaths } from "./storage.js";
 import { WorkerConnection } from "./worker.js";
+import { WorkerHttpError, TransferIntegrityError, actionableTransfer } from './worker-transfer.js';
 import {
   graphFor,
   imageRequest,
@@ -60,6 +61,9 @@ type Job = {
   created_at: string;
   updated_at: string;
   uncertainty_acknowledged?: boolean;
+  submission_pending?: boolean;
+  recovery_blocked?: boolean;
+  integrity_failures?: number;
 };
 type Output = {
   id: string;
@@ -80,6 +84,7 @@ export class Jobs {
   private timer?: ReturnType<typeof setInterval>;
   private ticking = false;
   private stopped = false;
+  private transfer?: {id: string; abort: AbortController};
   public capabilities: Capabilities | null = null;
   public checkedAt: number | null = null;
   public safe: boolean | null = null;
@@ -105,8 +110,20 @@ export class Jobs {
   }
   async close() {
     this.stopped = true;
+    this.transfer?.abort.abort();
     clearInterval(this.timer);
     await this.chain;
+  }
+  interrupt(id: string) { if (this.transfer?.id === id) this.transfer.abort.abort(); }
+  resumeRecovery() {
+    for (const job of this.all()) if (job.recovery_blocked) {
+      job.recovery_blocked = false; job.integrity_failures = 0; this.save(job);
+    }
+  }
+  private blockRecovery(job: Job, error: unknown) {
+    job.recovery_blocked = true;
+    job.error = `${error instanceof Error ? error.message : 'Transfer failed.'} Files are retained. Fix the problem, then resume the queue.`;
+    this.pause(true); this.save(job);
   }
   invalidate() {
     this.safe = null;
@@ -172,6 +189,8 @@ export class Jobs {
     this.checkedAt = null;
   }
   async submit(raw: unknown, key: string) {
+    if (this.all().some(job => job.recovery_blocked))
+      throw new Error('Fix the reported transfer problem and resume the queue before creating another job.');
     const request = imageRequest(raw);
     if (!/^[\w-]{16,128}$/.test(key))
       throw new Error("A submission key is required.");
@@ -339,10 +358,13 @@ export class Jobs {
     this.ticking = true;
     try {
       await this.serialize(() => this.reconcile());
-    } catch {
+    } catch (error) {
       this.invalidate();
       this.reason =
-        "Cannot verify the pod. Pending work and files are retained.";
+        actionableTransfer(error)
+          ? `${(error as Error).message} Check the connection before resuming. Pending files are retained.`
+          : "Cannot verify the pod. Pending work and files are retained.";
+      if (actionableTransfer(error)) this.pause(true);
     } finally {
       this.ticking = false;
     }
@@ -403,7 +425,7 @@ export class Jobs {
     } while (cursor);
     for (const job of jobs) {
       if (
-        job.state === "queued" ||
+        job.recovery_blocked || job.state === "queued" ||
         (terminal.includes(job.state) && job.cleanup_state !== "pending")
       )
         continue;
@@ -419,6 +441,12 @@ export class Jobs {
       const response = await this.worker.request("/worker/v1/jobs/" + job.id);
       if (response.status === 404) {
         await response.body?.cancel();
+        if (job.submission_pending && job.state !== 'cancel_requested' &&
+            job.engine_session_id === cap.engine_session_id && !this.paused &&
+            !foreign && !orphan && nativeIds.length === 0) {
+          await this.dispatch(job, cap.engine_session_id);
+          return;
+        }
         if (!terminal.includes(job.state)) {
           job.state = "needs_attention";
           job.error =
@@ -440,6 +468,7 @@ export class Jobs {
         record.submission.engine_session_id !== job.engine_session_id
       )
         throw new Error("Job identity mismatch");
+      job.submission_pending = false;
       if (
         job.metrics &&
         [1, 2].includes(record.telemetry?.version) &&
@@ -505,66 +534,35 @@ export class Jobs {
       !unresolved &&
       nativeIds.length === 0
     ) {
-      const next = current.find((j) => j.state === "queued");
+      const next = current.find((j) => j.state === "queued" && !j.recovery_blocked);
       if (next) {
         if (next.metrics && !next.metrics.transfer_started_at) {
           next.metrics.transfer_started_at = new Date().toISOString();
           this.save(next);
         }
+        const abort = new AbortController(); this.transfer = {id: next.id, abort};
         try {
           for (const ref of next.prepared ?? []) {
-            await this.worker.upload(next.id, ref.file, ref.filename);
+            await this.worker.upload(next.id, ref.file, ref.filename, abort.signal);
             if (ref.audio_file && ref.audio_filename)
               await this.worker.upload(
                 next.id,
                 ref.audio_file,
                 ref.audio_filename,
+                abort.signal,
               );
           }
-        } catch {
+        } catch (error) {
           next.error =
-            "Reference transfer interrupted. It will retry before generation.";
+            "Reference transfer interrupted. It will restart automatically before generation.";
+          if (actionableTransfer(error)) this.blockRecovery(next, error);
           this.save(next);
           return;
-        }
+        } finally { this.transfer = undefined; }
+        if (abort.signal.aborted || this.stopped) return;
         next.workspace_id = cap.workspace_id;
         next.engine_session_id = cap.engine_session_id;
-        next.state = "submitting";
-        if (next.metrics) next.metrics.submitted_at = new Date().toISOString();
-        this.save(next);
-        try {
-          const result = await this.worker.request("/comfy/prompt", {
-            method: "POST",
-            session: cap.engine_session_id,
-            body: {
-              prompt_id: next.id,
-              prompt: next.graph,
-              preset: next.preset,
-            },
-          });
-          if (!result.ok) {
-            const rejection = await result.json().catch(() => null);
-            if (
-              [409, 422].includes(result.status) &&
-              rejection?.accepted === false
-            ) {
-              next.state = "failed";
-              next.output_save_state = "not_applicable";
-              next.error = rejection.error;
-              this.save(next);
-              return;
-            }
-            throw new Error("Uncertain submission");
-          }
-          await result.body?.cancel();
-          next.state = "running";
-          this.save(next);
-        } catch {
-          next.state = "needs_attention";
-          next.error =
-            "Submission response was lost or rejected. Reconciling before any further work.";
-          this.save(next);
-        }
+        await this.dispatch(next, cap.engine_session_id);
         return;
       }
     }
@@ -594,6 +592,33 @@ export class Jobs {
           : !this.paused
             ? "Pause the queue before stopping the pod."
             : "No active work or unsaved outputs.";
+  }
+  private async dispatch(job: Job, session: string) {
+    job.state = 'submitting'; job.submission_pending = true;
+    if (job.metrics && !job.metrics.submitted_at) job.metrics.submitted_at = new Date().toISOString();
+    this.save(job);
+    try {
+      const response = await this.worker.request('/comfy/prompt', {
+        method: 'POST', session,
+        body: {prompt_id: job.id, prompt: job.graph, preset: job.preset},
+      });
+      if (!response.ok) {
+        const rejection = await response.json().catch(() => null);
+        if ([409,422].includes(response.status) && rejection?.accepted === false) {
+          job.submission_pending = false; job.state = 'failed';
+          job.output_save_state = 'not_applicable'; job.error = rejection.error;
+          this.save(job); return;
+        }
+        throw new WorkerHttpError(response.status);
+      }
+      await response.body?.cancel();
+      job.submission_pending = false; job.state = 'running'; job.error = null;
+    } catch (error) {
+      job.state = 'needs_attention';
+      if (error instanceof WorkerHttpError && error.permanent) job.submission_pending = false;
+      job.error = 'Submission response unavailable. Reconciling the original job before any further work.';
+    }
+    this.save(job);
   }
   private manifest(job: Job, record: any) {
     if (
@@ -635,6 +660,7 @@ export class Jobs {
     return manifest;
   }
   private async retrieve(job: Job, outputs: Output[], digest: string) {
+    const abort = new AbortController(); this.transfer = {id: job.id, abort};
     try {
       if (job.output_save_state !== "saved") {
         job.state = "copying";
@@ -670,10 +696,10 @@ export class Jobs {
             if (offset < output.size) {
               const response = await this.worker.request(
                 `/worker/v1/jobs/${job.id}/outputs/${output.id}`,
-                { range: offset },
+                { range: offset, signal: abort.signal },
               );
-              if (!response.ok || !response.body)
-                throw new Error("Output transfer interrupted.");
+              if (!response.ok) { await response.body?.cancel(); throw new WorkerHttpError(response.status); }
+              if (!response.body) throw new TransferIntegrityError('Empty output response.');
               if (offset && response.status === 200) offset = 0;
               else if (
                 offset &&
@@ -682,14 +708,14 @@ export class Jobs {
                     `bytes ${offset}-${output.size - 1}/${output.size}`)
               ) {
                 await response.body.cancel();
-                throw new Error("Invalid resumed transfer.");
+                throw new TransferIntegrityError("Invalid resumed transfer.");
               }
               const handle = await open(temporary, offset ? "a" : "w");
               try {
                 for await (const chunk of response.body as any) {
                   offset += chunk.length;
                   if (offset > output.size)
-                    throw new Error("Unexpected image size");
+                    throw new TransferIntegrityError("Unexpected output size.");
                   await handle.writeFile(chunk);
                 }
                 await handle.sync();
@@ -701,6 +727,8 @@ export class Jobs {
               throw new Error("Image transfer is incomplete.");
             if ((await hashFile(temporary)) !== output.sha256) {
               unlinkSync(temporary);
+              job.integrity_failures = (job.integrity_failures ?? 0) + 1;
+              if (job.integrity_failures >= 2) throw new TransferIntegrityError('Output integrity verification failed twice.');
               throw new Error(
                 "Image integrity check failed; retrying transfer.",
               );
@@ -753,15 +781,16 @@ export class Jobs {
         })();
       }
       await this.acknowledgeOutputs(job, digest);
-    } catch {
+    } catch (error) {
       if (job.output_save_state !== "saved") {
         job.state = "copy_pending";
         job.error =
           "Image transfer interrupted. The worker copy is retained; transfer will retry when connected.";
+        if (actionableTransfer(error)) this.blockRecovery(job, error);
         this.save(job);
       }
       // A lost acknowledgment never rolls back a durable local save.
-    }
+    } finally { this.transfer = undefined; }
   }
   private async acknowledgeOutputs(job: Job, digest: string) {
     try {
@@ -771,7 +800,8 @@ export class Jobs {
       );
       job.cleanup_state = receipt.cleanup_complete ? "complete" : "pending";
       this.save(job);
-    } catch {
+    } catch (error) {
+      if (actionableTransfer(error)) this.blockRecovery(job, error);
       /* Terminal outcome remains durable; retry cleanup independently. */
     }
   }

@@ -10,6 +10,13 @@ from worker.app import create_app
 SECRET = 'test-only-secret-' * 3
 ORIGIN = 'http://127.0.0.1:8080'
 
+def test_managed_worker_exposes_preparation_without_network_enrollment(tmp_path):
+    app = create_app(tmp_path/'volume', tmp_path/'runtime', SECRET, ORIGIN,
+                     development=True, managed_preparation=True)
+    routes = {route.resource.canonical for route in app.router.routes()}
+    assert '/worker/v1/preparation' in routes
+    assert '/worker/v1/network' not in routes
+
 async def client_for(tmp_path, now):
     app = create_app(tmp_path / 'volume', tmp_path / 'runtime', SECRET, ORIGIN, development=True, clock=lambda: now[0])
     client = TestClient(TestServer(app), cookie_jar=CookieJar(unsafe=True))
@@ -40,7 +47,9 @@ async def test_exchange_single_use_rotation_and_restart(tmp_path):
         assert (await client.get('/worker/v1/status', headers={'Authorization': 'Bearer ' + first['worker_credential']})).status == 401
         response = await client.get('/worker/v1/status', headers={'Authorization': 'Bearer ' + second['worker_credential']})
         assert response.status == 200
-        assert (await response.json())['pending_output_count'] is None
+        status = await response.json()
+        assert status['pending_output_count'] is None
+        assert 'networking_version' not in status
         assert second['worker_credential'] not in (tmp_path / 'runtime/credential.json').read_text()
     finally:
         await client.close()

@@ -1,6 +1,6 @@
 # SSH-only reliability implementation plan
 
-Status: proposed for owner approval. September 12, 2026.
+Status: approved; implementation and acceptance tests in progress. September 12, 2026.
 Branch: `feat/tailscale-networking`; keep this experimental branch until the
 release/user checkpoint. This replaces the design in [NETWORKING.md](NETWORKING.md).
 The previous implementation and investigation remain historical evidence.
@@ -34,6 +34,12 @@ Three existing owners remain:
 | `operations/tunnel.mjs` | Reopen the same SSH tunnel; report connecting, usable, or terminal failure; stop cleanly. |
 | `operations/preparation.mjs` | Keep one preparation invocation alive through transient faults and reconcile the same manifest/upload. |
 | `server/jobs.ts` | Persist and reconcile jobs, retry inputs/output saving/receipts, and prevent duplicate execution. |
+
+Implementation decisions: permanent file failures pause the existing queue, retain
+files, and require its existing Resume action after the cause is fixed. There is
+no new recovery screen. Preparation watches the existing authenticated local SSH
+supervisor control: a temporary SSH reconnect keeps that control alive; a stopped
+or replaced supervisor ends preparation with a reconnect instruction.
 
 Small helpers for typed errors, waiting, and transfer bodies are appropriate if
 they simplify these modules. Do not put a universal retry loop in provider

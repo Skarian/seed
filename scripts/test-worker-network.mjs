@@ -1,4 +1,4 @@
-// Real worker API + official tusd/containerboot, local Docker only; no inference.
+// Real worker API + official tusd, local Docker only; no inference.
 import {execFile,spawn} from 'node:child_process';
 import {promisify} from 'node:util';
 import {randomBytes,createHash,randomUUID} from 'node:crypto';
@@ -9,8 +9,6 @@ import {createServer} from 'node:net';
 import {setTimeout as delay} from 'node:timers/promises';
 import assert from 'node:assert/strict';
 import {request as httpRequest} from 'node:http';
-import envPaths from 'env-paths';
-import {enrollmentKey,tailscaleOrigin} from '../operations/tailscale.mjs';
 
 const execute=promisify(execFile), name=`seed-worker-network-${process.pid}`;
 const docker=async(...args)=>(await execute('docker',args,{windowsHide:true,maxBuffer:8*1024*1024})).stdout.trim();
@@ -18,7 +16,7 @@ const hash=b=>createHash('sha256').update(b).digest('hex');
 const secret=randomBytes(32).toString('hex');
 const bytes=randomBytes(8*1024*1024), split=3*1024*1024;
 const item={path:'diffusion_models/network-test.bin',size:bytes.length,sha256:hash(bytes),url:'https://huggingface.co/seed/test/resolve/'+'a'.repeat(40)+'/test.bin'};
-let created=false,origin,connection,peer,tunnel,tunnelClosed;
+let created=false,origin,connection,tunnel,tunnelClosed;
 const evidence={started_at:new Date().toISOString(),checks:[]};
 const directory=new URL('../.local/networking/',import.meta.url);await mkdir(directory,{recursive:true});
 const keys=await mkdtemp(path.join(fileURLToPath(directory),'ssh-test-'));
@@ -96,19 +94,6 @@ try {
     evidence[route+'_output']={bytes:received.length,seconds:(performance.now()-begin)/1000};
   }
   await outputCheck(origin,'ssh');
-  if(process.argv.includes('--tailscale')){
-    const key=await enrollmentKey(envPaths('RunpodStudio',{suffix:''}));
-    await json('/worker/v1/network',{method:'POST',body:{auth_key:key}});
-    peer=await poll(async()=>{const n=await json('/worker/v1/network');return n.state==='ready'?n:null;});
-    const endpoint=tailscaleOrigin(peer.address);
-    const response=await fetch(endpoint+'/worker/v1/status',{headers:{Authorization:'Bearer '+connection.worker_credential},signal:AbortSignal.timeout(10000)});
-    assert.equal(response.status,200);assert.equal((await response.json()).worker_instance_id,connection.worker_instance_id);
-    await outputCheck(endpoint,'tailscale');
-    await docker('restart',name);await mapping();
-    const resumed=await poll(async()=>{const n=await json('/worker/v1/network');return n.state==='ready'?n:null;});
-    assert.equal(resumed.peer_id,peer.peer_id);assert.equal(resumed.address,peer.address);
-    evidence.checks.push('real tagged Tailscale enrollment','authenticated raw TCP Serve','same Tailscale peer survives restart without new key');
-  }
   const record=await json('/worker/v1/jobs/'+job);
   assert.equal((await json('/worker/v1/jobs/'+job+'/receipt',{method:'POST',body:{manifest_digest:record.manifest_digest}})).cleanup_complete,true);
   assert.equal((await request('/worker/v1/jobs/'+job+'/outputs/test')).status,404);
@@ -117,10 +102,9 @@ try {
 } catch(error){evidence.passed=false;evidence.error=error.message;throw error;}
 finally {
   if(created){
-    const redact=s=>s.replace(/tskey-[A-Za-z0-9_-]+/g,'[REDACTED]').replaceAll(secret,'[REDACTED]');
+    const redact=s=>s.replaceAll(secret,'[REDACTED]');
     await writeFile(new URL('worker-network.log',directory),redact(await docker('logs',name).catch(e=>e.stderr||e.message)));
-    for(const file of ['tailscale','tusd','comfy'])await writeFile(new URL(file+'-integration.log',directory),redact(await docker('exec',name,'cat','/var/lib/seed/'+file+'.log').catch(e=>e.stderr||e.message)));
-    if(peer)await docker('exec',name,'/usr/local/bin/tailscale','--socket=/var/lib/seed/tailscale/tailscaled.sock','logout').catch(()=>{});
+    for(const file of ['tusd','comfy'])await writeFile(new URL(file+'-integration.log',directory),redact(await docker('exec',name,'cat','/var/lib/seed/'+file+'.log').catch(e=>e.stderr||e.message)));
     await docker('rm','-f',name);
   }
   await stopTunnel();await rm(keys,{recursive:true,force:true});

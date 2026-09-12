@@ -49,25 +49,10 @@ modules individually. Rerun setup only when configuration needs changing.
 GPU preparation reuses verified remote files, tries direct downloads, then uses PC
 fallback only if enabled. A missing local fallback file is downloaded and verified
 before transfer. Source tokens travel through the authenticated worker API over
-SSH or Tailscale and are not persisted on GPU.
+SSH and are not persisted on GPU.
 
 Private `model-presets.json` is an array of pinned LoRA entries: path, url, size,
 sha256, route (`image`, `fl`, `ref`) and optional strength. Resolve user-provided
 Civitai links through its metadata API; pin an exact version and file:
 `https://civitai.com/api/download/models/VERSION_ID?fileId=FILE_ID`.
 Never choose or update a LoRA silently. Base models are pinned in the package.
-
-## Optional Tailscale worker networking
-
-Install and sign into the official Tailscale client on the PC. Create a Tailscale
-OAuth trust credential with only Auth Keys write access, restricted to
-`tag:seed-worker`. Run `seed setup --tailscale` to enter its client ID and secret
-through masked prompts. Keep the OAuth credential on the PC. The agent may help
-configure the account using the owner's authorized scope; inspect existing access
-rules before changing them.
-
-The tailnet policy should allow the Seed PC to reach tagged workers on TCP 8080,
-without allowing workers to initiate connections to personal devices. Select
-`connect --route tailscale` explicitly. Initial pairing still uses SSH; subsequent
-Tailscale reconnections do not. Browser access to the local Seed app stays as it
-was. Public access and login are outside this networking feature.

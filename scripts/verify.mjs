@@ -28,6 +28,8 @@ for (const [command, args] of [
       "tests/operations/connection.test.mjs",
       "tests/operations/recovery.test.mjs",
       "tests/operations/tunnel.test.mjs",
+      "tests/operations/preparation.test.mjs",
+      "tests/operations/preparation-upload.test.mjs",
     ],
   ],
   [

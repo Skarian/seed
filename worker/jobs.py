@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 from aiohttp import ClientSession, ClientTimeout, web
 from worker.spool import job_directory, read_record, atomic
+from worker.inputs import save_input
 
 
 def install(app, workspace, comfy_url, authenticated, preparation=None):
@@ -80,10 +81,7 @@ def install(app, workspace, comfy_url, authenticated, preparation=None):
 
     async def upload(request):
         authorize(request)
-        # Native Comfy upload accepts media extensions, despite its historical route name.
-        async with ClientSession(timeout=ClientTimeout(total=600)) as client:
-            async with client.post(comfy_url + '/upload/image', data=request.content, headers={'Content-Type':request.headers['Content-Type']}, allow_redirects=False) as result:
-                return web.Response(body=await result.read(),status=result.status,content_type='application/json')
+        return await save_input(request, root)
 
     async def relay(request):
         authorize(request)
