@@ -68,3 +68,16 @@ Verification passed: 44 app tests, 44 operational tests, 42 worker tests (one
 skip), build/typecheck and secret scan. Archive contents exclude pod-setup and
 include the secret helper. Isolated package lifecycle, reinstall and rollback
 acceptance passed. No GPU was rented for this removal.
+
+## Additional legacy cleanup
+
+Removed stale LoRA/job planning examples, the checkout-local Vast state importer
+(after confirming migrated state), and the old preview-address override. Removed
+the supervisor's token-driven download branch; the transfer receiver retains its
+shared pinned HF download helper. Identity-edit weights remain unchanged.
+
+Build/typecheck, 44 app tests, 44 operational tests and 37 worker tests (one skip)
+passed, with no credential scan matches. A local network-disabled candidate image
+passed verification, warm reuse and both transport-configuration smoke checks.
+Publication is pending approval after automatic review rejected the GHCR push;
+the deployed worker digest remains unchanged. No GPU was rented.

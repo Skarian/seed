@@ -81,3 +81,5 @@ benchmarks and identity editing remain separate work.
 - npm publication, identity editing and maximum-reference capacity tests stay deferred.
 
 - [x] Retired volume/template CLI, provisioning and pairing fallback; kept only current rental secrets.
+
+- [x] Removed stale planning JSON examples, checkout-state import, preview-address override and duplicate supervisor download path. Identity-edit LoRA retained.

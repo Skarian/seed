@@ -21,27 +21,19 @@ def preparation_failure(exc):
         cause = cause.__cause__ or cause.__context__
         if cause is None: break
     if number in (errno.ENOSPC, errno.EDQUOT):
-        message = 'Model storage is full or its volume quota was reached. Increase the volume capacity or remove unused models, then restart to resume.'
-    elif status in (401, 403):
-        message = 'Hugging Face denied this model download. Check HF_TOKEN and your account access to the model, then restart to resume.'
-    elif status == 404:
-        message = 'A pinned model file is unavailable at Hugging Face. Check the model manifest before retrying.'
-    elif status == 429:
-        message = 'Hugging Face rate-limited this download. Wait before restarting to resume.'
-    elif isinstance(exc, (TimeoutError, ConnectionError)) or 'timeout' in type(exc).__name__.lower() or 'connect' in type(exc).__name__.lower():
-        message = 'The model download connection was interrupted. Restart the pod to resume the staged download.'
+        message = 'Model storage is full or its volume quota was reached. Increase the worker disk capacity or remove unused models, then restart to resume.'
     else:
         message = f'Model preparation failed ({type(exc).__name__}). Inspect the private preparation-error.json record through Jupyter before retrying.'
     return message, {'exception': type(exc).__name__, 'http_status': status if isinstance(status, int) else None, 'errno': number if isinstance(number, int) else None}
 
 
-def prepare_process(workspace, manifest, token, messages, diagnostics=None):
+def prepare_process(workspace, manifest, messages, diagnostics=None):
     current = {}
     def report(**value):
         current.update(value)
         messages.put(value)
     try:
-        prepare(workspace, manifest, token, report=report)
+        prepare(workspace, manifest, report=report)
     except Exception as exc:
         message, details = preparation_failure(exc)
         # Never persist raw exception strings: provider errors can contain signed
@@ -116,7 +108,6 @@ def main():
                 jupyter_token = os.environ.get('JUPYTER_TOKEN', '')
                 if len(jupyter_token) < 24:
                     raise ValueError('Set a private JUPYTER_TOKEN of at least 24 characters.')
-                token = os.environ.get('HF_TOKEN', '')
                 config = runtime/'jupyter_config.py'
                 config.write_text('c.IdentityProvider.token = ' + repr(jupyter_token) + '\n')
                 jupyter_log = open(runtime/'jupyter.log', 'ab'); handles.append(jupyter_log)
@@ -138,7 +129,7 @@ def main():
                 manifest = json.loads((Path(__file__).parent/'models.json').read_text())
                 context = multiprocessing.get_context('spawn')
                 messages = context.Queue()
-                preparation_process = context.Process(target=prepare_process, args=(workspace, manifest, token, messages, runtime/'preparation-error.json'), daemon=True)
+                preparation_process = context.Process(target=prepare_process, args=(workspace, manifest, messages, runtime/'preparation-error.json'), daemon=True)
                 preparation_process.start()
                 while True:
                     if jupyter.returncode is not None:

@@ -17,7 +17,7 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
   const hook=path.join(root,'model-fixture.mjs');
   writeFileSync(hook, `import {registerHooks} from 'node:module'; registerHooks({resolve(s,c,next){if(s==='./model-cache.js'&&c.parentURL?.endsWith('/cli.js')) return {url:'data:text/javascript,export async function prepareModels() {}',shortCircuit:true};return next(s,c);}});`);
   env.NODE_OPTIONS=`--import=${pathToFileURL(hook).href}`;
-  delete env.STUDIO_PORT; delete env.STUDIO_PREVIEW_ADDRESS; delete env.SEED_MANAGED;
+  delete env.STUDIO_PORT; delete env.SEED_MANAGED;
   const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
   try {
     await run('setup', '--provider', 'runpod', '--port', String(port));

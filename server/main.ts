@@ -7,7 +7,7 @@ import { startControl } from './lifecycle.js';
 const paths = resolvePaths(process.env.STUDIO_DEV_ROOT);
 const config = settings(paths);
 const port = Number(process.env.STUDIO_PORT ?? config.port);
-const host = process.env.STUDIO_PREVIEW_ADDRESS ?? config.host;
+const host = config.host;
 validateAddress(host, port);
 const app = await createApp({ paths, port, host });
 let closeControl: (() => Promise<void>) | undefined;

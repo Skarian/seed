@@ -188,7 +188,6 @@ export class SeedVast {
     { fetcher = fetch, env = process.env, startBackground = background, checkPort = freePort } = {},
   ) {
     this.repo = path.resolve(repo);
-    this.work = path.join(this.repo, ".local/seed-vast");
     this.fetcher = fetcher;
     this.env = env;
     this.startBackground = startBackground;
@@ -221,11 +220,6 @@ export class SeedVast {
     this.work = this.privateDir;
     this.stateFile = path.join(this.work, "state.json");
     this.state = await readJson(this.stateFile);
-    // Preserve an older checkout's rental record when upgrading in place.
-    if (!this.state) {
-      const legacy = await readJson(path.join(this.repo, ".local/seed-vast/state.json"));
-      if (legacy) { this.state = legacy; await this.saveState(); }
-    }
     this.tunnelPaths = { config: path.join(this.privateDir, "tunnel") };
     this.key = path.join(this.privateDir, "ssh-key");
     this.knownHosts = path.join(this.privateDir, "known-hosts");

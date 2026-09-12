@@ -17,7 +17,7 @@ Provider keys stay on the PC. Existing
 token-supplied workers remain compatible; changing code does not remove their keys.
 
 `worker/run.py` serves the connection page while waiting for or verifying models. Jupyter is a
-separate administration tool. Without HF_TOKEN, `prepare.py` waits for externally prepared
+separate administration tool. `prepare.py` always waits for externally prepared
 manifest files and verifies/reuses them; it makes no model-source requests. Comfy starts privately after preparation; child
 processes do not inherit download/pairing secrets. The Vast bootstrap supplies
 secrets through SSH stdin and invokes the entrypoint without rewriting source.
