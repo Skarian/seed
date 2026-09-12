@@ -53,7 +53,9 @@ publication and identity editing are deferred.
 - [ ] RunPod startup, prepare, pair, reconnect and confirmed teardown.
 - [x] Vast verified-host acquisition, prepare, pair, reconnect and confirmed teardown (startup needed recovery; see validation).
 - [x] Cold Vast launch with the final authorized_keys/host-key hook: Ready without intervention in about 14 minutes.
-- [ ] Investigate Civitai HTTP 403 responses; automatic PC fallback passed on both live hosts.
+- [x] Reproduce Civitai HTTP 403 locally: valid personal key with download permission; urllib default User-Agent rejected, explicit Seed User-Agent succeeds. Apply header fix.
+- [x] Overlap base and preset preparation with two bounded lanes; join before activation and on failure; serialize shared hashes.
+- [ ] Live-test overlapping preparation and the Civitai header fix; measure message-to-final time with the same full manifest.
 - [x] Record provider state and passed/failed/not-tested matrix.
 - [ ] Record settled provider charges (billing has not posted).
 - [ ] Owner desktop/mobile review and actual sign-in check.

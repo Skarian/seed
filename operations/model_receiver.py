@@ -152,7 +152,9 @@ def civitai_fetch(item, stage, token):
         partial.unlink(); offset = 0
     url = item['url']
     for attempt in range(6):
-        headers = {'Range': f'bytes={offset}-'} if offset else {}
+        # Civitai rejects urllib's default User-Agent even with a valid API key.
+        headers = {'User-Agent': 'Seed/0.1'}
+        if offset: headers['Range'] = f'bytes={offset}-'
         if attempt == 0 and token: headers['Authorization'] = 'Bearer ' + token
         try:
             response = opener.open(urllib.request.Request(url, headers=headers), timeout=120)

@@ -6,6 +6,19 @@ import {pipeline} from 'node:stream/promises';
 import {fileURLToPath,pathToFileURL} from 'node:url';
 import path from 'node:path';
 
+export async function sshTransfer(ssh,command,input,spawnProcess=spawn){
+  const child=spawnProcess('ssh',[...ssh,command],{windowsHide:true,stdio:['pipe','pipe','pipe']});
+  const output=[];let size=0;
+  child.stdout.on('data',b=>{size+=b.length;if(size<1024*1024)output.push(b);});
+  child.stderr.resume();
+  const completion=new Promise((resolve,reject)=>{child.on('error',()=>reject(Error('Could not start SSH transfer')));child.on('close',code=>code===0?resolve():reject(Error('Model transfer failed; rerun boot to resume.')));});
+  const sending=pipeline(input,child.stdin).catch(error=>{child.kill();throw error;});
+  const results=await Promise.allSettled([sending,completion]);
+  const failure=results.find(result=>result.status==='rejected');
+  if(failure) throw failure.reason;
+  return Buffer.concat(output).toString('utf8');
+}
+
 export async function transferModels(repo, paths, ssh, {workspace='/workspace',say=console.error,invoke:providedInvoke}={}) {
   const {modelManifest,modelFile,cached,downloadModel}=await import(pathToFileURL(path.join(repo,'dist/server/model-cache.js')));
   const entries=await modelManifest(paths);
@@ -19,31 +32,22 @@ export async function transferModels(repo, paths, ssh, {workspace='/workspace',s
     : (process.env.CIVITAI_API_TOKEN || credentials.civitaiApiToken || '');
   // Persist only integrity metadata remotely; send each source token over SSH stdin.
   const metadata=entries.map(({url,...item})=>item);
-  async function sshInvoke(command,input){
-    const child=spawn('ssh',[...ssh,command],{windowsHide:true,stdio:['pipe','pipe','pipe']});
-    const output=[];let size=0;
-    child.stdout.on('data',b=>{size+=b.length;if(size<1024*1024)output.push(b);});
-    child.stderr.resume();
-    const completion=new Promise((resolve,reject)=>{child.on('error',()=>reject(Error('Could not start SSH transfer')));child.on('close',code=>code===0?resolve():reject(Error('Model transfer failed; rerun boot to resume.')));});
-    await Promise.all([pipeline(input,child.stdin),completion]);
-    return Buffer.concat(output).toString('utf8');
-  }
-  const invoke=providedInvoke ?? sshInvoke;
+  const invoke=providedInvoke ?? ((command,input)=>sshTransfer(ssh,command,input));
   await invoke('umask 077; cat > /root/seed-model-receiver.py',Readable.from([await readFile(new URL('./model_receiver.py',import.meta.url))]));
   const request=async body=>JSON.parse(await invoke('/opt/venv/bin/python /root/seed-model-receiver.py',Readable.from([JSON.stringify({workspace,...body})+'\n'])));
   say('Checking models already on the VM…');
   const remote=await request({action:'probe',entries:metadata});
-  for(const item of entries){
+  async function transfer(item){
     const state=remote.find(x=>x.path===item.path);
     if(!state || !Number.isSafeInteger(state.offset)||state.offset<0||state.offset>item.size)throw Error('Invalid VM transfer response.');
-    if(state.ready){say(`Already on VM: ${item.path}`);continue;}
+    if(state.ready){say(`Already on VM: ${item.path}`);return;}
     say(`Downloading directly on GPU: ${item.path}`);
     const started=Date.now();
     const heartbeat=setInterval(()=>say(`GPU is downloading/verifying ${item.path} (${Math.round((Date.now()-started)/1000)}s)`),30000);
     let direct;
     try { direct=await request({action:'download',item,token:tokenFor(item)}); }
     finally { clearInterval(heartbeat); }
-    if(direct.ready === true){say(`Verified on GPU: ${item.path} (${direct.seconds}s)`);continue;}
+    if(direct.ready === true){say(`Verified on GPU: ${item.path} (${direct.seconds}s)`);return;}
     const errorType=/^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(direct.error_type ?? '') ? direct.error_type : 'unknown error';
     const httpStatus=Number.isInteger(direct.http_status) && direct.http_status>=100 && direct.http_status<=599 ? `, HTTP ${direct.http_status}` : '';
     say(`Direct download diagnostic: ${item.path}: ${errorType}${httpStatus} (${direct.seconds}s).`);
@@ -65,6 +69,20 @@ export async function transferModels(repo, paths, ssh, {workspace='/workspace',s
     }
     await invoke('/opt/venv/bin/python /root/seed-model-receiver.py',Readable.from(content()));
   }
+  const bases=entries.filter(item=>!item.route), presets=entries.filter(item=>item.route);
+  const baseHashes=new Set(bases.map(item=>item.sha256));
+  // Download staging is hash-addressed. Shared assets must not run concurrently.
+  const lanes=presets.some(item=>baseHashes.has(item.sha256)) ? [entries] : [bases,presets];
+  let failure;
+  await Promise.allSettled(lanes.map(async items=>{
+    for(const item of items){
+      if(failure) return;
+      try { await transfer(item); }
+      catch(error){failure ??= error;throw error;}
+    }
+  }));
+  // Join in-flight transfers before returning an error so cleanup cannot race them.
+  if(failure) throw failure;
   // Call during bootstrap, before starting the engine; never while jobs are running.
   const result=await request({action:'activate',entries:metadata});
   say(`Models verified on VM; ${result.presets} presets activated.`);

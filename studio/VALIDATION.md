@@ -137,3 +137,25 @@ charges were only $0.312 at that check, with bandwidth still unposted; this is n
 the final total. Account credit was $38.2943. The remaining download issue is the
 reason for Civitai's HTTP 403, not SSH or automatic fallback. RunPod's complete
 lifecycle remains unproven separately.
+
+## Civitai diagnosis and concurrent preparation
+
+Read-only Civitai identity validation accepted the configured personal API key and
+confirmed model-download permission. No environment credential shadowed it. Tiny
+range requests from the PC succeeded for all three configured files through the
+Civitai redirect to its storage endpoint. No key replacement is needed.
+
+A controlled local Python comparison reproduced HTTP 403 from civitai.com with
+urllib's default User-Agent. Changing only that header to `Seed/0.1` produced
+HTTP 307 followed by HTTP 200; a one-byte Range variation produced HTTP 206.
+Responses were closed without full-file downloads, and credentials/signed URLs
+were not logged. The receiver now sends that explicit User-Agent. This reproduces
+and fixes the rejection locally; live GPU verification remains outstanding.
+
+Base models and user presets now prepare in two sequential lanes concurrently.
+Shared hashes force serial execution because staging is hash-addressed. Both
+lanes finish before activation; failures stop new transfers and join in-flight
+work. SSH input failures terminate and await the child before returning. Nine
+CLI transfer tests and six Python transfer tests passed, including overlap,
+failure joining, shared hashes, and authorization removal across redirects.
+No GPU was rented for this implementation. No measured speedup is claimed yet.

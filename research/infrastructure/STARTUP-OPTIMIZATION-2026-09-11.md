@@ -1,5 +1,11 @@
 # Seed startup optimization review
 
+Implementation follow-up: bounded overlap and the Civitai User-Agent fix are now
+implemented. Local credential and request comparison ruled out the owner's key
+type/permissions and reproduced the default Python-header rejection. See the
+latest [validation](../../studio/VALIDATION.md). Performance estimates below remain
+unverified until a new authorized live run.
+
 Research and three independent reviewer passes; no GPU rented and no runtime code
 changed for this review. Scope: shorten the user's complete wait without adding
 storage services, orchestration infrastructure, or weakening verification.
