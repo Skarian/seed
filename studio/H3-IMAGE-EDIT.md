@@ -73,6 +73,14 @@ frame and disable its checkmark while only a temporary preview is available.
 
 Keep only is enabled for a nonempty selection. Confirm with concrete counts, for example
 "Keep 6 frames and delete the other 114?" Canceling selection changes nothing.
+The confirmation is mandatory before any destructive request. Include that
+deleted frames are permanently removed from the PC and the action cannot be
+undone. Canceling the dialog preserves the selection and all frames.
+Current image deletion in web/main.tsx uses native window.confirm, not a shared
+custom confirmation component. Reuse that native confirmation approach initially
+through a small shared helper if useful; do not introduce a dialog framework.
+If a styled dialog becomes necessary during UI review, extract one small shared
+component for both image deletion and Keep only rather than separate versions.
 Confirming retains those frames in their original order and updates the card
 count/cover. This is destructive pruning, not promotion into Library. All frames
 remain saved unless explicitly pruned or the sequence is deleted. No expiry.
