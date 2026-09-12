@@ -28,7 +28,7 @@ container regression recreated UID 111/GID 987 and verified correction to root,
 the older image module; rerunning with `/testing` as the working directory tested
 the mounted corrected source and passed.
 
-Release status: source fix is not yet included in the pinned published image.
-This live rental has the equivalent correction in its onstart command. Publish
-and pin the correction before the next ordinary rental; do not disrupt this
-owner-requested session to replace its image.
+Release follow-up: the owner requested complete deletion and a fresh timed test.
+The fix is now published and pinned at `sha256:a48f56da5d5fd2699f436a1941dd62288257b4930504f59dfee949000501405e`.
+The [fresh lifecycle test](2026-09-12-vast-fresh-lifecycle.md) passed with standard
+startup and no manual ownership correction. Both rentals and disks were deleted.

@@ -15,9 +15,11 @@ unattended acceptance tests passed. The next owner checkpoint is the LAN app.
 - [x] Capture evidence before deleting test VM/disks; verify inventories and record posted charges/estimates.
 - [x] Update installed package/skill and reconcile the previously discarded frame job.
 - [ ] Owner reviews recovery status and Library through the existing LAN address.
-- [ ] Publish/pin the confirmed Vast SSH key-ownership fix before the next rental
-  ([diagnosis](../research/infrastructure/2026-09-12-vast-ssh-ownership.md)). Current
-  owner session has the correction applied and must remain running.
+- [x] Publish/pin the confirmed Vast SSH key-ownership fix; fresh unmodified Vast
+  launch passed and both old/new rentals and disks were deleted at the owner's request.
+- [ ] Handle Comfy capability polling during model preparation as an expected
+  not-ready state rather than logging HTTP 500. Cause and before/after responses
+  are documented in the [fresh lifecycle test](../research/infrastructure/2026-09-12-vast-fresh-lifecycle.md).
 
 The previous [networking log](NETWORKING.md) and
 [RunPod investigation](../research/infrastructure/2026-09-12-runpod-tailscale-throughput.md)
