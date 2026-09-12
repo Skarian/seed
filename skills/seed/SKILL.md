@@ -34,6 +34,11 @@ higher price, while retaining suitable hardware, host reliability and network sp
 Explain the tradeoff when selecting a more expensive offer within the user's
 authorization. Include disk, transfers and expected runtime in the total budget;
 a generous total budget is not a reason to disregard the hourly preference.
+Prefer low bandwidth charges too. Estimate model-download cost from the expected
+GB and the provider's per-GB rate, include image pulls where billed, and compare
+total startup/session cost. A cheap GPU with expensive transfers may be poor value;
+fast networking alone does not justify high transfer fees. This is a preference,
+not an invented fixed per-GB ceiling.
 
 The app supports text-to-image, text-to-video and reference-to-video, Library
 reuse and SFW/LoRA-enabled modes. Identity editing is unfinished. Do not submit

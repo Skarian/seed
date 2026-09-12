@@ -13,6 +13,8 @@ publication and identity editing are deferred.
 - Vast prioritizes verified hosts, high reliability and network performance.
 - Strongly prefer compute under $2/hour; this is not a hard ceiling. Exhaust
   reasonable cheaper candidates before considering a higher-priced test rental.
+- Prefer low bandwidth charges; compare expected model/image transfer, storage and
+  compute costs together rather than selecting on GPU price or throughput alone.
 - RunPod defaults to global placement and disposable disk; existing volumes stay untouched.
 - Direct model downloads first, optional PC cache/fallback. User data stays on PC.
 - Bounded recovery; verify uncertain outcomes before retrying. Clean up failed new

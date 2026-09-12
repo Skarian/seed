@@ -356,6 +356,7 @@ export class SeedVast {
   async offers({
     disk = 180,
     gpus = ["RTX PRO 6000 WS", "RTX PRO 6000 S"],
+    allGpus = false,
     minVram = 90,
     minRam = 96,
     maxHourly,
@@ -368,12 +369,12 @@ export class SeedVast {
     if (!Number.isFinite(minVram) || minVram<=0 || !Number.isFinite(minRam) || minRam<=0) throw Error('Invalid hardware search limits.');
     if ((maxHourly!==undefined && (!Number.isFinite(maxHourly) || maxHourly<=0)) || !Number.isFinite(minDownload) || minDownload<0)throw Error('Invalid price or network search limit.');
     const q = {
-      verification: { eq: 'verified' },
+      verified: { eq: true },
       external: { eq: false },
       rentable: { eq: true },
       rented: { eq: false },
       num_gpus: { eq: 1 },
-      gpu_name: { in: gpus },
+      ...(allGpus ? {} : {gpu_name: { in: gpus }}),
       gpu_ram: { gte: minVram * 1000 },
       cpu_ram: { gte: minRam * 1000 },
       cuda_max_good: { gte: 13 },
@@ -811,12 +812,14 @@ export async function main(argv) {
       "max-hourly": { type: "string" },
       "disk-gb": { type: "string", default: "180" },
       gpu: { type: "string", multiple: true },
+      'all-gpus': {type:'boolean',default:false},
       'min-vram': { type: 'string', default: '90' },
       'min-ram': { type: 'string', default: '96' },
       'min-download-mbps': {type:'string',default:'0'},
     },
   });
   const [command] = positionals;
+  if(values['all-gpus'] && values.gpu)throw Error('Choose --all-gpus or --gpu, not both.');
   if(command==='help')return {
     provider:'vast',
     commands:{doctor:'Local dependencies/configuration',offers:'Verified hosts ordered by reliability and network speed; --gpu NAME (repeatable), --disk-gb, --min-vram, --min-ram, --max-hourly, --min-download-mbps',rent:'--offer-id ID --max-hourly USD --disk-gb 180',wait:'Bounded wait for startup/direct SSH',boot:'Prepare models and start worker; rerun to resume',preparation:'Worker preparation status',connect:'Private SSH tunnel and automatic pairing',status:'Provider and local studio status',reconcile:'Resolve uncertain creation before retrying',billing:'Recorded-instance billing and account balance',destroy:'Verify outputs then delete recorded instance/disk',stop:'Explicitly retain billable disk'},
@@ -840,7 +843,7 @@ export async function main(argv) {
     throw error;
   }
   if (command === "offers")
-    return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu, minVram:Number(values['min-vram']), minRam:Number(values['min-ram']),maxHourly:values['max-hourly']===undefined?undefined:Number(values['max-hourly']),minDownload:Number(values['min-download-mbps']) });
+    return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu, allGpus:values['all-gpus'], minVram:Number(values['min-vram']), minRam:Number(values['min-ram']),maxHourly:values['max-hourly']===undefined?undefined:Number(values['max-hourly']),minDownload:Number(values['min-download-mbps']) });
   if (command === "rent")
     return app.rent({
       offerId: Number(values["offer-id"]),

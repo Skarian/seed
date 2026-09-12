@@ -16,7 +16,10 @@ test('offers reject nonverified provider results and preserve price/network cons
   const offers=await app.offers({maxHourly:2,minDownload:1000});
   assert.deepEqual(offers.map(o=>o.id),[1]);
   assert.deepEqual(query.dph_total,{lte:2});assert.deepEqual(query.inet_down,{gte:1000});
+  assert.deepEqual(query.verified,{eq:true});assert.equal(query.verification,undefined);
   assert.deepEqual(query.order.slice(0,2),[['reliability2','desc'],['inet_down','desc']]);
+  await app.offers({allGpus:true,maxHourly:2,minDownload:1000});
+  assert.equal(query.gpu_name,undefined);assert.deepEqual(query.verified,{eq:true});
  }finally{await rm(root,{recursive:true,force:true});}
 });
 

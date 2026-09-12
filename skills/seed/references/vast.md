@@ -19,6 +19,12 @@ installed package and per-user state; no checkout or helper scripts are needed.
 requires at least 120GB disk; allow room for the model manifest and temporary outputs.
 No particular host or startup time is guaranteed.
 
+Use `offers --all-gpus` to search by requirements across GPU models instead of
+guessing names; it is mutually exclusive with `--gpu`. For infrastructure-only
+tests, explicitly lower VRAM/RAM requirements while keeping verification and
+network quality. Start with `--max-hourly 2`; this search ceiling is adjustable,
+not a universal budget rule. Use `--min-download-mbps` to state the network floor.
+
 ## Recovery
 
 If a creation result is uncertain, `seed gpu vast reconcile` checks provider state.
