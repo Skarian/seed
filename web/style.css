@@ -1420,3 +1420,13 @@ footer {
   color: #d4ea93;
   font-variant-numeric: tabular-nums;
 }
+
+.confirm-dialog { width:min(440px, calc(100vw - 32px)); box-sizing:border-box; padding:28px; border:1px solid #414247; border-radius:18px; background:#202125; color:#f5f5f5; box-shadow:0 24px 90px #0008; }
+.confirm-dialog::backdrop { background:rgb(0 0 0 / .62); }
+.confirm-dialog h2 { margin:0 0 12px; font-size:1.2rem; }
+.confirm-dialog p { color:#c5c7ce; line-height:1.5; }
+.confirm-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:24px; }
+.confirm-actions button { padding:10px 18px; border-radius:10px; border:1px solid #53545b; background:#303137; color:white; }
+.confirm-actions .destructive { background:#b92e3e; border-color:#d84758; }
+.confirm-dialog button:focus-visible { outline:2px solid white; outline-offset:3px; }
+.confirm-dialog button:disabled { opacity:.5; cursor:wait; }

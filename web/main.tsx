@@ -6,6 +6,7 @@ import type {
   WorkflowId,
 } from "../shared/studio.js";
 import "./style.css";
+import { ConfirmDialog } from "./confirm-dialog.js";
 import { MediaCard, LoadingIndicator } from "./media-card.js";
 import { uploadReferences } from "./uploads.js";
 import {
@@ -222,6 +223,7 @@ function App() {
   const deletedAssets = useRef(new Set<string>());
   const [deletingAsset, setDeletingAsset] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
+  const [deleteTarget, setDeleteTarget] = useState<Pick<LibraryAsset, "id" | "kind"> | null>(null);
   const [jobs, setJobs] = useState<
     Array<{
       id: string;
@@ -463,12 +465,6 @@ function App() {
     setAssetCursor(page.next_cursor);
   }
   async function deleteAsset(asset: Pick<LibraryAsset, "id" | "kind">) {
-    if (
-      !window.confirm(
-        `Delete this ${asset.kind}? This permanently removes the saved file from your PC. This cannot be undone.`,
-      )
-    )
-      return;
     setDeletingAsset(asset.id);
     setDeleteError("");
     try {
@@ -503,7 +499,7 @@ function App() {
       );
       setConnectionRevision((value) => value + 1);
     } catch (failure) {
-      setDeleteError((failure as Error).message);
+      throw failure;
     } finally {
       setDeletingAsset(null);
     }
@@ -1189,7 +1185,7 @@ function App() {
                               }
                               onOpen={() => setViewAsset(asset)}
                               onDelete={() =>
-                                void deleteAsset({
+                                setDeleteTarget({
                                   id: asset,
                                   kind:
                                     assets.find((item) => item.id === asset)
@@ -1252,7 +1248,7 @@ function App() {
                     kind={asset.kind}
                     name={asset.name}
                     onOpen={() => setViewAsset(asset.id)}
-                    onDelete={() => void deleteAsset(asset)}
+                    onDelete={() => setDeleteTarget(asset)}
                     deleting={deletingAsset !== null}
                   />
                 ))}
@@ -1270,6 +1266,7 @@ function App() {
         )}
         <footer>seed</footer>
       </main>
+      {deleteTarget && <ConfirmDialog title={`Delete this ${deleteTarget.kind}?`} description="This permanently removes the saved file from your PC. This cannot be undone." action="Delete" onConfirm={() => deleteAsset(deleteTarget)} onClose={() => setDeleteTarget(null)} />}
       {viewAsset && (
         <SavedImage
           kind={

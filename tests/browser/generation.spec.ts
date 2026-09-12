@@ -34,11 +34,11 @@ test('both image modes submit selected settings and show saved output in preview
   let deletes = 0;
   await page.route('**/api/v1/assets/asset-nsfw', route => { deletes++; job.outputs = []; return route.fulfill({ status: 204 }); });
   const remove = page.getByRole('button', { name: 'Delete generated image' });
-  page.once('dialog', dialog => dialog.dismiss());
-  await remove.click(); expect(deletes).toBe(0);
-  await expect(page.getByRole('img', { name: 'Generated image', exact: true })).toBeVisible();
-  page.once('dialog', dialog => dialog.accept());
   await remove.click();
+  await page.getByRole('button', {name:'Cancel',exact:true}).click(); expect(deletes).toBe(0);
+  await expect(page.getByRole('img', { name: 'Generated image', exact: true })).toBeVisible();
+  await remove.click();
+  await page.getByRole('button', {name:'Delete',exact:true}).click();
   await expect(page.getByRole('img', { name: 'Generated image', exact: true })).toHaveCount(0);
   expect(deletes).toBe(1);
   await page.getByRole('button', { name: 'Library', exact: true }).click();
