@@ -100,10 +100,10 @@ Keep single-output validation for existing MP4 and text-to-image jobs. Resume
 partial transfers with existing integrity handling; never acknowledge a partial
 set. No archive transport or new database is needed initially.
 
-Proposed authenticated routes, reconciled with the existing router during coding:
-- GET /api/sequences/:id: current revision, ordered frame asset IDs, original
+Proposed authenticated routes, using the existing /api/v1 prefix:
+- GET /api/v1/sequences/:id: current revision, ordered frame asset IDs, original
   indices/timestamps, dimensions and existing thumbnail/media URLs.
-- POST /api/sequences/:id/keep-only with asset_ids and revision: retain exactly
+- POST /api/v1/sequences/:id/keep-only with asset_ids and revision: retain exactly
   a nonempty subset belonging to this sequence. Reject stale edits; an identical
   retry of an already-applied selection is harmless. Return updated sequence.
 - Reuse Library deletion for the whole sequence, with confirmation. Add sequence
@@ -115,6 +115,8 @@ Proposed authenticated routes, reconciled with the existing router during coding
    Keep graph construction in its current module; no new image-edit workflow
    module or abstraction just for output branching. Test all eleven durations,
    both formats, and first/last guides.
+   Update worker/comfy_seed/video.py too: its exporter currently rejects durations
+   other than 5/10/15 even though its node widget permits the wider range.
 2. Add sliced PNG output and update worker/comfy_seed/jobs.py and server/jobs.ts
    for durable frame sets. Validate native slicing/history with synthetic frames
    locally before paid tests. Preserve existing workflows.
@@ -139,6 +141,38 @@ collect failure logs before cleanup. Leave GPU up for agreed immediate testing,
 otherwise terminate after durable receipt before handoff.
 
 ## Acceptance and removed scope
+
+### Implementation readiness review, 2026-09-12
+
+Ready to start local implementation; paid validation and UI acceptance remain
+checkpoints, not claims of completed proof. Resolve these technical details in
+the owning modules rather than adding services:
+
+- Current Library has no thumbnail endpoint; it loads original media. Add a small
+  on-demand, disk-cached image preview path using existing media tooling. Reuse
+  it for sequence covers/scrubbing; cache is disposable and deleted with frames.
+  Native PNG remains the download/reference source. Bound concurrent preview
+  work and discard stale scrub requests. Do not promise 24 fps playback.
+- LibraryAsset currently represents real image/video/audio files. Introduce a
+  Library item union with a sequence summary, leaving frame assets as images.
+  Hide member frames from top-level pagination; order/paginate groups and normal
+  assets together without duplicates. Do not overload video MIME or content URLs.
+- Existing deletion rejects frames referenced by unfinished jobs or outputs
+  still awaiting worker cleanup. Apply those checks to the entire prune set
+  before deleting anything, within the existing job serialization boundary.
+  Return the existing busy error if blocked. Persist prune intent before file
+  removal so restart can resume cleanup without dangling visible members.
+  SQLite and filesystem deletion are not one atomic transaction. Reconcile
+  original job output lists so polling cannot resurrect removed frames.
+- Use a small bounded transfer pool for frame files if measurement shows serial
+  per-file latency is material; keep current hash/resume/acknowledgement rules.
+  No archive format or bulk transport system in the initial implementation.
+- Old data migration, grouped pagination, NSFW filtering, generation results
+  and Library reference picking need tests alongside the new viewer. They are
+  part of this feature, not a general Library rewrite.
+
+One pending optional UI decision: scrub/step only initially, or also Play/Pause.
+The current default proposal is scrub/step; a user answer supersedes it.
 
 Test missing/duplicate/corrupt/wrong-job outputs, interrupted transfers, reload
 before selection, repeated/stale Keep only, interrupted pruning, one-frame
