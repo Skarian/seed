@@ -520,9 +520,9 @@ export class SeedVast {
       disk,
       label: "seed-agent",
       runtype: "ssh_direc ssh_proxy",
-      onstart: "chown root:root /root/.ssh /root/.ssh/authorized_keys && chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys && ssh-keygen -A && mkdir -p /run/sshd && service ssh restart",
+      onstart: "mkdir -p /root/.ssh /run/sshd && printf '%s\\n' \"$SEED_SSH_PUBLIC_KEY\" > /root/.ssh/authorized_keys && chown root:root /root/.ssh /root/.ssh/authorized_keys && chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys && ssh-keygen -A && mkdir -p /run/sshd && service ssh restart",
       cancel_unavail: true,
-      env: {},
+      env: {SEED_SSH_PUBLIC_KEY:publicKey},
     });
     if (!created.success || !Number.isSafeInteger(created.new_contract))
       throw new Error(
