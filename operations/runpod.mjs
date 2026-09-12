@@ -5,10 +5,9 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 import { readJson, requestJson, assertIdle, saveJson } from "./common.mjs";
-export function podOrigin(id) {
-  if (!/^[a-z0-9]+$/.test(id ?? ""))
-    throw new Error("Supply the exact RunPod pod ID.");
-  return `https://${id}-8080.proxy.runpod.net`;
+export function validatePodId(id) {
+  if(!/^[a-z0-9]+$/.test(id??''))throw Error('Supply the exact RunPod pod ID.');
+  return id;
 }
 export class SeedRunpod {
   constructor(repo, { fetcher = fetch, env = process.env } = {}) {
@@ -79,54 +78,31 @@ export class SeedRunpod {
   }
   async datacenters() { return this.api('catalog/datacenters?include=GPU_AVAILABILITY'); }
   async billing(id=this.state?.pod_id) {
-    podOrigin(id);
+    validatePodId(id);
     return this.api(`billing/pods?podId=${id}&lastN=24`);
   }
-  async connect(id) {
-    const endpoint = podOrigin(id);
-    const pod = await this.api(`pods/${id}`);
-    const deployment = await readJson(
-      path.join(this.paths.config, "pod-deployment.json"),
-    );
-    const recorded = this.state?.pod_id === id && this.state.image === pod.image && pod.image === this.image;
-    if (!deployment?.pairingSecret || !recorded)
-      throw new Error(
-        "Pod must match the recorded Seed rental and pinned image before sending its pairing secret.",
-      );
-    assertIdle(await this.local("GET", "/api/v1/studio"));
-    const response = await this.fetcher(endpoint + "/worker/v1/unlock", {
-      method: "POST",
-      redirect: "error",
-      signal: AbortSignal.timeout(10000),
-      headers: { Origin: endpoint, "Content-Type": "application/json" },
-      body: JSON.stringify({ pairing_secret: deployment.pairingSecret }),
+  async connect(id=this.state?.pod_id,{route,reconnect=false}={}) {
+    validatePodId(id);
+    const pod=await this.api(`pods/${id}`);
+    const deployment=await readJson(path.join(this.paths.config,'pod-deployment.json'));
+    if(!deployment?.pairingSecret||this.state?.pod_id!==id||this.state.image!==pod.image||pod.image!==this.image)
+      throw Error('Pod must match the recorded Seed rental and pinned image before sending its pairing secret.');
+    const direct=pod.ssh?.direct;
+    const {sshArgs}=await import('./ssh.mjs');
+    const dir=path.join(this.paths.config,'seed-runpod');
+    return (await import('./connection.mjs')).connectWorker(this,{
+      ssh:()=>{
+        if(!direct||direct.username!=='root')throw Error('Direct root SSH is not ready.');
+        return sshArgs({public_ipaddr:direct.host,ports:{'22/tcp':[{HostPort:direct.port}]}},path.join(dir,'ssh-key'),path.join(dir,'known-hosts'));
+      },
+      secret:deployment.pairingSecret,route,reconnect,
     });
-    if (!response.ok) {
-      await response.body?.cancel();
-      throw new Error(`Worker unlock failed (HTTP ${response.status}).`);
-    }
-    const cookie = response.headers
-      .getSetCookie()
-      .map((c) => c.split(";")[0])
-      .join("; ");
-    await response.body?.cancel();
-    const pairing = await requestJson(endpoint + "/worker/v1/pairing-codes", {
-      method: "POST",
-      body: {},
-      headers: { Origin: endpoint, Cookie: cookie },
-      fetcher: this.fetcher,
-    });
-    await this.local("PUT", "/api/v1/connection", {
-      connection_code: pairing.connection_code,
-    });
-    if (recorded) { this.state.paired = true; await saveJson(this.stateFile, this.state); }
-    return { connected: true, pod_id: id, url: this.origin };
   }
   async safe(id, { sleep = delay, attempts = 30 } = {}) {
     const connection = await readJson(
       path.join(this.paths.config, "worker-connection.json"),
     );
-    if (connection?.endpoint !== podOrigin(id))
+    if (this.state?.pod_id !== id || !this.state?.paired_worker || connection?.worker_instance_id !== this.state.paired_worker)
       throw new Error(
         "Seed is not paired to this pod. Reconcile before teardown.",
       );
@@ -148,6 +124,7 @@ export async function main(argv) {
     allowPositionals: true,
     options: {
       repo: { type: "string", default: process.cwd() },
+      route: {type:'string'},
       pod: { type: "string" },
       gpu: { type: 'string' },
       'max-hourly': { type: 'string' },
@@ -163,10 +140,11 @@ export async function main(argv) {
   };
   if (
     positionals.length !== 1 ||
-    !["status", "catalog", "datacenters", "logs", "billing", "connect", "safe", "create", "wait", "prepare", "destroy", "reconcile"].includes(command)
+    !["status", "catalog", "datacenters", "logs", "billing", "connect", "reconnect", "safe", "create", "wait", "prepare", "destroy", "reconcile"].includes(command)
   )
     throw new Error("Use seed gpu runpod help for commands and options.");
   const app = await new SeedRunpod(values.repo).init();
+  if(['connect','reconnect'].includes(command))return app.connect(values.pod,{route:values.route,reconnect:command==='reconnect'});
   if(command==='logs') {const {podLogs}=await import('./runpod-logs.mjs');return podLogs(app,values.pod);}
   if (['create','wait','prepare','destroy','reconcile'].includes(command)) {
     const {createPod,lifecycle} = await import('./runpod-lifecycle.mjs');

@@ -25,8 +25,10 @@ by Seed. HF/Civitai tokens are not persisted in the pod environment.
 
 `seed gpu runpod wait` waits for startup/direct SSH without a fixed startup deadline.
 It reports progress every 30 seconds. Ctrl+C stops waiting, not the pod.
-`seed gpu runpod prepare` downloads models directly with optional PC fallback.
-`seed gpu runpod connect --pod ID` pairs to the recorded pod and pinned image.
+`seed gpu runpod connect --pod ID --route ssh` pairs over private SSH.
+Use `--route tailscale` when enrollment is configured.
+`seed gpu runpod prepare` downloads models through that worker API with optional
+PC fallback. `reconnect --route ssh|tailscale` changes the route without new pairing.
 `seed gpu runpod status` reports provider state, permitted actions, SSH/runtime
 information and local studio status. Pairing can happen during model preparation.
 
@@ -42,6 +44,6 @@ absence. Paired sessions require fresh safe-to-terminate status. Failed new,
 unpaired launches can be cleaned up when the local queue is idle.
 Do not delete old pods or network volumes as a side effect.
 
-Normal app traffic uses the authenticated RunPod HTTPS proxy; model preparation
-uses SSH. Keep provider-specific errors and capabilities visible to the agent.
+The RunPod HTTPS proxy is retired. Both preparation and normal app traffic use
+the authenticated worker API over the explicitly selected SSH or Tailscale route. Keep provider-specific errors and capabilities visible to the agent.
 Live evidence and remaining limitations are in studio/VALIDATION.md in the repo.

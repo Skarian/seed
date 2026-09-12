@@ -10,9 +10,11 @@ const providers = [
   { field: 'runpodApiKey', env: 'RUNPOD_API_KEY', label: 'RunPod API key', required: true },
   { field: 'huggingFaceToken', env: 'HF_TOKEN', label: 'Hugging Face token (base models and other HF assets)', required: true },
   { field: 'civitaiApiToken', env: 'CIVITAI_API_TOKEN', label: 'Civitai API token (optional; Enter to skip)', required: false },
+  { field: 'tailscaleClientId', env: 'TAILSCALE_CLIENT_ID', label: 'Tailscale worker-tag OAuth client ID', required: true },
+  { field: 'tailscaleClientSecret', env: 'TAILSCALE_CLIENT_SECRET', label: 'Tailscale worker-tag OAuth client secret', required: true },
 ] as const;
 export async function ensureCredentials(paths: StudioPaths, options: {
-  interactive: boolean; provider?: GpuProvider; env?: NodeJS.ProcessEnv; cwd?: string;
+  interactive: boolean; provider?: GpuProvider; tailscale?: boolean; env?: NodeJS.ProcessEnv; cwd?: string;
   prompt?: (label: string, required: boolean) => Promise<string>;
 }) {
   const file = path.join(paths.config, 'credentials.json');
@@ -26,6 +28,7 @@ export async function ensureCredentials(paths: StudioPaths, options: {
   const env = options.env ?? process.env;
   let dotenv: Record<string, string | undefined> | undefined;
   for (const provider of providers) {
+    if (provider.field.startsWith('tailscale') && !options.tailscale) continue;
     const selected = options.provider ?? 'runpod';
     if ((provider.field === 'vastApiKey' && selected !== 'vast') || (provider.field === 'runpodApiKey' && selected !== 'runpod')) continue;
     let key = env[provider.env]?.trim() || (typeof saved[provider.field] === 'string' ? (saved[provider.field] as string).trim() : '');

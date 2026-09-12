@@ -23,6 +23,7 @@ export type WorkerStatus = {
 };
 type Connection = {
   endpoint: string;
+  tailscale_endpoint?: string;
   worker_credential: string;
   worker_instance_id: string;
   workspace_id: string;
@@ -51,13 +52,11 @@ export function validateWorkerEndpoint(
     url.protocol === "http:"
   )
     return url.origin;
-  if (
-    url.protocol !== "https:" ||
-    url.port ||
-    !/^[a-z0-9]+-8080\.proxy\.runpod\.net$/.test(url.hostname)
-  )
-    throw new Error("Use a connection code from your Seed worker.");
-  return url.origin;
+  const octets = url.hostname.split('.').map(Number);
+  if (url.protocol === 'http:' && url.port === '8080' && octets.length === 4 &&
+      octets.every(n => Number.isInteger(n) && n >= 0 && n <= 255) &&
+      octets[0] === 100 && octets[1]! >= 64 && octets[1]! <= 127) return url.origin;
+  throw new Error('Use the private Seed SSH or Tailscale worker address.');
 }
 async function jsonRequest(url: string, init: RequestInit) {
   const response = await fetch(url, {
@@ -254,6 +253,8 @@ export class WorkerConnection {
         payload.endpoint,
         this.localTestOrigin,
       );
+      if (endpoint !== 'http://127.0.0.1:18080' && endpoint !== this.localTestOrigin)
+        throw new Error('Initial pairing requires the private SSH bootstrap.');
       let result;
       try {
         result = await jsonRequest(endpoint + "/worker/v1/exchange", {
@@ -306,6 +307,38 @@ export class WorkerConnection {
     this.revision++;
     this.cached = null;
     this.inFlight = null;
+  }
+  async changeRoute(value: string) {
+    if (this.changing || !this.connection) throw new Error('Connect the recorded worker first.');
+    this.changing = true;
+    try {
+      const endpoint = validateWorkerEndpoint(value, this.localTestOrigin);
+      const current = this.connection;
+      if (endpoint !== 'http://127.0.0.1:18080' && endpoint !== this.localTestOrigin && endpoint !== current.tailscale_endpoint) {
+        const network = await jsonRequest(current.endpoint + '/worker/v1/network', {
+          headers: { Authorization: 'Bearer ' + current.worker_credential },
+        });
+        if (network.state !== 'ready' || `http://${network.address}:8080` !== endpoint)
+          throw new Error('The current worker has not advertised this Tailscale route.');
+      }
+      const status = await jsonRequest(endpoint + '/worker/v1/status', {
+        headers: { Authorization: 'Bearer ' + current.worker_credential },
+      });
+      if (status.protocol_version !== current.protocol_version ||
+          status.worker_instance_id !== current.worker_instance_id || status.workspace_id !== current.workspace_id)
+        throw new Error('The proposed route does not lead to the recorded worker.');
+      const saved = { ...current, endpoint,
+        ...(endpoint.startsWith('http://100.') ? { tailscale_endpoint: endpoint } : {}) };
+      const temporary = `${this.file}.${randomUUID()}.tmp`;
+      try {
+        writeFileSync(temporary, JSON.stringify(saved), { mode: 0o600, flag: 'wx' });
+        renameSync(temporary, this.file);
+      } finally { rmSync(temporary, { force: true }); }
+      this.connection = saved;
+      this.revision++;
+      this.cached = null;
+      this.inFlight = null;
+    } finally { this.changing = false; }
   }
   async status(): Promise<WorkerStatus | null> {
     if (!this.connection) return null;

@@ -231,9 +231,12 @@ Sources checked September 12, 2026:
 September 12: owner authorized implementation, both-provider networking tests and
 small test instances outside normal skill GPU rules. Owner also authorized using
 the signed-in Tailscale account and adding worker devices. PC Tailscale is running.
-The existing default policy is allow-all; a replacement draft preserving personal
-connections and restricting Seed workers is prepared privately. Browser action-time
-confirmation for that policy change is pending; no policy or device added yet.
+Owner approved the restricted policy, which was saved in the Tailscale console.
+Personal-device connections remain allowed; only the Seed PC can reach tagged
+workers on TCP 8080. Workers cannot initiate connections to personal devices.
+Existing SSH and Funnel settings were preserved. The console accepted the policy
+and its access tests; the saved tests were confirmed on the Tests page. No worker
+device has been added yet. Live connectivity still needs testing.
 
 Pinned official Docker dependency digests in worker/network-dependencies.json.
 Windows Tailscale is 1.102.4; that Docker version tag was unavailable, so the
@@ -246,5 +249,30 @@ on restart; reading the new mapping fixed the harness. No readiness deadline was
 extended and no production code was changed to hide the failure.
 
 This proves dependency behavior only, not worker authentication integration,
-Tailscale enrollment/throughput or provider networking. Next: restricted enrollment
-approval and authenticated local integration. No VM/GPU rented during this gate.
+Tailscale enrollment/throughput or provider networking. Subsequent integration
+evidence is recorded below. No VM/GPU rented during this dependency gate.
+
+Implementation checkpoint: the restricted OAuth credential is stored in the PC's
+private configuration, with only auth_keys and the worker tag. Local integrated
+worker tests passed over real OpenSSH and Tailscale: early authenticated API,
+generation admission gate, upload/restart/resume, stale offsets, corrupt-upload
+rejection, full hash verification, lost completion, stable worker and peer
+identities, ranged output retrieval and receipt cleanup. First integration attempt
+found that tusd needs musl in Ubuntu; the build now installs it and checks both
+binary versions. Logs were collected and test containers removed.
+
+One narrow Linux child-ownership launcher closes abrupt supervisor-death gaps;
+it has no retries or process discovery. It fences parent death, kills its own
+command group and reaps descendants. Linux tests cover abrupt parent death,
+leader exit with a leftover grandchild, unrelated siblings, expected-parent checks
+and stdin/stdout/exit-code preservation. Source credentials supplied during an
+active reconciliation are explicitly reported as unaccepted; the client retries
+once after that pass if needed. Model status stops overwriting engine status when
+preparation completes.
+
+Shared provider connection/preparation code replaces the copied receiver and Vast
+boot/PID/env helper. Both providers bootstrap over SSH; Tailscale route changes
+verify the existing worker identity without rotating its bearer or replaying jobs.
+The full local suite passed (66 app, 45 operations, 40 Python; one OS symlink skip).
+Provider deployment/throughput validation and the updated packaged app are next;
+these local results do not establish remote performance or live-provider readiness.

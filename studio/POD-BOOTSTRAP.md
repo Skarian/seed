@@ -1,39 +1,38 @@
 # Worker startup and storage
 
-Provider operating steps live in [the Seed skill](../skills/seed/SKILL.md).
-The same pinned image runs on disposable RunPod or Vast disk. Volume/template provisioning is retired.
+Seed uses one pinned worker image on disposable RunPod or Vast disk. Both start
+with authenticated OpenSSH forwarding to the loopback worker API on port 8080.
+Optional Tailscale carries subsequent API requests and transfers without an SSH
+connection. RunPod HTTPS proxies, volume/template provisioning and the separate
+SSH preparation helper are retired.
 
-| Setting | HTTPS / RunPod | SSH / Vast |
-|---|---|---|
-| `SEED_TRANSPORT` | `https` (default) | `ssh` |
-| `SEED_PUBLIC_URL` | HTTPS origin, default from `RUNPOD_POD_ID` | Fixed `http://127.0.0.1:18080` |
-| Worker/Jupyter bind | `0.0.0.0` | `127.0.0.1` |
-| `SEED_WORKSPACE` | `/workspace`, pod disk | `/workspace`, instance disk |
+The provider launches `worker.entrypoint`, which starts key-only SSH and then the
+worker supervisor. `SEED_PAIRING_SECRET` is required; `JUPYTER_TOKEN` enables
+optional administration. Worker and Jupyter bind only to loopback. The CLI owns
+local forwards on ports 18080 and 18888. Source-provider tokens are sent in the
+authenticated preparation request and held in memory, never stored in templates,
+state records or download logs. GPU provider and Tailscale OAuth keys stay on the PC.
 
-The workspace must be absolute and writable, not necessarily a mount point.
-Private pairing and Jupyter secrets require at least 24 characters. New bootstraps
-send HF/Civitai tokens per download over SSH stdin without saving them on the VM.
-Provider keys stay on the PC. Existing
-token-supplied workers remain compatible; changing code does not remove their keys.
+The early API accepts one immutable preparation manifest. It starts two bounded
+direct-download lanes and verifies all assets before activating presets and
+starting ComfyUI. Cancelling stops and joins writers; a stale request cannot undo
+cancellation. Restart rechecks receipts and requests fresh source credentials for
+missing files. Optional PC fallback uses authenticated resumable tusd uploads.
+Uploaded bytes become usable only after full verification and atomic promotion.
 
-`worker/run.py` serves the connection page while waiting for or verifying models. Jupyter is a
-separate administration tool. `prepare.py` always waits for externally prepared
-manifest files and verifies/reuses them; it makes no model-source requests. Comfy starts privately after preparation; child
-processes do not inherit download/pairing secrets. The Vast bootstrap supplies
-secrets through SSH stdin and invokes the entrypoint without rewriting source.
+`/workspace` holds models and temporary job media. `/var/lib/seed` holds private
+rental identity, bearer verifier, preparation intent and optional Tailscale state.
+Both survive process/container restart on the same rental's disk. New rentals get
+new identities. Engine identity changes on Comfy restart; generation itself does
+not resume after an engine restart.
 
-Local Hugging Face acquisition uses the official hf CLI/Xet; Civitai remains a
-separate HTTP source. Both verify hashes before files enter the transferable cache.
+Tailscale uses the official containerboot binary in userspace mode. The PC issues
+a single-use ephemeral key restricted to `tag:seed-worker`, sends it over the
+initial authenticated SSH route, and confirms the worker identity over its new
+address. Only TCP 8080 is exposed to the approved PC. No Funnel, public frontend,
+exit node, Tailscale SSH or new Jupyter exposure is configured.
 
-The PC owns the optional model cache, originals, prepared media, results and SQLite history.
-Vast boot reuses verified files and attempts direct downloads before starting the
-worker. Failed downloads use PC download/transfer only when local fallback is enabled. RunPod may start
-first and wait for transfer; the CLI configures direct SSH access. Worker spool
-files retain outputs until durable PC receipt; acknowledgment and cleanup are
-repeatable. Any legacy retained volume can preserve spool files across replacement.
-Destroying disposable disk on either provider destroys models and unsaved outputs. Disconnection never
-proves termination safety or billing state.
-
-Worker identity changes on container startup and engine identity on Comfy restart.
-Neither promises resumable generation. See [API contract](API-CONTRACT.md) and
-[Comfy integration](COMFYUI-CHANGES.md) for job/session/receipt semantics.
+The PC permanently owns originals, results and SQLite history. Worker output is
+retained until durable receipt. Destroying a rental deletes its disk and any
+unsaved output. A disconnected worker is never evidence that teardown is safe.
+See [networking design](NETWORKING.md) and [API contract](API-CONTRACT.md).

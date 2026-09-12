@@ -5,8 +5,9 @@ Active [design](NETWORKING.md), [review decisions](reviews/NETWORKING-REVIEW.md)
 - [x] Owner approves implementation, retiring RunPod HTTPS, and low-cost networking tests on both providers.
 - [x] PC Tailscale installed and signed in.
 - [x] Pin official Tailscale/tusd container digests; local tusd restart/resume/hash gate passes.
-- [ ] Confirm/apply restricted tailnet policy; obtain scoped enrollment credential.
-- [ ] Prove authenticated tusd integration and containerboot enrollment/restart locally.
+- [x] Apply owner-approved restricted tailnet policy and confirm saved access tests.
+- [x] Obtain scoped enrollment credential.
+- [x] Prove authenticated tusd integration and containerboot enrollment/restart locally.
 - [ ] Singleton preparation API and stable rental identity; shared HTTP client over SSH.
 - [ ] Explicit SSH/Tailscale route selection on both providers; retire old preparation/proxy paths.
 - [ ] Both-provider live networking and transfer recovery tests within approved budget.

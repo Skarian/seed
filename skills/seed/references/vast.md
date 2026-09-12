@@ -13,9 +13,10 @@ installed package and per-user state; no checkout or helper scripts are needed.
    necessary. It accepts that exact offer ID without a second host/slice search.
 5. `seed gpu vast wait` waits without a fixed startup deadline for running state and a successful
    authenticated SSH probe; port mappings alone do not prove readiness.
-6. `seed gpu vast boot` prepares models and starts the pinned worker. Repeat to
-   reuse verified files after an interruption. Never run during active generation.
-7. `seed gpu vast connect` establishes a private SSH tunnel and pairs automatically.
+6. `seed gpu vast connect --route ssh` pairs through the early worker API. Use
+   `--route tailscale` when configured to enroll and switch to the private tailnet.
+7. `seed gpu vast boot` prepares models through the selected API route. The worker
+   starts ComfyUI after verification. Repeat to resume preparation when idle.
 8. `seed gpu vast status` verifies the session. Return the local app URL and cost.
 
 `offers --gpu NAME` may be repeated for approved hardware alternatives. Rental
@@ -37,6 +38,9 @@ unchanged; file transfer resumes when the route is usable. Explicit stop/destroy
 cancels reconnects. A permanently bad route still needs diagnosis.
 
 If the supervisor itself has stopped, use `seed gpu vast reconnect`.
+`--route ssh` or `--route tailscale` explicitly changes the recorded worker route.
+Tailscale reconnect uses the saved peer address and does not require SSH. There is
+no automatic cross-route failover; neither route change re-pairs nor submits jobs.
 It restores the tunnel only when the local pairing matches the recorded worker.
 It keeps credentials and in-flight jobs unchanged, so finished GPU outputs can
 resume transfer without another generation. Use `connect` for initial pairing;

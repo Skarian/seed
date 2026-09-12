@@ -7,7 +7,7 @@ from aiohttp import ClientSession, ClientTimeout, web
 from worker.spool import job_directory, read_record, atomic
 
 
-def install(app, workspace, comfy_url, authenticated):
+def install(app, workspace, comfy_url, authenticated, preparation=None):
     # Importing the spool package must not import ComfyUI's engine entry point.
     root = Path(workspace).resolve()
     locks = {}
@@ -91,6 +91,10 @@ def install(app, workspace, comfy_url, authenticated):
         allowed = {'session': ('GET', '/studio/session'), 'queue': ('GET', '/queue'), 'capabilities': ('GET', '/studio/capabilities'), 'prompt': ('POST', '/studio/prompt'), 'cancel': ('POST', '/studio/cancel')}
         if route not in allowed or request.method != allowed[route][0]: raise web.HTTPNotFound()
         payload = await request.read() if request.method == 'POST' else None
+        # Ready is terminal for a preparation manifest: cancellation or mutation
+        # cannot race a admitted generation; changing models needs worker restart.
+        if route == 'prompt' and preparation and not preparation.ready.is_set():
+            raise web.HTTPConflict()
         headers = {'Content-Type': 'application/json', 'X-Studio-Engine-Session': request.headers.get('X-Studio-Engine-Session', '')}
         async with ClientSession(timeout=ClientTimeout(total=60)) as client:
             async with client.request(request.method, comfy_url + allowed[route][1], data=payload, headers=headers, allow_redirects=False) as result:

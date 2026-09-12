@@ -3,8 +3,8 @@ import path from 'node:path';
 import { podEnvironment } from './runpod-secrets.mjs';
 import { readJson, saveJson, assertIdle } from './common.mjs';
 import { waitFor } from './wait.mjs';
-import { run, sshArgs } from './vast.mjs';
-import { transferModels } from './model-transfer.mjs';
+import { run } from './ssh.mjs';
+import { prepareWorker } from './preparation.mjs';
 
 export function podRequest({gpu, image, disk, datacenters = [], publicKey, environment}) {
   if (!Number.isSafeInteger(disk) || disk < 150) throw Error('Use at least 150 GB of disposable disk for models and working space.');
@@ -12,8 +12,8 @@ export function podRequest({gpu, image, disk, datacenters = [], publicKey, envir
     name:'seed', image, cloud:'SECURE', disk,
     gpu:{id:gpu,count:1,minCudaVersion:'13.0'},
     ...(datacenters.length ? {dataCenterIds:datacenters} : {}),
-    ports:['8080/http','8888/http','22/tcp'],
-    env:{...environment,PUBLIC_KEY:publicKey,SEED_START_SSH:'1'},
+    ports:['22/tcp'],
+    env:{...environment,PUBLIC_KEY:publicKey,SEED_START_SSH:'1',SEED_TRANSPORT:'ssh'},
   };
 }
 
@@ -66,11 +66,8 @@ export async function lifecycle(app, command, id = app.state?.pod_id) {
     return pod.status==='RUNNING' && pod.ssh?.direct ? {pod_id:id,ready_for_preparation:true}:null;
   });
   if(command==='prepare') {
-    const pod=await app.api(`pods/${id}`), direct=pod.ssh?.direct;
-    if(!direct || direct.username!=='root')throw Error('Direct root SSH is not ready.');
-    const dir=path.join(app.paths.config,'seed-runpod');
-    await transferModels(app.repo,app.paths,sshArgs({public_ipaddr:direct.host,ports:{'22/tcp':[{HostPort:direct.port}]}},path.join(dir,'ssh-key'),path.join(dir,'known-hosts')));
-    return {prepared:true,pod_id:id};
+    await app.connect(id);
+    return prepareWorker(app);
   }
   if(command==='destroy') {
     if(app.state.paired)await app.safe(id);

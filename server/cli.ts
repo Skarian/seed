@@ -26,7 +26,7 @@ try {
     await gpuCommand(args);
   } else {
   if (!['setup', 'models', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
-  const known = command === 'models' ? ['--quiet'] : ['--quiet', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models'] : [])];
+  const known = command === 'models' ? ['--quiet'] : ['--quiet', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models', '--tailscale'] : [])];
   for (let i = 0; i < args.length; i++) {
     if (!known.includes(args[i]!)) throw new Error(`Unknown option: ${args[i]}`);
     if (args[i] === '--host' || args[i] === '--port' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
@@ -48,7 +48,7 @@ try {
       if (args.includes('--cache-models') && args.includes('--no-cache-models')) throw new Error('Choose --cache-models or --no-cache-models.');
       const provider = value('--provider') ?? current.provider ?? 'vast';
       if (provider !== 'vast' && provider !== 'runpod') throw new Error('Choose --provider vast or --provider runpod.');
-      const credentials = await ensureCredentials(paths, { provider, interactive: Boolean(process.stdin.isTTY) && !quiet });
+      const credentials = await ensureCredentials(paths, { provider, tailscale: args.includes('--tailscale'), interactive: Boolean(process.stdin.isTTY) && !quiet });
       current.provider = provider;
       if (args.includes('--cache-models')) current.localModelCache = true;
       else if (args.includes('--no-cache-models')) current.localModelCache = false;

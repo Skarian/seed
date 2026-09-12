@@ -24,6 +24,17 @@ beforeEach(async () => {
 });
 afterEach(async () => { server.closeAllConnections(); await new Promise<void>(resolve => server.close(() => resolve())); rmSync(root, { recursive: true, force: true }); });
 function code(endpoint = origin, expires = Math.floor(Date.now()/1000) + 300) { return 'studio1.' + Buffer.from(JSON.stringify({ version: 1, endpoint, expires_at: expires, exchange_token: 'a'.repeat(43) })).toString('base64url'); }
+it('route changes preserve credentials and reject a different worker', async () => {
+  const paths = resolvePaths(root), connection = new WorkerConnection(paths, origin);
+  await connection.pair(code());
+  const saved = readFileSync(path.join(paths.config, 'worker-connection.json'), 'utf8');
+  identity = 'replacement';
+  await expect(connection.changeRoute(origin)).rejects.toThrow('recorded worker');
+  expect(readFileSync(path.join(paths.config, 'worker-connection.json'), 'utf8')).toBe(saved);
+  identity = 'worker-one';
+  await connection.changeRoute(origin);
+  expect(JSON.parse(readFileSync(path.join(paths.config, 'worker-connection.json'), 'utf8')).worker_credential).toBe(credential);
+});
 it('rejects arbitrary endpoints and expired codes before sending anything', async () => {
   const connection = new WorkerConnection(resolvePaths(root), origin);
   for (const endpoint of ['http://169.254.169.254', 'https://evil.test', 'https://abc-8080.proxy.runpod.net@evil.test', 'https://abc-8080.proxy.runpod.net/path', 'https://abc-8080.proxy.runpod.net:444']) expect(() => validateWorkerEndpoint(endpoint)).toThrow();

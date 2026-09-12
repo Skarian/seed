@@ -2,13 +2,15 @@
 import { readFile, mkdir, access, open } from "node:fs/promises";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
-import { spawn } from "node:child_process";
+
 import { randomBytes } from "node:crypto";
-import { createServer, isIP } from "node:net";
+
 import { parseArgs } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
 
 import { readJson, saveJson, requestJson, assertIdle } from "./common.mjs";
+import {run,background,freePort,sshArgs} from './ssh.mjs';
+export {run,freePort,sshArgs} from './ssh.mjs';
 import { waitFor } from './wait.mjs';
 
 const here = path.dirname(fileURLToPath(import.meta.url));
@@ -42,81 +44,6 @@ const exists = async (file) => {
     return false;
   }
 };
-export function run(file, args, { input, cwd } = {}) {
-  return new Promise((resolve, reject) => {
-    const child = spawn(file, args, {
-      cwd,
-      windowsHide: true,
-      shell: false,
-      stdio: ["pipe", "pipe", "pipe"],
-    });
-    const chunks = [];
-    let size = 0;
-    child.stdout.on("data", (chunk) => {
-      size += chunk.length;
-      if (size <= 1024 * 1024) chunks.push(chunk);
-    });
-    child.stderr.resume(); // Do not echo arbitrary command output that could contain credentials.
-    child.stdin.on("error", () => {});
-    child.once("error", () =>
-      reject(new Error(`${path.basename(file)} could not start.`)),
-    );
-    child.once("close", (code) =>
-      code === 0
-        ? resolve(Buffer.concat(chunks).toString("utf8"))
-        : reject(
-            new Error(
-              `${path.basename(file)} failed (exit ${code}); inspect the private service log.`,
-            ),
-          ),
-    );
-    child.stdin.end(input);
-  });
-}
-async function background(script, args, log) {
-  await mkdir(path.dirname(log), { recursive: true, mode: 0o700 });
-  const handle = await open(log, "a", 0o600);
-  try {
-    const env = Object.fromEntries(
-      Object.entries(process.env).filter(
-        ([key]) =>
-          ![
-            "VAST_API_KEY",
-            "RUNPOD_API_KEY",
-            "HF_TOKEN",
-            "HUGGING_FACE_HUB_TOKEN",
-            "CIVITAI_API_TOKEN",
-            "SEED_PAIRING_SECRET",
-            "JUPYTER_TOKEN",
-          ].includes(key.toUpperCase()),
-      ),
-    );
-    const child = spawn(process.execPath, [script, ...args], {
-      env,
-      detached: true,
-      windowsHide: true,
-      shell: false,
-      stdio: ["ignore", handle.fd, handle.fd],
-    });
-    await new Promise((resolve, reject) => {
-      child.once("spawn", resolve);
-      child.once("error", reject);
-    });
-    child.unref();
-  } finally {
-    await handle.close();
-  }
-}
-export async function freePort(port) {
-  const server = createServer();
-  await new Promise((resolve, reject) => {
-    server.once("error", () =>
-      reject(new Error(`Local tunnel port ${port} is occupied.`)),
-    );
-    server.listen({ host: "127.0.0.1", port, exclusive: true }, resolve);
-  });
-  await new Promise((resolve) => server.close(resolve));
-}
 export function validateOffer(offer, cached, maxHourly) {
   if (!Number.isFinite(maxHourly) || maxHourly <= 0)
     throw new Error("Set a finite, positive approved --max-hourly.");
@@ -141,7 +68,7 @@ export async function safeShutdown(
   if (
     !state?.paired_worker ||
     connection?.worker_instance_id !== state.paired_worker ||
-    connection.endpoint !== workerOrigin
+    connection.endpoint !== (state.route==='tailscale'?state.tailscale_endpoint:workerOrigin)
   )
     throw new Error(
       "Seed is not paired to this recorded worker. Reconnect before teardown.",
@@ -155,34 +82,6 @@ export async function safeShutdown(
   throw new Error(
     "No fresh safe-shutdown confirmation. Reconnect and reconcile before teardown.",
   );
-}
-export function sshArgs(instance, key, knownHosts, proxy = false) {
-  const port = Number(proxy ? instance.ssh_port : instance.ports?.["22/tcp"]?.[0]?.HostPort);
-  const host = proxy ? instance.ssh_host : instance.public_ipaddr;
-  if (
-    !Number.isInteger(port) ||
-    port < 1 ||
-    port > 65535 ||
-    (proxy ? !/^ssh\d+\.vast\.ai$/.test(host ?? '') : !isIP(host ?? ""))
-  )
-    throw new Error("Direct SSH is not ready.");
-  return [
-    "-i",
-    key,
-    "-p",
-    String(port),
-    "-o",
-    "BatchMode=yes",
-    "-o",
-    "IdentitiesOnly=yes",
-    "-o",
-    "ConnectTimeout=15",
-    "-o",
-    "StrictHostKeyChecking=accept-new",
-    "-o",
-    `UserKnownHostsFile="${knownHosts.replaceAll("\\", "/").replaceAll('"', '\\"')}"`,
-    `root@${host}`,
-  ];
 }
 export class SeedVast {
   constructor(
@@ -511,15 +410,17 @@ export class SeedVast {
       destroyed: false,
     };
     await this.saveState(); // An ambiguous request deliberately leaves a recovery record.
+    const launch = {SEED_PAIRING_SECRET:randomBytes(32).toString('hex'),JUPYTER_TOKEN:randomBytes(32).toString('hex')};
+    await saveJson(this.secretFile(),launch);
     const created = await this.api("PUT", `/api/v0/asks/${offerId}/`, {
       client_id: "me",
       image: this.image,
       disk,
       label: "seed-agent",
       runtype: "ssh_direc ssh_proxy",
-      onstart: "mkdir -p /root/.ssh /run/sshd && printf '%s\\n' \"$SEED_SSH_PUBLIC_KEY\" > /root/.ssh/authorized_keys && chown root:root /root/.ssh /root/.ssh/authorized_keys && chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys && ssh-keygen -A && mkdir -p /run/sshd && service ssh restart",
+      onstart: "cd /opt/seed && exec /opt/venv/bin/python -m worker.entrypoint",
       cancel_unavail: true,
-      env: {SEED_SSH_PUBLIC_KEY:publicKey},
+      env: {...launch,PUBLIC_KEY:publicKey,SEED_START_SSH:'1',SEED_TRANSPORT:'ssh'},
     });
     if (!created.success || !Number.isSafeInteger(created.new_contract))
       throw new Error(
@@ -572,158 +473,23 @@ export class SeedVast {
     return result;
   }
   secretFile() {
-    return path.join(this.privateDir, `worker-${this.state.instance_id}.json`);
+    return path.join(this.privateDir, "worker-launch.json");
   }
   async boot() {
-    const instance = await this.current();
-    if (instance.actual_status !== "running")
-      throw new Error("Wait for the instance to be running before boot.");
-    let secret = await readJson(this.secretFile());
-    if (!secret) {
-      secret = {
-        SEED_PAIRING_SECRET: randomBytes(32).toString("hex"),
-        JUPYTER_TOKEN: randomBytes(32).toString("hex"),
-      };
-      await saveJson(this.secretFile(), secret);
-    }
-    const payload = { SEED_PAIRING_SECRET: secret.SEED_PAIRING_SECRET, JUPYTER_TOKEN: secret.JUPYTER_TOKEN };
-    await this.api("POST", `/api/v0/instances/${instance.id}/ssh/`, {
-      ssh_key: (await readFile(this.key + ".pub", "utf8")).trim(),
+    await this.connect();
+    return (await import('./preparation.mjs')).prepareWorker(this);
+  }
+  async stopTunnel() { return (await import('./connection.mjs')).stopTunnel(this); }
+  async connect({reconnect=false,proxy=false,route}={}) {
+    const instance=await this.current();
+    if(instance.actual_status!=='running')throw Error('The instance is not running.');
+    const secret=await readJson(this.secretFile());
+    if(!secret?.SEED_PAIRING_SECRET)throw Error('No launch secret for this recorded worker.');
+    return (await import('./connection.mjs')).connectWorker(this,{
+      ssh:()=>sshArgs(instance,this.key,this.knownHosts,proxy),secret:secret.SEED_PAIRING_SECRET,route,reconnect,
     });
-    const args = sshArgs(instance, this.key, this.knownHosts);
-    await run("ssh", [...args, "umask 077; cat > /root/seed-agent-worker.py"], {
-      input: await readFile(path.join(here, "worker.py")),
-    });
-    const existing = JSON.parse(await run("ssh", [...args, "/opt/venv/bin/python /root/seed-agent-worker.py status"]));
-    if (existing.running) return { running: true, reused: true };
-    const { transferModels } = await import("./model-transfer.mjs");
-    await transferModels(this.repo, this.paths, args);
-    const result = await run(
-      "ssh",
-      [...args, "/opt/venv/bin/python /root/seed-agent-worker.py boot"],
-      { input: JSON.stringify(payload) },
-    );
-    return JSON.parse(result);
   }
-  async stopTunnel() {
-    // Authenticated local control avoids platform-specific PID inspection and PID-reuse risks.
-    await this.lifecycle.control(this.tunnelPaths, "stop");
-    for (let i = 0; i < 30; i++) {
-      if (!(await this.lifecycle.control(this.tunnelPaths, "status"))) return;
-      await delay(100);
-    }
-    throw new Error("The existing SSH tunnel did not stop.");
-  }
-  async connect({ reconnect = false, proxy = false } = {}) {
-    const instance = await this.current();
-    if (instance.actual_status !== "running")
-      throw new Error("The instance is not running.");
-    if (reconnect) {
-      const connection = await readJson(this.connectionFile);
-      if (!this.state?.paired_worker || connection?.worker_instance_id !== this.state.paired_worker || connection?.endpoint !== workerOrigin)
-        throw new Error('Reconnect requires the existing pairing to this recorded worker. Use connect while idle.');
-    } else assertIdle(await this.local("GET", "/api/v1/studio"));
-    await this.stopTunnel();
-    for (const port of [18080, 18888]) await this.checkPort(port);
-    const args = sshArgs(instance, this.key, this.knownHosts, proxy);
-    const target = args.pop();
-    args.push(
-      "-N",
-      "-o",
-      "ExitOnForwardFailure=yes",
-      "-o",
-      "ServerAliveInterval=15",
-      "-o",
-      "ServerAliveCountMax=3",
-      "-L",
-      "127.0.0.1:18080:127.0.0.1:8080",
-      "-L",
-      "127.0.0.1:18888:127.0.0.1:8888",
-      target,
-    );
-    await mkdir(this.tunnelPaths.config, { recursive: true, mode: 0o700 });
-    try {
-      await this.startBackground(
-        path.join(here, "tunnel.mjs"),
-        [this.repo, this.tunnelPaths.config, ...args],
-        path.join(this.privateDir, "tunnel.log"),
-      );
-      let ready = false;
-      for (let i = 0; i < 15; i++) {
-        try {
-          const r = await this.fetcher(workerOrigin, {
-            redirect: "error",
-            signal: AbortSignal.timeout(2000),
-          });
-          ready = r.ok;
-          await r.body?.cancel();
-          if (ready) break;
-        } catch {}
-        await delay(1000);
-      }
-      if (!ready)
-        throw new Error(
-          "Tunnel/worker is not ready. Run status and boot diagnostics.",
-        );
-      if (reconnect) return { connected: true, url: this.origin, route: proxy ? 'proxy' : 'direct', pairing: 'preserved; pending jobs resume observation and transfer' };
-      const secret = await readJson(this.secretFile());
-      const response = await this.fetcher(workerOrigin + "/worker/v1/unlock", {
-        method: "POST",
-        redirect: "error",
-        signal: AbortSignal.timeout(10000),
-        headers: { Origin: workerOrigin, "Content-Type": "application/json" },
-        body: JSON.stringify({ pairing_secret: secret?.SEED_PAIRING_SECRET }),
-      });
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new Error("Worker unlock failed. Check boot configuration.");
-      }
-      const cookie = response.headers
-        .getSetCookie()
-        .map((c) => c.split(";")[0])
-        .join("; ");
-      await response.body?.cancel();
-      const pairing = await requestJson(
-        workerOrigin + "/worker/v1/pairing-codes",
-        {
-          method: "POST",
-          body: {},
-          headers: { Origin: workerOrigin, Cookie: cookie },
-          fetcher: this.fetcher,
-        },
-      );
-      await this.local("PUT", "/api/v1/connection", {
-        connection_code: pairing.connection_code,
-      });
-      this.state.paired_worker = (
-        await readJson(this.connectionFile)
-      ).worker_instance_id;
-      await this.saveState();
-      return {
-        connected: true,
-        url: this.origin,
-        queue: "paused; resume when ready",
-      };
-    } catch (error) {
-      try {
-        await this.stopTunnel();
-      } catch {
-        throw new Error(
-          "Connection failed and the tunnel did not stop. Inspect the private tunnel log; the GPU remains allocated.",
-        );
-      }
-      throw error;
-    }
-  }
-  async preparation() {
-    const args = sshArgs(await this.current(), this.key, this.knownHosts);
-    return JSON.parse(
-      await run("ssh", [
-        ...args,
-        "/opt/venv/bin/python /root/seed-agent-worker.py preparation",
-      ]),
-    );
-  }
+  async preparation() { return (await import('./connection.mjs')).workerRequest(this,'/worker/v1/preparation'); }
   async teardown(action) {
     if (!["stop", "destroy"].includes(action))
       throw new Error("Invalid teardown action.");
@@ -800,6 +566,7 @@ export async function main(argv) {
     allowPositionals: true,
     strict: true,
     options: {
+      route: {type:'string'},
       repo: { type: "string", default: process.cwd() },
       "offer-id": { type: "string" },
       "max-hourly": { type: "string" },
@@ -839,8 +606,8 @@ export async function main(argv) {
   }
   if(command==='logs')return (await import('./vast-logs.mjs')).vastLogs(app,{daemon:values['daemon-logs']});
   if(values.proxy && !['connect','reconnect'].includes(command))throw Error('--proxy applies only to connect or reconnect.');
-  if(command==='reconnect')return app.connect({reconnect:true,proxy:values.proxy});
-  if(command==='connect')return app.connect({proxy:values.proxy});
+  if(command==='reconnect')return app.connect({reconnect:true,proxy:values.proxy,route:values.route});
+  if(command==='connect')return app.connect({proxy:values.proxy,route:values.route});
   if (command === "offers")
     return app.offers({ disk: Number(values["disk-gb"]), gpus: values.gpu, allGpus:values['all-gpus'], minVram:Number(values['min-vram']), minRam:Number(values['min-ram']),maxHourly:values['max-hourly']===undefined?undefined:Number(values['max-hourly']),minDownload:Number(values['min-download-mbps']) });
   if (command === "rent")

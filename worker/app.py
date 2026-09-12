@@ -41,7 +41,7 @@ def error(status, code, message):
     return web.json_response({'error': {'code': code, 'message': message, 'retryable': status >= 500}, 'request_id': str(uuid.uuid4())}, status=status)
 
 
-def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http://127.0.0.1:8188', development=False, clock=time.time):
+def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http://127.0.0.1:8188', development=False, clock=time.time, managed_preparation=False):
     if len(pairing_secret) < 24:
         raise ValueError('Pairing secret must have at least 24 characters.')
     origin = public_url.rstrip('/')
@@ -168,7 +168,7 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
             active = queue['queue_running'][0][1] if queue['queue_running'] else None
         except Exception:
             state, engine_session_id, active = 'preparing', None, None
-        return web.json_response({'protocol_version': 1, 'worker_instance_id': instance_id, 'workspace_id': workspace_id,
+        return web.json_response({'protocol_version': 1, 'networking_version': 1 if managed_preparation else 0, 'worker_instance_id': instance_id, 'workspace_id': workspace_id,
             'engine_session_id': engine_session_id, 'state': state, 'observed_at': clock(), 'preparation': dict(preparation),
             'active_prompt_id': active, 'pending_output_count': None, 'unresolved_job_count': None,
             'active_preset_revision': None, 'preset_preparation': None})
@@ -190,11 +190,15 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
     app.router.add_post('/worker/v1/pairing-codes', mint)
     app.router.add_post('/worker/v1/exchange', exchange)
     app.router.add_get('/worker/v1/status', status)
+    manager = None
+    if managed_preparation:
+        from worker.preparation import install as install_preparation
+        manager = install_preparation(app, workspace, runtime, authenticated)
+        from worker.network import install as install_network
+        install_network(app, runtime, instance_id, authenticated)
+        from worker.uploads import install as install_uploads
+        install_uploads(app, manager, authenticated)
     from worker.jobs import install
-    install(app, workspace, comfy_url, authenticated)
+    install(app, workspace, comfy_url, authenticated, manager)
     return app
 
-if __name__ == '__main__':
-    public = os.environ.get('SEED_PUBLIC_URL') or f"https://{os.environ['RUNPOD_POD_ID']}-8080.proxy.runpod.net"
-    app = create_app(os.environ.get('SEED_WORKSPACE', '/workspace'), os.environ['SEED_RUNTIME_DIR'], os.environ['SEED_PAIRING_SECRET'], public)
-    web.run_app(app, host='0.0.0.0', port=8080, access_log=None, print=None)

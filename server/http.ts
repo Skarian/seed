@@ -72,6 +72,10 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try { return await jobs.serialize(async () => { jobs.invalidate(); await worker.pair((request.body as { connection_code: string }).connection_code.trim()); return { connected: true }; }); }
     catch (error) { return fail(reply, 400, 'connection_failed', (error as Error).message, request.id); }
   });
+  app.put('/api/v1/connection/route', { schema: { body: { type: 'object', required: ['endpoint'], additionalProperties: false, properties: { endpoint: { type: 'string', maxLength: 200 } } } } }, async (request, reply) => {
+    try { return await jobs.serialize(async () => { await worker.changeRoute((request.body as { endpoint: string }).endpoint); jobs.invalidate(); return { connected: true }; }); }
+    catch (error) { return fail(reply, 409, 'route_failed', (error as Error).message, request.id); }
+  });
   app.delete('/api/v1/connection', async (request, reply) => {
     db.prepare('UPDATE dispatcher_state SET paused = 1 WHERE id = 1').run();
     try { return await jobs.serialize(async () => { jobs.invalidate(); worker.forget(); return { connected: false }; }); }

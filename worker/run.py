@@ -1,53 +1,12 @@
-"""Container supervisor: early pairing, model preparation, then private ComfyUI."""
+"""Early authenticated API, optional administration, then a prepared engine."""
 import asyncio
-import errno
 import json
-import multiprocessing
 import os
-import queue
-import tempfile
 from pathlib import Path
 from aiohttp import web
-from worker.app import HTTP, PREPARATION, atomic_json, create_app
-from worker.prepare import prepare
-
-
-def preparation_failure(exc):
-    status, number = None, None
-    cause = exc
-    for _ in range(8):
-        status = status or getattr(getattr(cause, 'response', None), 'status_code', None)
-        number = number or getattr(cause, 'errno', None)
-        cause = cause.__cause__ or cause.__context__
-        if cause is None: break
-    if number in (errno.ENOSPC, errno.EDQUOT):
-        message = 'Model storage is full or its volume quota was reached. Increase the worker disk capacity or remove unused models, then restart to resume.'
-    else:
-        message = f'Model preparation failed ({type(exc).__name__}). Inspect the private preparation-error.json record through Jupyter before retrying.'
-    return message, {'exception': type(exc).__name__, 'http_status': status if isinstance(status, int) else None, 'errno': number if isinstance(number, int) else None}
-
-
-def prepare_process(workspace, manifest, messages, diagnostics=None):
-    current = {}
-    def report(**value):
-        current.update(value)
-        messages.put(value)
-    try:
-        prepare(workspace, manifest, report=report)
-    except Exception as exc:
-        message, details = preparation_failure(exc)
-        # Never persist raw exception strings: provider errors can contain signed
-        # URLs or credentials. Keep safe codes and the last manifest phase only.
-        if diagnostics:
-            try: atomic_json(diagnostics, {**details, 'phase': current.get('phase'), 'message': message})
-            except OSError: pass
-        messages.put({'phase': current.get('phase', 'preparation failed'), 'error': {'message': message}})
-        raise SystemExit(1)
-
-
-def child_environment():
-    hidden = {'HF_TOKEN', 'HUGGING_FACE_HUB_TOKEN', 'HUGGINGFACE_TOKEN', 'CIVITAI_API_TOKEN', 'CIVITAI_TOKEN', 'RUNPOD_API_KEY', 'SEED_PAIRING_SECRET', 'JUPYTER_TOKEN', 'JUPYTER_PASSWORD'}
-    return {key: value for key, value in os.environ.items() if key not in hidden}
+from worker.app import PREPARATION, create_app
+from worker.preparation import MANAGER
+from worker.processes import child_environment, stop_process, spawn_owned
 
 
 def launch_config(workspace, runtime):
@@ -64,130 +23,59 @@ def launch_config(workspace, runtime):
 
 
 def startup_config(env):
-    transport = env.get('SEED_TRANSPORT', 'https')
     workspace = Path(env.get('SEED_WORKSPACE', '/workspace'))
-    if not workspace.is_absolute():
-        raise ValueError('SEED_WORKSPACE must be an absolute path.')
-    if transport == 'ssh':
-        public = env.get('SEED_PUBLIC_URL', 'http://127.0.0.1:18080')
-        if public != 'http://127.0.0.1:18080':
-            raise ValueError('SSH transport requires the Seed loopback tunnel URL.')
-        return str(workspace), public, '127.0.0.1', True
-    if transport != 'https':
-        raise ValueError('SEED_TRANSPORT must be https or ssh.')
-    public = env.get('SEED_PUBLIC_URL')
-    if not public:
-        pod_id = env.get('RUNPOD_POD_ID')
-        if not pod_id:
-            raise ValueError('Set SEED_PUBLIC_URL for HTTPS transport.')
-        public = f'https://{pod_id}-8080.proxy.runpod.net'
-    if not public.startswith('https://'):
-        raise ValueError('HTTPS transport requires an HTTPS URL.')
-    return str(workspace), public, '0.0.0.0', False
+    if not workspace.is_absolute(): raise ValueError('SEED_WORKSPACE must be absolute.')
+    if env.get('SEED_TRANSPORT', 'ssh') != 'ssh':
+        raise ValueError('Use the private SSH bootstrap; the HTTPS proxy is retired.')
+    public = env.get('SEED_PUBLIC_URL', 'http://127.0.0.1:18080')
+    if public != 'http://127.0.0.1:18080': raise ValueError('Use the Seed loopback bootstrap URL.')
+    return str(workspace), public, '127.0.0.1', True
 
 
 def main():
     os.umask(0o077)
     workspace, public, bind, local_http = startup_config(os.environ)
     os.environ['SEED_WORKSPACE'] = workspace
-    # Created afresh for each container invocation, outside reusable model storage.
-    runtime = Path(tempfile.mkdtemp(prefix='seed-runtime-'))
-    app = create_app(workspace, runtime, os.environ['SEED_PAIRING_SECRET'], public, development=local_http)
+    # This directory belongs to the disposable rental, not the process invocation.
+    runtime = Path(os.environ.get('SEED_RUNTIME_DIR', '/var/lib/seed'))
+    runtime.mkdir(parents=True, exist_ok=True)
+    app = create_app(workspace, runtime, os.environ['SEED_PAIRING_SECRET'], public,
+                     development=local_http, managed_preparation=True)
 
     async def services(app):
         children, handles = [], []
-        preparation_process = None
-        messages = None
-        async def start():
-            nonlocal preparation_process, messages
+        async def admin():
+            token = os.environ.get('JUPYTER_TOKEN', '')
+            if len(token) < 24: return
+            config = runtime/'jupyter_config.py'
+            config.write_text('c.IdentityProvider.token = '+repr(token)+'\n')
             try:
-                # A reusable volume and disposable instance disk are both supported.
-                with tempfile.TemporaryFile(dir=workspace) as probe:
-                    probe.write(b'seed')
-                    probe.flush()
-                jupyter_token = os.environ.get('JUPYTER_TOKEN', '')
-                if len(jupyter_token) < 24:
-                    raise ValueError('Set a private JUPYTER_TOKEN of at least 24 characters.')
-                config = runtime/'jupyter_config.py'
-                config.write_text('c.IdentityProvider.token = ' + repr(jupyter_token) + '\n')
-                jupyter_log = open(runtime/'jupyter.log', 'ab'); handles.append(jupyter_log)
-                children.append(await asyncio.create_subprocess_exec('/opt/venv/bin/jupyter-lab', '--ip=' + bind, '--port=8888', '--ServerApp.port_retries=0', '--allow-root', '--no-browser', '--ServerApp.root_dir='+workspace, '--ServerApp.allow_remote_access=True', '--config='+str(config), env=child_environment(), stdout=jupyter_log, stderr=asyncio.subprocess.STDOUT))
-                app[PREPARATION].update(phase='starting administration', error=None)
-                jupyter = children[-1]
-                for attempt in range(60):
-                    if jupyter.returncode is not None:
-                        raise ValueError('Jupyter failed to start. Inspect ' + str(runtime/'jupyter.log'))
-                    try:
-                        async with app[HTTP].get('http://127.0.0.1:8888/api/status', headers={'Authorization': 'token ' + jupyter_token}, allow_redirects=False) as response:
-                            if response.status == 200: break
-                    except Exception:
-                        pass
-                    await asyncio.sleep(0.5)
-                else:
-                    raise ValueError('Jupyter did not become ready. Inspect ' + str(runtime/'jupyter.log'))
-                command = launch_config(workspace, runtime)
-                manifest = json.loads((Path(__file__).parent/'models.json').read_text())
-                context = multiprocessing.get_context('spawn')
-                messages = context.Queue()
-                preparation_process = context.Process(target=prepare_process, args=(workspace, manifest, messages, runtime/'preparation-error.json'), daemon=True)
-                preparation_process.start()
-                while True:
-                    if jupyter.returncode is not None:
-                        raise ValueError('Jupyter stopped during preparation. Inspect ' + str(runtime/'jupyter.log'))
-                    try:
-                        while True: app[PREPARATION].update(messages.get_nowait())
-                    except queue.Empty:
-                        pass
-                    if not preparation_process.is_alive():
-                        preparation_process.join()
-                        break
-                    await asyncio.sleep(0.5)
-                try:
-                    while True: app[PREPARATION].update(messages.get_nowait())
-                except queue.Empty:
-                    pass
-                if preparation_process.exitcode != 0:
-                    if not app[PREPARATION].get('error'):
-                        app[PREPARATION].update(phase='preparation failed', error={'message': 'Model preparation stopped. Restart the pod to resume.'})
-                    return
+                log = open(runtime/'jupyter.log', 'ab'); handles.append(log)
+                process = await spawn_owned('/opt/venv/bin/jupyter-lab',
+                    '--ip=127.0.0.1', '--port=8888', '--ServerApp.port_retries=0', '--allow-root',
+                    '--no-browser', '--ServerApp.root_dir='+workspace, '--config='+str(config),
+                    env=child_environment(), stdout=log, stderr=asyncio.subprocess.STDOUT)
+                children.append(process)
+                await process.wait()
+            except OSError:
+                pass  # Optional administration must not gate preparation or generation.
+        async def engine():
+            await app[MANAGER].ready.wait()
+            try:
+                log = open(runtime/'comfy.log', 'ab'); handles.append(log)
+                process = await spawn_owned(*launch_config(workspace, runtime),
+                    cwd='/ComfyUI', env=child_environment(), stdout=log, stderr=asyncio.subprocess.STDOUT)
+                children.append(process)
                 app[PREPARATION].update(phase='starting engine', error=None)
-                engine_log = open(runtime/'comfy.log', 'ab'); handles.append(engine_log)
-                engine = await asyncio.create_subprocess_exec(*command, cwd='/ComfyUI', env=child_environment(), stdout=engine_log, stderr=asyncio.subprocess.STDOUT)
-                children.append(engine)
-                engine_wait = asyncio.create_task(engine.wait())
-                admin_wait = asyncio.create_task(jupyter.wait())
-                try:
-                    done, _ = await asyncio.wait([engine_wait, admin_wait], return_when=asyncio.FIRST_COMPLETED)
-                    if admin_wait in done and engine.returncode is None:
-                        app[PREPARATION].update(error={'message': 'Jupyter stopped. Inspect ' + str(runtime/'jupyter.log')})
-                    await engine_wait
-                finally:
-                    engine_wait.cancel(); admin_wait.cancel()
-                    await asyncio.gather(engine_wait, admin_wait, return_exceptions=True)
-                app[PREPARATION].update(phase='engine stopped', error={'message': 'ComfyUI stopped. Inspect the private runtime log through Jupyter, then restart the pod.'})
-            except ValueError as exc:
-                app[PREPARATION].update(phase='setup required', error={'message': str(exc)})
-            except Exception as exc:
-                app[PREPARATION].update(phase='startup failed', error={'message': f'Worker startup failed ({type(exc).__name__}). Check the container configuration.'})
-            finally:
-                if preparation_process and preparation_process.is_alive():
-                    preparation_process.terminate()
-                    await asyncio.to_thread(preparation_process.join, 5)
-        task = asyncio.create_task(start())
+                await process.wait()
+                app[PREPARATION].update(phase='engine stopped', error={'message': 'ComfyUI stopped. Inspect the private engine log.'})
+            except OSError as exc:
+                app[PREPARATION].update(phase='engine stopped', error={'message': 'Engine startup failed ('+type(exc).__name__+').'})
+        tasks = [asyncio.create_task(admin()), asyncio.create_task(engine())]
         yield
-        task.cancel()
-        try: await task
-        except asyncio.CancelledError: pass
-        if preparation_process and preparation_process.is_alive():
-            preparation_process.terminate()
-            await asyncio.to_thread(preparation_process.join, 5)
-            if preparation_process.is_alive(): preparation_process.kill()
-        for child in children:
-            if child.returncode is None: child.terminate()
-        for child in children:
-            try: await asyncio.wait_for(child.wait(), 5)
-            except asyncio.TimeoutError: child.kill(); await child.wait()
-        if messages: messages.close()
+        for task in tasks: task.cancel()
+        await asyncio.gather(*tasks, return_exceptions=True)
+        for child in children: await stop_process(child)
         for handle in handles: handle.close()
     app.cleanup_ctx.append(services)
     web.run_app(app, host=bind, port=8080, access_log=None, print=None)

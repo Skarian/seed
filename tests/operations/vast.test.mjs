@@ -85,7 +85,7 @@ test('ambiguous rental is journaled and cannot allocate again on retry',async()=
     await saveJson(ops.key,{});await saveJson(ops.key+'.pub',{});
     const offer={id:42,machine_id:7,gpu_name:'RTX PRO 6000 WS',num_gpus:1,dph_total:1.45,verification:'verified',reliability2:.999};
     await saveJson(path.join(ops.work,'offers.json'),{searched_at:Date.now(),disk_gb:180,offers:[offer]});ops.instances=async()=>[];
-    ops.requireModels=async()=>[];ops.ensureAccountKey=async()=>{};let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))throw Error('Unexpected second search');if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);assert.match(body.onstart,/chmod 600/);creations++;throw new Error('lost response');}return {success:true};};
+    ops.requireModels=async()=>[];ops.ensureAccountKey=async()=>{};let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))throw Error('Unexpected second search');if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);assert.match(body.onstart,/worker.entrypoint/);assert.equal(body.env.SEED_START_SSH,'1');creations++;throw new Error('lost response');}return {success:true};};
     for(const listing of [{searched_at:Date.now()-61000,disk_gb:180,offers:[offer]},{searched_at:Date.now(),disk_gb:120,offers:[offer]}]){
       await saveJson(path.join(ops.work,'offers.json'),listing);
       await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/Refresh offers/);
@@ -95,51 +95,6 @@ test('ambiguous rental is journaled and cannot allocate again on retry',async()=
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/lost response/);
     assert.equal((await readJson(ops.stateFile)).offer_id,42);
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/uncertain attempt/);assert.equal(creations,1);
-  }finally{await rm(root,{recursive:true,force:true});}
-});
-
-for (const fail of [false,true]) test(`connect uses only a tunnel and pairing; exchange failure=${fail}`,async()=>{
-  const root=await mkdtemp(path.join(os.tmpdir(),'seed-connect-'));
-  try {
-    const starts=[],calls=[];
-    const ops=new SeedVast(root,{checkPort:async()=>{},startBackground:async(script)=>starts.push(path.basename(script)),fetcher:async(url)=>{
-      if(url.endsWith('/pairing-codes'))return Response.json({connection_code:'test-code'});
-      return new Response('ok',{headers:{'set-cookie':'session=test; HttpOnly'}});
-    }});
-    ops.state={instance_id:42};ops.privateDir=root;ops.tunnelPaths={config:path.join(root,'tunnel')};ops.connectionFile=path.join(root,'connection.json');ops.origin='http://127.0.0.1:4310';
-    await saveJson(ops.connectionFile,{worker_instance_id:'previous'});
-    await saveJson(ops.secretFile(),{SEED_PAIRING_SECRET:'fake'});
-    ops.key='key';ops.knownHosts='hosts';ops.current=async()=>({actual_status:'running',public_ipaddr:'127.0.0.1',ports:{'22/tcp':[{HostPort:22}]}});
-    let stops=0;ops.stopTunnel=async()=>{stops++;};ops.saveState=async()=>{};
-    ops.local=async(method,route)=>{
-      calls.push([method,route]);
-      if(method==='GET')return idle;
-      if(fail)throw new Error('exchange failed');
-      await saveJson(ops.connectionFile,{worker_instance_id:'new'});
-    };
-    if(fail)await assert.rejects(ops.connect(),/exchange failed/);else assert.equal((await ops.connect()).connected,true);
-    assert.deepEqual(starts,['tunnel.mjs']);
-    assert.deepEqual(calls,[['GET','/api/v1/studio'],['PUT','/api/v1/connection']]);
-    assert.equal(stops,fail?2:1);
-    assert.equal((await readJson(ops.connectionFile)).worker_instance_id,fail?'previous':'new');
-  }finally{await rm(root,{recursive:true,force:true});}
-});
-
-test('reconnect restores only the recorded worker tunnel without pairing or changing active jobs',async()=>{
-  const root=await mkdtemp(path.join(os.tmpdir(),'seed-reconnect-'));
-  try {
-    const calls=[];
-    const ops=new SeedVast(root,{checkPort:async()=>{},startBackground:async()=>calls.push('tunnel'),fetcher:async(url)=>{assert.equal(url,workerOrigin);return new Response('ok');}});
-    ops.state={instance_id:42,paired_worker:'worker'};ops.privateDir=root;ops.tunnelPaths={config:path.join(root,'tunnel')};ops.connectionFile=path.join(root,'connection.json');
-    ops.key='key';ops.knownHosts='hosts';ops.stopTunnel=async()=>{};
-    ops.current=async()=>({actual_status:'running',public_ipaddr:'127.0.0.1',ports:{'22/tcp':[{HostPort:22}]}});
-    ops.local=async()=>{throw Error('Reconnect must not pair, submit or mutate the queue');};
-    const saved={worker_instance_id:'worker',endpoint:workerOrigin,credential:'unchanged'};
-    await saveJson(ops.connectionFile,{...saved,worker_instance_id:'different'});
-    await assert.rejects(ops.connect({reconnect:true}),/existing pairing/);assert.equal(calls.length,0);
-    await saveJson(ops.connectionFile,saved);
-    assert.equal((await ops.connect({reconnect:true})).connected,true);
-    assert.deepEqual(calls,['tunnel']);assert.deepEqual(await readJson(ops.connectionFile),saved);
   }finally{await rm(root,{recursive:true,force:true});}
 });
 

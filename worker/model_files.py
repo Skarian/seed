@@ -1,4 +1,4 @@
-"""Prepare verified models over SSH. Source tokens arrive only through stdin."""
+"""Pinned-source downloads, file verification and preset activation."""
 import hashlib
 import json
 import os
@@ -36,7 +36,6 @@ def receipt_path(workspace, item):
 
 
 def save_receipt(workspace, item, target):
-    if item.get('route'): return
     receipt=receipt_path(workspace,item); receipt.parent.mkdir(parents=True,exist_ok=True)
     s=target.stat(); temporary=receipt.with_suffix('.tmp')
     temporary.write_text(json.dumps({'sha256':item['sha256'],'size':s.st_size,'mtime_ns':s.st_mtime_ns}))
@@ -58,31 +57,6 @@ def probe(workspace, entries):
             partial.unlink(); offset = 0
         result.append({'path': item['path'], 'ready': valid, 'offset': offset})
     return result
-
-
-def receive(workspace, item, offset, stream):
-    target, partial = locations(workspace, item)
-    target.parent.mkdir(parents=True, exist_ok=True)
-    partial.parent.mkdir(parents=True, exist_ok=True)
-    actual = partial.stat().st_size if partial.exists() else 0
-    if type(offset) is not int or offset < 0 or offset > item['size'] or actual != offset:
-        raise ValueError('Transfer offset changed; probe again')
-    remaining = item['size'] - offset
-    with partial.open('ab' if offset else 'wb') as f:
-        while remaining:
-            chunk = stream.read(min(4 * 1024 * 1024, remaining))
-            if not chunk:
-                raise ValueError('Interrupted transfer; partial retained')
-            f.write(chunk); remaining -= len(chunk)
-        f.flush(); os.fsync(f.fileno())
-    if stream.read(1):
-        raise ValueError('Unexpected extra transfer bytes')
-    if not verified(partial, item):
-        partial.unlink()
-        raise ValueError('Transfer hash mismatch; rerun from zero')
-    os.replace(partial, target)
-    save_receipt(workspace,item,target)
-    return {'path':item['path'], 'ready':True, 'bytes':item['size']}
 
 
 def direct_download(workspace, item, token, fetch=None):
@@ -131,10 +105,11 @@ def direct_download(workspace, item, token, fetch=None):
         return {'ready': True, 'seconds': round(time.monotonic()-started, 2)}
     except Exception as exc:
         # Upstream exception strings can contain signed URLs; never return them.
-        code = getattr(exc, 'code', None)
+        code = getattr(exc, 'code', None) or getattr(getattr(exc, 'response', None), 'status_code', None)
         return {'ready': False, 'error': 'Direct download or verification failed',
                 'error_type': type(exc).__name__,
                 'http_status': code if isinstance(code, int) and 100 <= code <= 599 else None,
+                'errno': getattr(exc, 'errno', None) if isinstance(getattr(exc, 'errno', None), int) else None,
                 'seconds': round(time.monotonic()-started, 2)}
 
 
@@ -218,16 +193,3 @@ def activate(workspace, entries):
     return {'presets':len([x for x in entries if x.get('route')])}
 
 
-if __name__ == '__main__':
-    try:
-        incoming=json.loads(sys.stdin.buffer.readline(1024*1024))
-        action=incoming['action']; workspace=incoming['workspace']
-        if action=='probe': result=probe(workspace,incoming['entries'])
-        elif action=='receive': result=receive(workspace,incoming['item'],incoming['offset'],sys.stdin.buffer)
-        elif action=='download': result=direct_download(workspace,incoming['item'],incoming.get('token',''))
-        elif action=='activate': result=activate(workspace,incoming['entries'])
-        else: raise ValueError('Unknown action')
-        print(json.dumps(result))
-    except Exception as exc:
-        print(json.dumps({'error':type(exc).__name__, 'message':str(exc) if isinstance(exc,ValueError) else 'Model transfer failed'}))
-        sys.exit(1)

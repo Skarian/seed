@@ -5,7 +5,7 @@ executable helpers. Seed's installable package supplies all commands.
 
 ## Installation
 
-Check `node --version` and `seed help`. Supported Node: 26.8.2–26.x.
+Check `node --version` and `seed help`. Supported Node: 26.8.2â€“26.x.
 If Node is absent or incompatible, pause and ask permission to install/upgrade it;
 explain that administrator approval may be needed. Use official Node downloads.
 Also check OpenSSH (`ssh`, `ssh-keygen`). Optional local model downloads use the
@@ -55,3 +55,18 @@ sha256, route (`image`, `fl`, `ref`) and optional strength. Resolve user-provide
 Civitai links through its metadata API; pin an exact version and file:
 `https://civitai.com/api/download/models/VERSION_ID?fileId=FILE_ID`.
 Never choose or update a LoRA silently. Base models are pinned in the package.
+
+## Optional Tailscale worker networking
+
+Install and sign into the official Tailscale client on the PC. Create a Tailscale
+OAuth trust credential with only Auth Keys write access, restricted to
+`tag:seed-worker`. Run `seed setup --tailscale` to enter its client ID and secret
+through masked prompts. Keep the OAuth credential on the PC. The agent may help
+configure the account using the owner's authorized scope; inspect existing access
+rules before changing them.
+
+The tailnet policy should allow the Seed PC to reach tagged workers on TCP 8080,
+without allowing workers to initiate connections to personal devices. Select
+`connect --route tailscale` explicitly. Initial pairing still uses SSH; subsequent
+Tailscale reconnections do not. Browser access to the local Seed app stays as it
+was. Public access and login are outside this networking feature.
