@@ -19,7 +19,17 @@ retains failures, fixes, timing evidence and earlier partial bills.
 | Capacity | Maximum-reference 10/15-second tests deferred; successful startup does not prove capacity |
 | Identity editing | Unfinished/deferred |
 
-## Spicy mode — September 12, 2026
+## H3 High Quality candidate — September 12, 2026
+
+The optional HQ implementation and native-resolution exports passed local
+application, operations, worker, browser and package checks. The candidate image
+was published to GHCR. Live GPU validation is blocked by a slow or stalled RunPod
+image pull; no new inference result is claimed. The test rental and disk are
+retained as instructed by the owner. See the
+[candidate report](../research/development/H3-HQ-VALIDATION-2026-09-12.md)
+for timings, the unexecuted test matrix and exact image identity.
+
+## Spicy mode acceptance — September 12, 2026
 
 Owner accepted the shared mode and final centered toast placement. Build and
 TypeScript checks passed. Browser coverage passed for Library filtering, reference

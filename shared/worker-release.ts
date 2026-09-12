@@ -1,4 +1,4 @@
 export const workerRelease = {
   image:
-    "ghcr.io/skarian/seed-worker@sha256:a48f56da5d5fd2699f436a1941dd62288257b4930504f59dfee949000501405e",
+    "ghcr.io/skarian/seed-worker@sha256:fceb482939a16783746dcf09adbae69deee277c284110381f027cdd7bc92d67a",
 };
