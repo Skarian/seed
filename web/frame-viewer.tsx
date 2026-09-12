@@ -1,3 +1,4 @@
+import { FrameCanvas } from './frame-canvas.js';
 import { useFrameImage } from './frame-images.js';
 import React, { useEffect, useRef, useState } from 'react';
 import type { FrameSequence, LibraryAsset } from '../shared/studio.js';
@@ -25,25 +26,26 @@ export function FrameViewer({ id, onClose, onChanged, onPick, selectedIds = [], 
     }).then(setSequence).catch(e=>{if(!controller.signal.aborted)setError(e.message);});
     return ()=>controller.abort();
   },[id,retry]);
-  const original=useFrameImage(sequence?.frames,position,retry);
-  useEffect(()=>{setDisplayed('');setZoom(false);},[frame?.id,retry]);
+  const original=useFrameImage(sequence,position,retry);
+  useEffect(()=>{setZoom(false);},[frame?.id,retry]);
+  const inspecting=Boolean(frame && displayed===frame.id && original.quality==='original' && original.bitmap);
   const asset:LibraryAsset|undefined=frame&&{id:frame.id,kind:'image',name:'Frame '+(frame.index+1),created_at:'',mode:sequence!.mode};
   const checked=frame&&(onPick?selectedIds:selected).includes(frame.id);
   return <dialog ref={dialog} className="frame-viewer" aria-label="Image sequence" onCancel={e=>{e.preventDefault();onClose();}}>
-    <header><span>{sequence?.frames.length??0} frames</span><div>
+    <header><span>{sequence?.frames.length??0} frames{original.buffering && <small className="frame-buffering" role="status">Preparing previews…</small>}</span><div>
       {sequence?.cleanup_pending&&<p>Frame cleanup was interrupted. <button onClick={async()=>{
       try { const r=await fetch('/api/v1/sequences/'+id+'/retry-cleanup',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const body=await r.json();if(!r.ok)throw Error(body.error?.message??'Cleanup failed.');onChanged?.();if(body.sequence)setSequence(body.sequence);else onClose(); }catch(e){setError((e as Error).message);}
     }}>Retry cleanup</button></p>}
-    {frame&&<><button onClick={()=>setZoom(v=>!v)} disabled={displayed!==frame.id}>{zoom?'Fit':'100%'}</button><a href={'/api/v1/assets/'+frame.id+'/content'} download>Download</a></>}
+    {frame&&<><button onClick={()=>setZoom(v=>!v)} disabled={!inspecting}>{zoom?'Fit':'100%'}</button><a href={'/api/v1/assets/'+frame.id+'/content'} download>Download</a></>}
       <button aria-label="Close sequence" onClick={onClose}>×</button></div></header>
     {frame&&<>
       <div className={'frame-canvas'+(zoom?' zoomed':'')}>
-        <img key={frame.id+(original.url?'original':'preview')} src={original.url||('/api/v1/assets/'+frame.id+'/preview?size=1280')} alt={'Frame '+(frame.index+1)} onLoad={()=>{if(original.url)setDisplayed(frame.id);}} onError={()=>setError('Could not load frame. Retry.')} />
-        {displayed!==frame.id&&<span className="frame-loading" role="status">Loading original…</span>}
+        <FrameCanvas bitmap={original.bitmap} crop={original.crop} frameId={frame.id} frameIndex={frame.index} original={original.quality==='original'} onDisplay={setDisplayed}/>
+        {!inspecting&&<span className="frame-loading" role="status">Loading original…</span>}
       </div>
       <div className="frame-controls">
         <div className="frame-position"><span>Frame {position+1} / {sequence!.frames.length} <small> · {frame.time.toFixed(2)}s</small></span>
-          <button className="frame-check" aria-label="Select frame" aria-pressed={Boolean(checked)} disabled={displayed!==frame.id||Boolean(onPick&&!checked&&asset&&canPick&&!canPick(asset))}
+          <button className="frame-check" aria-label="Select frame" aria-pressed={Boolean(checked)} disabled={!inspecting||Boolean(onPick&&!checked&&asset&&canPick&&!canPick(asset))}
             onClick={()=>{if(!asset)return;if(onPick)onPick(asset);else setSelected(ids=>ids.includes(frame.id)?ids.filter(x=>x!==frame.id):[...ids,frame.id]);}}>✓</button>
         </div>
         <input aria-label="Frame" type="range" min={0} max={sequence!.frames.length-1} step={1} value={position} onChange={e=>setPosition(Number(e.target.value))}/>

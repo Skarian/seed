@@ -119,3 +119,27 @@ original installed app/data were not upgraded or migrated. Review scrubbing,
 original detail/zoom, selecting frames, confirmation/cancel, Keep only and
 Library reference picking. Fixtures can be safely pruned/deleted. Live proof,
 worker publication/pinning and production installation follow owner feedback.
+
+
+### Scrubbing performance follow-up
+
+Tested the actual review app with a mobile-sized Chromium viewport, synthetic
+120-frame PNG sequence, 60 ms simulated latency and 20 Mbit/s download cap.
+Swept 90 frames at roughly 16 ms input intervals:
+
+- Previous image-element renderer: 89 blank samples, one displayed distinct
+  frame, 87 canceled/failed requests and 5,674 ms to settle on the original.
+- Persistent canvas plus individual-frame previews removed blanking but only
+  displayed ten distinct frames. This intermediate approach was superseded.
+- Final cached-sheet renderer: 90 distinct frames, zero blanks, nine total media
+  requests, zero failed requests, 200 ms to the original after the sweep. Maximum
+  measured input-loop interval was 19 ms; this is not a GPU frame-time benchmark.
+- Cold sheet preparation is still work: an immediate cold sweep showed only 14
+  distinct frames while previews were being built. The UI now indicates Preparing
+  previews; the smooth result above is after sheet preparation, not a cold-start
+  claim. Original-quality selection intentionally remains unavailable while moving.
+
+65 app tests, typecheck/build and all 22 browser tests passed. Added atlas image
+size/revision checks and a canvas pixel test for correct tile selection followed
+by original resolution. Desktop/mobile screenshots were inspected after the
+change. No worker, provider, GPU or production installation change in this follow-up.

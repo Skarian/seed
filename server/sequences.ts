@@ -1,5 +1,5 @@
 import type Database from 'better-sqlite3';
-import { existsSync, realpathSync, unlinkSync } from 'node:fs';
+import { existsSync, realpathSync, unlinkSync, readdirSync } from 'node:fs';
 import path from 'node:path';
 import type { Jobs } from './jobs.js';
 import type { FrameSequence } from '../shared/studio.js';
@@ -65,6 +65,8 @@ export class Sequences {
         for(const job of this.jobs.all()) if(job.outputs.includes(assetId)) {job.outputs=job.outputs.filter(x=>x!==assetId);this.jobs.save(job);}
       })();
     }
+    // Preview sheets are disposable; failed cache cleanup must not undo a prune.
+    try { for(const file of readdirSync(path.join(this.cache,'previews'))) if(file.startsWith('sequence-'+id+'-')) unlinkSync(path.join(this.cache,'previews',file)); } catch {}
     if(pending.deleting) this.db.prepare('DELETE FROM sequences WHERE id=?').run(id);
     else this.db.prepare('UPDATE sequences SET pending_json=NULL,revision=revision+1 WHERE id=?').run(id);
   }

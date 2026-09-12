@@ -1,6 +1,35 @@
 import { test, expect } from '@playwright/test';
 import sharp from 'sharp';
 
+test('buffered scrubbing draws the correct tile and waits for original quality before selection',async({page})=>{
+  const frames=Array.from({length:48},(_,index)=>({id:'f'+index,index,time:index/24,width:1344,height:768}));
+  const sheets: Buffer[]=[];
+  for(let sheet=0;sheet<2;sheet++) {
+    const layers=await Promise.all(Array.from({length:24},async(_,i)=>({
+      input:await sharp({create:{width:320,height:183,channels:3,background:{r:(sheet*24+i)*5,g:20,b:30}}}).png().toBuffer(),left:i%6*320,top:Math.floor(i/6)*183,
+    })));
+    sheets.push(await sharp({create:{width:1920,height:732,channels:3,background:'black'}}).composite(layers).png().toBuffer());
+  }
+  const original=await sharp({create:{width:1344,height:768,channels:3,background:'#123456'}}).png().toBuffer();
+  let release!:()=>void;const gate=new Promise<void>(resolve=>release=resolve);let requests=0;
+  await page.route('**/api/v1/assets',r=>r.fulfill({json:{items:[{id:'seq',kind:'sequence',name:'Image sequence',cover_id:'f0',frame_count:48}]}}));
+  await page.route('**/api/v1/assets/f*/*',async r=>{if(r.request().url().includes('/f40/content'))await gate;await r.fulfill({contentType:'image/png',body:original});});
+  await page.route('**/api/v1/sequences/seq',r=>r.fulfill({json:{id:'seq',revision:0,mode:'sfw',frames}}));
+  await page.route('**/api/v1/sequences/seq/preview/*',r=>{requests++;return r.fulfill({contentType:'image/png',body:sheets[Number(new URL(r.request().url()).pathname.split('/').pop())]!});});
+  try {
+    await page.goto('/library');await page.getByRole('button',{name:'Image sequence',exact:true}).click();
+    await expect(page.locator('.frame-buffering')).toHaveCount(0);
+    const slider=page.getByRole('slider',{name:'Frame',exact:true});
+    for(const index of [1,12,25,39,40])await slider.fill(String(index));
+    const canvas=page.locator('.frame-canvas canvas');
+    await expect(canvas).toHaveAttribute('data-frame','f40');await expect(canvas).toHaveAttribute('data-quality','preview');
+    expect(await canvas.evaluate(e=>Array.from((e as HTMLCanvasElement).getContext('2d')!.getImageData(0,0,1,1).data))).toEqual([200,20,30,255]);
+    await expect(page.getByRole('button',{name:'Select frame',exact:true})).toBeDisabled();expect(requests).toBe(2);
+    release();await expect(page.getByRole('button',{name:'Select frame',exact:true})).toBeEnabled();
+    await expect(canvas).toHaveAttribute('data-quality','original');await expect(canvas).toHaveAttribute('width','1344');
+  } finally { release?.(); }
+});
+
 test('sequence slider inspects originals, selects frames, confirms keep-only and refreshes the Library',async({page})=>{
   let revision=0, frames=Array.from({length:12},(_,index)=>({id:'frame-'+index,index,time:index/24,width:1344,height:768}));
   let removed=0;

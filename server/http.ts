@@ -88,6 +88,17 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try {return sequences.get((request.params as any).id) ?? fail(reply,404,'not_found','Sequence not found.',request.id);}
     catch(e){return fail(reply,409,'sequence_busy',(e as Error).message,request.id);}
   });
+  app.get('/api/v1/sequences/:id/preview/:page',async(request,reply)=>{
+    const {id,page:raw} = request.params as {id:string;page:string};
+    const page=Number(raw), revision=Number((request.query as any).revision);
+    const sequence=sequences.get(id);
+    if(!sequence||sequence.cleanup_pending||revision!==sequence.revision||!Number.isInteger(page)||page<0||page*24>=sequence.frames.length)
+      return fail(reply,409,'sequence_changed','Reload the sequence preview.',request.id);
+    const first=sequence.frames[0]!;
+    const frames=sequence.frames.slice(page*24,page*24+24).map(f=>db.prepare('SELECT relative_path FROM assets WHERE id=?').get(f.id) as {relative_path:string});
+    try {const file=await previews.sheet(id,revision,page,frames,first.width,first.height);return reply.type('image/webp').send(createReadStream(file));}
+    catch{return fail(reply,409,'preview_failed','Could not load sequence preview.',request.id);}
+  });
   app.post('/api/v1/sequences/:id/keep-only',async(request,reply)=>jobs.serialize(async()=>{
     try {const body=request.body as any;return sequences.prune((request.params as any).id,body?.asset_ids,body?.revision);}
     catch(e){return fail(reply,409,'sequence_changed',(e as Error).message,request.id);}

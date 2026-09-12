@@ -29,9 +29,13 @@ describe('local studio boundary', () => {
     const preview=await app.inject({url:'/api/v1/assets/frame0/preview',headers:{host}});
     expect(preview.statusCode).toBe(200);expect((await sharp(preview.rawPayload).metadata()).width).toBe(384);
     expect((await app.inject({url:'/api/v1/assets/frame0/content',headers:{host}})).rawPayload).toEqual(bytes);
+    const sheet=await app.inject({url:'/api/v1/sequences/sequence/preview/0?revision=0',headers:{host}});
+    expect(sheet.statusCode).toBe(200);
+    expect(await sharp(sheet.rawPayload).metadata()).toMatchObject({width:1920,height:183,format:'webp'});
     expect((await app.inject({method:'DELETE',url:'/api/v1/assets/frame0',headers})).statusCode).toBe(409);
     const kept=await app.inject({method:'POST',url:'/api/v1/sequences/sequence/keep-only',headers,payload:{asset_ids:['frame1'],revision:0}});
     expect(kept.statusCode).toBe(200);expect(kept.json().frames.map((f:any)=>f.id)).toEqual(['frame1']);
+    expect((await app.inject({url:'/api/v1/sequences/sequence/preview/0?revision=0',headers:{host}})).statusCode).toBe(409);
     expect((await app.inject({url:'/api/v1/assets/frame0/content',headers:{host}})).statusCode).toBe(404);
     expect((await app.inject({method:'DELETE',url:'/api/v1/sequences/sequence',headers})).statusCode).toBe(204);
     expect((await app.inject({url:'/api/v1/assets',headers:{host}})).json().items).toHaveLength(0);

@@ -18,6 +18,7 @@ mutations; public hosting needs an owner-managed authenticated boundary.
 | GET /assets/{id} | Upload/preparation metadata |
 | GET /assets/{id}/content | Saved content with Range support |
 | GET /assets/{id}/preview?size=384 or 1280 | Disposable cached WebP preview; original content remains unchanged |
+| GET /sequences/{id}/preview/{page}?revision=N | Cached 24-frame scrub sheet; stale revisions rejected |
 | GET /sequences/{id} | Ordered original frame IDs, indices/timestamps, dimensions and revision |
 | POST /sequences/{id}/keep-only | Confirmed pruning with `{asset_ids, revision}`; nonempty subset, stale-write protection |
 | POST /sequences/{id}/retry-cleanup | Finish a previously confirmed, persisted cleanup intent |

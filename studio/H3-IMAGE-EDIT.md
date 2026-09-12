@@ -82,7 +82,7 @@ Image quality is central to selection. Cached previews support card thumbnails
 and responsive scrubbing, but after scrubbing settles load and display the
 original PNG, fitted to the viewport. Provide original-resolution inspection
 through zoom/pan; do not upscale or sharpen a preview and present it as the
-original. Prefetch only a small neighboring window of originals. Show a subtle
+original. Buffer 24-frame preview sheets with a 96 MiB decoded-image budget. Load originals after a 100 ms pause; render through a persistent native-resolution canvas. Show a subtle
 loading indicator until the requested original is decoded. Never let a stale
 image stand in for the current slider position: bind selection to the displayed
 frame and disable its checkmark while only a temporary preview is available.
@@ -195,7 +195,7 @@ the owning modules rather than adding services:
   on-demand, disk-cached image preview path using existing media tooling. Reuse
   it for covers and transient scrubbing; cache is disposable and deleted with
   frames. Settled inspection, download and references use the original PNG.
-  Bound concurrent preview work and discard stale scrub requests. Validate
+  Bound preview work and prioritize the current sheet without canceling every scrub request. Validate
   fine detail and color against the original, plus correct frame/selection
   identity under rapid scrubbing and slow requests. No 24 fps playback goal.
 - LibraryAsset currently represents real image/video/audio files. Introduce a
@@ -236,3 +236,21 @@ Source basis: current server/video.ts and worker/comfy_seed/video.py, and
 [pinned native H3 nodes](https://github.com/Comfy-Org/ComfyUI/blob/12d5279438bfefc058a269eae805ceab6047777f/comfy_extras/nodes_minimax_h3.py).
 Community Image Studio and H3 Edit informed initial research; their specialized
 recipes are not part of this implementation.
+
+
+## Scrubbing refinement (2026-09-12)
+
+Owner reported unsmooth scrubbing. Reproduced under 60 ms simulated network
+latency: the three-image cache and remounted image elements caused cancellation
+churn and blank frames. Replaced that path with a persistent 2D canvas and
+24-frame cached preview sheets (six columns, 320px longest cell edge, WebP92).
+Only two sheet requests run concurrently; decoded bitmaps have a 96 MiB budget
+and are released on close. Originals load after a 100 ms pause and render at
+native dimensions; selection stays disabled until the exact original is drawn.
+No WebGL/3D library or new dependency was necessary.
+
+First opening may need a short Preparing previews period. Original files remain
+unchanged. Sheets are revision-specific and invalidated by pruning; the server
+rejects stale sheet revisions. The renderer retains its last pixels while a
+requested frame loads, rather than flashing blank. Source frame identity remains
+explicit and selection cannot act on the previous frame.
