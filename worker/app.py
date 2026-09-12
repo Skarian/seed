@@ -29,6 +29,10 @@ def atomic_json(file, value):
             handle.flush()
             os.fsync(handle.fileno())
         os.replace(temp, file)
+        if os.name != 'nt':
+            fd = os.open(file.parent, os.O_RDONLY)
+            try: os.fsync(fd)
+            finally: os.close(fd)
     finally:
         temp.unlink(missing_ok=True)
 

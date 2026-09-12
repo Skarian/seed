@@ -4,7 +4,8 @@ import json
 import os
 from pathlib import Path
 from aiohttp import web
-from worker.app import PREPARATION, create_app, atomic_json
+from worker.app import PREPARATION, create_app
+from worker.spool import atomic
 from worker.preparation import MANAGER
 from worker.processes import child_environment, stop_process, spawn_owned
 
@@ -64,7 +65,7 @@ def main():
             identity_file = runtime/'identity.json'
             identity = json.loads(identity_file.read_text())
             identity['engine_ever_started'] = True
-            atomic_json(identity_file, identity)
+            atomic(identity_file, identity)
             try:
                 log = open(runtime/'comfy.log', 'ab'); handles.append(log)
                 process = await spawn_owned(*launch_config(workspace, runtime),

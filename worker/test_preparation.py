@@ -96,3 +96,18 @@ async def test_unused_cleanup_requires_new_identity_cancel_and_empty_spool(tmp_p
     for value in [True, None]:
         atomic_json(runtime/'identity.json', {**identity, 'engine_ever_started': value})
         assert manager.unused_worker() is None
+
+@pytest.mark.asyncio
+async def test_cancel_before_manifest_fences_delayed_first_ensure(tmp_path):
+    from worker.app import atomic_json
+    workspace, runtime = tmp_path/'workspace', tmp_path/'runtime'
+    atomic_json(workspace/'.seed/workspace.json', {'workspace_id': 'workspace'})
+    atomic_json(runtime/'identity.json', {'worker_instance_id': 'worker', 'engine_ever_started': False})
+    manager = Preparation(workspace, runtime, {})
+    cancelled = await manager.cancel()
+    assert cancelled['unused_worker']['worker_instance_id'] == 'worker'
+    restarted = Preparation(workspace, runtime, {})
+    with pytest.raises(web.HTTPConflict): await restarted.ensure([item()], {}, 0)
+    await restarted.ensure([item()], {}, cancelled['revision'])
+    await finished(restarted)
+    assert restarted.state == 'needs_source'

@@ -68,11 +68,13 @@ class Preparation:
         if not isinstance(credentials, dict) or set(credentials) - {'huggingFaceToken', 'civitaiApiToken'} or any(not isinstance(x, str) for x in credentials.values()):
             raise ValueError('Invalid credentials')
         async with self.lock:
-            if self.intent and (digest != self.intent['digest'] or revision != self.intent['revision']):
+            if self.intent and (self.intent['digest'] is not None and digest != self.intent['digest'] or revision != self.intent['revision']):
                 raise web.HTTPConflict()
             if not self.intent:
                 if revision != 0: raise web.HTTPConflict()
                 self.intent = {'entries': entries, 'digest': digest, 'revision': 0, 'cancelled': False}
+            elif self.intent['digest'] is None:
+                self.intent.update(entries=entries, digest=digest)
             if self.ready.is_set(): return {**self.refresh(), 'credentials_accepted': False}
             if self.upload_task and not self.upload_task.done(): return {**self.refresh(), 'credentials_accepted': False}
             if self.task and not self.task.done(): return {**self.refresh(), 'credentials_accepted': False}
@@ -129,6 +131,8 @@ class Preparation:
     async def cancel(self):
         async with self.lock:
             if self.ready.is_set(): raise web.HTTPConflict()
+            if self.intent is None:
+                self.intent = {'entries': [], 'digest': None, 'revision': 0, 'cancelled': False}
             if self.intent and not self.intent['cancelled']:
                 self.intent['cancelled'] = True
                 self.intent['revision'] += 1
