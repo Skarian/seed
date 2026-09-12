@@ -8,7 +8,9 @@ installed package and per-user state; no checkout or helper scripts are needed.
 3. `seed gpu vast offers` finds suitable one-GPU offers. Prioritize verified hosts, high reliability and fast network transfer. Inspect
    hourly and transfer prices against the user's authorization.
 4. `seed gpu vast rent --offer-id ID --max-hourly USD --disk-gb 180` rents the
-   selected offer. It checks current pricing and records intent before creation.
+   selected offer. It checks the fresh listing's price and records intent before
+   creation. Listings expire after 60 seconds; refresh with the same disk size if
+   necessary. It accepts that exact offer ID without a second host/slice search.
 5. `seed gpu vast wait` waits at most five minutes for running state/direct SSH.
 6. `seed gpu vast boot` prepares models and starts the pinned worker. Repeat to
    reuse verified files after an interruption. Never run during active generation.

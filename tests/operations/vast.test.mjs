@@ -83,9 +83,15 @@ test('ambiguous rental is journaled and cannot allocate again on retry',async()=
   try{
     const ops=new SeedVast(root);ops.image='ghcr.io/example/worker@sha256:'+ 'a'.repeat(64);ops.work=path.join(root,'work');ops.privateDir=path.join(root,'private');ops.key=path.join(ops.privateDir,'key');ops.stateFile=path.join(ops.work,'state.json');
     await saveJson(ops.key,{});await saveJson(ops.key+'.pub',{});
-    const offer={id:42,machine_id:7,gpu_name:'RTX PRO 6000 WS',num_gpus:1,dph_total:1.45};
-    await saveJson(path.join(ops.work,'offers.json'),[offer]);ops.instances=async()=>[];
-    ops.requireModels=async()=>[];ops.ensureAccountKey=async()=>{};let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))return {offers:[offer]};if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);assert.match(body.onstart,/chmod 600/);creations++;throw new Error('lost response');}return {success:true};};
+    const offer={id:42,machine_id:7,gpu_name:'RTX PRO 6000 WS',num_gpus:1,dph_total:1.45,verification:'verified',reliability2:.999};
+    await saveJson(path.join(ops.work,'offers.json'),{searched_at:Date.now(),disk_gb:180,offers:[offer]});ops.instances=async()=>[];
+    ops.requireModels=async()=>[];ops.ensureAccountKey=async()=>{};let creations=0;ops.api=async(method,route,body)=>{if(route.endsWith('/bundles/'))throw Error('Unexpected second search');if(route.endsWith('/asks/42/')){assert.equal(body.image,ops.image);assert.match(body.onstart,/chmod 600/);creations++;throw new Error('lost response');}return {success:true};};
+    for(const listing of [{searched_at:Date.now()-61000,disk_gb:180,offers:[offer]},{searched_at:Date.now(),disk_gb:120,offers:[offer]}]){
+      await saveJson(path.join(ops.work,'offers.json'),listing);
+      await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/Refresh offers/);
+      assert.equal(creations,0);
+    }
+    await saveJson(path.join(ops.work,'offers.json'),{searched_at:Date.now(),disk_gb:180,offers:[offer]});
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/lost response/);
     assert.equal((await readJson(ops.stateFile)).offer_id,42);
     await assert.rejects(ops.rent({offerId:42,maxHourly:1.45}),/uncertain attempt/);assert.equal(creations,1);

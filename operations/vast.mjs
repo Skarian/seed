@@ -392,7 +392,7 @@ export class SeedVast {
     if (!Array.isArray(r.offers)) throw new Error("Invalid offer listing.");
     // Validate the returned status too: provider filter aliases have changed.
     const offers=r.offers.filter(o=>o.verification==='verified' && o.reliability2>=0.99);
-    await saveJson(path.join(this.work, "offers.json"), offers);
+    await saveJson(path.join(this.work, "offers.json"), {searched_at:Date.now(),disk_gb:disk,offers});
     return offers.map((o) =>
       pick(o, [
         "id",
@@ -477,27 +477,17 @@ export class SeedVast {
     )
       throw new Error("An active Vast instance already exists.");
     await this.requireModels();
-    const cached = (
-      await readJson(path.join(this.work, "offers.json"), [])
-    ).find((o) => o.id === offerId);
-    if (!cached)
-      throw new Error("Run offers and choose a returned offer first.");
-    const r = await this.api("POST", "/api/v0/bundles/", {
-      machine_id: { eq: cached.machine_id },
-      rentable: { eq: true },
-      rented: { eq: false },
-      num_gpus: { eq: 1 },
-      type: "on-demand",
-      allocated_storage: disk,
-      limit: 100,
-    });
-    // Search may return a different free one-GPU slice on the same machine.
-    // Keep the approved host/hardware/price constraints when refreshing the slice.
-    const offer = r.offers?.find((o) => o.id === offerId)
-      ?? r.offers?.find(o => o.machine_id === cached.machine_id && o.gpu_name === cached.gpu_name && o.num_gpus === 1 && o.dph_total <= maxHourly);
-    validateOffer(offer, cached, maxHourly);
-    if(cached.verification && (offer.verification!=='verified' || offer.reliability2<0.99))throw Error('Host verification or reliability changed; select another verified offer.');
-    offerId = offer.id;
+    const listing = await readJson(path.join(this.work, "offers.json"));
+    const age = Date.now() - listing?.searched_at;
+    if (!Number.isFinite(age) || age < 0 || age > 60000 || listing.disk_gb !== disk)
+      throw Error('Refresh offers with the requested disk size before renting (listing expires after 60 seconds).');
+    const offer = listing.offers?.find(o => o.id === offerId);
+    if (!offer) throw Error('Run offers and choose a returned offer first.');
+    validateOffer(offer, offer, maxHourly);
+    if (offer.verification !== 'verified' || !Number.isFinite(offer.reliability2) || offer.reliability2 < 0.99)
+      throw Error('Select a verified, reliable host.');
+    // Accept the fresh offer ID directly, as Vast's documented search/create flow
+    // does. A second host search can return a different set of GPU slices.
     await mkdir(this.privateDir, { recursive: true, mode: 0o700 });
     if (!(await exists(this.key)))
       await run("ssh-keygen", [
