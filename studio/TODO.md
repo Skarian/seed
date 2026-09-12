@@ -54,7 +54,7 @@ publication and identity editing are deferred.
 - [x] Full app/worker/operational suites and browser suite.
 - [x] Cache on/off, direct/fallback fixtures, media integrity and recovery regressions.
 - [x] Global RunPod creation with no network storage.
-- [ ] RunPod startup, prepare, pair, reconnect and confirmed teardown.
+- [x] RunPod startup, prepare, pair, reconnect and confirmed teardown; fixed asynchronous safety-status wait found during live cleanup.
 - [x] Vast verified-host acquisition, prepare, pair, reconnect and confirmed teardown (startup needed recovery; see validation).
 - [x] Cold Vast launch with the final authorized_keys/host-key hook: Ready without intervention in about 14 minutes.
 - [x] Reproduce Civitai HTTP 403 locally: valid personal key with download permission; urllib default User-Agent rejected, explicit Seed User-Agent succeeds. Apply header fix.

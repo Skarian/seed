@@ -216,3 +216,30 @@ Saved host/container/readiness/preparation evidence, then deleted GPU and disk;
 an empty Vast instance list confirmed cleanup. Posted charge $0.521 and credit
 $37.1976 at cleanup, subject to delayed bandwidth/final billing. Request host and
 container log exports separately to avoid overlapping exports for one instance.
+
+## RunPod full-size disposable startup test (2026-09-12 UTC)
+
+User message/turn began 02:45:57. Rented pod o4f7fcba47cz0l in EUR-IS-2:
+RTX PRO 6000 Blackwell Server Edition, 96 GB VRAM, $2.09/GPU-hour,
+180 GB disposable disk, no network volume, pinned e419f657 worker image.
+Provider/SSH wait began 02:47:42.424 and passed 02:47:48.812; SSH preparation
+worked without repair. Image logs show layer downloads; fully uncached status
+is unproven. Selection, creation and startup together took 1m52s from message.
+
+Preparation finished 03:01:53.624 (14m05s after SSH), pairing at 03:01:56.163,
+and fresh Ready at 03:02:16.971: **16m20s message-to-Ready**. All 14 files
+(~101.48 GB including user presets) downloaded directly and verified. The 11
+base files (99.6248 GB) took 846.873s, effective 117.64 MB/s, including verification.
+All three user LoRAs overlapped base preparation; no Civitai 403 or PC fallback.
+Repeat connection succeeded. No inference was run.
+
+Cleanup exposed a real CLI defect: RunPod paused the queue then immediately
+read safety status before the asynchronous fresh result. Two attempts refused
+deletion despite no work or unsaved outputs. Added the same bounded status wait
+used by Vast (up to 15 seconds), preserving affirmative safety and pod identity
+checks. The corrected command then deleted the pod and disk successfully.
+Provider listing confirmed absence and no running pods; three pre-existing
+EXITED pods and existing network storage were preserved. Saved provider logs,
+readiness and preparation receipts locally before deletion. Billing records had
+not posted; an empty result is not a zero-cost claim. Final report elapsed time
+also includes cleanup, this fix, its regression test and commit/install work.

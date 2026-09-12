@@ -47,6 +47,19 @@ test('safe requires matching pod and fresh affirmative worker status',async()=>{
  try{const app=new SeedRunpod('.');app.paths={config:root};await saveJson(path.join(root,'worker-connection.json'),{endpoint:podOrigin('abc')});let calls=0;app.local=async()=>{calls++;return {safe_to_terminate:null};};await assert.rejects(app.safe('other'),/not paired/);assert.equal(calls,0);await assert.rejects(app.safe('abc'),/No fresh/);app.local=async()=>({safe_to_terminate:true});assert.equal((await app.safe('abc')).safe_to_terminate,true);}finally{await rm(root,{recursive:true,force:true});}
 });
 
+test('safe pauses once and waits for asynchronous fresh status',async()=>{
+ const root=await mkdtemp(path.join(os.tmpdir(),'seed-runpod-'));
+ try {
+  const app=new SeedRunpod('.');app.paths={config:root};
+  await saveJson(path.join(root,'worker-connection.json'),{endpoint:podOrigin('abc')});
+  const calls=[];let reads=0;
+  app.local=async(method,route)=>{calls.push([method,route]);return {safe_to_terminate:method==='GET'&&++reads===3?true:null};};
+  assert.equal((await app.safe('abc',{sleep:async()=>{}})).safe_to_terminate,true);
+  assert.equal(calls.filter(([method])=>method==='POST').length,1);
+  assert.equal(reads,3);
+ } finally {await rm(root,{recursive:true,force:true});}
+});
+
 test('pairing exchanges the code locally without returning credentials',async()=>{
  const root=await mkdtemp(path.join(os.tmpdir(),'seed-runpod-'));
  try{

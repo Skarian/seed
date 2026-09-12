@@ -3,6 +3,7 @@
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parseArgs } from "node:util";
+import { setTimeout as delay } from "node:timers/promises";
 import { readJson, requestJson, assertIdle, saveJson } from "./common.mjs";
 export function podOrigin(id) {
   if (!/^[a-z0-9]+$/.test(id ?? ""))
@@ -121,7 +122,7 @@ export class SeedRunpod {
     if (recorded) { this.state.paired = true; await saveJson(this.stateFile, this.state); }
     return { connected: true, pod_id: id, url: this.origin };
   }
-  async safe(id) {
+  async safe(id, { sleep = delay, attempts = 30 } = {}) {
     const connection = await readJson(
       path.join(this.paths.config, "worker-connection.json"),
     );
@@ -130,12 +131,15 @@ export class SeedRunpod {
         "Seed is not paired to this pod. Reconcile before teardown.",
       );
     await this.local("POST", "/api/v1/queue/pause", {});
-    const status = await this.local("GET", "/api/v1/studio");
-    if (status.safe_to_terminate !== true)
-      throw new Error(
-        "No fresh safe-to-terminate confirmation. Wait for work and transfers; check again.",
-      );
-    return { safe_to_terminate: true, pod_id: id };
+    for (let i = 0; i < attempts; i++) {
+      const status = await this.local("GET", "/api/v1/studio");
+      if (status.safe_to_terminate === true)
+        return { safe_to_terminate: true, pod_id: id };
+      await sleep(500);
+    }
+    throw new Error(
+      "No fresh safe-to-terminate confirmation. Wait for work and transfers; check again.",
+    );
   }
 }
 export async function main(argv) {
