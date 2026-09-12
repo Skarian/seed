@@ -79,5 +79,7 @@ shared pinned HF download helper. Identity-edit weights remain unchanged.
 Build/typecheck, 44 app tests, 44 operational tests and 37 worker tests (one skip)
 passed, with no credential scan matches. A local network-disabled candidate image
 passed verification, warm reuse and both transport-configuration smoke checks.
-Publication is pending approval after automatic review rejected the GHCR push;
-the deployed worker digest remains unchanged. No GPU was rented.
+The owner subsequently authorized publication. GitHub Actions run 34672975492
+published the candidate; anonymous registry access and an exact-digest CPU smoke
+test passed. shared/worker-release.ts now pins that image. Local Docker push had
+failed authentication; publication used the existing Actions workflow. No GPU was rented.
