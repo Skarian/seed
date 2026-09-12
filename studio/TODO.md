@@ -55,7 +55,7 @@ publication and identity editing are deferred.
 - [x] Cold Vast launch with the final authorized_keys/host-key hook: Ready without intervention in about 14 minutes.
 - [x] Reproduce Civitai HTTP 403 locally: valid personal key with download permission; urllib default User-Agent rejected, explicit Seed User-Agent succeeds. Apply header fix.
 - [x] Overlap base and preset preparation with two bounded lanes; join before activation and on failure; serialize shared hashes.
-- [ ] Live-test overlapping preparation and the Civitai header fix; measure message-to-final time with the same full manifest.
+- [x] Live-test overlapping preparation and the Civitai header fix: all 14 files downloaded directly; Ready 5m42s after the message on the previously used Japan host. Record cache-related comparison limits.
 - [x] Record provider state and passed/failed/not-tested matrix.
 - [ ] Record settled provider charges (billing has not posted).
 - [ ] Owner desktop/mobile review and actual sign-in check.

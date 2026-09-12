@@ -159,3 +159,27 @@ work. SSH input failures terminate and await the child before returning. Nine
 CLI transfer tests and six Python transfer tests passed, including overlap,
 failure joining, shared hashes, and authorization removal across redirects.
 No GPU was rented for this implementation. No measured speedup is claimed yet.
+
+## Live overlap and Civitai fix acceptance
+
+The next authorized test rented Japan RTX PRO 6000 Max-Q `50682325`, same machine
+142232 and $1.9683/hour offer. User message/turn start: 2026-09-12 02:12:15 UTC.
+Pipeline wait started 02:13:36.326, authenticated SSH passed 02:13:39.029,
+boot completed 02:17:45.864, pairing completed 02:17:50.296 and actual Ready was
+confirmed 02:17:56.855: **5m 42s message-to-Ready**. Final-report and cleanup time
+remain part of the primary message-to-report metric, not excluded from it.
+
+All 14 files downloaded directly and verified, including the three Civitai LoRAs
+in 12.29s, 2.89s and 6.50s respectively. Logs prove they completed concurrently
+with the first base-model download. No HTTP 403, local fallback, manual repair or
+reboot occurred. Base 99.6248 GB preparation measured 229.759s (3m50s), effective
+433.61 MB/s. Total boot, including transfer coordination and activation, was
+4m07s versus the previous 7m57s. These are live observations, not an isolated
+causal benchmark: host conditions varied and the already-used host apparently
+had cached container layers. Do not attribute the former 4m42s container-startup
+delay disappearing to the download changes. Fresh model files were downloaded;
+no network volume was used.
+
+Saved preparation/readiness/provider logs before teardown. GPU and disk deletion
+confirmed, followed by an empty Vast instance list. Posted charge was $0.177,
+with bandwidth billing still incomplete; credit $37.8237. No inference jobs ran.

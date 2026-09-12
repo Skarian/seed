@@ -6,6 +6,12 @@ type/permissions and reproduced the default Python-header rejection. See the
 latest [validation](../../studio/VALIDATION.md). Performance estimates below remain
 unverified until a new authorized live run.
 
+Live follow-up now passed: all three LoRAs downloaded directly during the first
+base-model download; no fallback. Full boot preparation fell from 7m57s to 4m07s
+on the same host. Ready was confirmed 5m42s after the user message. Container
+cache differences substantially improved startup independently; see validation
+for the evidence and attribution limits.
+
 Research and three independent reviewer passes; no GPU rented and no runtime code
 changed for this review. Scope: shorten the user's complete wait without adding
 storage services, orchestration infrastructure, or weakening verification.
