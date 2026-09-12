@@ -44,6 +44,9 @@ export async function transferModels(repo, paths, ssh, {workspace='/workspace',s
     try { direct=await request({action:'download',item,token:tokenFor(item)}); }
     finally { clearInterval(heartbeat); }
     if(direct.ready === true){say(`Verified on GPU: ${item.path} (${direct.seconds}s)`);continue;}
+    const errorType=/^[A-Za-z][A-Za-z0-9_]{0,79}$/.test(direct.error_type ?? '') ? direct.error_type : 'unknown error';
+    const httpStatus=Number.isInteger(direct.http_status) && direct.http_status>=100 && direct.http_status<=599 ? `, HTTP ${direct.http_status}` : '';
+    say(`Direct download diagnostic: ${item.path}: ${errorType}${httpStatus} (${direct.seconds}s).`);
     if(!fallback) throw Error(`Direct download failed for ${item.path}. Local fallback is disabled; retry boot or enable it with seed setup --cache-models.`);
     say(`Direct download failed; using PC fallback for ${item.path}.`);
     if(!await cached(paths,item)) {

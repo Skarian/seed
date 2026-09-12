@@ -26,7 +26,7 @@ for (const scenario of ['warm','direct','fallback-cached','fallback-missing','di
       assert.ok(!data.includes('never-send-provider'));
       if(request.action==='download'){
         assert.equal(request.token,'fixture-source-secret');
-        return JSON.stringify({ready:scenario==='direct',seconds:1});
+        return JSON.stringify({ready:scenario==='direct',seconds:1,error_type:'HTTPError',http_status:403,error:'fixture-source-secret'});
       }
       assert.ok(!data.includes('fixture-source-secret'));
       if(request.action==='probe')return JSON.stringify([{path:item.path,ready:scenario==='warm',offset:0}]);
@@ -41,6 +41,7 @@ for (const scenario of ['warm','direct','fallback-cached','fallback-missing','di
       const {calls}=await import(pathToFileURL(path.join(dist,'model-cache.js')));
       assert.equal(calls.length,scenario==='fallback-missing'?1:0);
       assert.ok(!output.join('').includes('fixture-source-secret'));
+      if(scenario.startsWith('fallback') || scenario==='disabled')assert.match(output.join(' '),/HTTPError, HTTP 403/);
     } finally {await rm(root,{recursive:true,force:true});}
   });
 }

@@ -42,6 +42,13 @@ def test_direct_download_verifies_and_redacts_failures(tmp_path):
     def failure(*args): raise RuntimeError('private-fixture https://example.com/?token=private-fixture')
     result=receiver.direct_download(tmp_path,other,'private-fixture',failure)
     assert result['ready'] is False and 'private-fixture' not in str(result)
+    assert result['error_type'] == 'RuntimeError'
+    from urllib.error import HTTPError
+    def http_failure(*args):
+        raise HTTPError('https://example.com/?token=private-fixture', 403, 'private-fixture', {}, None)
+    result=receiver.direct_download(tmp_path,other,'private-fixture',http_failure)
+    assert result['http_status'] == 403 and result['error_type'] == 'HTTPError'
+    assert 'private-fixture' not in str(result)
 
 
 def test_direct_download_rejects_corruption_and_sources(tmp_path):

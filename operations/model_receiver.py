@@ -129,9 +129,13 @@ def direct_download(workspace, item, token, fetch=None):
         partial.unlink(missing_ok=True)
         save_receipt(workspace, item, target)
         return {'ready': True, 'seconds': round(time.monotonic()-started, 2)}
-    except Exception:
+    except Exception as exc:
         # Upstream exception strings can contain signed URLs; never return them.
-        return {'ready': False, 'error': 'Direct download or verification failed', 'seconds': round(time.monotonic()-started, 2)}
+        code = getattr(exc, 'code', None)
+        return {'ready': False, 'error': 'Direct download or verification failed',
+                'error_type': type(exc).__name__,
+                'http_status': code if isinstance(code, int) and 100 <= code <= 599 else None,
+                'seconds': round(time.monotonic()-started, 2)}
 
 
 def civitai_fetch(item, stage, token):

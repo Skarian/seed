@@ -70,3 +70,47 @@ port mappings. It now requires a successful authenticated SSH `true` command.
 Regression tests cover refusal followed by recovery and persistent-refusal timeout.
 The corrected bootstrap and readiness flow still need live validation. No new GPU
 was rented for this investigation.
+
+## September 11 Vast retry: diagnostic evidence
+
+The subsequent test rented Texas RTX 5060 Ti instance `50673460` at $1.3667/hour,
+with 180 GB disposable disk and download charges of $0.01042/GB. This is an
+infrastructure test, not an inference benchmark.
+
+Before recovery, saved container logs confirmed both missing SSH host keys and
+`chown: cannot access '/root/.ssh/authorized_keys'`. The latter stopped the chained
+startup hook before host-key generation. The durable hook now writes the public
+key supplied at creation, sets permissions, generates host keys and restarts SSH.
+An actual SSH login against the published image locally passed with no preexisting
+authorized_keys. The operational regression suite passed all 25 tests.
+
+This rental needed an API start and later a public-key reattachment/reboot before
+authenticated SSH succeeded. Do not count it as a clean unattended cold launch of
+the final hook. The hook's final change was made after this rental was created.
+The subsequent model preparation used the installed CLI and direct downloads.
+
+`seed gpu vast logs` now exports and saves redacted provider logs before cleanup;
+`--daemon-logs` includes host/container-launch diagnostics. The owner explicitly
+authorizes this on every failed test, including Vast's S3-backed log export.
+Evidence is kept privately under the per-user seed-vast/diagnostics directory;
+raw logs and credentials do not belong in Git.
+
+Live result after recovery: Ready, pairing, replacement SSH tunnel/reconnection,
+and repeated boot (`reused: true`) all passed. All 14 configured files verified;
+the 11 base files (99.6248 GB) took 1,131.4 seconds (18m 51s), averaging 88.05 MB/s
+including verification. The three user LoRAs (1.8552 GB) failed direct download
+but transferred successfully from the optional PC cache; all three presets activated.
+Base timing excludes those fallback transfers and image/container startup.
+
+The old download receiver suppressed the exact LoRA errors, so their cause is
+unconfirmed. It now returns safe exception type and HTTP status, and the CLI records
+these before fallback; signed URLs and exception messages remain excluded. Six Python
+and five CLI transfer tests passed, including redaction and HTTP 403 reporting.
+An authenticated diagnostic probe was blocked by approval review; the user approved
+it after teardown. Retain that approval for future diagnostic requests with the
+source token over SSH stdin; do not recreate a rental merely to repeat this probe.
+
+Instance `50673460` and its disk were destroyed and an empty Vast instance list
+confirmed. Posted cost at cleanup was $1.705; remaining account credit $38.6349.
+Billing may still update. No inference jobs ran. The final creation hook still needs
+a new cold-launch acceptance check; RunPod's full lifecycle also remains pending.

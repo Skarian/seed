@@ -51,7 +51,8 @@ publication and identity editing are deferred.
 - [x] Cache on/off, direct/fallback fixtures, media integrity and recovery regressions.
 - [x] Global RunPod creation with no network storage.
 - [ ] RunPod startup, prepare, pair, reconnect and confirmed teardown.
-- [ ] Vast verified-host acquisition, prepare, pair and confirmed teardown.
+- [x] Vast verified-host acquisition, prepare, pair, reconnect and confirmed teardown (startup needed recovery; see validation).
+- [ ] Cold Vast launch with the final authorized_keys/host-key hook; investigate direct Civitai failures with new safe diagnostics.
 - [x] Record provider state and passed/failed/not-tested matrix.
 - [ ] Record settled provider charges (billing has not posted).
 - [ ] Owner desktop/mobile review and actual sign-in check.
