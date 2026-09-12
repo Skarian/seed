@@ -143,3 +143,6 @@ Swept 90 frames at roughly 16 ms input intervals:
 size/revision checks and a canvas pixel test for correct tile selection followed
 by original resolution. Desktop/mobile screenshots were inspected after the
 change. No worker, provider, GPU or production installation change in this follow-up.
+# Scrubbing feedback refinement (2026-09-12)
+
+Build and typecheck passed. All four sequence browser checks passed, including stable control opacity during a blocked original fetch, delayed loading feedback, clearing feedback on another seek, and selection remaining unavailable until the correct original is displayed. Desktop and mobile review screenshots were refreshed against the local fixture app. No GPU needed.

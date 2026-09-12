@@ -25,7 +25,14 @@ test('buffered scrubbing draws the correct tile and waits for original quality b
     await expect(canvas).toHaveAttribute('data-frame','f40');await expect(canvas).toHaveAttribute('data-quality','preview');
     expect(await canvas.evaluate(e=>Array.from((e as HTMLCanvasElement).getContext('2d')!.getImageData(0,0,1,1).data))).toEqual([200,20,30,255]);
     await expect(page.getByRole('button',{name:'Select frame',exact:true})).toBeDisabled();expect(requests).toBe(2);
+    await expect(page.getByRole('button',{name:'Select frame',exact:true})).toHaveCSS('opacity','1');
+    await expect(page.getByRole('button',{name:'100%',exact:true})).toHaveCSS('opacity','1');
+    await expect(page.locator('.frame-loading')).toHaveCount(0);
+    await expect(page.locator('.frame-loading')).toBeVisible();
+    await slider.fill('39');await expect(page.locator('.frame-loading')).toHaveCount(0);
+    await slider.fill('40');
     release();await expect(page.getByRole('button',{name:'Select frame',exact:true})).toBeEnabled();
+    await expect(page.locator('.frame-loading')).toHaveCount(0);
     await expect(canvas).toHaveAttribute('data-quality','original');await expect(canvas).toHaveAttribute('width','1344');
   } finally { release?.(); }
 });
