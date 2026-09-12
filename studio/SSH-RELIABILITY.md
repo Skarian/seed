@@ -1,6 +1,6 @@
 # SSH-only reliability implementation plan
 
-Status: approved; implementation and acceptance tests in progress. September 12, 2026.
+Status: implemented; local and both-provider acceptance passed; owner checkpoint pending. September 12, 2026.
 Branch: `feat/tailscale-networking`; keep this experimental branch until the
 release/user checkpoint. This replaces the design in [NETWORKING.md](NETWORKING.md).
 The previous implementation and investigation remain historical evidence.

@@ -176,3 +176,28 @@ Before merging to main: build, typecheck, 65 application tests, 52 operations te
 ## Rental closeout (2026-09-12)
 
 Owner explicitly authorized discarding the test frames and deleting the disk. Vast instance 50708650 was deleted; the subsequent instance listing was empty. The 120 remote originals were not recovered. Saved local manifest/logs remain evidence of generation, not successful delivery. A fresh authorized test is required for end-to-end delivery.
+
+## SSH-only recovery checkpoint (2026-09-12)
+
+The candidate worker is pinned to `sha256:5c5e6119e6f6b0c4ec4a6cde5f833041c531ae3a833e038b75ee0ba4b4d15b50`.
+Local unattended recovery acceptance, all 22 browser tests, and isolated package
+installation/upgrade checks passed. The [SSH recovery report](../research/infrastructure/2026-09-12-ssh-recovery.md)
+records the cases and their limits; these networking fixtures do not measure model inference.
+
+RunPod passed preparation recovery, the job transfer blackhole test, and restart
+recovery. Private evidence: `.local/networking/preparation-runpod-recovery.json`,
+`ssh-recovery-NgGQtD`, and `ssh-recovery-J1Izx7`. Its test pod and disposable disk
+were deleted and absence confirmed. A final RunPod check explicitly covered native
+generation finishing during an outage (`ssh-recovery-tVcXZ4`); it passed, and that
+additional pod/disk were deleted. The first Vast host failed SSH authentication
+and was deleted after log collection. Replacement Vast instance `50795178` passed
+preparation recovery and all job transfer boundaries, including native execution
+finishing during an outage. Evidence: `preparation-vast-recovery.json` and
+`ssh-recovery-IFxbad`. That VM and disk were deleted too; both providers' final
+compute and volume inventories were empty.
+
+The installed PC package includes changes through `2acb9d4`. The Library renders
+correctly at the existing LAN address on port 4310. The historical, explicitly
+discarded frame job was reconciled without deleting any of the 37 existing assets.
+Engineering acceptance is complete. The owner checkpoint and branch merge remain
+open. Posted charges and their billing-delay limits are in the recovery report.
