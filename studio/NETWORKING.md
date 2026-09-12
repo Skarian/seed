@@ -1,8 +1,10 @@
 # Reliable worker networking
 
 Recommended design after adversarial reviewer waves, September 12, 2026.
-Branch: `feat/tailscale-networking`. Planning only; no implementation or new rental
-is authorized by this document. Review findings are in [the review record](reviews/NETWORKING-REVIEW.md).
+Branch: `feat/tailscale-networking`. Implementation authorized by owner September 12, 2026. Low-cost networking-test
+instances on Vast and RunPod are explicitly allowed outside normal GPU selection
+rules; delete test rental/disk before using intended RTX hardware for generation.
+Use one test rental at a time and the previously agreed $10 test cap unless revised. Review findings are in [the review record](reviews/NETWORKING-REVIEW.md).
 
 ## Outcome and operating model
 
@@ -23,8 +25,7 @@ Recommended behavior change: retire RunPod's HTTPS proxy route after direct SSH
 and Tailscale are validated there. Current RunPod setup already requires direct
 SSH for preparation; this is not removal of a currently SSH-independent setup.
 The tradeoff is losing that alternate HTTP reachability path. A single loopback
-worker API then serves both providers through either private transport. This
-recommendation needs owner alignment before implementation removes support.
+worker API then serves both providers through either private transport. The owner accepted retiring this route on the experimental branch.
 
 Keep existing pairing and bearer authentication. Do not add an authentication
 migration to networking. Public frontend access, Funnel and login are deferred;
@@ -188,8 +189,9 @@ arbitrary overall startup deadline or automatic performance-selection daemon.
 4. Integrate Tailscale configuration/enrollment and explicit route selection in
    existing CLI/provider commands. Pin compatible package/image; fail clearly on
    incompatible old workers. Update skill and operating docs.
-5. With new owner-approved rental budget, validate both providers' startup,
-   same-host transfers/recovery and accurate diagnostics. No rental authorized yet.
+5. Within the owner-authorized testing scope and budget, validate both providers' startup,
+   same-host transfers/recovery and accurate diagnostics. The current authorization
+   permits low-cost networking-only hosts, then intended RTX hardware only if needed.
 6. Fresh authorized end-to-end frame generation, durable delivery, Library review
    and confirmed teardown. The prior live test proved generation, not delivery.
 
@@ -223,3 +225,26 @@ Sources checked September 12, 2026:
 - [tusd releases](https://github.com/tus/tusd/releases)
 - [tusd hooks and integration](https://tus.github.io/tusd/advanced-topics/hooks/)
 - [tus clients and servers](https://tus.io/implementations)
+
+## Implementation log
+
+September 12: owner authorized implementation, both-provider networking tests and
+small test instances outside normal skill GPU rules. Owner also authorized using
+the signed-in Tailscale account and adding worker devices. PC Tailscale is running.
+The existing default policy is allow-all; a replacement draft preserving personal
+connections and restricting Seed workers is prepared privately. Browser action-time
+confirmation for that policy change is pending; no policy or device added yet.
+
+Pinned official Docker dependency digests in worker/network-dependencies.json.
+Windows Tailscale is 1.102.4; that Docker version tag was unavailable, so the
+available official container was resolved and verified as 1.102.3. tusd is v2.10.0.
+`npm run test:network-dependencies` passed binary checks and an 8 MiB random-data
+upload, 3 MiB checkpoint, container restart, stale-offset rejection, exact resumed
+hash and ranged retrieval. Test uses loopback only, no credentials/mounts, and
+removes its container. Initial harness failure was a Docker random host-port change
+on restart; reading the new mapping fixed the harness. No readiness deadline was
+extended and no production code was changed to hide the failure.
+
+This proves dependency behavior only, not worker authentication integration,
+Tailscale enrollment/throughput or provider networking. Next: restricted enrollment
+approval and authenticated local integration. No VM/GPU rented during this gate.

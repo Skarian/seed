@@ -15,7 +15,8 @@
     "test:browser": "playwright test",
     "prepack": "npm run build",
     "verify": "node scripts/verify.mjs",
-    "test:package": "node scripts/test-package.mjs"
+    "test:package": "node scripts/test-package.mjs",
+    "test:network-dependencies": "node scripts/test-network-dependencies.mjs"
   },
   "dependencies": {
     "@fastify/static": "10.1.3",
