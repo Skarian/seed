@@ -53,6 +53,13 @@ test('sequence slider inspects originals, selects frames, confirms keep-only and
   const viewer=page.getByRole('dialog',{name:'Image sequence'}), check=viewer.getByRole('button',{name:'Select frame',exact:true});
   await expect(check).toBeEnabled();await check.click();
   await viewer.getByRole('slider',{name:'Frame',exact:true}).fill('8');await expect(check).toBeEnabled();await check.click();
+  const previous=viewer.getByRole('button',{name:'Previous selected frame'}), next=viewer.getByRole('button',{name:'Next selected frame'});
+  await expect(next).toBeDisabled();await previous.click();
+  await expect(viewer.getByRole('slider',{name:'Frame',exact:true})).toHaveValue('0');
+  await expect(previous).toBeDisabled();await next.click();
+  await expect(viewer.getByRole('slider',{name:'Frame',exact:true})).toHaveValue('8');
+  await viewer.getByRole('slider',{name:'Frame',exact:true}).fill('4');
+  await previous.click();await expect(viewer.getByRole('slider',{name:'Frame',exact:true})).toHaveValue('0');
   await viewer.getByRole('button',{name:'Keep only',exact:true}).click();
   const confirmation=page.getByRole('dialog',{name:'Keep 2 frames?'});
   await expect(confirmation).toContainText('other 10');await confirmation.getByRole('button',{name:'Cancel'}).click();expect(removed).toBe(0);

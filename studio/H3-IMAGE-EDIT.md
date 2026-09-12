@@ -256,4 +256,6 @@ requested frame loads, rather than flashing blank. Source frame identity remains
 explicit and selection cannot act on the previous frame.
 # Scrubbing feedback refinement (2026-09-12)
 
+Selected-frame navigation: large previous/next arrow buttons flank the bottom selection actions. They jump to the nearest selected frame in that direction, including from an unselected frame, without wrapping. Disable when no selection exists in that direction. This replaces the proposed clickable tick marks and also applies to the reference picker.
+
 Keep the checkmark and 100% controls visually steady while an original arrives. They still wait for the exact original before acting; a reference-count limit retains its normal disabled appearance. Show “Loading original” only after the frame has remained unresolved for 500 ms, resetting the delay when the user moves to another frame. Fast scrubbing and normal short fetches should not flash loading text.

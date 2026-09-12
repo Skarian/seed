@@ -39,6 +39,8 @@ export function FrameViewer({ id, onClose, onChanged, onPick, selectedIds = [], 
   const asset:LibraryAsset|undefined=frame&&{id:frame.id,kind:'image',name:'Frame '+(frame.index+1),created_at:'',mode:sequence!.mode};
   const checked=frame&&(onPick?selectedIds:selected).includes(frame.id);
   const pickBlocked=Boolean(onPick&&!checked&&asset&&canPick&&!canPick(asset));
+  const selectedPositions=(sequence?.frames??[]).flatMap((f,index)=>(onPick?selectedIds:selected).includes(f.id)?[index]:[]);
+  const previous=[...selectedPositions].reverse().find(index=>index<position), next=selectedPositions.find(index=>index>position);
   return <dialog ref={dialog} className="frame-viewer" aria-label="Image sequence" onCancel={e=>{e.preventDefault();onClose();}}>
     <header><span>{sequence?.frames.length??0} frames{original.buffering && <small className="frame-buffering" role="status">Preparing previews…</small>}</span><div>
       {sequence?.cleanup_pending&&<p>Frame cleanup was interrupted. <button onClick={async()=>{
@@ -58,7 +60,11 @@ export function FrameViewer({ id, onClose, onChanged, onPick, selectedIds = [], 
         </div>
         <input aria-label="Frame" type="range" min={0} max={sequence!.frames.length-1} step={1} value={position} onChange={e=>setPosition(Number(e.target.value))}/>
         <div className="frame-markers" aria-hidden="true">{sequence!.frames.map(f=><span key={f.id} className={(onPick?selectedIds:selected).includes(f.id)?'selected':''}/>)}</div>
-        {!onPick&&<div className="frame-floating"><span>{selected.length} selected</span><button disabled={!selected.length||selected.length===sequence!.frames.length} onClick={()=>setConfirm(true)}>Keep only</button></div>}
+        <div className="frame-bottom">
+          <button className="frame-jump" aria-label="Previous selected frame" title="Previous selected frame" disabled={previous===undefined} onClick={()=>{if(previous!==undefined)setPosition(previous);}}>←</button>
+          <div className="frame-floating"><span>{selectedPositions.length} selected</span>{!onPick&&<button disabled={!selected.length||selected.length===sequence!.frames.length} onClick={()=>setConfirm(true)}>Keep only</button>}</div>
+          <button className="frame-jump" aria-label="Next selected frame" title="Next selected frame" disabled={next===undefined} onClick={()=>{if(next!==undefined)setPosition(next);}}>→</button>
+        </div>
       </div>
     </>}
     {(error||original.error)&&<p role="alert">{error||original.error} <button onClick={()=>setRetry(v=>v+1)}>Retry</button></p>}
