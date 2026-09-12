@@ -114,3 +114,26 @@ Instance `50673460` and its disk were destroyed and an empty Vast instance list
 confirmed. Posted cost at cleanup was $1.705; remaining account credit $38.6349.
 Billing may still update. No inference jobs ran. The final creation hook still needs
 a new cold-launch acceptance check; RunPod's full lifecycle also remains pending.
+
+## September 11 clean cold-start acceptance
+
+Fresh Japan RTX PRO 6000 Max-Q instance `50677460`, offer `43317266`, was rented
+at $1.9683/hour with 180 GB disk. The installed package's final startup hook worked
+without repair, key reattachment, API start, or reboot. Authenticated readiness
+passed. This supersedes the earlier outstanding Vast cold-launch check.
+
+Local timestamps (America/Chicago): wait began 20:29:15 and completed 20:33:57
+(4m 42s); boot ran 20:34:11–20:42:08; paired Ready was confirmed at 20:43:02.
+Approximately 14 minutes from rental to confirmed Ready, including observation
+and command-dispatch gaps. The 99.6248 GB base files downloaded and verified in
+250.706 seconds (4m 11s), averaging 397.38 MB/s. All three Civitai LoRA requests
+returned HTTP 403; saved diagnostics captured those statuses and the optional PC
+cache transferred all three successfully. All 14 files verified and three presets
+activated. No inference jobs were submitted.
+
+Provider logs and local boot logs were preserved before teardown. Instance and
+disk deletion was confirmed, followed by an empty Vast instance list. Posted
+charges were only $0.312 at that check, with bandwidth still unposted; this is not
+the final total. Account credit was $38.2943. The remaining download issue is the
+reason for Civitai's HTTP 403, not SSH or automatic fallback. RunPod's complete
+lifecycle remains unproven separately.
