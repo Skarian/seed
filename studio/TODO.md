@@ -15,6 +15,9 @@ unattended acceptance tests passed. The next owner checkpoint is the LAN app.
 - [x] Capture evidence before deleting test VM/disks; verify inventories and record posted charges/estimates.
 - [x] Update installed package/skill and reconcile the previously discarded frame job.
 - [ ] Owner reviews recovery status and Library through the existing LAN address.
+- [ ] Publish/pin the confirmed Vast SSH key-ownership fix before the next rental
+  ([diagnosis](../research/infrastructure/2026-09-12-vast-ssh-ownership.md)). Current
+  owner session has the correction applied and must remain running.
 
 The previous [networking log](NETWORKING.md) and
 [RunPod investigation](../research/infrastructure/2026-09-12-runpod-tailscale-throughput.md)
