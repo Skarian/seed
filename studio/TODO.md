@@ -4,8 +4,8 @@
 
 - [x] Create `feat/h3-image-edit` and document the proposed implementation.
 - [x] Align on [H3 export-as-images plan](H3-IMAGE-EDIT.md): existing workflows, 5–15 whole seconds, output toggle before generation.
-- [ ] Implement duration/output contract, durable frame sets and local selection.
-- [ ] Review desktop/mobile chooser; approve budget for live export validation.
+- [ ] Implement duration/output contract and automatically saved Library frame sequences.
+- [ ] Review desktop/mobile scrubber and Keep only selection; approve budget for live export validation.
 - [ ] Validate and release the accepted feature. Identity-edit LoRA remains retained.
 
 The completed checklist below records the previous infrastructure scope. Its

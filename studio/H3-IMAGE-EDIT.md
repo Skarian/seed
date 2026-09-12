@@ -43,22 +43,46 @@ recipe, model switcher, experimental sub-five-second sequences or new service.
 Longer sequences give more frames, not necessarily better edits. Measure PNG
 storage and transfer overhead; it can substantially exceed MP4 output.
 
-## Frame selection and storage
+## Library frame sequences and storage
 
 Retrieve and verify every frame before acknowledging worker cleanup. Selection
 is entirely local and does not keep a GPU running. Generation is complete once
-all frames are durable, even if the owner has not selected favorites.
+all frames are durable. Automatically save the entire sequence to Library.
 
-Show every retained frame in an ordered thumbnail grid/strip, grouped by job,
-with multi-selection and existing fullscreen previews. Lazy-load thumbnails, not
-all full-resolution PNGs. Keep selected promotes favorites into Library without
-copying files; those images can immediately be reused as references.
+Show one Library card per generation, visually similar to a video card, with a
+small frame-count badge. Do not flood Library with individual frame cards. Batch
+generations produce separate sequence cards. Use the first retained frame as
+the cover. Preserve the same sequence identity after pruning, even to one frame.
 
-Unselected frames remain accessible from job results after reload/restart and
-stay outside Library. Explicit Discard unselected requires confirmation and
-never removes kept images. No automatic expiry. Reuse asset metadata state
-candidate versus ready, plus job ID, frame index, seed and mode. Library already
-filters for ready assets. Selection is transactional and repeatable.
+Clicking the card opens a frame viewer with a large preview, discrete scrubber,
+previous/next controls and current frame position/count. Reuse the existing media
+overlay. It resembles a video player but displays actual PNG frames; no preview
+video or playback engine is required initially. Load the current frame and a
+small neighboring window, not all full-resolution images. Keyboard arrows and
+touch scrubbing must both work, with a loading indicator when needed.
+
+Select enters selection mode. While scrubbing, toggle selection on the current
+frame; show selected markers on the scrubber and a selected count. Keep only
+is enabled for a nonempty selection. Confirm with concrete counts, for example
+"Keep 6 frames and delete the other 114?" Canceling selection changes nothing.
+Confirming retains those frames in their original order and updates the card
+count/cover. This is destructive pruning, not promotion into Library. All frames
+remain saved unless explicitly pruned or the sequence is deleted. No expiry.
+
+Keep original frame index and timestamp metadata after pruning; the scrubber
+steps through retained frames without pretending they form a continuous video.
+Provide existing download/reference reuse actions for the currently viewed
+frame. A sequence is not a video reference; choosing a frame supplies an image.
+The Library reference picker must let the user drill into a sequence to pick
+individual frames, respecting the target workflow's asset limit.
+
+Represent a sequence as a Library grouping over existing image asset records,
+not a fabricated video file. Add only the grouping metadata/schema required;
+do not use candidate-versus-ready promotion. Store job, seed, mode and original
+frame indices; group-level filtering/deletion follows existing Library rules.
+Pruning must be repeatable and recover safely if file deletion is interrupted.
+Do not remove files still needed by queued jobs or other saved references:
+follow existing input ownership rules and verify those rules during implementation.
 
 ## API and code changes
 
@@ -77,12 +101,13 @@ partial transfers with existing integrity handling; never acknowledge a partial
 set. No archive transport or new database is needed initially.
 
 Proposed authenticated routes, reconciled with the existing router during coding:
-- GET /api/jobs/:id/candidates: ordered IDs, indices, dimensions, existing
-  thumbnail/media URLs and kept status.
-- POST /api/jobs/:id/candidates/keep with asset_ids: promote only this job's
-  candidates; repeated requests return current selection without duplicates.
-- POST /api/jobs/:id/candidates/discard with asset_ids: remove only this job's
-  unkept candidates; repeated deletion is harmless.
+- GET /api/sequences/:id: current revision, ordered frame asset IDs, original
+  indices/timestamps, dimensions and existing thumbnail/media URLs.
+- POST /api/sequences/:id/keep-only with asset_ids and revision: retain exactly
+  a nonempty subset belonging to this sequence. Reject stale edits; an identical
+  retry of an already-applied selection is harmless. Return updated sequence.
+- Reuse Library deletion for the whole sequence, with confirmation. Add sequence
+  summaries to the existing Library response, not a separate candidate inventory.
 
 ## Milestones and review checkpoints
 
@@ -93,11 +118,13 @@ Proposed authenticated routes, reconciled with the existing router during coding
 2. Add sliced PNG output and update worker/comfy_seed/jobs.py and server/jobs.ts
    for durable frame sets. Validate native slicing/history with synthetic frames
    locally before paid tests. Preserve existing workflows.
-3. Add focused server/candidates.ts using existing DB/storage/media helpers.
-   Update API-CONTRACT.md and test selection, discard and transfer recovery.
-4. Add web/frame-picker.tsx and connect the toggle/slider on existing pages.
-   Reuse preview and selection components. Owner reviews desktop/mobile using
-   the existing LAN URL and synthetic frame sets before UI acceptance.
+3. Add focused server/sequences.ts using existing DB/storage/media helpers and
+   minimal grouping migration. Update API-CONTRACT.md; test grouped listing,
+   keep-only, deletion, reference ownership and transfer recovery.
+4. Add web/frame-viewer.tsx, Library sequence cards and the generation toggle/
+   duration slider. Reuse the media overlay. Owner reviews scrubbing, selection,
+   keep-only and reference picking on desktop/mobile over the existing LAN URL
+   with synthetic frame sets before UI acceptance.
 5. With fresh spending approval, validate live on one preferred 96 GB GPU:
    Ref export with one/multiple images, T2V image export, an intermediate duration,
    and both configured content modes. Combine cases to reduce paid runs. Check
@@ -114,13 +141,15 @@ otherwise terminate after durable receipt before handoff.
 ## Acceptance and removed scope
 
 Test missing/duplicate/corrupt/wrong-job outputs, interrupted transfers, reload
-before selection, repeated Keep, partial Keep then discard, mode filtering and
-reuse of favorites. All frames must remain accessible without eager full-size
+before selection, repeated/stale Keep only, interrupted pruning, one-frame
+sequences, whole-sequence deletion, mode filtering and reference reuse. All frames
+must remain accessible without eager full-size
 loading. Safe to terminate must be independent of selection, but not transfer.
 
 Supersedes the earlier separate image-to-image API/page, short-sequence recipe
 benchmark, FL-versus-Ref edit experiment, image-only inputs and new H3 graph
-abstraction. Also replaces the suggestion to extract frames from finished MP4s.
+abstraction. Also replaces post-MP4 extraction and the candidate inbox/promotion
+flow: all images are saved automatically as a grouped Library sequence.
 
 Source basis: current server/video.ts and worker/comfy_seed/video.py, and
 [pinned native H3 nodes](https://github.com/Comfy-Org/ComfyUI/blob/12d5279438bfefc058a269eae805ceab6047777f/comfy_extras/nodes_minimax_h3.py).
