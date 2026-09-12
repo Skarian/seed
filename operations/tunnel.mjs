@@ -17,7 +17,7 @@ export async function tunnelResponds() {
   catch { return false; }
 }
 
-export async function superviseTunnel(args,{startControl,spawnProcess=spawn,sleep=delay,now=Date.now,say=console.error,probe=tunnelResponds,probeInterval=10000}={}) {
+export async function superviseTunnel(args,{startControl,spawnProcess=spawn,sleep=delay,now=Date.now,say=message=>console.error(new Date().toISOString()+' '+message),probe=tunnelResponds,probeInterval=10000}={}) {
   let child,closed,closeControl,stopping=false;
   const retry=new AbortController();
   async function stop(){

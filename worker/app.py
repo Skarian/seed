@@ -59,7 +59,7 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
     workspace_id = json.loads(identity_file.read_text())['workspace_id']
     instance_file = runtime / 'identity.json'
     if not instance_file.exists():
-        atomic_json(instance_file, {'worker_instance_id': str(uuid.uuid4())})
+        atomic_json(instance_file, {'worker_instance_id': str(uuid.uuid4()), 'engine_ever_started': False})
     instance_id = json.loads(instance_file.read_text())['worker_instance_id']
     verifier_file = runtime / 'credential.json'
     bearer_hash = json.loads(verifier_file.read_text())['verifier'] if verifier_file.exists() else None

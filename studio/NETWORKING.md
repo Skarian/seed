@@ -236,7 +236,7 @@ Personal-device connections remain allowed; only the Seed PC can reach tagged
 workers on TCP 8080. Workers cannot initiate connections to personal devices.
 Existing SSH and Funnel settings were preserved. The console accepted the policy
 and its access tests; the saved tests were confirmed on the Tests page. No worker
-device has been added yet. Live connectivity still needs testing.
+device had been added at that policy checkpoint; subsequent validation is below.
 
 Pinned official Docker dependency digests in worker/network-dependencies.json.
 Windows Tailscale is 1.102.4; that Docker version tag was unavailable, so the
@@ -285,3 +285,30 @@ RunPod teardown stops its tunnel after confirmed resource deletion. Verification
 66 app, 46 operations, 40 Python tests pass (one platform symlink skip). Container
 publication is authorized. Local registry credentials lack packages-write scope;
 use the repository's existing Actions publisher with its scoped GITHUB_TOKEN.
+
+Live September 12: Vast host 17800 / test VM 50776245 (RTX 5060 Ti,
+$0.15978/hour, 150 GB disposable disk) passed early API, SSH pairing, 64 MiB
+random-file transfer with tus-js-client resumption across SSH → Tailscale,
+unchanged bearer/identity, output hash checks, route restoration and receipts.
+Forced SSH child termination recovered in 2.19 seconds without re-pairing.
+SSH 16 MiB upload: 2.004 s; Tailscale remaining 48 MiB: 3.272 s. Downloads:
+64 MiB SSH 3.277 s, Tailscale 5.786 s. A direct peer endpoint was observed.
+These are short transfer samples, not model download or inference benchmarks.
+VM and disk deletion confirmed. Private evidence is in .local/networking.
+
+RunPod EUR-IS-1 test mjm8xqynaivjxd paired successfully. An interrupted upload
+retained 15,183,182 bytes and resumed correctly. Tailscale enrollment could not
+reach control/login endpoints; independent credential-free HTTPS probes also
+failed from that pod, while Hugging Face responded. Collected logs, confirmed no
+job records/user outputs, deleted pod/disk and reconciled absence. Another region
+must pass before claiming RunPod Tailscale readiness.
+
+Cleanup improvements: generation-model readiness no longer blocks reconciling
+outputs or verifying idle shutdown. New dispatch still requires ready models.
+Explicit teardown can cancel/join failed initial preparation and accept an
+unused-worker proof only from the recorded identity, with an empty local queue,
+no pending outputs, empty worker spool and a durable engine-never-started flag.
+Missing/old metadata, an engine previously started, or any spool content require
+normal reconciliation. The latch lives in existing identity metadata; no new
+service. Local suite: 67 app, 47 operations, 41 Python pass (one OS skip).
+The package install/start/upgrade/rollback/data-preservation acceptance test passed.

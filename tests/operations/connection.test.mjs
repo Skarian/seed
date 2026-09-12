@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import path from 'node:path';
 import {tmpdir} from 'node:os';
-import {connectWorker,startTunnel,workerOrigin} from '../../operations/connection.mjs';
+import {connectWorker,startTunnel,workerOrigin,cancelUnusedPreparation} from '../../operations/connection.mjs';
 import {enrollmentKey,tailscaleOrigin} from '../../operations/tailscale.mjs';
 import {saveJson,readJson} from '../../operations/common.mjs';
 
@@ -57,6 +57,20 @@ test('reconnect refuses unrelated pairing before opening any transport',async t=
   app.state.paired_worker='worker';
   await assert.rejects(connectWorker(app,{reconnect:true}),/existing pairing/);
   assert.equal(calls.length,0);
+});
+test('unused-worker cleanup requires cancellation and matching worker/workspace proof',async t=>{
+  const {app,config}=await fixture(t);
+  app.state.paired_worker='worker';
+  await saveJson(path.join(config,'worker-connection.json'),{worker_instance_id:'worker',workspace_id:'workspace',endpoint:workerOrigin,worker_credential:'secret'});
+  let proof={worker_instance_id:'worker',workspace_id:'workspace'};
+  app.fetcher=async url=>Response.json(url.endsWith('/cancel')?{state:'cancelled',unused_worker:proof}:{state:'needs_source'});
+  assert.equal(await cancelUnusedPreparation(app),true);
+  proof={worker_instance_id:'other',workspace_id:'workspace'};
+  assert.equal(await cancelUnusedPreparation(app),false);
+  app.local=async()=>({queue:{active:1,waiting:0},outputs:{pending:0}});
+  await assert.rejects(cancelUnusedPreparation(app),/Finish or cancel/);
+  app.fetcher=async()=>{throw Error('disconnected');};
+  await assert.rejects(cancelUnusedPreparation(app),/Service request failed/);
 });
 test('enrollment issues only a one-use ephemeral worker-tag key',async t=>{
   const {config}=await fixture(t);const calls=[];

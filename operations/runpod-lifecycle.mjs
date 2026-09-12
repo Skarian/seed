@@ -5,7 +5,7 @@ import { readJson, saveJson, assertIdle } from './common.mjs';
 import { waitFor } from './wait.mjs';
 import { run } from './ssh.mjs';
 import { prepareWorker } from './preparation.mjs';
-import { stopTunnel } from './connection.mjs';
+import { stopTunnel, cancelUnusedPreparation } from './connection.mjs';
 
 export function podRequest({gpu, image, disk, datacenters = [], publicKey, environment}) {
   if (!Number.isSafeInteger(disk) || disk < 150) throw Error('Use at least 150 GB of disposable disk for models and working space.');
@@ -71,7 +71,7 @@ export async function lifecycle(app, command, id = app.state?.pod_id) {
     return prepareWorker(app);
   }
   if(command==='destroy') {
-    if(app.state.paired)await app.safe(id);
+    if(app.state.paired && !await cancelUnusedPreparation(app))await app.safe(id);
     else assertIdle(await app.local('GET','/api/v1/studio'));
     await app.api(`pods/${id}`,'DELETE');
     await waitFor(async()=>!(await app.api('pods')).pods.some(p=>p.id===id),{timeout:60000});

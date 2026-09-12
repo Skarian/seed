@@ -11,8 +11,8 @@ async function fixture(run: (f: any) => Promise<void>) {
   mkdirSync('.local/tests', { recursive: true }); const root = mkdtempSync(path.resolve('.local/tests/jobs-'));
   const paths = resolvePaths(root); prepareStorage(paths); const db = openDatabase(paths.data);
   const image = Buffer.from('test-image-bytes'); const sha = createHash('sha256').update(image).digest('hex');
-  const state = { session: 'engine-one', running: [] as any[], records: {} as Record<string, any>, submits: 0, acknowledgments: 0, failReceipt: false, failTransfer: false, orphan: false };
-  const cap = () => ({ video:{ready:true,image_export:true,duration_step:1,nsfw:{}}, revision: 'test-v1', ready: true, workspace_id: 'volume-one', engine_session_id: state.session, nsfw: { filename: 'seed-' + 'a'.repeat(64) + '.safetensors', sha256: 'a'.repeat(64), strength_model: 1, revision: 'test' } });
+  const state = { modelsReady: true, session: 'engine-one', running: [] as any[], records: {} as Record<string, any>, submits: 0, acknowledgments: 0, failReceipt: false, failTransfer: false, orphan: false };
+  const cap = () => ({ video:{ready:true,image_export:true,duration_step:1,nsfw:{}}, revision: 'test-v1', ready: state.modelsReady, workspace_id: 'volume-one', engine_session_id: state.session, nsfw: { filename: 'seed-' + 'a'.repeat(64) + '.safetensors', sha256: 'a'.repeat(64), strength_model: 1, revision: 'test' } });
   const fake = {
     connected: true, identity: { workspace_id: 'volume-one', worker_instance_id: 'worker-one' },
     async json(route: string, options: any = {}) {
@@ -157,3 +157,20 @@ it('retrieves complete frame sets as one Library sequence and resumes after inte
   expect(db.prepare('SELECT COUNT(*) AS n FROM sequences').get().n).toBe(1);
   await jobs.reconcile();expect(state.submits).toBe(1);
 }));
+
+
+it('missing models block generation but allow verified idle shutdown', async () => fixture(async ({jobs,state,request}: any) => {
+  const {jobs:[queued]} = await jobs.submit(request, 'model-readiness-test');
+  state.modelsReady = false;
+  await jobs.reconcile();
+  expect(state.submits).toBe(0);
+  expect(jobs.get(queued.id).state).toBe('queued');
+  await expect(jobs.submit(request, 'missing-models-test')).rejects.toThrow('not ready');
+  jobs.pause(true);
+  await jobs.reconcile();
+  expect(jobs.safe).toBe(true);
+  state.orphan = true;
+  await jobs.reconcile();
+  expect(jobs.safe).toBe(false);
+}));
+

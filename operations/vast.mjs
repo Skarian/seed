@@ -4,6 +4,7 @@ import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 
 import { randomBytes } from "node:crypto";
+import { spawn } from 'node:child_process';
 
 import { parseArgs } from "node:util";
 import { setTimeout as delay } from "node:timers/promises";
@@ -494,7 +495,7 @@ export class SeedVast {
     if (!["stop", "destroy"].includes(action))
       throw new Error("Invalid teardown action.");
     const instance = await this.current();
-    if (this.state.paired_worker)
+    if (this.state.paired_worker && !await (await import('./connection.mjs')).cancelUnusedPreparation(this))
       await safeShutdown(
         this.state,
         await readJson(this.connectionFile),

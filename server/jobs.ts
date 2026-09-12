@@ -288,10 +288,10 @@ export class Jobs {
     this.pause(false);
     return { submission_id, jobs };
   }
-  async inspectCapabilities() {
+  async inspectCapabilities(requireReady = true) {
     const cap = (await this.worker.json("/comfy/capabilities")) as Capabilities;
     if (
-      !cap.ready ||
+      typeof cap.ready !== 'boolean' || (requireReady && !cap.ready) ||
       cap.workspace_id !== this.worker.identity?.workspace_id ||
       typeof cap.engine_session_id !== "string" ||
       typeof cap.revision !== "string"
@@ -354,7 +354,7 @@ export class Jobs {
       return;
     }
     this.safe = null;
-    const cap = await this.inspectCapabilities();
+    const cap = await this.inspectCapabilities(false);
     const queue = await this.worker.json("/comfy/queue");
     if (
       !Array.isArray(queue.queue_running) ||
@@ -498,6 +498,7 @@ export class Jobs {
         !(j.state === "needs_attention" && j.uncertainty_acknowledged),
     );
     if (
+      cap.ready &&
       !this.paused &&
       !foreign &&
       !orphan &&

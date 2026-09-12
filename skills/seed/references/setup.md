@@ -48,7 +48,8 @@ modules individually. Rerun setup only when configuration needs changing.
 
 GPU preparation reuses verified remote files, tries direct downloads, then uses PC
 fallback only if enabled. A missing local fallback file is downloaded and verified
-before transfer. Source tokens travel via SSH stdin and are not persisted on GPU.
+before transfer. Source tokens travel through the authenticated worker API over
+SSH or Tailscale and are not persisted on GPU.
 
 Private `model-presets.json` is an array of pinned LoRA entries: path, url, size,
 sha256, route (`image`, `fl`, `ref`) and optional strength. Resolve user-provided

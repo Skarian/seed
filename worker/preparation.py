@@ -135,7 +135,20 @@ class Preparation:
                 atomic_json(self.file, self.intent)
             await self.halt()
             self.state = 'cancelled'
-            return self.refresh()
+            return {**self.refresh(), 'unused_worker': self.unused_worker()}
+
+    def unused_worker(self):
+        # This exception is only for a new rental that never admitted an engine.
+        # Older/malformed metadata and any spool content require normal recovery.
+        try:
+            identity = json.loads((self.runtime/'identity.json').read_text())
+            if identity.get('engine_ever_started') is not False or not self.intent or not self.intent['cancelled'] or self.ready.is_set(): return None
+            if any(task and not task.done() for task in (self.task, self.upload_task)): return None
+            spool = self.workspace/'.seed/spool'
+            if spool.is_symlink() or spool.exists() and (not spool.is_dir() or any(spool.iterdir())): return None
+            return {'worker_instance_id': identity['worker_instance_id'], 'workspace_id': json.loads((self.workspace/'.seed/workspace.json').read_text())['workspace_id']}
+        except (OSError, ValueError, KeyError):
+            return None
 
 
 def install(app, workspace, runtime, authenticated):

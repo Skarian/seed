@@ -55,7 +55,7 @@ try {
   stalled.on('error',()=>{});stalled.write(bytes.subarray(0,1024));
   await delay(300);
   const cancelled=await json('/worker/v1/preparation/cancel',{method:'POST',body:{}});
-  assert.equal(cancelled.state,'cancelled');stalled.destroy();
+  assert.equal(cancelled.state,'cancelled');assert.equal(cancelled.unused_worker.worker_instance_id,connection.worker_instance_id);stalled.destroy();
   await json('/worker/v1/preparation',{method:'PUT',body:{entries:[item],revision:cancelled.revision}});
   await poll(async()=>(await json('/worker/v1/preparation')).state==='needs_source');
   const partial=await request(uploadPath,{method:'HEAD',headers:tus});
@@ -80,6 +80,9 @@ try {
   evidence.checks.push('worker identity and bearer survive restart','tus partial resumes after restart','stale offset rejected','corrupt upload rejected and restarted','complete model hash verified','lost completion reconciled');
   await docker('exec',name,'/opt/venv/bin/python','-c',"from pathlib import Path; Path('/workspace/ComfyUI/models/'+__import__('sys').argv[1]).unlink()",item.path);
   await docker('restart',name);await mapping();
+  await poll(async()=>(await json('/worker/v1/preparation')).state==='needs_source');
+  const used=await json('/worker/v1/preparation/cancel',{method:'POST',body:{}});assert.equal(used.unused_worker,null);
+  await json('/worker/v1/preparation',{method:'PUT',body:{entries:[item],revision:used.revision}});
   await poll(async()=>(await json('/worker/v1/preparation')).state==='needs_source');
   await json(uploadPath,{method:'POST',body:{}});
   assert.equal((await patch(0,bytes)).status,204);

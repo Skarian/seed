@@ -73,3 +73,26 @@ def test_manifest_rejects_unknown_fields_and_unpinned_sources(tmp_path):
     for changed in [{'token': 'secret'}, {'url': 'https://huggingface.co/a/b/resolve/main/file'},
                     {'path': '../escape'}, {'url': 'http://127.0.0.1/private'}, {'size': True}]:
         with pytest.raises(ValueError): manifest(tmp_path, [{**item(), **changed}])
+
+@pytest.mark.asyncio
+async def test_unused_cleanup_requires_new_identity_cancel_and_empty_spool(tmp_path):
+    from worker.app import atomic_json
+    workspace, runtime = tmp_path/'workspace', tmp_path/'runtime'
+    atomic_json(workspace/'.seed/workspace.json', {'workspace_id': 'workspace'})
+    identity = {'worker_instance_id': 'worker', 'engine_ever_started': False}
+    atomic_json(runtime/'identity.json', identity)
+    manager = Preparation(workspace, runtime, {})
+    await manager.ensure([item()], {}, 0)
+    await finished(manager)
+    assert manager.unused_worker() is None
+    cancelled = await manager.cancel()
+    assert cancelled['unused_worker'] == {'worker_instance_id': 'worker', 'workspace_id': 'workspace'}
+    spool = workspace/'.seed/spool'
+    spool.mkdir(parents=True)
+    orphan = spool/'orphan-output'
+    orphan.write_text('preserve')
+    assert manager.unused_worker() is None
+    orphan.unlink()
+    for value in [True, None]:
+        atomic_json(runtime/'identity.json', {**identity, 'engine_ever_started': value})
+        assert manager.unused_worker() is None

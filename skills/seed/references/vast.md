@@ -41,7 +41,7 @@ If the supervisor itself has stopped, use `seed gpu vast reconnect`.
 `--route ssh` or `--route tailscale` explicitly changes the recorded worker route.
 Tailscale reconnect uses the saved peer address and does not require SSH. There is
 no automatic cross-route failover; neither route change re-pairs nor submits jobs.
-It restores the tunnel only when the local pairing matches the recorded worker.
+It restores the connection only when the local pairing matches the recorded worker.
 It keeps credentials and in-flight jobs unchanged, so finished GPU outputs can
 resume transfer without another generation. Use `connect` for initial pairing;
 do not re-pair or rerun boot during a job.

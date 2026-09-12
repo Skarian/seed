@@ -43,6 +43,19 @@ export async function workerRequest(app,route,options={}){
   if(!app.state?.paired_worker||connection?.worker_instance_id!==app.state.paired_worker)throw Error('Connect the recorded worker first.');
   return requestJson(connection.endpoint+route,{...options,headers:{...options.headers,Authorization:'Bearer '+connection.worker_credential},fetcher:app.fetcher??fetch});
 }
+export async function cancelUnusedPreparation(app){
+  const preparation=await workerRequest(app,'/worker/v1/preparation');
+  if(preparation.state==='ready')return false;
+  // Explicit teardown owns this cancellation; disconnected or used workers never
+  // get an exception to normal queue/output reconciliation.
+  await app.local('POST','/api/v1/queue/pause',{});
+  assertIdle(await app.local('GET','/api/v1/studio'));
+  let cancelled;
+  try {cancelled=await workerRequest(app,'/worker/v1/preparation/cancel',{method:'POST',body:{}});}
+  catch(error){if(error.provider?.status===409)return false;throw error;}
+  const connection=await readJson(connectionFile(app)),proof=cancelled.unused_worker;
+  return cancelled.state==='cancelled'&&proof?.worker_instance_id===connection?.worker_instance_id&&proof?.workspace_id===connection?.workspace_id&&typeof proof?.workspace_id==='string';
+}
 export async function connectWorker(app,{ssh,secret,route=app.state.route??'ssh',reconnect=false}={}){
   if(!['ssh','tailscale'].includes(route))throw Error('Choose --route ssh or tailscale.');
   let connection=await readJson(connectionFile(app));

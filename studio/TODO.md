@@ -8,8 +8,8 @@ Active [design](NETWORKING.md), [review decisions](reviews/NETWORKING-REVIEW.md)
 - [x] Apply owner-approved restricted tailnet policy and confirm saved access tests.
 - [x] Obtain scoped enrollment credential.
 - [x] Prove authenticated tusd integration and containerboot enrollment/restart locally.
-- [ ] Singleton preparation API and stable rental identity; shared HTTP client over SSH.
-- [ ] Explicit SSH/Tailscale route selection on both providers; retire old preparation/proxy paths.
+- [x] Singleton preparation API and stable rental identity; shared HTTP client over SSH (local validation).
+- [x] Explicit SSH/Tailscale route selection on both providers; retire old preparation/proxy paths (live validation below).
 - [ ] Both-provider live networking and transfer recovery tests within approved budget.
 - [ ] Full frame generation/durable delivery and user Library checkpoint if real GPU needed.
 

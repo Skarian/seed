@@ -110,7 +110,8 @@ test('destroy stops the tunnel and retains the saved connection without app life
   const root=await mkdtemp(path.join(os.tmpdir(),'seed-destroy-'));
   try {
     const ops=new SeedVast(root);ops.state={instance_id:42,paired_worker:'worker'};
-    ops.connectionFile=path.join(root,'connection.json');const saved={worker_instance_id:'worker',endpoint:workerOrigin};await saveJson(ops.connectionFile,saved);
+    ops.paths={config:root};ops.fetcher=async()=>Response.json({state:'ready'});
+    ops.connectionFile=path.join(root,'worker-connection.json');const saved={worker_instance_id:'worker',endpoint:workerOrigin};await saveJson(ops.connectionFile,saved);
     ops.current=async()=>({id:42,actual_status:'running'});
     const calls=[];ops.local=async(method,route)=>{calls.push([method,route]);return {safe_to_terminate:true};};
     ops.api=async(method,route)=>{calls.push([method,route]);return {success:true};};
