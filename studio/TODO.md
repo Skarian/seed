@@ -3,9 +3,9 @@
 ## Current feature planning
 
 - [x] Create `feat/h3-image-edit` and document the proposed implementation.
-- [ ] Review [H3 image editing plan](H3-IMAGE-EDIT.md); approve recipe tests and budget.
-- [ ] Prove short-sequence edit quality before implementing the frame chooser.
-- [ ] Implement durable frame sets, local selection and UI; pass owner checkpoints.
+- [x] Align on [H3 export-as-images plan](H3-IMAGE-EDIT.md): existing workflows, 5–15 whole seconds, output toggle before generation.
+- [ ] Implement duration/output contract, durable frame sets and local selection.
+- [ ] Review desktop/mobile chooser; approve budget for live export validation.
 - [ ] Validate and release the accepted feature. Identity-edit LoRA remains retained.
 
 The completed checklist below records the previous infrastructure scope. Its

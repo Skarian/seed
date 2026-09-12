@@ -38,8 +38,9 @@ storage before the worker disk is destroyed. Public hosting is owner-managed.
 
 ## Remaining scope
 
-Proposed next feature: [H3 image editing with frame selection](studio/H3-IMAGE-EDIT.md).
-It is in planning on `feat/h3-image-edit`; quality validation precedes implementation.
+Next feature: [H3 export as images](studio/H3-IMAGE-EDIT.md), selected before
+generation on existing video workflows, with whole-second durations from 5–15.
+Planning branch: `feat/h3-image-edit`; implementation and live proof are pending.
 
 npm publication, identity editing, maximum-reference capacity benchmarks, macOS
 validation, LLM integration and timeline editing are deferred. Desktop/mobile
