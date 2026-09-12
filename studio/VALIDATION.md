@@ -172,3 +172,7 @@ Final checks: 65 application tests, 44 operations tests, 41 worker tests (one sk
 ## Branch integration checkpoint (2026-09-12)
 
 Before merging to main: build, typecheck, 65 application tests, 52 operations tests, 41 worker tests (one skipped), and credential scan passed. Browser checks were not repeated for this documentation-only checkpoint. Live frame delivery remains unverified. Owner requested GPU teardown; stop was accepted for Vast 50708650, retaining its disk because automatic approval review rejected destruction of unrecovered test outputs without explicit discard approval. Tailscale is a proposed next feature, not implemented.
+
+## Rental closeout (2026-09-12)
+
+Owner explicitly authorized discarding the test frames and deleting the disk. Vast instance 50708650 was deleted; the subsequent instance listing was empty. The 120 remote originals were not recovered. Saved local manifest/logs remain evidence of generation, not successful delivery. A fresh authorized test is required for end-to-end delivery.

@@ -1,3 +1,5 @@
+> Archived September 12, 2026. Historical decisions and evidence, not current instructions. See [current networking plan](../NETWORKING.md).
+
 # H3 generation: export as images
 
 Local implementation ready for owner UI review, 2026-09-12.
