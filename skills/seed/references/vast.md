@@ -22,11 +22,12 @@ installed package and per-user state; no checkout or helper scripts are needed.
 requires at least 120GB disk; allow room for the model manifest and temporary outputs.
 No particular host or startup time is guaranteed.
 
-Use `offers --all-gpus` to search by requirements across GPU models instead of
-guessing names; it is mutually exclusive with `--gpu`. For infrastructure-only
-tests, explicitly lower VRAM/RAM requirements while keeping verification and
-network quality. Start with `--max-hourly 2`; this search ceiling is adjustable,
-not a universal budget rule. Use `--min-download-mbps` to state the network floor.
+Use `offers --all-gpus` for discovery or repeated `--gpu` values for exact catalog
+names. Select the 96 GB RTX PRO 6000 family under the shared hardware rule;
+discovery results do not authorize renting another GPU type. Do not lower VRAM
+requirements for infrastructure tests. Confirm actual reported VRAM and model
+variant before rental. Start with `--max-hourly 2`; this search ceiling is
+adjustable, not a universal budget rule. Use `--min-download-mbps` for the network floor.
 
 ## Recovery
 
@@ -61,8 +62,7 @@ commands are undergoing the validation recorded in studio/VALIDATION.md in the r
 Do not claim maximum-reference capacity or all desktop platforms are proven.
 
 
-Hardware test searches may lower `--min-vram` and `--min-ram` explicitly; this is
-not a promise those GPUs can run all workflows. Verified-only filtering remains
-the default and there is no verification bypass. Reliability and network speed
+Verified-only filtering remains the default and there is no verification bypass.
+Reliability and network speed
 matter alongside the shared under-$2/hour preference in SKILL.md. Search results retain Vast fields including verification,
 network throughput, transfer prices and reliability so the agent can judge them.

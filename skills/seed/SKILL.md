@@ -28,6 +28,15 @@ never the unrelated unscoped npm package named `seed`.
 4. Return a clickable local/LAN URL, Preparing or Ready status and hourly cost.
    Leave the session available for the user; ending your response is not shutdown.
 
+Choose hardware for the full configured image/video workload, including launch
+and infrastructure tests. Strongly prefer one 96 GB RTX PRO 6000 (including
+Server/Max-Q) or RTX PRO 6000 Workstation. Verify actual VRAM; older RTX 6000 and
+RTX A6000 cards with similar names are not equivalent. H200, H100, A100, consumer
+RTX cards and other alternatives require explicit user confirmation before rental.
+Do not infer an exception from a test being "only scripts" or reuse an old smaller-
+GPU test authorization. If preferred hardware is unavailable, present alternatives
+with price/VRAM tradeoffs and wait for the user's choice.
+
 Strongly prefer GPU compute under $2/hour on either provider; this is a preference,
 not a hard ceiling. Search reasonable cheaper alternatives before considering a
 higher price, while retaining suitable hardware, host reliability and network speed.

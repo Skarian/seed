@@ -13,6 +13,10 @@ publication and identity editing are deferred.
 - Agent asks before installing/upgrading Node. Updates occur only on request.
 - Provider commands retain native capability/price/error information.
 - Vast prioritizes verified hosts, high reliability and network performance.
+- Hardware correction: use 96 GB RTX PRO 6000 Server/Max-Q or Workstation for
+  normal launches and infrastructure tests. Alternatives (including H200/H100,
+  A100 and consumer GPUs) require fresh explicit confirmation. Prior small-GPU
+  script-test exceptions are superseded; verify VRAM rather than a similar name.
 - Strongly prefer compute under $2/hour; this is not a hard ceiling. Exhaust
   reasonable cheaper candidates before considering a higher-priced test rental.
 - Prefer low bandwidth charges; compare expected model/image transfer, storage and
@@ -62,5 +66,6 @@ publication and identity editing are deferred.
 
 See [VALIDATION.md](VALIDATION.md) for measured evidence and limitations. Unavailable
 platforms or provider failures must remain explicitly untested/failed, never inferred
-from fixtures. Infrastructure tests use cheap suitable hardware; inference capacity
+from fixtures. Infrastructure tests use the preferred full-workload hardware;
+alternative GPU types require explicit confirmation. Inference capacity
 benchmarks and identity editing remain separate work.

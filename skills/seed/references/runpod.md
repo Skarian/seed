@@ -10,6 +10,9 @@ required. Existing volumes are left untouched and may remain billable.
 per-datacenter capacity. `seed gpu runpod datacenters` exposes regional information.
 RunPod does not supply Vast-equivalent host reliability or measured transfer speed;
 report those as unknown. Inspect `status` on both providers before renting.
+Apply the shared 96 GB RTX PRO 6000 hardware preference to tests too. Match the
+catalog's exact model and actual VRAM. H200/H100 and other alternatives need
+explicit user confirmation; a generic permission to test is not that confirmation.
 
 ## Create and prepare
 
