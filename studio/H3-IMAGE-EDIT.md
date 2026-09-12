@@ -54,16 +54,24 @@ small frame-count badge. Do not flood Library with individual frame cards. Batch
 generations produce separate sequence cards. Use the first retained frame as
 the cover. Preserve the same sequence identity after pruning, even to one frame.
 
-Clicking the card opens a frame viewer with a large preview, discrete scrubber,
-previous/next controls and current frame position/count. Reuse the existing media
-overlay. It resembles a video player but displays actual PNG frames; no preview
-video or playback engine is required initially. Load the current frame and a
-small neighboring window, not all full-resolution images. Keyboard arrows and
-touch scrubbing must both work, with a loading indicator when needed.
+Clicking the Library card opens the existing media overlay with a large image,
+a discrete frame slider and current frame position/count. A checkmark control
+toggles selection of the displayed frame; selections persist while scrubbing.
+Show selection markers/count and a floating **Keep only** action, positioned
+outside the image's inspection area with mobile safe-area clearance. No extra
+Select mode or Play/Pause control is needed. Keyboard arrows, touch scrubbing
+and an accessible checkmark toggle must work.
 
-Select enters selection mode. While scrubbing, toggle selection on the current
-frame; show selected markers on the scrubber and a selected count. Keep only
-is enabled for a nonempty selection. Confirm with concrete counts, for example
+Image quality is central to selection. Cached previews support card thumbnails
+and responsive scrubbing, but after scrubbing settles load and display the
+original PNG, fitted to the viewport. Provide original-resolution inspection
+through zoom/pan; do not upscale or sharpen a preview and present it as the
+original. Prefetch only a small neighboring window of originals. Show a subtle
+loading indicator until the requested original is decoded. Never let a stale
+image stand in for the current slider position: bind selection to the displayed
+frame and disable its checkmark while only a temporary preview is available.
+
+Keep only is enabled for a nonempty selection. Confirm with concrete counts, for example
 "Keep 6 frames and delete the other 114?" Canceling selection changes nothing.
 Confirming retains those frames in their original order and updates the card
 count/cover. This is destructive pruning, not promotion into Library. All frames
@@ -150,9 +158,11 @@ the owning modules rather than adding services:
 
 - Current Library has no thumbnail endpoint; it loads original media. Add a small
   on-demand, disk-cached image preview path using existing media tooling. Reuse
-  it for sequence covers/scrubbing; cache is disposable and deleted with frames.
-  Native PNG remains the download/reference source. Bound concurrent preview
-  work and discard stale scrub requests. Do not promise 24 fps playback.
+  it for covers and transient scrubbing; cache is disposable and deleted with
+  frames. Settled inspection, download and references use the original PNG.
+  Bound concurrent preview work and discard stale scrub requests. Validate
+  fine detail and color against the original, plus correct frame/selection
+  identity under rapid scrubbing and slow requests. No 24 fps playback goal.
 - LibraryAsset currently represents real image/video/audio files. Introduce a
   Library item union with a sequence summary, leaving frame assets as images.
   Hide member frames from top-level pagination; order/paginate groups and normal
@@ -171,8 +181,10 @@ the owning modules rather than adding services:
   and Library reference picking need tests alongside the new viewer. They are
   part of this feature, not a general Library rewrite.
 
-One pending optional UI decision: scrub/step only initially, or also Play/Pause.
-The current default proposal is scrub/step; a user answer supersedes it.
+Owner settled the viewer interaction: slider, per-frame checkmark and floating
+Keep only action inside the opened Library item. No pending playback question.
+Owner emphasized original image quality for selection; cached previews are only
+an intermediate display, not the final basis for choosing a frame.
 
 Test missing/duplicate/corrupt/wrong-job outputs, interrupted transfers, reload
 before selection, repeated/stale Keep only, interrupted pruning, one-frame
