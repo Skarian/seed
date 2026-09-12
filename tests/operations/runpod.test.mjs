@@ -32,6 +32,7 @@ test('RunPod failed unpaired launch can be destroyed without worker access',asyn
  try {
   const calls=[];
   const app={state:{pod_id:'abc',destroyed:false},stateFile:path.join(root,'rental.json'),local:async()=>({queue:{active:0,waiting:0},outputs:{pending:0}}),api:async(route,method)=>{calls.push([route,method]);return route==='pods'?{pods:[]}:null;}};
+  app.paths={config:root}; app.lifecycle={control:async()=>null};
   assert.equal((await lifecycle(app,'destroy')).disposable_disk_deleted,true);
   assert.deepEqual(calls[0],['pods/abc','DELETE']);
   assert.equal(app.state.destroyed,true);

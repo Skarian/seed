@@ -64,6 +64,7 @@ export async function background(script, args, log) {
       child.once("error", reject);
     });
     child.unref();
+    return child;
   } finally {
     await handle.close();
   }

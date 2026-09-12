@@ -276,3 +276,12 @@ verify the existing worker identity without rotating its bearer or replaying job
 The full local suite passed (66 app, 45 operations, 40 Python; one OS symlink skip).
 Provider deployment/throughput validation and the updated packaged app are next;
 these local results do not establish remote performance or live-provider readiness.
+
+Review follow-up: local integration now also proves half-open upload cancellation
+and replacement of a deleted promoted model after restart. Completed uploads are
+removed through tusd's API; promotion joins filesystem work before cancellation
+returns. SSH bootstrap waits for its detached control endpoint to register, and
+RunPod teardown stops its tunnel after confirmed resource deletion. Verification:
+66 app, 46 operations, 40 Python tests pass (one platform symlink skip). Container
+publication is authorized. Local registry credentials lack packages-write scope;
+use the repository's existing Actions publisher with its scoped GITHUB_TOKEN.

@@ -46,46 +46,76 @@ class ModelUploads:
             raise ValueError('Uploaded model failed integrity verification; retry from zero')
         target, _ = locations(self.manager.workspace, item)
         target.parent.mkdir(parents=True, exist_ok=True)
-        os.replace(uploaded, target)
+        # Keep tusd's backing file intact until its own DELETE removes metadata.
+        staged = target.with_name(target.name + '.upload')
+        staged.unlink(missing_ok=True)
+        os.link(uploaded, staged)
+        os.replace(staged, target)
         save_receipt(self.manager.workspace, item, target)
+        async with client.delete(self.origin+'/files/'+identifier, headers={'Tus-Resumable': '1.0.0'}, allow_redirects=False) as deleted:
+            if deleted.status != 204: raise web.HTTPBadGateway()
         self.manager.files[item['path']] = {'path': item['path'], 'state': 'ready', 'ready': True}
         ready = await asyncio.to_thread(probe, self.manager.workspace, self.manager.intent['entries'])
         if all(x['ready'] for x in ready):
             await asyncio.to_thread(activate, self.manager.workspace, self.manager.intent['entries'])
-            self.manager.state = 'ready'
-            self.manager.ready.set()
+            if not self.manager.intent['cancelled']:
+                self.manager.state = 'ready'
+                self.manager.ready.set()
         self.manager.refresh()
 
+    async def finish(self, client, identifier, item):
+        # Streaming remains cancellable; once verification/promotion starts, join
+        # it before releasing ownership so filesystem threads cannot outlive us.
+        task = asyncio.create_task(self.promote(client, identifier, item))
+        try:
+            return await asyncio.shield(task)
+        except asyncio.CancelledError:
+            await asyncio.gather(task, return_exceptions=True)
+            raise
+
     async def handle(self, request):
-        async with self.lock, self.manager.lock:
-            sha = request.match_info['sha']
-            item = self.item(sha)
-            if item is None: raise web.HTTPNotFound()
-            target, _ = locations(self.manager.workspace, item)
-            if (await asyncio.to_thread(probe, self.manager.workspace, [item]))[0]['ready']:
-                return web.json_response({'ready': True}) if request.method == 'POST' else web.Response(status=200 if request.method == 'HEAD' else 204, headers={'Tus-Resumable': '1.0.0', 'Upload-Offset': str(item['size']), 'Upload-Length': str(item['size'])})
-            if self.manager.state == 'ready': raise web.HTTPConflict()
-            identifier = self.existing(sha)
-            async with ClientSession(timeout=ClientTimeout(total=None, sock_connect=5, sock_read=120)) as client:
-                if request.method == 'POST':
-                    if not identifier:
-                        metadata = ','.join(k+' '+base64.b64encode(v.encode()).decode() for k, v in {'asset': sha, 'manifest': self.manager.intent['digest']}.items())
-                        async with client.post(self.origin+'/files/', headers={'Tus-Resumable':'1.0.0', 'Upload-Length':str(item['size']), 'Upload-Metadata':metadata}, allow_redirects=False) as created:
-                            if created.status != 201: raise web.HTTPBadGateway()
-                            identifier = urlsplit(created.headers['Location']).path.rsplit('/',1)[-1]
-                            if not re.fullmatch(r'[A-Za-z0-9_-]+', identifier): raise ValueError('Invalid tus upload ID')
-                    # A previous completed PATCH might have lost its response.
-                    await self.promote(client, identifier, item)
-                    return web.json_response({'upload_path': '/worker/v1/model-uploads/'+sha, 'ready': self.manager.files.get(item['path'], {}).get('ready', False)})
-                if not identifier: raise web.HTTPNotFound()
-                headers = {k: request.headers[k] for k in ('Tus-Resumable', 'Upload-Offset', 'Content-Type', 'Content-Length') if k in request.headers}
-                async with client.request(request.method, self.origin+'/files/'+identifier, headers=headers,
-                    data=request.content if request.method == 'PATCH' else None, allow_redirects=False) as response:
-                    status = response.status
-                    returned = {k:v for k,v in response.headers.items() if k.lower() in ('tus-resumable', 'upload-offset', 'upload-length', 'tus-version', 'tus-extension')}
-                    await response.read()
-                if request.method == 'PATCH' and status == 204: await self.promote(client, identifier, item)
-                return web.Response(status=status, headers=returned)
+        async with self.lock:
+            async with self.manager.lock:
+                self.item(request.match_info['sha'])
+                self.manager.upload_task = asyncio.current_task()
+            try:
+                return await self.transfer(request)
+            finally:
+                self.manager.upload_task = None
+
+    async def transfer(self, request):
+        sha = request.match_info['sha']
+        item = self.item(sha)
+        if item is None: raise web.HTTPNotFound()
+        target, _ = locations(self.manager.workspace, item)
+        if (await asyncio.to_thread(probe, self.manager.workspace, [item]))[0]['ready']:
+            return web.json_response({'ready': True}) if request.method == 'POST' else web.Response(status=200 if request.method == 'HEAD' else 204, headers={'Tus-Resumable': '1.0.0', 'Upload-Offset': str(item['size']), 'Upload-Length': str(item['size'])})
+        if self.manager.state == 'ready': raise web.HTTPConflict()
+        identifier = self.existing(sha)
+        async with ClientSession(timeout=ClientTimeout(total=None, sock_connect=5, sock_read=120)) as client:
+            if identifier and not (self.directory/identifier).exists():
+                async with client.delete(self.origin+'/files/'+identifier, headers={'Tus-Resumable':'1.0.0'}, allow_redirects=False) as deleted:
+                    if deleted.status not in (204, 404): raise web.HTTPBadGateway()
+                identifier = None
+            if request.method == 'POST':
+                if not identifier:
+                    metadata = ','.join(k+' '+base64.b64encode(v.encode()).decode() for k, v in {'asset': sha, 'manifest': self.manager.intent['digest']}.items())
+                    async with client.post(self.origin+'/files/', headers={'Tus-Resumable':'1.0.0', 'Upload-Length':str(item['size']), 'Upload-Metadata':metadata}, allow_redirects=False) as created:
+                        if created.status != 201: raise web.HTTPBadGateway()
+                        identifier = urlsplit(created.headers['Location']).path.rsplit('/',1)[-1]
+                        if not re.fullmatch(r'[A-Za-z0-9_-]+', identifier): raise ValueError('Invalid tus upload ID')
+                # A previous completed PATCH might have lost its response.
+                await self.finish(client, identifier, item)
+                return web.json_response({'upload_path': '/worker/v1/model-uploads/'+sha, 'ready': self.manager.files.get(item['path'], {}).get('ready', False)})
+            if not identifier: raise web.HTTPNotFound()
+            headers = {k: request.headers[k] for k in ('Tus-Resumable', 'Upload-Offset', 'Content-Type', 'Content-Length') if k in request.headers}
+            async with client.request(request.method, self.origin+'/files/'+identifier, headers=headers,
+                data=request.content if request.method == 'PATCH' else None, allow_redirects=False) as response:
+                status = response.status
+                returned = {k:v for k,v in response.headers.items() if k.lower() in ('tus-resumable', 'upload-offset', 'upload-length', 'tus-version', 'tus-extension')}
+                await response.read()
+            if request.method == 'PATCH' and status == 204: await self.finish(client, identifier, item)
+            return web.Response(status=status, headers=returned)
 
 
 def install(app, manager, authenticated):

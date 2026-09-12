@@ -3,16 +3,16 @@ import assert from 'node:assert/strict';
 import {mkdtemp,rm} from 'node:fs/promises';
 import path from 'node:path';
 import {tmpdir} from 'node:os';
-import {connectWorker,workerOrigin} from '../../operations/connection.mjs';
+import {connectWorker,startTunnel,workerOrigin} from '../../operations/connection.mjs';
 import {enrollmentKey,tailscaleOrigin} from '../../operations/tailscale.mjs';
 import {saveJson,readJson} from '../../operations/common.mjs';
 
 async function fixture(t){
   const config=await mkdtemp(path.join(tmpdir(),'seed-connection-'));t.after(()=>rm(config,{recursive:true,force:true}));
-  const calls=[];
+  const calls=[];let running=false;
   const app={paths:{config},repo:config,state:{},stateFile:path.join(config,'rental.json'),origin:'http://127.0.0.1:4310',
-    lifecycle:{control:async(paths,action)=>{calls.push(['control',action]);return null;}},
-    checkPort:async()=>{},startBackground:async()=>{calls.push(['tunnel']);},
+    lifecycle:{control:async(paths,action)=>{calls.push(['control',action]);if(action==='stop')running=false;return running?{}:null;}},
+    checkPort:async()=>{},startBackground:async()=>{calls.push(['tunnel']);running=true;},
     fetcher:async(url,options)=>{
       calls.push(['fetch',url]);
       if(url.endsWith('/unlock'))return new Response('{}',{headers:{'set-cookie':'seed_unlock=test; HttpOnly'}});
@@ -34,6 +34,13 @@ test('shared SSH bootstrap pairs without starting or resubmitting generation',as
   assert.equal(app.state.paired_worker,'worker');
   assert.deepEqual(calls.filter(x=>x[0]==='PUT'),[['PUT','/api/v1/connection']]);
   assert.equal(calls.filter(x=>x[0]==='tunnel').length,1);
+});
+test('SSH waits for the detached supervisor to register its control endpoint',async t=>{
+  const {app}=await fixture(t);let launched=false,checks=0;
+  app.startBackground=async()=>{launched=true;return {exitCode:null};};
+  app.lifecycle.control=async()=>launched&&++checks>1?{}:null;
+  await startTunnel(app,['root@worker']);
+  assert.ok(checks>=2);
 });
 test('Tailscale reconnect needs neither SSH nor a new enrollment key',async t=>{
   const {app,calls,config}=await fixture(t);

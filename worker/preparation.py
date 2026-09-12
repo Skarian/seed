@@ -47,6 +47,7 @@ class Preparation:
         self.intent = json.loads(self.file.read_text()) if self.file.exists() else None
         self.lock, self.ready = asyncio.Lock(), asyncio.Event()
         self.task = self.process = None
+        self.upload_task = None
         self.spawn = spawn
         self.files = {}
         self.state = 'cancelled' if self.intent and self.intent['cancelled'] else 'waiting'
@@ -73,6 +74,7 @@ class Preparation:
                 if revision != 0: raise web.HTTPConflict()
                 self.intent = {'entries': entries, 'digest': digest, 'revision': 0, 'cancelled': False}
             if self.ready.is_set(): return {**self.refresh(), 'credentials_accepted': False}
+            if self.upload_task and not self.upload_task.done(): return {**self.refresh(), 'credentials_accepted': False}
             if self.task and not self.task.done(): return {**self.refresh(), 'credentials_accepted': False}
             self.intent['cancelled'] = False
             atomic_json(self.file, self.intent)
@@ -120,6 +122,9 @@ class Preparation:
         if self.task and not self.task.done():
             self.task.cancel()
             await asyncio.gather(self.task, return_exceptions=True)
+        if self.upload_task and not self.upload_task.done():
+            self.upload_task.cancel()
+            await asyncio.gather(self.upload_task, return_exceptions=True)
 
     async def cancel(self):
         async with self.lock:

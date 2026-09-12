@@ -25,11 +25,16 @@ export async function startTunnel(app,ssh){
   args.push('-N','-o','ExitOnForwardFailure=yes','-o','ServerAliveInterval=15','-o','ServerAliveCountMax=3',
     '-L','127.0.0.1:18080:127.0.0.1:8080','-L','127.0.0.1:18888:127.0.0.1:8888',target);
   const paths=controlPaths(app);await mkdir(paths.config,{recursive:true,mode:0o700});
-  await (app.startBackground??background)(fileURLToPath(new URL('./tunnel.mjs',import.meta.url)),[app.repo,paths.config,...args],path.join(paths.config,'tunnel.log'));
+  const launched=await (app.startBackground??background)(fileURLToPath(new URL('./tunnel.mjs',import.meta.url)),[app.repo,paths.config,...args],path.join(paths.config,'tunnel.log'));
   const control=await lifecycle(app);
+  let registered=false;
   await waitFor(async()=>{
+    if(!await control.control(paths,'status')){
+      if(registered||launched?.exitCode!=null)throw Error('SSH stopped. Inspect worker-tunnel/tunnel.log for the key, host identity or port error.');
+      return null;
+    }
+    registered=true;
     try {const r=await (app.fetcher??fetch)(workerOrigin+'/worker/v1/status',{redirect:'error',signal:AbortSignal.timeout(5000)});await r.body?.cancel();if(r.status===401||r.ok)return true;}catch{}
-    if(!await control.control(paths,'status'))throw Error('SSH stopped. Inspect worker-tunnel/tunnel.log for the key, host identity or port error.');
     return null;
   });
 }

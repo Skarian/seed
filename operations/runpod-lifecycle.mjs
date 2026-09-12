@@ -5,6 +5,7 @@ import { readJson, saveJson, assertIdle } from './common.mjs';
 import { waitFor } from './wait.mjs';
 import { run } from './ssh.mjs';
 import { prepareWorker } from './preparation.mjs';
+import { stopTunnel } from './connection.mjs';
 
 export function podRequest({gpu, image, disk, datacenters = [], publicKey, environment}) {
   if (!Number.isSafeInteger(disk) || disk < 150) throw Error('Use at least 150 GB of disposable disk for models and working space.');
@@ -75,6 +76,7 @@ export async function lifecycle(app, command, id = app.state?.pod_id) {
     await app.api(`pods/${id}`,'DELETE');
     await waitFor(async()=>!(await app.api('pods')).pods.some(p=>p.id===id),{timeout:60000});
     app.state.destroyed=true;await saveJson(app.stateFile,app.state);
+    await stopTunnel(app);
     return {confirmed:'destroy',pod_id:id,disposable_disk_deleted:true};
   }
   throw Error('Unknown lifecycle command.');

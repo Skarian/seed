@@ -8,6 +8,7 @@ import {fileURLToPath} from 'node:url';
 import {createServer} from 'node:net';
 import {setTimeout as delay} from 'node:timers/promises';
 import assert from 'node:assert/strict';
+import {request as httpRequest} from 'node:http';
 import envPaths from 'env-paths';
 import {enrollmentKey,tailscaleOrigin} from '../operations/tailscale.mjs';
 
@@ -50,8 +51,18 @@ try {
   await poll(async()=>(await json('/worker/v1/preparation')).state==='needs_source');
   assert.equal((await request('/comfy/prompt',{method:'POST',body:{}})).status,409);
   await json(uploadPath,{method:'POST',body:{}});
+  const stalled=httpRequest(origin+uploadPath,{method:'PATCH',headers:{...tus,'Content-Type':'application/offset+octet-stream','Upload-Offset':'0','Content-Length':String(bytes.length),Authorization:'Bearer '+connection.worker_credential}});
+  stalled.on('error',()=>{});stalled.write(bytes.subarray(0,1024));
+  await delay(300);
+  const cancelled=await json('/worker/v1/preparation/cancel',{method:'POST',body:{}});
+  assert.equal(cancelled.state,'cancelled');stalled.destroy();
+  await json('/worker/v1/preparation',{method:'PUT',body:{entries:[item],revision:cancelled.revision}});
+  await poll(async()=>(await json('/worker/v1/preparation')).state==='needs_source');
+  const partial=await request(uploadPath,{method:'HEAD',headers:tus});
+  const offset=Number(partial.headers.get('Upload-Offset'));
+  assert.equal((await patch(offset,bytes.subarray(offset,split))).status,204);
+  evidence.checks.push('cancellation terminates a half-open upload without client cooperation');
   assert.equal((await patch(0,bytes.subarray(0,split),'invalid')).status,401);
-  assert.equal((await patch(0,bytes.subarray(0,split))).status,204);
   evidence.checks.push('authenticated early API','generation gated during preparation','authenticated model upload');
   await docker('restart',name);await mapping();
   await poll(async()=>(await json('/worker/v1/preparation')).state==='needs_source');
@@ -67,6 +78,12 @@ try {
   assert.equal((await request(uploadPath,{method:'HEAD',headers:tus})).headers.get('Upload-Offset'),String(bytes.length));
   assert.equal((await json(uploadPath,{method:'POST',body:{}})).ready,true);
   evidence.checks.push('worker identity and bearer survive restart','tus partial resumes after restart','stale offset rejected','corrupt upload rejected and restarted','complete model hash verified','lost completion reconciled');
+  await docker('exec',name,'/opt/venv/bin/python','-c',"from pathlib import Path; Path('/workspace/ComfyUI/models/'+__import__('sys').argv[1]).unlink()",item.path);
+  await docker('restart',name);await mapping();
+  await poll(async()=>(await json('/worker/v1/preparation')).state==='needs_source');
+  await json(uploadPath,{method:'POST',body:{}});
+  assert.equal((await patch(0,bytes)).status,204);
+  evidence.checks.push('deleted promoted model can be uploaded again after restart');
   const job=randomUUID();
   await docker('exec',name,'/opt/venv/bin/python','-c',"import sys,shutil; from pathlib import Path; from worker.spool import atomic; root=Path('/workspace/.seed/spool'); job=sys.argv[1]; target=root/'outputs'/'seed'/job/'network.bin'; target.parent.mkdir(parents=True); shutil.copyfile('/workspace/ComfyUI/models/'+sys.argv[2],target); atomic(root/'jobs'/job/'submission.json',{'job_id':job}); atomic(root/'jobs'/job/'manifest.json',{'state':'completed','outputs':[{'id':'test','path':'seed/'+job+'/network.bin','mime_type':'application/octet-stream','sha256':sys.argv[3],'size':target.stat().st_size}]})",job,item.path,item.sha256);
   async function outputCheck(endpoint,route){
