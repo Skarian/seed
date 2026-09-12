@@ -416,13 +416,13 @@ export class SeedVast {
     const { modelManifest } = await import(pathToFileURL(path.join(this.repo, "dist/server/model-cache.js")));
     return modelManifest(this.paths);
   }
-  async wait() {
+  async wait({probe = run, ...options} = {}) {
     return waitFor(async () => {
       const instance = await this.current();
       if (instance.actual_status !== 'running') return null;
-      try { sshArgs(instance, this.key, this.knownHosts); } catch { return null; }
+      try { await probe('ssh', [...sshArgs(instance, this.key, this.knownHosts), 'true']); } catch { return null; }
       return { ready_for_preparation: true, instance_id: instance.id };
-    });
+    }, options);
   }
   async reconcile() {
     if (!this.state || this.state.destroyed) return { reconciled: true, rental: null };
@@ -519,7 +519,7 @@ export class SeedVast {
       disk,
       label: "seed-agent",
       runtype: "ssh_direc ssh_proxy",
-      onstart: "chown root:root /root/.ssh /root/.ssh/authorized_keys && chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys",
+      onstart: "chown root:root /root/.ssh /root/.ssh/authorized_keys && chmod 700 /root/.ssh && chmod 600 /root/.ssh/authorized_keys && ssh-keygen -A && mkdir -p /run/sshd && service ssh restart",
       cancel_unavail: true,
       env: {},
     });

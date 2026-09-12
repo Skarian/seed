@@ -49,3 +49,24 @@ A subsequent verified Japan RTX PRO 6000 offer (50453760, $1.45/h, 7.8 Gbit/s
 advertised download, 0.9971 reliability) disappeared at rental time. Vast returned
 HTTP 410 `no_such_ask`; no VM appeared during reconciliation. No successful live
 Vast lifecycle is claimed from this attempt.
+
+## SSH failure investigation
+
+Texas instance 50671059 was created at $1.3833/hour and reached provider running
+state, but direct SSH refused connections and the provider proxy reset them. No
+model download began. The instance and disk were deleted, with absence confirmed;
+posted charges at cleanup were $0.05 (subject to billing updates).
+
+The published image reproduced `sshd: no hostkeys available -- exiting` when SSH
+was started without Seed's entrypoint. The image removes build-time host keys;
+RunPod regenerates them through Seed's entrypoint, while Vast replaces that
+entrypoint. Generating keys and restarting sshd in Vast's onstart command passed
+against the actual published image locally. This is a confirmed image/bootstrap
+defect and a plausible cause of the remote refusal, not a proven remote root cause.
+After explicit user approval, Vast returned empty filtered logs for the deleted VM.
+
+The wait command also incorrectly inferred SSH readiness from provider state and
+port mappings. It now requires a successful authenticated SSH `true` command.
+Regression tests cover refusal followed by recovery and persistent-refusal timeout.
+The corrected bootstrap and readiness flow still need live validation. No new GPU
+was rented for this investigation.
