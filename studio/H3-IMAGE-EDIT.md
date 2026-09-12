@@ -76,11 +76,22 @@ Keep only is enabled for a nonempty selection. Confirm with concrete counts, for
 The confirmation is mandatory before any destructive request. Include that
 deleted frames are permanently removed from the PC and the action cannot be
 undone. Canceling the dialog preserves the selection and all frames.
-Current image deletion in web/main.tsx uses native window.confirm, not a shared
-custom confirmation component. Reuse that native confirmation approach initially
-through a small shared helper if useful; do not introduce a dialog framework.
-If a styled dialog becomes necessary during UI review, extract one small shared
-component for both image deletion and Keep only rather than separate versions.
+Replace the current window.confirm image deletion prompt with a shared styled
+confirmation component in web/confirm-dialog.tsx. Use it for existing media
+deletion (Library and generation results), sequence deletion and Keep only.
+Owner explicitly chose a centered floating dialog over a dimmed page backdrop.
+Use native HTML dialog/showModal underneath, consistent with existing app
+overlays, rather than installing a dialog framework.
+
+The component takes a title, explanation, destructive action label and handlers.
+Show Cancel and a red Delete or Keep only button. Keep-only copy gives exact
+retained/deleted counts and permanence; deletion copy names the media kind.
+Focus Cancel initially, trap focus while open, support Escape to cancel and
+restore focus to the triggering control. Backdrop clicks never confirm deletion.
+Support opening above the frame viewer without closing it or losing selection.
+Size responsively on mobile. During a request prevent duplicate submission;
+show failure in the dialog and allow retry without claiming success. No native
+browser confirmation remains on these paths.
 Confirming retains those frames in their original order and updates the card
 count/cover. This is destructive pruning, not promotion into Library. All frames
 remain saved unless explicitly pruned or the sequence is deleted. No expiry.
