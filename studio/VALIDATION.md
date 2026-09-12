@@ -167,4 +167,8 @@ The live host later dropped the SSH tunnel during generation. Comfy finished and
 
 Owner accepted the scrubber and selected-frame navigation and authorized one GPU test. GitHub Actions run 34679995595 published the candidate from 1cf0051; the exact pin lives in shared/worker-release.ts. Anonymous image pull and the early connection page passed a local CPU smoke check. An initial smoke invocation used an invalid HTTP public URL for HTTPS transport; startup rejected it as expected, and the corrected invocation returned HTTP 200. Temporary CPU containers were removed.
 
-Final checks: 65 application tests, 44 operations tests, 41 worker tests (one skip), 22 browser tests, typecheck and secret scan passed. The candidate archive passed isolated Windows installation, setup, upgrade/rollback and credential/media preservation. Backed up the owner's database and updated the installed app. Live GPU generation remains pending below; these checks alone do not prove inference.
+Final checks: 65 application tests, 44 operations tests, 41 worker tests (one skip), 22 browser tests, typecheck and secret scan passed. The candidate archive passed isolated Windows installation, setup, upgrade/rollback and credential/media preservation. Backed up the owner's database and updated the installed app. Live generation subsequently passed as recorded above; delivery to the local Library remains unverified.
+
+## Branch integration checkpoint (2026-09-12)
+
+Before merging to main: build, typecheck, 65 application tests, 52 operations tests, 41 worker tests (one skipped), and credential scan passed. Browser checks were not repeated for this documentation-only checkpoint. Live frame delivery remains unverified. Owner requested GPU teardown; stop was accepted for Vast 50708650, retaining its disk because automatic approval review rejected destruction of unrecovered test outputs without explicit discard approval. Tailscale is a proposed next feature, not implemented.
