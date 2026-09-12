@@ -343,6 +343,13 @@ These are investigation leads, not a diagnosis of our connection. SSH is proven
 on both providers; Tailscale bulk transfers passed on Vast but not this RunPod host.
 Do not silently auto-select routes or claim the both-provider performance gate passed.
 
+Focused review found no concrete Seed routing or file-response bug. Next narrow
+experiment: repeat identical downloads on one affected host with aiohttp's
+existing AIOHTTP_NOSENDFILE=1 switch, then restore baseline, verifying hashes and
+peer paths each time. This isolates sendfile versus buffered writes without
+rewriting transfers. If unchanged, collect a Tailscale diagnostic trace rather
+than adding speculative MTU, chunking or netstack changes. Not yet executed.
+
 The owner's old frame test 7214742a-0f79-45ca-93c3-c4a7b056a822 remains recorded
 as copy_pending even though the owner authorized discarding its remote files and
 deleted that earlier rental. Installation preserved it. Reconcile that historical
