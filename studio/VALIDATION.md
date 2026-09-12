@@ -146,3 +146,9 @@ change. No worker, provider, GPU or production installation change in this follo
 # Scrubbing feedback refinement (2026-09-12)
 
 Build and typecheck passed. All four sequence browser checks passed, including stable control opacity during a blocked original fetch, delayed loading feedback, clearing feedback on another seek, and selection remaining unavailable until the correct original is displayed. Desktop and mobile review screenshots were refreshed against the local fixture app. No GPU needed.
+
+## Live frame-export release preparation (2026-09-12)
+
+Owner accepted the scrubber and selected-frame navigation and authorized one GPU test. GitHub Actions run 34679995595 published the candidate from 1cf0051; the exact pin lives in shared/worker-release.ts. Anonymous image pull and the early connection page passed a local CPU smoke check. An initial smoke invocation used an invalid HTTP public URL for HTTPS transport; startup rejected it as expected, and the corrected invocation returned HTTP 200. Temporary CPU containers were removed.
+
+Final checks: 65 application tests, 44 operations tests, 41 worker tests (one skip), 22 browser tests, typecheck and secret scan passed. The candidate archive passed isolated Windows installation, setup, upgrade/rollback and credential/media preservation. Backed up the owner's database and updated the installed app. Live GPU generation remains pending below; these checks alone do not prove inference.
