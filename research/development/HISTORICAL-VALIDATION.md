@@ -35,7 +35,7 @@ The reusable package harness now isolates APPDATA as well as Seed data.
 
 RunPod test pod `cfhgxufayghb19` was destroyed and its absence confirmed. Its
 container failed because SSH was missing. The corrected image was published by
-[GitHub Actions](https://github.com/Skarian/runpod/actions/runs/34652220067), pulled
+[GitHub Actions](https://github.com/Skarian/seed/actions/runs/34652220067), pulled
 by digest and its SSH startup tested locally. Subsequent global PRO 4000, A40 and
 PRO 4500 requests were rejected for capacity; uncertain attempts were reconciled.
 The corrected image has not completed a live GPU prepare/pair/reconnect cycle.

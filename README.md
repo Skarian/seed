@@ -8,7 +8,7 @@ installation, finding compute, connecting it and releasing it when you're finish
 
 Install the [Seed skill](skills/seed/SKILL.md) into your agent, or give your agent:
 
-> Read the Seed skill at https://github.com/Skarian/runpod/tree/main/skills/seed
+> Read the Seed skill at https://github.com/Skarian/seed/tree/main/skills/seed
 > and help me install and open Seed. Ask before installing Node or renting compute.
 
 The skill guides installation of the local Seed package, credentials and optional
@@ -31,7 +31,7 @@ Identity editing is unfinished. Workflow capacity and platform validation are
 tracked explicitly in [validation](studio/VALIDATION.md).
 
 One local package contains the CLI, server, built React UI and operational code.
-The [GPU worker image](https://github.com/Skarian/runpod/pkgs/container/seed-worker)
+The [GPU worker image](https://github.com/Skarian/seed/pkgs/container/seed-worker)
 is separate and pinned by digest. The skill is instructions in GitHub, not another
 copy of executable code. Users do not need Docker or a source checkout once installed.
 
