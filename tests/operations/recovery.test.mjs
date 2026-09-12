@@ -3,6 +3,25 @@ import assert from 'node:assert/strict';
 import { SeedVast } from '../../operations/vast.mjs';
 import { waitFor } from '../../operations/wait.mjs';
 import {requestJson} from '../../operations/common.mjs';
+import {vastLogs} from '../../operations/vast-logs.mjs';
+import {mkdtemp,readFile,rm} from 'node:fs/promises';
+import os from 'node:os';
+import path from 'node:path';
+
+test('Vast logs wait for export, redact secrets and preserve collection failures',async()=>{
+ const work=await mkdtemp(path.join(os.tmpdir(),'seed-log-test-'));
+ try {
+  let attempts=0;
+  const app={state:{instance_id:123},work,env:{},credentials:async()=>({vastApiKey:'private-test-key'}),secretFile:()=>path.join(work,'missing.json'),
+   api:async(method,route)=>{assert.equal(route,'/api/v0/instances/request_logs/123/');return {success:true,result_url:'https://s3.amazonaws.com/vast.ai/test.log'};},
+   fetcher:async()=>++attempts===1?new Response('',{status:403}):new Response('sshd: no hostkeys available\ntoken=private-test-key')};
+  const result=await vastLogs(app,{sleep:async()=>{}});
+  assert.equal(attempts,2);assert.match(result.lines[0],/no hostkeys/);
+  assert.ok(!(await readFile(result.file,'utf8')).includes('private-test-key'));
+  app.fetcher=async()=>new Response('',{status:500});
+  await assert.rejects(vastLogs(app),/diagnostic saved/);
+ }finally{await rm(work,{recursive:true,force:true});}
+});
 
 test('provider errors retain diagnosis and redact submitted secrets and signed URLs',async()=>{
  await assert.rejects(requestJson('https://example.invalid',{method:'POST',headers:{Authorization:'Bearer private-test-key'},body:{env:{SEED_PAIRING_SECRET:'private-pairing-value'}},fetcher:async()=>new Response(JSON.stringify({detail:'Invalid disk field. private-test-key private-pairing-value https://example.com?token=secret',errors:[{field:'disk',value:'must not echo'}]}),{status:422,headers:{'retry-after':'5'}})}),error=>{

@@ -7,6 +7,8 @@ publication and identity editing are deferred.
 
 ## Decisions
 
+- Standing owner authorization: always collect failure logs before cleanup,
+  including Vast's S3-backed provider log export; no repeated permission request.
 - One npm package contains local executable code; skill instructions live in GitHub.
 - Agent asks before installing/upgrading Node. Updates occur only on request.
 - Provider commands retain native capability/price/error information.

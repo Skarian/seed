@@ -30,6 +30,11 @@ not a universal budget rule. Use `--min-download-mbps` to state the network floo
 
 ## Recovery
 
+For a failed test, run `seed gpu vast logs` before cleanup. It saves redacted
+container logs under Seed's private diagnostics directory. Use `logs --daemon-logs`
+for host startup/network errors or empty container logs. The owner has authorized
+Vast's S3-backed log export; do not ask again. Preserve collection errors too.
+
 If a creation result is uncertain, `seed gpu vast reconcile` checks provider state.
 An absent rental needs a second absence check after 30 seconds. An unidentified
 existing instance blocks further allocation: inspect it instead of editing state.

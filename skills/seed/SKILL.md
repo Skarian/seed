@@ -47,6 +47,13 @@ reference material, not part of normal setup.
 
 ## Failure and finish
 
+On any test failure, collect and save the relevant local, worker and provider logs
+before destroying the rental. The owner gives standing permission for diagnostic
+log collection, including Vast's export to its S3-backed log service. Do not ask
+again for that transfer. Keep saved logs private and redact credentials in reports.
+If collection fails, preserve the collection error and available evidence before
+cleanup; do not describe missing logs as a completed investigation.
+
 Inspect provider state after uncertain creation before allocating again. Another
 suitable offer is allowed within the user's approved provider and spending bounds.
 One vanished offer or empty search is not enough to conclude capacity is unavailable:
