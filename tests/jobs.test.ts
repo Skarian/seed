@@ -3,6 +3,7 @@ import { mkdtempSync, mkdirSync, rmSync, readFileSync, existsSync } from 'node:f
 import path from 'node:path';
 import { createHash } from 'node:crypto';
 import { Jobs } from '../server/jobs.js';
+import { WorkerHttpError } from '../server/worker-transfer.js';
 import { openDatabase } from '../server/db.js';
 import { resolvePaths, prepareStorage } from '../server/storage.js';
 import type { WorkerConnection } from '../server/worker.js';
@@ -48,7 +49,7 @@ async function fixture(run: (f: any) => Promise<void>) {
     const raw = JSON.stringify(manifest);
     state.records[id] = { ...state.records[id], manifest, manifest_bytes: raw, manifest_digest: createHash('sha256').update(raw).digest('hex') };
   }
-  try { await run({ jobs, state, request, finish, paths, db, image }); }
+  try { await run({ jobs, state, request, finish, paths, db, image, fake }); }
   finally { await jobs.close(); db.close(); rmSync(root, { recursive: true, force: true }); }
 }
 
@@ -213,4 +214,17 @@ it('retries one corrupt output then pauses without acknowledging it', async()=>f
   await jobs.reconcile(); expect(jobs.get(job.id).recovery_blocked).not.toBe(true);
   await jobs.reconcile(); expect(jobs.get(job.id).recovery_blocked).toBe(true);
   expect(state.acknowledgments).toBe(0); expect(jobs.get(job.id).error).toContain('integrity');
+}));
+
+it('keeps a blocked reference upload paused when another generation is requested', async()=>fixture(async({jobs,state,request,db,fake}:any)=>{
+  const {jobs:[job]}=await jobs.submit(request,'blocked-input-fault');
+  job.prepared=[{file:'fixture.png',filename:'fixture.png'}];
+  db.prepare('UPDATE jobs SET snapshot_json=? WHERE id=?').run(JSON.stringify(job),job.id);
+  let uploads=0;
+  fake.upload=async()=>{uploads++;throw new WorkerHttpError(507);};
+  await jobs.reconcile(); expect(jobs.get(job.id).recovery_blocked).toBe(true);
+  await expect(jobs.submit(request,'new-input-fault')).rejects.toThrow('resume');
+  await jobs.reconcile(); expect(uploads).toBe(1);expect(state.submits).toBe(0);
+  fake.upload=async()=>{uploads++;};jobs.resumeRecovery();jobs.pause(false);await jobs.reconcile();
+  expect(uploads).toBe(2);expect(state.submits).toBe(1);
 }));

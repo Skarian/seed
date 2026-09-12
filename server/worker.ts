@@ -9,7 +9,7 @@ import {
 } from "node:fs";
 import path from "node:path";
 import { randomUUID, createHash } from "node:crypto";
-import { transferFetch, WorkerHttpError } from './worker-transfer.js';
+import { transferFetch, WorkerHttpError, TransferIntegrityError } from './worker-transfer.js';
 import type { StudioPaths } from "./storage.js";
 export type WorkerStatus = {
   protocol_version: 1;
@@ -181,7 +181,7 @@ export class WorkerConnection {
       result.subfolder !== "seed/" + jobId ||
       result.type !== "input" || result.size !== size || result.sha256 !== sha256
     )
-      throw new Error("Invalid uploaded reference");
+      throw new TransferIntegrityError("Worker could not verify the uploaded reference.");
   }
   async request(
     route: string,
@@ -393,7 +393,7 @@ export class WorkerConnection {
           (result.state !== "preparing" &&
             typeof result.engine_session_id !== "string")
         )
-          throw new Error("Unexpected worker identity.");
+          throw new TransferIntegrityError("Unexpected worker identity.");
         value = {
           protocol_version: 1,
           workspace_id: result.workspace_id,

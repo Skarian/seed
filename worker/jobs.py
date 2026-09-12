@@ -81,7 +81,7 @@ def install(app, workspace, comfy_url, authenticated, preparation=None):
 
     async def upload(request):
         authorize(request)
-        return await save_input(request, root)
+        return await save_input(request, root, locks)
 
     async def relay(request):
         authorize(request)

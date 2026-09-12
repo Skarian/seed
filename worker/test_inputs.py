@@ -8,6 +8,7 @@ from aiohttp import FormData
 
 from worker import inputs
 from worker.test_spool import paired_client
+from worker.spool import atomic
 
 
 def upload(payload, job, filename='image.png', **fields):
@@ -45,6 +46,13 @@ async def test_input_publication_retries_do_not_replace_or_corrupt(tmp_path):
         assert response.status == 409
         assert target.read_bytes() == payload
         assert not list((volume / '.seed/spool/inputs').glob('.upload-*'))
+        atomic(volume / '.seed/spool/jobs' / job / 'receipt.json', {'saved': True})
+        target.unlink()
+        target.parent.rmdir()
+        response = await client.post('/comfy/upload', data=upload(payload, job), headers=headers)
+        assert response.status == 409
+        assert (await response.json())['code'] == 'input_retired'
+        assert not target.parent.exists()
     finally:
         await client.close()
 

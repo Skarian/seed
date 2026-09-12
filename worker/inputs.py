@@ -36,7 +36,7 @@ def publish(temporary, target, size, digest):
     return True
 
 
-async def save_input(request, workspace):
+async def save_input(request, workspace, locks):
     digest = request.headers.get('X-Seed-Input-SHA256', '')
     raw_size = request.headers.get('X-Seed-Input-Size', '')
     if not re.fullmatch('[a-f0-9]{64}', digest) or not re.fullmatch('[1-9][0-9]{0,15}', raw_size):
@@ -87,14 +87,19 @@ async def save_input(request, workspace):
         destination = inputs / subfolder
         if destination.resolve() != destination:
             return problem(400, 'invalid_input', 'Input destination is redirected.')
-        destination.mkdir(parents=True, exist_ok=True)
-        commit = asyncio.create_task(asyncio.to_thread(publish, temporary, destination / filename, size, digest))
-        try:
-            matched = await asyncio.shield(commit)
-        except asyncio.CancelledError:
-            # Do not unlink the source while an owned filesystem operation runs.
-            await commit
-            raise
+        # Share receipt's short commit fence: a late duplicate cannot resurrect
+        # input files after durable output acknowledgment has cleaned the job.
+        async with locks.setdefault(job_id, asyncio.Lock()):
+            if (root / '.seed/spool/jobs' / job_id / 'receipt.json').exists():
+                return problem(409, 'input_retired', 'This job has already been acknowledged.')
+            destination.mkdir(parents=True, exist_ok=True)
+            commit = asyncio.create_task(asyncio.to_thread(publish, temporary, destination / filename, size, digest))
+            try:
+                matched = await asyncio.shield(commit)
+            except asyncio.CancelledError:
+                # Do not unlink the source while an owned filesystem operation runs.
+                await commit
+                raise
         if not matched:
             return problem(409, 'input_conflict', 'This job input already has different content.')
         return web.json_response({'name': filename, 'subfolder': subfolder, 'type': 'input', 'size': size, 'sha256': digest})
