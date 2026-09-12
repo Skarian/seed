@@ -1,3 +1,4 @@
+import { FrameViewer } from './frame-viewer.js';
 import React, { useEffect, useRef, useState } from 'react';
 import type { LibraryAsset } from '../shared/studio.js';
 import type { Reference } from './references.js';
@@ -7,6 +8,7 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
   group: 'edit' | 'video'; existing: Reference[]; onClose: () => void; onSelect: (assets: LibraryAsset[]) => Promise<void>;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
+  const [sequence, setSequence] = useState<string|null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [selected, setSelected] = useState<LibraryAsset[]>([]);
   const [cursor, setCursor] = useState<string | null>(null);
@@ -32,7 +34,7 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
     document.body.style.overflow = 'hidden'; element?.showModal(); void load();
     return () => { element?.close(); document.body.style.overflow = overflow; trigger?.focus(); };
   }, []);
-  const visible = assets.filter(a => (group !== 'edit' || a.kind === 'image') && (nsfw || a.mode !== 'nsfw'));
+  const visible = assets.filter(a => (group !== 'edit' || a.kind === 'image' || a.kind === 'sequence') && (nsfw || a.mode !== 'nsfw'));
   function unavailable(asset: LibraryAsset) {
     return existing.some(a => a.asset_id === asset.id) || existing.length + selected.length >= maximum ||
       (group === 'video' && [...existing, ...selected].filter(a => a.kind === asset.kind).length >= (asset.kind === 'image' ? 9 : 3));
@@ -44,8 +46,9 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
     <div className="gallery-scroll">
       <div className="gallery-grid">{visible.map(asset => {
         const checked = selected.some(a => a.id === asset.id);
-        return <button type="button" className="gallery-tile" key={asset.id} aria-label={`Select ${asset.name}`} aria-pressed={checked} disabled={saving || (!checked && unavailable(asset))} onClick={() => setSelected(items => checked ? items.filter(a => a.id !== asset.id) : [...items, asset])}>
-          {asset.kind === 'image' ? <img src={`/api/v1/assets/${asset.id}/content`} alt="" loading="lazy" /> : asset.kind === 'video' ? <><video src={`/api/v1/assets/${asset.id}/content`} muted playsInline preload="metadata" /><span className="gallery-kind">▶</span></> : <span className="audio-symbol">♫</span>}
+        return <button type="button" className="gallery-tile" key={asset.id} aria-label={`Select ${asset.name}`} aria-pressed={checked} disabled={saving || (asset.kind!=='sequence' && !checked && unavailable(asset))} onClick={() => asset.kind==='sequence' ? setSequence(asset.id) : setSelected(items => checked ? items.filter(a => a.id !== asset.id) : [...items, asset])}>
+          {(asset.kind === 'image'||asset.kind==='sequence') ? <img src={`/api/v1/assets/${asset.cover_id??asset.id}/${asset.kind==='sequence'?'preview':'content'}`} alt="" loading="lazy" /> : asset.kind === 'video' ? <><video src={`/api/v1/assets/${asset.id}/content`} muted playsInline preload="metadata" /><span className="gallery-kind">▶</span></> : <span className="audio-symbol">♫</span>}
+          {asset.kind==='sequence' && <span className="frame-count">{asset.frame_count} frames</span>}
           <span className="gallery-check">{checked ? '✓' : ''}</span>
         </button>;
       })}</div>
@@ -54,6 +57,7 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
       {error && <p role="alert">{error} <button onClick={() => void load(cursor ?? '')}>Retry</button></p>}
       {cursor && !loading && <button className="queue-control" onClick={() => void load(cursor)}>Load more</button>}
     </div>
+    {sequence && <FrameViewer id={sequence} onClose={()=>setSequence(null)} selectedIds={selected.map(a=>a.id)} canPick={asset=>!unavailable(asset)} onPick={asset=>setSelected(items=>items.some(a=>a.id===asset.id)?items.filter(a=>a.id!==asset.id):[...items,asset])}/>}
     <footer><button type="button" disabled={saving} onClick={onClose}>Cancel</button><button type="button" disabled={!selected.length || saving} onClick={async () => { setSaving(true); try { await onSelect(selected); } catch (e) { setError((e as Error).message); setSaving(false); } }}>{saving ? 'Adding…' : `Select${selected.length ? ` (${selected.length})` : ''}`}</button></footer>
   </dialog>;
 }

@@ -12,7 +12,7 @@ export function openDatabase(dataDirectory: string) {
     db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
     db.transaction(() => {
       const latest = db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number | null };
-      if ((latest.version ?? 0) > 2) throw new Error('This database requires a newer studio version.');
+      if ((latest.version ?? 0) > 3) throw new Error('This database requires a newer studio version.');
       if (!latest.version) { db.exec(`
         CREATE TABLE assets (
           id TEXT PRIMARY KEY,
@@ -42,6 +42,11 @@ export function openDatabase(dataDirectory: string) {
           CREATE UNIQUE INDEX jobs_submission_index ON jobs(submission_id, submission_index);`);
         db.prepare('INSERT INTO schema_migrations VALUES (2, ?)').run(new Date().toISOString());
       }
+      if ((latest.version ?? 0) < 3) {
+        db.exec(`CREATE TABLE sequences (id TEXT PRIMARY KEY, mode TEXT NOT NULL, created_at TEXT NOT NULL, revision INTEGER NOT NULL DEFAULT 0, pending_json TEXT);
+          CREATE TABLE sequence_frames (sequence_id TEXT NOT NULL REFERENCES sequences(id) ON DELETE CASCADE, asset_id TEXT NOT NULL UNIQUE REFERENCES assets(id) ON DELETE CASCADE, frame_index INTEGER NOT NULL, PRIMARY KEY(sequence_id,frame_index));`);
+        db.prepare('INSERT INTO schema_migrations VALUES (3, ?)').run(new Date().toISOString());
+      }
     })();
     return db;
   } catch (error) {
@@ -51,5 +56,18 @@ export function openDatabase(dataDirectory: string) {
 }
 
 export function listAssets(db: Database.Database, cursor = '', limit = 50): LibraryAsset[] {
-  return db.prepare(`SELECT id, kind, name, created_at, COALESCE(json_extract(metadata_json, '$.mode'), (SELECT json_extract(snapshot_json, '$.request.mode') FROM jobs WHERE jobs.id=json_extract(assets.metadata_json, '$.job_id')), CASE WHEN name = 'Image · NSFW' THEN 'nsfw' ELSE 'sfw' END) AS mode FROM assets WHERE COALESCE(json_extract(metadata_json, '$.state'), 'ready')='ready' AND (? = \'\' OR (created_at,id) < (SELECT created_at,id FROM assets WHERE id=?)) ORDER BY created_at DESC, id DESC LIMIT ?`).all(cursor, cursor, limit) as LibraryAsset[];
+  return db.prepare(`WITH items AS (
+    SELECT id, kind, name, created_at,
+      COALESCE(json_extract(metadata_json, '$.mode'), (SELECT json_extract(snapshot_json, '$.request.mode') FROM jobs WHERE jobs.id=json_extract(assets.metadata_json, '$.job_id')), CASE WHEN name = 'Image · NSFW' THEN 'nsfw' ELSE 'sfw' END) AS mode,
+      NULL AS cover_id, NULL AS frame_count
+    FROM assets WHERE COALESCE(json_extract(metadata_json, '$.state'), 'ready')='ready'
+      AND NOT EXISTS (SELECT 1 FROM sequence_frames WHERE asset_id=assets.id)
+    UNION ALL SELECT s.id, 'sequence', 'Image sequence', s.created_at, s.mode,
+      (SELECT asset_id FROM sequence_frames WHERE sequence_id=s.id ORDER BY frame_index LIMIT 1),
+      (SELECT COUNT(*) FROM sequence_frames WHERE sequence_id=s.id)
+    FROM sequences s WHERE pending_json IS NOT NULL OR EXISTS(SELECT 1 FROM sequence_frames WHERE sequence_id=s.id)
+  ) SELECT * FROM items WHERE (? = '' OR (created_at,id) < (SELECT created_at,id FROM items WHERE id=?)) ORDER BY created_at DESC,id DESC LIMIT ?`).all(cursor,cursor,limit).map((row:any)=> {
+    if(row.kind!=='sequence'){ delete row.cover_id; delete row.frame_count; }
+    return row;
+  }) as LibraryAsset[];
 }

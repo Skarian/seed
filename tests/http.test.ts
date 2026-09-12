@@ -4,6 +4,7 @@ import { openDatabase } from '../server/db.js';
 import path from 'node:path';
 import { createApp } from '../server/http.js';
 import { resolvePaths } from '../server/storage.js';
+import sharp from 'sharp';
 
 let app: Awaited<ReturnType<typeof createApp>>;
 let root: string;
@@ -15,6 +16,27 @@ beforeEach(async () => {
 afterEach(async () => { await app.close(); await new Promise(resolve => setTimeout(resolve, 30)); rmSync(root, { recursive: true, force: true }); });
 
 describe('local studio boundary', () => {
+  it('serves real frame previews, groups Library results and retains selected originals', async () => {
+    const paths=resolvePaths(root), db=openDatabase(paths.data), headers={host,origin:`http://${host}`};
+    const bytes=await sharp({create:{width:1344,height:768,channels:3,background:'#345678'}}).png().toBuffer();
+    db.prepare('INSERT INTO sequences(id,mode,created_at) VALUES (?,?,?)').run('sequence','sfw',new Date().toISOString());
+    for(let i=0;i<3;i++) {
+      writeFileSync(path.join(paths.data,`media/outputs/frame${i}.png`),bytes);
+      db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('frame'+i,'image','Frame',`media/outputs/frame${i}.png`,JSON.stringify({width:1344,height:768}),new Date().toISOString());
+      db.prepare('INSERT INTO sequence_frames VALUES (?,?,?)').run('sequence','frame'+i,i);
+    }
+    expect((await app.inject({url:'/api/v1/assets',headers:{host}})).json().items).toHaveLength(1);
+    const preview=await app.inject({url:'/api/v1/assets/frame0/preview',headers:{host}});
+    expect(preview.statusCode).toBe(200);expect((await sharp(preview.rawPayload).metadata()).width).toBe(384);
+    expect((await app.inject({url:'/api/v1/assets/frame0/content',headers:{host}})).rawPayload).toEqual(bytes);
+    expect((await app.inject({method:'DELETE',url:'/api/v1/assets/frame0',headers})).statusCode).toBe(409);
+    const kept=await app.inject({method:'POST',url:'/api/v1/sequences/sequence/keep-only',headers,payload:{asset_ids:['frame1'],revision:0}});
+    expect(kept.statusCode).toBe(200);expect(kept.json().frames.map((f:any)=>f.id)).toEqual(['frame1']);
+    expect((await app.inject({url:'/api/v1/assets/frame0/content',headers:{host}})).statusCode).toBe(404);
+    expect((await app.inject({method:'DELETE',url:'/api/v1/sequences/sequence',headers})).statusCode).toBe(204);
+    expect((await app.inject({url:'/api/v1/assets',headers:{host}})).json().items).toHaveLength(0);
+    db.close();
+  });
   it('deletes a saved file and record, permits retry, and rejects paths outside storage', async () => {
     const paths = resolvePaths(root), db = openDatabase(paths.data);
     const file = path.join(paths.data, 'media/outputs/test.png'); writeFileSync(file, 'image');

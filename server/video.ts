@@ -2,7 +2,7 @@ import type { ImageRequest, Preset } from './workflows.js';
 import type { PreparedReference } from './media.js';
 export function videoRequest(value:any):ImageRequest {
   if(!value||Object.keys(value).some(k=>!['workflow','capabilities_revision','prompt','mode','output','seed','count','references','audio'].includes(k))||!['text-to-video','reference-to-video'].includes(value.workflow)||typeof value.capabilities_revision!=='string'||typeof value.prompt!=='string'||!value.prompt.trim()||value.prompt.length>12000||!['sfw','nsfw'].includes(value.mode))throw new Error('Check the video settings.');
-  if(!value.output||Object.keys(value.output).some(k=>!['aspect','size','duration_seconds'].includes(k))||!['16:9','9:16'].includes(value.output.aspect)||value.output.size!=='720p'||![5,10,15].includes(value.output.duration_seconds))throw new Error('Choose a supported video size and length.');
+  if(!value.output||Object.keys(value.output).some(k=>!['aspect','size','duration_seconds','format'].includes(k))||!['16:9','9:16'].includes(value.output.aspect)||value.output.size!=='720p'||(!Number.isInteger(value.output.duration_seconds)||value.output.duration_seconds<5||value.output.duration_seconds>15)|| (value.output.format!==undefined&&!['video','images'].includes(value.output.format)))throw new Error('Choose a supported video size and length.');
   const count=value.count??1,seed=value.seed??'random';if(!Number.isInteger(count)||count<1||count>16||typeof seed!=='string'||(seed!=='random'&&(!/^(0|[1-9][0-9]{0,15})$/.test(seed)||BigInt(seed)+BigInt(count-1)>9007199254740991n)))throw new Error('Check the generation count and seed.');
   const references=value.references??[];if(!Array.isArray(references)||references.length>12||(value.workflow==='reference-to-video'&&!references.length)||(value.workflow==='text-to-video'&&references.length))throw new Error('Check the video references.');
   const ids=new Set();for(const ref of references){if(!ref||Object.keys(ref).some(k=>!['id','asset_id','kind','role','range','include_audio','framing'].includes(k))||typeof ref.id!=='string'||!/^[-\w]{1,100}$/.test(ref.id)||ids.has(ref.id)||typeof ref.asset_id!=='string'||!/^[-\w]{1,100}$/.test(ref.asset_id)||!['image','video','audio'].includes(ref.kind)||!['reference','first_frame','last_frame'].includes(ref.role)||(ref.kind!=='image'&&ref.role!=='reference')||(ref.framing!==undefined&&!['fit','fill'].includes(ref.framing))||(ref.include_audio!==undefined&&typeof ref.include_audio!=='boolean'))throw new Error('Invalid reference settings.');ids.add(ref.id);
@@ -36,6 +36,11 @@ export function videoGraph(request:ImageRequest,id:string,seed:string,preset:Pre
     '13':{class_type:'VAEDecodeAudio',inputs:{samples:['11',0],vae:['4',0]}},
     '14':{class_type:'SeedVideoSave',inputs:{images:['12',0],audio:['13',0],seconds,filename_prefix:'seed/'+id+'/video',audio_mode:request.audio?.output??'generated'}},
   };
+  if(request.output.format==='images'){
+    delete graph['13'];
+    graph['15']={class_type:'ImageFromBatch',inputs:{image:['12',0],batch_index:0,length:seconds*24}};
+    graph['14']={class_type:'SaveImage',inputs:{images:['15',0],filename_prefix:'seed/'+id+'/frames'}};
+  }
   if(preset)graph['18']={class_type:'LoraLoaderModelOnly',inputs:{model:['5',0],lora_name:preset.filename,strength_model:preset.strength_model}};
   let node=20,image=0,video=0,audio=0;let positive:any=['6',0];
   for(const ref of refs){const key=String(node++),filename='seed/'+id+'/'+ref.filename;

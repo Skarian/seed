@@ -217,3 +217,34 @@ async def test_execution_event_starts_measurement_and_failure_finishes_it(tmp_pa
         assert record['telemetry']['execution_seconds'] is None
     finally:
         await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('invalid', [None, 'missing', 'duplicate', 'outside'])
+async def test_frame_set_manifest(tmp_path, monkeypatch, invalid):
+    client, queue, _, output = await engine(tmp_path, monkeypatch)
+    try:
+        job_id = str(uuid.uuid4())
+        graph = {'14': {'class_type': 'SaveImage', 'inputs': {'images': ['15', 0], 'filename_prefix': f'seed/{job_id}/frames'}},
+                 '15': {'class_type': 'ImageFromBatch', 'inputs': {'image': ['12', 0], 'batch_index': 0, 'length': 120}}}
+        assert (await client.post('/studio/prompt', json={'prompt_id': job_id, 'prompt': graph}, headers=HEADERS)).status == 200
+        queue.currently_running[0] = queue.pending.pop()
+        folder = output / 'seed' / job_id
+        folder.mkdir(parents=True)
+        entries = []
+        for index in range(120):
+            file = folder / f'frame_{index:05}.png'
+            file.write_bytes(b'closed-frame')
+            entries.append({'filename': file.name, 'subfolder': f'seed/{job_id}', 'type': 'output'})
+        if invalid == 'missing': entries.pop()
+        if invalid == 'duplicate': entries[1] = entries[0]
+        if invalid == 'outside': entries[0]['subfolder'] = 'seed/other'
+        queue.task_done(0, {'outputs': {'14': {'images': entries}}}, types.SimpleNamespace(status_str='success', completed=True))
+        record = spool.read_record(spool.job_directory(tmp_path / 'volume', job_id))
+        if invalid: assert 'manifest' not in record
+        else:
+            assert len(record['manifest']['outputs']) == 120
+            assert record['manifest']['outputs'][-1]['id'] == '119'
+            assert record['manifest']['outputs'][0]['mime_type'] == 'image/png'
+    finally:
+        await client.close()

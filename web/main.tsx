@@ -6,6 +6,7 @@ import type {
   WorkflowId,
 } from "../shared/studio.js";
 import "./style.css";
+import { FrameViewer } from "./frame-viewer.js";
 import { ConfirmDialog } from "./confirm-dialog.js";
 import { MediaCard, LoadingIndicator } from "./media-card.js";
 import { uploadReferences } from "./uploads.js";
@@ -37,7 +38,8 @@ const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
 type Draft = {
   prompt: string;
   aspect: "16:9" | "9:16";
-  duration: "5" | "10" | "15";
+  duration: string;
+  exportImages?: boolean;
   mode: "sfw" | "nsfw";
   audio?: "generated" | "silent";
   count: number;
@@ -73,9 +75,10 @@ function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
               : "",
         aspect: entry?.aspect === "9:16" ? "9:16" : "16:9",
         duration:
-          entry?.duration === "10" || entry?.duration === "15"
+          Number.isInteger(Number(entry?.duration)) && Number(entry.duration)>=5 && Number(entry.duration)<=15
             ? entry.duration
             : "5",
+        exportImages: entry?.exportImages === true,
         mode: entry?.mode === "nsfw" ? "nsfw" : "sfw",
         count:
           Number.isInteger(entry?.count) &&
@@ -160,7 +163,7 @@ function SavedImage({
   close,
 }: {
   id: string;
-  kind: "image" | "video" | "audio";
+  kind: "image" | "video" | "audio" | "sequence";
   close: () => void;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
@@ -230,13 +233,14 @@ function App() {
       state: string;
       generation_percent?: number;
       outputs: string[];
+      request?: {output?: {format?: string};workflow?:string};
       error: string | null;
       uncertainty_acknowledged?: boolean;
     }>
   >([]);
   const [capability, setCapability] = useState<{
     revision: string | null;
-    workflows: Record<string, { enabled: boolean; modes: string[] }>;
+    workflows: Record<string, { enabled: boolean; modes: string[]; export_formats?: string[]; duration_seconds?: {step?:number} }>;
   } | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [uploadProgress, setUploadProgress] = useState("");
@@ -362,6 +366,8 @@ function App() {
       : "";
   const canGenerate =
     !missingReference &&
+    (!video || (!draft.exportImages || capability?.workflows[workflow]?.export_formats?.includes("images"))) &&
+    (!video || [5,10,15].includes(Number(draft.duration)) || capability?.workflows[workflow]?.duration_seconds?.step===1) &&
     workflow !== "image-to-image" &&
     (workflow !== "reference-to-video" ||
       (references.groups.video.length > 0 &&
@@ -399,7 +405,7 @@ function App() {
       output: {
         aspect: draft.aspect,
         size: video ? "720p" : "1mp",
-        ...(video ? { duration_seconds: Number(draft.duration) } : {}),
+        ...(video ? { duration_seconds: Number(draft.duration), ...(draft.exportImages ? {format:"images"} : {}) } : {}),
       },
       seed: draft.randomSeed ? "random" : draft.seed,
       count: draft.count,
@@ -469,7 +475,7 @@ function App() {
     setDeleteError("");
     try {
       const response = await fetch(
-        "/api/v1/assets/" + encodeURIComponent(asset.id),
+        (asset.kind === "sequence" ? "/api/v1/sequences/" : "/api/v1/assets/") + encodeURIComponent(asset.id),
         { method: "DELETE" },
       );
       if (!response.ok) {
@@ -871,7 +877,7 @@ function App() {
                     setAdvancedOpen(false);
                   }}
                 >
-                  {Object.entries(workflows).map(([id, value]) => (
+                  {Object.entries(workflows).filter(([id])=>id!=="image-to-image").map(([id, value]) => (
                     <option key={id} value={id}>
                       {value.title}
                     </option>
@@ -1020,20 +1026,15 @@ function App() {
                 {video && (
                   <fieldset>
                     <legend>Length</legend>
-                    <div className="duration-options">
-                      {(["5", "10", "15"] as const).map((duration) => (
-                        <button
-                          key={duration}
-                          aria-pressed={draft.duration === duration}
-                          onClick={() => updateDraft({ duration })}
-                        >
-                          {duration}s
-                        </button>
-                      ))}
-                    </div>
+                    {capability?.workflows[workflow]?.duration_seconds?.step === 1 || !capability?.revision ?
+                      <label className="duration-slider"><span>{draft.duration} seconds</span><input aria-label="Length" type="range" min="5" max="15" step="1" value={draft.duration} onChange={e=>updateDraft({duration:e.target.value})}/></label> :
+                      <div className="duration-options">{['5','10','15'].map(duration=><button key={duration} aria-pressed={draft.duration===duration} onClick={()=>updateDraft({duration})}>{duration}s</button>)}</div>}
+
                   </fieldset>
                 )}
               </div>
+              {video && <label className="export-images"><input type="checkbox" checked={Boolean(draft.exportImages)} onChange={e=>updateDraft({exportImages:e.target.checked})}/>Export as images</label>}
+              {video && draft.exportImages && capability?.revision && !capability.workflows[workflow]?.export_formats?.includes('images') && <p>Update the worker to export images.</p>}
               <div className="generation-options">
                 <label className="batch-field">
                   Generations
@@ -1119,7 +1120,7 @@ function App() {
                   </p>
                 )}
               {missingReference && <p role="alert">{missingReference}</p>}
-              {video && (
+              {video && !draft.exportImages && (
                 <label className="video-audio">
                   Audio
                   <select
@@ -1151,10 +1152,10 @@ function App() {
                   <>
                     Create{" "}
                     {draft.count > 1
-                      ? `${draft.count} ${video ? "videos" : "images"}`
-                      : video
+                      ? `${draft.count} ${video && !draft.exportImages ? "videos" : "images"}`
+                      : video && !draft.exportImages
                         ? "video"
-                        : "image"}{" "}
+                        : draft.exportImages && video ? "images" : "image"}{" "}
                     <span>↗</span>
                   </>
                 )}
@@ -1172,7 +1173,7 @@ function App() {
                     return (
                       <div key={id}>
                         {job?.outputs?.length ? (
-                          job.outputs.map((asset) => (
+                          job.request?.output?.format === 'images' ? <MediaCard kind="sequence" src={`/api/v1/assets/${job.outputs[0]}/preview`} frameCount={job.outputs.length} name="Image sequence" onOpen={()=>setViewAsset(job.id)} onDelete={()=>setDeleteTarget({id:job.id,kind:'sequence'})} deleting={deletingAsset!==null}/> : job.outputs.map((asset) => (
                             <MediaCard
                               key={asset}
                               src={`/api/v1/assets/${asset}/content`}
@@ -1244,7 +1245,8 @@ function App() {
                 {visibleAssets.map((asset) => (
                   <MediaCard
                     key={asset.id}
-                    src={`/api/v1/assets/${asset.id}/content`}
+                    src={`/api/v1/assets/${asset.cover_id??asset.id}/${asset.kind==='sequence'?'preview':'content'}`}
+                    frameCount={asset.frame_count}
                     kind={asset.kind}
                     name={asset.name}
                     onOpen={() => setViewAsset(asset.id)}
@@ -1267,7 +1269,8 @@ function App() {
         <footer>seed</footer>
       </main>
       {deleteTarget && <ConfirmDialog title={`Delete this ${deleteTarget.kind}?`} description="This permanently removes the saved file from your PC. This cannot be undone." action="Delete" onConfirm={() => deleteAsset(deleteTarget)} onClose={() => setDeleteTarget(null)} />}
-      {viewAsset && (
+      {viewAsset && (assets.find(a=>a.id===viewAsset)?.kind==='sequence' || jobs.some(j=>j.id===viewAsset && j.request?.output?.format==='images')) ?
+        <FrameViewer id={viewAsset} onClose={()=>setViewAsset(null)} onChanged={()=>setConnectionRevision(v=>v+1)}/> : viewAsset && (
         <SavedImage
           kind={
             assets.find((asset) => asset.id === viewAsset)?.kind ??

@@ -13,8 +13,15 @@ export interface StudioSnapshot {
 
 export interface LibraryAsset {
   id: string;
-  kind: 'image' | 'video' | 'audio';
+  kind: 'image' | 'video' | 'audio' | 'sequence';
+  cover_id?: string;
+  frame_count?: number;
   name: string;
   created_at: string;
   mode?: 'sfw' | 'nsfw';
+}
+
+export interface FrameSequence {
+  id: string; revision: number; mode: 'sfw' | 'nsfw'; cleanup_pending?: boolean;
+  frames: Array<{ id: string; index: number; time: number; width: number; height: number }>;
 }

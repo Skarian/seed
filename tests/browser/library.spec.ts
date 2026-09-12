@@ -32,7 +32,7 @@ test('Library renders before pod status and shows a spinner until an image arriv
   await page.route('**/api/v1/assets',r=>r.fulfill({json:{items:[{id:'slow',kind:'image',mode:'sfw',name:'Slow image'}]}}));
   await page.route('**/api/v1/assets/slow/content',async r=>{await imageGate;await r.fulfill({contentType:'image/png',body:Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII=','base64')});});
   await page.goto('/library',{waitUntil:'domcontentloaded'});
-  await expect(page.getByRole('status')).toHaveText('Loading imageâ€¦');
+  await expect(page.getByRole('status')).toHaveText('Loading image…');
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'.local/library-loading.png'});
   releaseImage();

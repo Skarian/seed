@@ -1,3 +1,5 @@
+import { Sequences } from './sequences.js';
+import { Previews } from './previews.js';
 import Fastify from 'fastify';
 import { WorkerConnection } from './worker.js';
 import fastifyStatic from '@fastify/static';
@@ -15,6 +17,9 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   const db = openDatabase(options.paths.data);
   const worker = new WorkerConnection(options.paths, options.localTestWorkerOrigin);
   const jobs = new Jobs(db, options.paths, worker);
+  const sequences = new Sequences(db, options.paths.data, options.paths.cache, jobs);
+  const previews = new Previews(options.paths.data, options.paths.cache);
+  sequences.recover();
   const app = Fastify({ logger: false, bodyLimit: 16 * 1024, trustProxy: false, ajv: { customOptions: { removeAdditional: false } } });
   const allowedHost = `${options.host ?? '127.0.0.1'}:${options.port}`;
   const origin = `http://${allowedHost}`;
@@ -79,10 +84,35 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     });
   }
   app.get('/api/v1/assets', async request => { const cursor = String((request.query as { cursor?: string }).cursor ?? ''); const items = listAssets(db, cursor, 51); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.get('/api/v1/sequences/:id', async (request,reply)=> {
+    try {return sequences.get((request.params as any).id) ?? fail(reply,404,'not_found','Sequence not found.',request.id);}
+    catch(e){return fail(reply,409,'sequence_busy',(e as Error).message,request.id);}
+  });
+  app.post('/api/v1/sequences/:id/keep-only',async(request,reply)=>jobs.serialize(async()=>{
+    try {const body=request.body as any;return sequences.prune((request.params as any).id,body?.asset_ids,body?.revision);}
+    catch(e){return fail(reply,409,'sequence_changed',(e as Error).message,request.id);}
+  }));
+  app.post('/api/v1/sequences/:id/retry-cleanup',async(request,reply)=>jobs.serialize(async()=>{
+    try{return {sequence:sequences.retry((request.params as any).id)};}
+    catch(e){return fail(reply,409,'cleanup_pending',(e as Error).message,request.id);}
+  }));
+  app.delete('/api/v1/sequences/:id',async(request,reply)=>jobs.serialize(async()=>{
+    try {const id=(request.params as any).id;const sequence=db.prepare('SELECT revision FROM sequences WHERE id=?').get(id) as any;
+      sequences.prune(id,[],sequence?.revision??0,true);return reply.code(204).send();}
+    catch(e){return fail(reply,409,'delete_failed',(e as Error).message,request.id);}
+  }));
+  app.get('/api/v1/assets/:id/preview',async(request,reply)=>{
+    const id=(request.params as any).id;
+    const asset=db.prepare("SELECT relative_path FROM assets WHERE id=? AND kind='image' AND COALESCE(json_extract(metadata_json,'$.state'),'ready')='ready'").get(id) as any;
+    if(!asset)return fail(reply,404,'not_found','Image not found.',request.id);
+    try {const file=await previews.get(id,asset.relative_path,(request.query as any).size==='1280'?1280:384);return reply.type('image/webp').send(createReadStream(file));}
+    catch{return fail(reply,409,'preview_failed','Could not load preview.',request.id);}
+  });
   app.delete('/api/v1/assets/:id', async (request, reply) => jobs.serialize(async () => {
     const id = (request.params as { id: string }).id;
     const asset = db.prepare('SELECT relative_path, metadata_json FROM assets WHERE id=?').get(id) as { relative_path: string; metadata_json: string } | undefined;
     if (!asset) return reply.code(204).send();
+    if(db.prepare('SELECT 1 FROM sequence_frames WHERE asset_id=?').get(id)) return fail(reply,409,'sequence_member','Use Keep only in the image sequence to remove frames.',request.id);
     if(jobs.all().some(job=>!['completed','failed','cancelled'].includes(job.state) && job.request.references?.some(ref=>ref.asset_id===id))) return fail(reply,409,'asset_busy','A queued job still needs this file.',request.id);
     const owners = jobs.all().filter(job => job.outputs.includes(id));
     if (owners.some(job => job.state !== 'completed' || job.cleanup_state !== 'complete')) return fail(reply, 409, 'asset_busy', 'This file is still being saved. Try again shortly.', request.id);
@@ -97,7 +127,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     })();
     return reply.code(204).send();
   }));
-  app.get('/api/v1/capabilities', async () => ({ revision: jobs.capabilities?.revision ?? null, workflows: { 'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 }, ...Object.fromEntries(['text-to-video','reference-to-video'].map(id => [id,{enabled:Boolean(jobs.capabilities?.video?.ready),modes:jobs.capabilities?.video?.nsfw.fl && jobs.capabilities?.video?.nsfw.ref ? ['sfw','nsfw'] : ['sfw'],count_max:16}])) } }));
+  app.get('/api/v1/capabilities', async () => ({ revision: jobs.capabilities?.revision ?? null, workflows: { 'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 }, ...Object.fromEntries(['text-to-video','reference-to-video'].map(id => [id,{enabled:Boolean(jobs.capabilities?.video?.ready),modes:jobs.capabilities?.video?.nsfw.fl && jobs.capabilities?.video?.nsfw.ref ? ['sfw','nsfw'] : ['sfw'],count_max:16,export_formats:jobs.capabilities?.video?.image_export?['video','images']:['video'],duration_seconds:jobs.capabilities?.video?.duration_step===1?{min:5,max:15,step:1}:{values:[5,10,15]}}])) } }));
   app.post('/api/v1/jobs', async (request, reply) => {
     try { const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''))); return reply.code(202).send(result); }
     catch (error) { return fail(reply, 409, 'submission_failed', (error as Error).message, request.id); }

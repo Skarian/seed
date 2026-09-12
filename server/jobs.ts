@@ -199,6 +199,10 @@ export class Jobs {
         "Resolve the previous interrupted job before generating.",
       );
     const isVideo = request.workflow !== "text-to-image";
+    if (isVideo && request.output.format === 'images' && !cap.video?.image_export)
+      throw new Error('Update the worker to export images.');
+    if (isVideo && ![5,10,15].includes(request.output.duration_seconds!) && cap.video?.duration_step !== 1)
+      throw new Error('Update the worker to use this duration.');
     if (isVideo && !cap.video?.ready)
       throw new Error("This worker does not support video yet.");
     const selectedPreset =
@@ -606,19 +610,23 @@ export class Jobs {
       !Array.isArray(manifest.outputs)
     )
       throw new Error("Output identity mismatch");
+    const frames = job.request.output.format === 'images';
+    if (frames && (new Set(manifest.outputs.map((o:Output)=>o.path)).size!==manifest.outputs.length ||
+      manifest.outputs.some((o:Output)=>typeof o.path!=='string'||!o.path.startsWith('seed/'+job.id+'/')||o.path.includes('..')||o.path.includes('\\')||!o.path.endsWith('.png'))))
+      throw new Error('Invalid frame paths');
     if (
       manifest.state === "completed" &&
-      (manifest.outputs.length !== 1 ||
+      (manifest.outputs.length !== (job.request.output.format === 'images' ? job.request.output.duration_seconds! * 24 : 1) ||
         manifest.outputs.some(
-          (x: Output) =>
-            x.id !== "0" ||
+          (x: Output, index: number) =>
+            x.id !== String(index) ||
             x.mime_type !==
-              (job.request.workflow === "text-to-image"
+              ((job.request.workflow === "text-to-image" || job.request.output.format === "images")
                 ? "image/png"
                 : "video/mp4") ||
             !Number.isSafeInteger(x.size) ||
             x.size < 1 ||
-            x.size > 8 * 1024 * 1024 * 1024 ||
+            x.size > (frames ? 64 * 1024 * 1024 : 8 * 1024 * 1024 * 1024) ||
             !/^[a-f0-9]{64}$/.test(x.sha256),
         ))
     )
@@ -709,13 +717,14 @@ export class Jobs {
               .run(
                 id,
                 output.mime_type === "video/mp4" ? "video" : "image",
-                (output.mime_type === "video/mp4" ? "Video Â· " : "Image Â· ") +
+                (output.mime_type === "video/mp4" ? "Video \u00b7 " : "Image \u00b7 ") +
                   job.request.mode.toUpperCase(),
                 "media/outputs/" +
                   id +
                   (output.mime_type === "video/mp4" ? ".mp4" : ".png"),
                 JSON.stringify({
                   job_id: job.id,
+                  ...(job.request.output.format === "images" ? {frame_index:Number(output.id), width:job.request.output.aspect === "16:9" ? 1344 : 768, height:job.request.output.aspect === "16:9" ? 768 : 1344} : {}),
                   mode: job.request.mode,
                   mime_type: output.mime_type,
                   sha256: output.sha256,
@@ -723,6 +732,10 @@ export class Jobs {
                 }),
                 new Date().toISOString(),
               );
+          }
+          if (job.request.output.format === 'images') {
+            this.db.prepare('INSERT OR IGNORE INTO sequences(id,mode,created_at) VALUES (?,?,?)').run(job.id,job.request.mode,job.created_at);
+            for(const output of outputs) this.db.prepare('INSERT OR IGNORE INTO sequence_frames VALUES (?,?,?)').run(job.id,job.id+'-'+output.id,Number(output.id));
           }
           if (job.metrics && !job.metrics.saved_at) {
             job.metrics.saved_at = new Date().toISOString();

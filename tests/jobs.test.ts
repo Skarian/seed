@@ -12,7 +12,7 @@ async function fixture(run: (f: any) => Promise<void>) {
   const paths = resolvePaths(root); prepareStorage(paths); const db = openDatabase(paths.data);
   const image = Buffer.from('test-image-bytes'); const sha = createHash('sha256').update(image).digest('hex');
   const state = { session: 'engine-one', running: [] as any[], records: {} as Record<string, any>, submits: 0, acknowledgments: 0, failReceipt: false, failTransfer: false, orphan: false };
-  const cap = () => ({ revision: 'test-v1', ready: true, workspace_id: 'volume-one', engine_session_id: state.session, nsfw: { filename: 'seed-' + 'a'.repeat(64) + '.safetensors', sha256: 'a'.repeat(64), strength_model: 1, revision: 'test' } });
+  const cap = () => ({ video:{ready:true,image_export:true,duration_step:1,nsfw:{}}, revision: 'test-v1', ready: true, workspace_id: 'volume-one', engine_session_id: state.session, nsfw: { filename: 'seed-' + 'a'.repeat(64) + '.safetensors', sha256: 'a'.repeat(64), strength_model: 1, revision: 'test' } });
   const fake = {
     connected: true, identity: { workspace_id: 'volume-one', worker_instance_id: 'worker-one' },
     async json(route: string, options: any = {}) {
@@ -140,4 +140,20 @@ it('retains worker measurements and freezes saved time across cleanup retries', 
   await jobs.reconcile();
   expect(jobs.get(job.id).metrics.saved_at).toBe(saved.metrics.saved_at);
   expect(jobs.get(job.id).cleanup_state).toBe('complete');
+}));
+
+it('retrieves complete frame sets as one Library sequence and resumes after interruption', async()=>fixture(async({jobs,state,request,finish,paths,db,image}:any)=>{
+  const {jobs:[job]}=await jobs.submit({...request,workflow:'text-to-video',output:{aspect:'16:9',size:'720p',duration_seconds:5,format:'images'}},'frame-export-test');
+  await jobs.reconcile();finish(job.id);
+  const manifest=state.records[job.id].manifest;
+  manifest.outputs=Array.from({length:120},(_,index)=>({...manifest.outputs[0],id:String(index),path:`seed/${job.id}/frames_${index}.png`}));
+  function refresh(){const raw=JSON.stringify(manifest);state.records[job.id]={...state.records[job.id],manifest_bytes:raw,manifest_digest:createHash('sha256').update(raw).digest('hex')};}
+  // Duplicate IDs cannot be accepted or acknowledged.
+  manifest.outputs[1].id='0';refresh();await expect(jobs.reconcile()).rejects.toThrow('manifest');expect(state.acknowledgments).toBe(0);
+  manifest.outputs[1].id='1';refresh();state.failTransfer=true;await jobs.reconcile();
+  expect(jobs.get(job.id).state).toBe('copy_pending');expect(db.prepare('SELECT COUNT(*) AS n FROM sequences').get().n).toBe(0);
+  state.failTransfer=false;await jobs.reconcile();expect(jobs.get(job.id).state).toBe('completed');
+  expect(db.prepare('SELECT COUNT(*) AS n FROM sequence_frames').get().n).toBe(120);
+  expect(db.prepare('SELECT COUNT(*) AS n FROM sequences').get().n).toBe(1);
+  await jobs.reconcile();expect(state.submits).toBe(1);
 }));

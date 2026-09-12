@@ -1,0 +1,62 @@
+import { useFrameImage } from './frame-images.js';
+import React, { useEffect, useRef, useState } from 'react';
+import type { FrameSequence, LibraryAsset } from '../shared/studio.js';
+import { ConfirmDialog } from './confirm-dialog.js';
+
+export function FrameViewer({ id, onClose, onChanged, onPick, selectedIds = [], canPick }: {
+  id:string; onClose:()=>void; onChanged?:()=>void;
+  onPick?:(asset:LibraryAsset)=>void; selectedIds?:string[]; canPick?:(asset:LibraryAsset)=>boolean;
+}) {
+  const dialog=useRef<HTMLDialogElement>(null);
+  const [sequence,setSequence]=useState<FrameSequence|null>(null), [position,setPosition]=useState(0);
+  const [selected,setSelected]=useState<string[]>([]);
+  const [error,setError]=useState(''), [confirm,setConfirm]=useState(false), [zoom,setZoom]=useState(false);
+  const [retry,setRetry]=useState(0), [displayed,setDisplayed]=useState('');
+  const frame=sequence?.frames[position];
+  useEffect(()=>{
+    const trigger=document.activeElement as HTMLElement, element=dialog.current;
+    const overflow=document.body.style.overflow; document.body.style.overflow='hidden'; element?.showModal();
+    return ()=>{element?.close();document.body.style.overflow=overflow;if(trigger?.isConnected)trigger.focus();};
+  },[]);
+  useEffect(()=>{
+    const controller=new AbortController();
+    void fetch('/api/v1/sequences/'+encodeURIComponent(id),{signal:controller.signal}).then(async response=>{
+      const body=await response.json();if(!response.ok)throw Error(body.error?.message??'Could not open sequence.');return body;
+    }).then(setSequence).catch(e=>{if(!controller.signal.aborted)setError(e.message);});
+    return ()=>controller.abort();
+  },[id,retry]);
+  const original=useFrameImage(sequence?.frames,position,retry);
+  useEffect(()=>{setDisplayed('');setZoom(false);},[frame?.id,retry]);
+  const asset:LibraryAsset|undefined=frame&&{id:frame.id,kind:'image',name:'Frame '+(frame.index+1),created_at:'',mode:sequence!.mode};
+  const checked=frame&&(onPick?selectedIds:selected).includes(frame.id);
+  return <dialog ref={dialog} className="frame-viewer" aria-label="Image sequence" onCancel={e=>{e.preventDefault();onClose();}}>
+    <header><span>{sequence?.frames.length??0} frames</span><div>
+      {sequence?.cleanup_pending&&<p>Frame cleanup was interrupted. <button onClick={async()=>{
+      try { const r=await fetch('/api/v1/sequences/'+id+'/retry-cleanup',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const body=await r.json();if(!r.ok)throw Error(body.error?.message??'Cleanup failed.');onChanged?.();if(body.sequence)setSequence(body.sequence);else onClose(); }catch(e){setError((e as Error).message);}
+    }}>Retry cleanup</button></p>}
+    {frame&&<><button onClick={()=>setZoom(v=>!v)} disabled={displayed!==frame.id}>{zoom?'Fit':'100%'}</button><a href={'/api/v1/assets/'+frame.id+'/content'} download>Download</a></>}
+      <button aria-label="Close sequence" onClick={onClose}>×</button></div></header>
+    {frame&&<>
+      <div className={'frame-canvas'+(zoom?' zoomed':'')}>
+        <img key={frame.id+(original.url?'original':'preview')} src={original.url||('/api/v1/assets/'+frame.id+'/preview?size=1280')} alt={'Frame '+(frame.index+1)} onLoad={()=>{if(original.url)setDisplayed(frame.id);}} onError={()=>setError('Could not load frame. Retry.')} />
+        {displayed!==frame.id&&<span className="frame-loading" role="status">Loading original…</span>}
+      </div>
+      <div className="frame-controls">
+        <div className="frame-position"><span>Frame {position+1} / {sequence!.frames.length} <small> · {frame.time.toFixed(2)}s</small></span>
+          <button className="frame-check" aria-label="Select frame" aria-pressed={Boolean(checked)} disabled={displayed!==frame.id||Boolean(onPick&&!checked&&asset&&canPick&&!canPick(asset))}
+            onClick={()=>{if(!asset)return;if(onPick)onPick(asset);else setSelected(ids=>ids.includes(frame.id)?ids.filter(x=>x!==frame.id):[...ids,frame.id]);}}>✓</button>
+        </div>
+        <input aria-label="Frame" type="range" min={0} max={sequence!.frames.length-1} step={1} value={position} onChange={e=>setPosition(Number(e.target.value))}/>
+        <div className="frame-markers" aria-hidden="true">{sequence!.frames.map(f=><span key={f.id} className={(onPick?selectedIds:selected).includes(f.id)?'selected':''}/>)}</div>
+        {!onPick&&<div className="frame-floating"><span>{selected.length} selected</span><button disabled={!selected.length||selected.length===sequence!.frames.length} onClick={()=>setConfirm(true)}>Keep only</button></div>}
+      </div>
+    </>}
+    {(error||original.error)&&<p role="alert">{error||original.error} <button onClick={()=>setRetry(v=>v+1)}>Retry</button></p>}
+    {!sequence&&!error&&<p role="status">Loading frames…</p>}
+    {confirm&&sequence&&<ConfirmDialog title={`Keep ${selected.length} frames?`} description={`Permanently delete the other ${sequence.frames.length-selected.length} frames from your PC? This cannot be undone.`} action="Keep only" onClose={()=>setConfirm(false)} onConfirm={async()=>{
+      const response=await fetch('/api/v1/sequences/'+id+'/keep-only',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({asset_ids:selected,revision:sequence.revision})});
+      const body=await response.json();if(!response.ok)throw Error(body.error?.message??'Could not remove frames.');
+      setSequence(body);setPosition(0);setSelected([]);onChanged?.();
+    }}/>}
+  </dialog>;
+}

@@ -34,7 +34,7 @@ class SeedVideoSave:
         import comfy.utils
         root = Path(folder_paths.get_output_directory()).resolve()
         target = (root / (filename_prefix + '.mp4')).resolve()
-        if not target.is_relative_to(root / 'seed') or seconds not in (5,10,15) or len(images)<seconds*24: raise ValueError('Invalid video export')
+        if not target.is_relative_to(root / 'seed') or (not isinstance(seconds, int) or isinstance(seconds, bool) or not 5 <= seconds <= 15) or len(images)<seconds*24: raise ValueError('Invalid video export')
         target.parent.mkdir(parents=True,exist_ok=True)
         width,height=(720,1280) if images.shape[1]>images.shape[2] else (1280,720)
         sample_rate=audio['sample_rate']; waveform=audio['waveform'][0,...,:seconds*sample_rate].detach().cpu()

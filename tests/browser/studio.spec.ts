@@ -29,12 +29,12 @@ test('workflow drafts persist, reset is scoped, and mode controls work', async (
   await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('button', { name: 'Portrait 9:16' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('Workflow').selectOption('text-to-video');
-  await page.getByRole('button', { name: '15s', exact: true }).click();
+  await page.getByRole('slider', { name: 'Length', exact: true }).fill('15');
   await page.getByLabel('Prompt', { exact: true }).fill('A rolling cloud');
   await expect(page.getByRole('button', { name: 'Create video' })).toBeDisabled();
   await page.getByRole('button', { name: 'Reset form', exact: true }).click();
   await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('');
-  await expect(page.getByRole('button', { name: '5s', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('slider', {name:'Length',exact:true})).toHaveValue('5');
   await page.getByLabel('Workflow').selectOption('text-to-image');
   await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('An observatory above the clouds');
   await page.getByRole('button', { name: 'Reset form', exact: true }).click();
@@ -44,9 +44,9 @@ test('workflow drafts persist, reset is scoped, and mode controls work', async (
   await expect(page.getByRole('button', { name: 'Landscape 16:9' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('region', { name: 'Output preview' })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('generate-desktop.png'), fullPage: true });
-  await page.getByLabel('Workflow').selectOption('image-to-image');
-  await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toHaveCount(0);
-  await expect(page.getByText('Input Images', { exact: true })).toBeVisible();
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
+  await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toBeVisible();
+  await expect(page.getByText('References', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   await page.reload();
@@ -82,7 +82,7 @@ test('mobile layout, popovers and prompt resize are usable', async ({ page }) =>
 
 test('batch and seed settings persist per workflow and validate the full seed range', async ({ page }) => {
   await page.goto('/');
-  for (const workflow of ['text-to-image', 'image-to-image', 'text-to-video', 'reference-to-video']) {
+  for (const workflow of ['text-to-image', 'text-to-video', 'reference-to-video']) {
     await page.getByLabel('Workflow').selectOption(workflow);
     await page.getByLabel('Generations', { exact: true }).selectOption('4');
     if (await page.getByRole('button', { name: 'Advanced', exact: false }).getAttribute('aria-expanded') === 'false') {
@@ -117,20 +117,20 @@ test('batch and seed settings persist per workflow and validate the full seed ra
 test('thumbnail dropbox opens a reusable viewer with info, roles, download and deletion', async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto('/');
   const image = Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+jRZkAAAAASUVORK5CYII=', 'base64');
-  await page.getByLabel('Workflow').selectOption('image-to-image');
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
   await page.getByLabel('Choose reference files').setInputFiles([
     { name: 'scene.png', mimeType: 'image/png', buffer: image },
     { name: 'person.png', mimeType: 'image/png', buffer: image },
   ]);
-  await expect(page.getByText('max: 2', { exact: true })).not.toBeVisible();
+  await expect(page.getByText('max: 12', { exact: true })).not.toBeVisible();
   await page.getByLabel('Asset limits').click();
-  await expect(page.getByText('max: 2', { exact: true })).toBeVisible();
+  await expect(page.getByText('max: 12', { exact: true })).toBeVisible();
   await page.getByLabel('Asset limits').click();
   await expect(page.getByText('scene.png', { exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Preview person.png' }).click();
   const viewer = page.getByRole('dialog', { name: 'Media preview' });
   await expect(viewer).toBeVisible();
-  await expect(page.getByLabel('Role for person.png')).toHaveValue('subject');
+  await expect(page.getByLabel('Role for person.png')).toHaveValue('reference');
   await page.getByLabel('File information').click();
   await expect(viewer.getByText('person.png', { exact: true })).toBeVisible();
   await expect(viewer.getByText('image/png', { exact: true })).toBeVisible();
@@ -152,7 +152,7 @@ test('thumbnail dropbox opens a reusable viewer with info, roles, download and d
   await page.screenshot({ path: test.info().outputPath('viewer-mobile.png'), fullPage: true });
   await page.getByRole('button', { name: 'Delete file' }).click();
   await expect(viewer).toHaveCount(0);
-  await page.getByLabel('Workflow').selectOption('image-to-image');
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
   await expect(page.getByRole('button', { name: 'Preview person.png' })).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('thumbnail-dropbox-mobile.png'), fullPage: true });

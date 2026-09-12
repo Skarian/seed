@@ -6,15 +6,15 @@ test('gallery respects available slots, NSFW opt-in, and reuses saved assets', a
   await page.route('**/api/v1/assets/saved-*/content',r=>r.fulfill({contentType:'image/png',body:image}));
   await page.route('**/api/v1/assets/saved-*',r=>r.fulfill({json:{mime_type:'image/png'}}));
   await page.goto('/');
-  await page.getByLabel('Workflow').selectOption('image-to-image');
+  await page.getByLabel('Workflow').selectOption('reference-to-video');
   await page.getByRole('button',{name:'Gallery',exact:true}).click();
   const picker=page.getByRole('dialog',{name:'Choose from gallery'});
-  await expect(picker).toContainText('max: 2');
+  await expect(picker).toContainText('max: 12');
   await expect(picker.getByRole('button',{name:'Select Image 3'})).toHaveCount(0);
   await picker.getByLabel('Show NSFW').check();
   await picker.getByRole('button',{name:'Select Image 1'}).click();
   await picker.getByRole('button',{name:'Select Image 2'}).click();
-  await expect(picker.getByRole('button',{name:'Select Image 3'})).toBeDisabled();
+  await expect(picker.getByRole('button',{name:'Select Image 3'})).toBeEnabled();
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'.local/gallery-mobile.png'});
   await picker.getByRole('button',{name:'Select (2)',exact:true}).click();
