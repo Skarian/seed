@@ -17,6 +17,11 @@ mutations; public hosting needs an owner-managed authenticated boundary.
 | GET /assets | Cursor-paginated Library inventory |
 | GET /assets/{id} | Upload/preparation metadata |
 | GET /assets/{id}/content | Saved content with Range support |
+| GET /assets/{id}/preview?size=384 or 1280 | Disposable cached WebP preview; original content remains unchanged |
+| GET /sequences/{id} | Ordered original frame IDs, indices/timestamps, dimensions and revision |
+| POST /sequences/{id}/keep-only | Confirmed pruning with `{asset_ids, revision}`; nonempty subset, stale-write protection |
+| POST /sequences/{id}/retry-cleanup | Finish a previously confirmed, persisted cleanup intent |
+| DELETE /sequences/{id} | Confirmed whole-sequence deletion; respects queued reference ownership |
 | DELETE /assets/{id} | Confirmed UI deletion; retains job history; can refuse pending cleanup |
 | POST /jobs | Idempotent durable batch submission; returns 202 or submission error |
 | GET /jobs, /jobs/{id} | Paginated history or one job snapshot, including metrics |
@@ -47,6 +52,21 @@ prompt labels. Never silently substitute an asset when labels become invalid.
 Freeze settings, resolved seed, graph, preset and prepared inputs in each job.
 
 ## Durability and sessions
+
+H3 requests accept `output.format: "video" | "images"` (omission means video)
+and integer `duration_seconds` from 5 through 15 when the worker advertises
+support. Old workers retain 5/10/15 and video only. Image export keeps native
+1344x768 or 768x1344 PNGs, exactly seconds*24 frames, without MP4 compression.
+The existing `size: "720p"` request selects the same H3 sampling canvas; PNG
+dimensions are returned per frame rather than inferred from this video label.
+
+Library inventory includes `kind: "sequence"`, `cover_id` and `frame_count`.
+Its members remain image assets but are excluded from top-level pagination.
+Use individual frame IDs for downloads and references, never the sequence ID.
+Pruning preserves original frame indices and ordering. A `cleanup_pending`
+sequence offers retry of its already-confirmed operation. Retained originals
+and job history survive pruning; removed frame IDs are removed from job outputs.
+
 
 One dispatcher submits one Comfy prompt at a time. Worker/session IDs distinguish
 restarts from continued execution. Session checks guard submission/cancellation.

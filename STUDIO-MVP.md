@@ -42,7 +42,8 @@ Next feature: [H3 export as images](studio/H3-IMAGE-EDIT.md), selected before
 generation on existing video workflows, with whole-second durations from 5–15.
 Frames save automatically as one Library item per generation, with a frame-count
 badge, a scrubbable frame viewer and optional Keep only pruning.
-Planning branch: `feat/h3-image-edit`; implementation and live proof are pending.
+Feature branch: `feat/h3-image-edit`; local implementation is ready for UI review.
+Worker publication, live GPU proof and owner acceptance remain pending.
 
 npm publication, identity editing, maximum-reference capacity benchmarks, macOS
 validation, LLM integration and timeline editing are deferred. Desktop/mobile

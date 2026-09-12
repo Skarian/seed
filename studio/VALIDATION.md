@@ -83,3 +83,39 @@ The owner subsequently authorized publication. GitHub Actions run 34672975492
 published the candidate; anonymous registry access and an exact-digest CPU smoke
 test passed. shared/worker-release.ts now pins that image. Local Docker push had
 failed authentication; publication used the existing Actions workflow. No GPU was rented.
+
+
+## H3 frame export: local implementation checkpoint (2026-09-12)
+
+Branch feat/h3-image-edit; implementation commits 277b753 (shared confirmation)
+and d301855 (frame export and Library sequences). No GPU rented and no worker
+image published. The released worker digest is unchanged; live generation,
+PNG transfer cost and quality remain unverified for this branch.
+
+- Build/typecheck passed. App suite: 65 tests passed; operations: 44 passed;
+  worker: 41 passed, one pre-existing skip; browser: 21 passed.
+- Full verify ran successfully before the final additional HTTP integration test;
+  the expanded 65-test app suite and final build passed afterward.
+- Browser suite initially exposed obsolete image-to-image/duration expectations
+  and an encoding error in a modified test; corrected those and reran. Restricted
+  Windows execution hung during test-server teardown after tests completed;
+  final unrestricted test run exited successfully in 10.6 seconds.
+- Worker fixtures cover complete 120-frame capture and missing/duplicate/foreign
+  outputs. Pinned native ImageFromBatch schema/source was inspected directly.
+  This is not yet a real Comfy inference run.
+- Local tests cover frame grouping, original-byte preservation, actual Sharp
+  previews, pruning, restart recovery, stale/repeated selections, queued input
+  protection, deletion, transfer retries and reuse as image references.
+- Native frame images remain original PNGs. Scrubbing previews are temporary;
+  selection waits for the original to display. Inspected desktop and portrait
+  mobile screenshots from a real local database containing synthetic sequences.
+- Package archive 87eb106a2dec0e8766471fee3c43caa16feeffc2 passed the isolated
+  Windows installation harness: setup, module resolution, start/stop, reinstall,
+  upgrade, failed-start rollback and credential/media preservation.
+
+Owner UI checkpoint: http://192.168.1.212:4312/library. Two synthetic 120-frame
+sequences, stored only in .local/frame-review. No credentials in that instance;
+original installed app/data were not upgraded or migrated. Review scrubbing,
+original detail/zoom, selecting frames, confirmation/cancel, Keep only and
+Library reference picking. Fixtures can be safely pruned/deleted. Live proof,
+worker publication/pinning and production installation follow owner feedback.

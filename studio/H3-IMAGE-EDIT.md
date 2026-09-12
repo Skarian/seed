@@ -1,7 +1,23 @@
 # H3 generation: export as images
 
-Agreed direction, implementation pending, 2026-09-12.
+Local implementation ready for owner UI review, 2026-09-12.
 Branch: `feat/h3-image-edit`. No GPU rental is authorized by this plan.
+
+## Implementation checkpoint
+
+Completed duration/format branching, native ImageFromBatch + SaveImage graph,
+ordered manifest capture, durable sequence grouping (SQLite migration 3), preview
+cache, original PNG inspection, shared confirmation modal, recoverable pruning
+and individual frame selection from the Library reference picker. No new runtime
+dependency. Native ImageFromBatch schema was verified against the pinned ComfyUI
+source; real H3 inference/export remains untested on this branch.
+
+Review app: http://192.168.1.212:4312/library with two synthetic 120-frame sets,
+isolated under .local/frame-review. Owner media and installed app were not migrated.
+Next: owner desktop/mobile feedback, then authorized live validation and worker
+publication/pinning. The current published worker remains the prior version and
+does not advertise these export capabilities. Do not claim the feature deployed
+to rented GPUs yet.
 
 ## User experience
 

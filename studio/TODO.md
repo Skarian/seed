@@ -4,7 +4,9 @@
 
 - [x] Create `feat/h3-image-edit` and document the proposed implementation.
 - [x] Align on [H3 export-as-images plan](H3-IMAGE-EDIT.md): existing workflows, 5–15 whole seconds, output toggle before generation.
-- [ ] Implement duration/output contract and automatically saved Library frame sequences.
+- [x] Implement duration/output contract and automatically saved Library frame sequences (local tests; worker publication pending).
+- [x] Shared destructive confirmation modal, original-quality scrubber, selection, recoverable Keep only and Library reference picking.
+- [x] Local synthetic desktop/mobile review app, app/worker/browser regression checks.
 - [ ] Review desktop/mobile scrubber and Keep only selection; approve budget for live export validation.
 - [ ] Validate and release the accepted feature. Identity-edit LoRA remains retained.
 
