@@ -2,7 +2,7 @@ name: Build seed worker candidate
 on:
   workflow_dispatch:
   push:
-    branches: [feat/studio-mvp]
+    branches: [main]
     paths: ['worker/**', '.github/workflows/build-worker.yml']
 permissions:
   contents: read

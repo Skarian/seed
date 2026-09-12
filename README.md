@@ -8,7 +8,7 @@ installation, finding compute, connecting it and releasing it when you're finish
 
 Install the [Seed skill](skills/seed/SKILL.md) into your agent, or give your agent:
 
-> Read the Seed skill at https://github.com/Skarian/runpod/tree/feat/studio-mvp/skills/seed
+> Read the Seed skill at https://github.com/Skarian/runpod/tree/main/skills/seed
 > and help me install and open Seed. Ask before installing Node or renting compute.
 
 The skill guides installation of the local Seed package, credentials and optional

@@ -81,4 +81,3 @@ def test_civitai_redirect_does_not_forward_token(tmp_path,monkeypatch):
     assert requests[0].get_header('Authorization')=='Bearer secret-fixture'
     assert requests[1].get_header('Authorization') is None
     assert all(request.get_header('User-agent')=='Seed/0.1' for request in requests)
-
