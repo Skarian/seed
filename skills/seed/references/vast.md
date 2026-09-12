@@ -31,7 +31,12 @@ adjustable, not a universal budget rule. Use `--min-download-mbps` for the netwo
 
 ## Recovery
 
-If an established session loses its SSH tunnel, use `seed gpu vast reconnect`.
+Established SSH tunnels reconnect automatically after a disconnect, with retry
+delays increasing from one second to at most 30 seconds. Pairing and jobs stay
+unchanged; file transfer resumes when the route is usable. Explicit stop/destroy
+cancels reconnects. A permanently bad route still needs diagnosis.
+
+If the supervisor itself has stopped, use `seed gpu vast reconnect`.
 It restores the tunnel only when the local pairing matches the recorded worker.
 It keeps credentials and in-flight jobs unchanged, so finished GPU outputs can
 resume transfer without another generation. Use `connect` for initial pairing;
