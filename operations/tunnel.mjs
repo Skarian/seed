@@ -4,12 +4,8 @@ import {pathToFileURL,fileURLToPath} from 'node:url';
 import {spawn} from 'node:child_process';
 import {setTimeout as delay} from 'node:timers/promises';
 
-export function terminalSshError(text) {
-  if (/REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed/i.test(text)) return 'SSH host identity changed. Verify the rental and its host key before reconnecting; Seed will not remove trusted keys automatically.';
-  if (/Permission denied \(.*publickey|Load key .*invalid format|no such identity:/i.test(text)) return 'SSH could not authenticate. Check the configured key and the rental public key before reconnecting.';
-  if (/Address already in use|cannot listen to port|Could not request local forwarding/i.test(text)) return 'The local tunnel port is occupied. Stop the conflicting tunnel before reconnecting.';
-  return null;
-}
+import {terminalSshError} from './ssh.mjs';
+export {terminalSshError};
 
 // Any HTTP response proves the tunnel carried traffic, even a worker error or 401.
 export async function tunnelResponds() {
@@ -38,9 +34,12 @@ export async function superviseTunnel(args,{startControl,spawnProcess=spawn,slee
       let diagnostics='',fatal=null,misses=0,probing=false;
       child.stderr?.on('data',chunk=>{
         diagnostics=(diagnostics+chunk.toString()).slice(-8192);
-        fatal=terminalSshError(diagnostics);
+        fatal??=terminalSshError(diagnostics);
       });
-      child.once('error',()=>say('Could not start SSH. Retrying the same tunnel.'));
+      child.once('error',error=>{
+        if(['ENOENT','EACCES','EPERM'].includes(error.code))fatal='OpenSSH could not start. Check its installation and executable permissions.';
+        else say('Could not start SSH. Retrying the same tunnel.');
+      });
       closed=new Promise(resolve=>child.once('close',resolve));
       const monitored=child;
       const timer=setInterval(async()=>{

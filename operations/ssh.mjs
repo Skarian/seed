@@ -3,9 +3,21 @@ import {mkdir,open} from 'node:fs/promises';
 import {spawn} from 'node:child_process';
 import {createServer,isIP} from 'node:net';
 
-export function run(file, args, { input, cwd } = {}) {
+export function terminalSshError(text) {
+  if (/REMOTE HOST IDENTIFICATION HAS CHANGED|Host key verification failed/i.test(text)) return 'SSH host identity changed. Verify the rental and its host key before reconnecting; Seed will not remove trusted keys automatically.';
+  if (/Permission denied \(.*publickey|Load key .*(?:invalid format|Permission denied|bad permissions)|UNPROTECTED PRIVATE KEY FILE|no such identity:/i.test(text)) return 'SSH could not authenticate. Check the configured key and the rental public key before reconnecting.';
+  if (/Address already in use|cannot listen to port|Could not request local forwarding/i.test(text)) return 'The local tunnel port is occupied. Stop the conflicting tunnel before reconnecting.';
+  return null;
+}
+
+export class SshFailure extends Error {
+  constructor(message, terminal=false) { super(message); this.terminal = terminal; }
+}
+
+export function run(file, args, { input, cwd, spawnProcess = spawn } = {}) {
   return new Promise((resolve, reject) => {
-    const child = spawn(file, args, {
+    const isSsh = /^ssh(?:\.exe)?$/i.test(path.basename(file));
+    const child = spawnProcess(file, args, {
       cwd,
       windowsHide: true,
       shell: false,
@@ -17,18 +29,22 @@ export function run(file, args, { input, cwd } = {}) {
       size += chunk.length;
       if (size <= 1024 * 1024) chunks.push(chunk);
     });
-    child.stderr.resume(); // Do not echo arbitrary command output that could contain credentials.
+    let fatal = null, diagnostics = '';
+    child.stderr.on('data', chunk => {
+      // Classify a bounded tail but never expose command stderr or remote secrets.
+      if (!isSsh || fatal) return;
+      diagnostics = (diagnostics + chunk.toString()).slice(-8192);
+      fatal = terminalSshError(diagnostics);
+    });
     child.stdin.on("error", () => {});
     child.once("error", () =>
-      reject(new Error(`${path.basename(file)} could not start.`)),
+      reject(isSsh ? new SshFailure("OpenSSH could not start. Check its installation and executable permissions.", true) : new Error(`${path.basename(file)} could not start.`)),
     );
     child.once("close", (code) =>
       code === 0
         ? resolve(Buffer.concat(chunks).toString("utf8"))
         : reject(
-            new Error(
-              `${path.basename(file)} failed (exit ${code}); inspect the private service log.`,
-            ),
+            isSsh ? new SshFailure(fatal ?? `SSH failed (exit ${code}); inspect the private service log.`, Boolean(fatal)) : new Error(`${path.basename(file)} failed (exit ${code}); inspect the private service log.`),
           ),
     );
     child.stdin.end(input);

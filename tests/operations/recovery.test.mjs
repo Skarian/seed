@@ -88,3 +88,13 @@ test('Vast readiness requires a successful SSH command, not just running status 
  assert.equal(ready.instance_id,123);assert.equal(calls,2);
  time=0;await assert.rejects(app.wait({...options,probe:async()=>{throw Error('Connection refused');}}),/timed out/);
 });
+
+
+test('Vast readiness stops immediately for terminal SSH authentication errors',async()=>{
+ const {SshFailure}=await import('../../operations/ssh.mjs');
+ const app=new SeedVast('.');app.key='key';app.knownHosts='hosts';
+ app.current=async()=>({id:123,actual_status:'running',public_ipaddr:'127.0.0.1',ports:{'22/tcp':[{HostPort:'2222'}]}});
+ let probes=0;
+ await assert.rejects(app.wait({probe:async()=>{probes++;throw new SshFailure('SSH could not authenticate.',true);},sleep:async()=>{throw Error('Must not retry');}}),/authenticate/);
+ assert.equal(probes,1);
+});

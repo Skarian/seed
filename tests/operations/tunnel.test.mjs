@@ -76,3 +76,39 @@ test('stop waits for an already-signalled SSH child before releasing control',as
   });
   assert.equal(controlClosed,true);
 });
+
+
+test('SSH command failures classify bounded stderr without returning its secrets',async()=>{
+ const {run,SshFailure}=await import('../../operations/ssh.mjs');
+ for(const [stderr,terminal]of [['Permission denied (publickey).',true],['Load key "private": Permission denied',true],['Connection reset by peer',false]]){
+  const spawnProcess=()=>{
+   const p=child();p.stdout=new EventEmitter();p.stderr=new EventEmitter();p.stdin=new EventEmitter();p.stdin.end=()=>{};
+   queueMicrotask(()=>{p.stderr.emit('data',Buffer.from('private-fixture-secret '+stderr));p.emit('close',255);});return p;
+  };
+  await assert.rejects(run('ssh',[],{spawnProcess}),error=>{
+   assert.ok(error instanceof SshFailure);assert.equal(error.terminal,terminal);assert.equal(error.message.includes('private-fixture-secret'),false);return true;
+  });
+ }
+});
+
+test('missing or inaccessible SSH executable closes its supervisor instead of retrying forever',async()=>{
+ for(const code of ['ENOENT','EACCES','EPERM']){
+  let starts=0,closed=0;const messages=[];
+  await superviseTunnel([],{
+   startControl:async()=>async()=>{closed++;},
+   spawnProcess:()=>{starts++;const p=child();queueMicrotask(()=>{p.emit('error',Object.assign(Error('spawn failed'),{code}));p.emit('close',-2);});return p;},
+   sleep:async()=>{throw Error('Must not retry permanent spawn failure');},say:message=>messages.push(message),
+  });
+  assert.equal(starts,1);assert.equal(closed,1);assert.match(messages.at(-1),/OpenSSH could not start/);
+ }
+});
+
+test('terminal stderr diagnosis survives a later overflowing diagnostic tail',async()=>{
+ let closed=0;
+ await superviseTunnel([],{
+  startControl:async()=>async()=>{closed++;},
+  spawnProcess:()=>{const p=child();p.stderr=new EventEmitter();queueMicrotask(()=>{p.stderr.emit('data',Buffer.from('Permission denied (publickey).'));p.stderr.emit('data',Buffer.alloc(9000,32));p.emit('close',255);});return p;},
+  sleep:async()=>{throw Error('Must retain terminal failure');},say:()=>{},
+ });
+ assert.equal(closed,1);
+});

@@ -318,7 +318,7 @@ export class SeedVast {
       const instance = await this.current();
       if (instance.actual_status === 'error') throw new Error('Vast startup failed. Inspect provider logs before recovery.');
       if (instance.actual_status !== 'running') return null;
-      try { await probe('ssh', [...sshArgs(instance, this.key, this.knownHosts), 'true']); } catch { return null; }
+      try { await probe('ssh', [...sshArgs(instance, this.key, this.knownHosts), 'true']); } catch (error) { if (error.terminal) throw error; return null; }
       return { ready_for_preparation: true, instance_id: instance.id };
     }, options);
   }
