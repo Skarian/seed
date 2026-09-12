@@ -19,7 +19,7 @@ test('both image modes submit selected settings and show saved output in preview
   await page.goto('/');
   await page.getByLabel('Prompt', { exact: true }).fill('An illustrated landscape');
   for (const mode of ['SFW', 'NSFW']) {
-    await page.getByRole('button', { name: mode, exact: true }).click();
+    if (mode === 'NSFW') await page.getByRole('button', { name: 'Seed', exact: true }).click({ delay: 900 });
     const request = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/api/v1/jobs'));
     await page.getByRole('button', { name: 'Create image' }).click();
     expect((await request).postDataJSON().mode).toBe(mode.toLowerCase());

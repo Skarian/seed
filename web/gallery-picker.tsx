@@ -1,3 +1,4 @@
+import { useSpicy, presentAsset } from "./spicy-mode.js";
 import { FrameViewer } from './frame-viewer.js';
 import React, { useEffect, useRef, useState } from 'react';
 import type { LibraryAsset } from '../shared/studio.js';
@@ -15,7 +16,7 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState('');
-  const [nsfw, setNsfw] = useState(false);
+  const { spicy } = useSpicy();
   const maximum = group === 'edit' ? 2 : 12;
   async function load(after = '') {
     setLoading(true); setError('');
@@ -23,6 +24,7 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
       const response = await fetch('/api/v1/assets?cursor=' + encodeURIComponent(after));
       if (!response.ok) throw Error('Could not load the gallery. Try again.');
       const page = await response.json();
+      page.items = page.items.map(presentAsset);
       setAssets(current => after ? [...current, ...page.items.filter((a: LibraryAsset) => !current.some(b => a.id === b.id))] : page.items);
       setCursor(page.next_cursor);
     } catch (e) { setError((e as Error).message); }
@@ -34,14 +36,14 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
     document.body.style.overflow = 'hidden'; element?.showModal(); void load();
     return () => { element?.close(); document.body.style.overflow = overflow; trigger?.focus(); };
   }, []);
-  const visible = assets.filter(a => (group !== 'edit' || a.kind === 'image' || a.kind === 'sequence') && (nsfw || a.mode !== 'nsfw'));
+  const visible = assets.filter(a => (group !== 'edit' || a.kind === 'image' || a.kind === 'sequence') && (spicy || a.mode !== 'nsfw'));
   function unavailable(asset: LibraryAsset) {
     return existing.some(a => a.asset_id === asset.id) || existing.length + selected.length >= maximum ||
       (group === 'video' && [...existing, ...selected].filter(a => a.kind === asset.kind).length >= (asset.kind === 'image' ? 9 : 3));
   }
   return <dialog ref={dialog} className="gallery-picker" aria-label="Choose from gallery" onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}>
     <header><h2>Gallery</h2><button type="button" aria-label="Close gallery" disabled={saving} onClick={onClose}>×</button></header>
-    <div className="gallery-options"><span>{selected.length} selected · {existing.length} already added · max: {maximum}</span><label><input type="checkbox" checked={nsfw} disabled={saving} onChange={e => { setNsfw(e.target.checked); if (!e.target.checked) setSelected(items => items.filter(a => a.mode !== 'nsfw')); }} />Show NSFW</label></div>
+    <div className="gallery-options"><span>{selected.length} selected · {existing.length} already added · max: {maximum}</span></div>
     {group === 'video' && <p className="gallery-limits">Up to 9 images, 3 videos and 3 audio files; 12 combined.</p>}
     <div className="gallery-scroll">
       <div className="gallery-grid">{visible.map(asset => {

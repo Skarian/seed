@@ -19,6 +19,16 @@ retains failures, fixes, timing evidence and earlier partial bills.
 | Capacity | Maximum-reference 10/15-second tests deferred; successful startup does not prove capacity |
 | Identity editing | Unfinished/deferred |
 
+## Spicy mode — September 12, 2026
+
+Owner accepted the shared mode and final centered toast placement. Build and
+TypeScript checks passed. Browser coverage passed for Library filtering, reference
+picker reuse, image/video mode submission, preserved drafts, mouse/keyboard/touch
+holds, canceled holds, session persistence, and mode changes during submission.
+The toast was visually reviewed on mobile and its entrance, exit, and removal
+were verified against the running LAN app. No paid generation was used.
+The browser test server required explicit termination during Windows teardown.
+
 ## Recent measured runs
 
 | Provider / host | Base download + verification | Message to Ready | Notes |

@@ -20,13 +20,13 @@ test('seed keeps drafts created before the rename', async ({ page }) => {
 test('workflow drafts persist, reset is scoped, and mode controls work', async ({ page }) => {
   const errors: string[] = []; page.on('pageerror', error => errors.push(error.message));
   await page.goto('/');
-  await page.getByRole('button', { name: 'NSFW', exact: true }).click();
-  await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await page.getByRole('button', { name: 'Seed', exact: true }).click({ delay: 900 });
+  await expect(page.getByRole('button', { name: 'Turn off Spicy mode' })).toBeVisible();
   await page.getByRole('button', { name: 'Portrait 9:16' }).click();
   await page.getByLabel('Prompt', { exact: true }).fill('An observatory above the clouds');
   await page.reload();
   await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('An observatory above the clouds');
-  await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Turn off Spicy mode' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Portrait 9:16' })).toHaveAttribute('aria-pressed', 'true');
   await page.getByLabel('Workflow').selectOption('text-to-video');
   await page.getByRole('slider', { name: 'Length', exact: true }).fill('15');
@@ -40,12 +40,12 @@ test('workflow drafts persist, reset is scoped, and mode controls work', async (
   await page.getByRole('button', { name: 'Reset form', exact: true }).click();
   await page.reload();
   await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('');
-  await expect(page.getByRole('button', { name: 'SFW', exact: true })).toHaveAttribute('aria-pressed', 'true');
+  await expect(page.getByRole('button', { name: 'Turn off Spicy mode' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Landscape 16:9' })).toHaveAttribute('aria-pressed', 'true');
   await expect(page.getByRole('region', { name: 'Output preview' })).toHaveCount(0);
   await page.screenshot({ path: test.info().outputPath('generate-desktop.png'), fullPage: true });
   await page.getByLabel('Workflow').selectOption('reference-to-video');
-  await expect(page.getByRole('button', { name: 'NSFW', exact: true })).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Turn off Spicy mode', exact: true })).toBeVisible();
   await expect(page.getByText('References', { exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();

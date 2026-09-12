@@ -19,7 +19,7 @@ test('video submission preserves selected mode, soundtrack, duration, batch and 
   await page.getByLabel('Random seed', { exact: true }).uncheck();
   await page.getByLabel('Starting seed', { exact: true }).fill('142');
   for (const [mode, audio] of [['SFW', 'generated'], ['NSFW', 'silent']]) {
-    await page.getByRole('button', { name: mode!, exact: true }).click();
+    if (mode === 'NSFW') await page.getByRole('button', { name: 'Seed', exact: true }).click({ delay: 900 });
     await page.getByRole('combobox', { name: 'Audio', exact: true }).selectOption(audio!);
     const sent = page.waitForRequest(r => r.method() === 'POST' && r.url().endsWith('/api/v1/jobs'));
     await page.getByRole('button', { name: 'Create 2 videos' }).click();

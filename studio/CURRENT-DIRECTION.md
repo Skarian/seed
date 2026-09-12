@@ -20,3 +20,19 @@ new rentals after bounded recovery. Preserve established sessions and saved medi
 
 Current work and evidence: [TODO](TODO.md), [validation](VALIDATION.md).
 Identity editing and maximum-reference performance tests are deferred.
+
+## Spicy mode
+
+One session-scoped setting controls all generation workflows, Library visibility,
+and the reference picker. Hold the Seed logo for 800 ms (mouse, touch, or keyboard)
+to toggle it; the pepper beside the logo turns it off immediately. The setting
+survives reloads in the same tab and starts off in a fresh tab. Workflow changes
+and form resets do not change it. Existing per-workflow mode preferences are ignored.
+
+Mode changes show a centered pepper toast for two seconds, with entrance and exit
+animations that respect reduced motion. React-hot-toast's headless API uses the
+app stylesheet to preserve the existing Content Security Policy.
+
+The UI calls the modes Standard/Spicy; stored and API values remain sfw/nsfw.
+Existing assets retain their metadata, and submitted jobs retain the mode captured
+when Create was clicked. This change does not reclassify historical assets.

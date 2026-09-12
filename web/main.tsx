@@ -1,3 +1,4 @@
+import { SpicyProvider, SpicyBrand, useSpicy, presentAsset } from "./spicy-mode.js";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
 import type {
@@ -40,7 +41,6 @@ type Draft = {
   aspect: "16:9" | "9:16";
   duration: string;
   exportImages?: boolean;
-  mode: "sfw" | "nsfw";
   audio?: "generated" | "silent";
   count: number;
   randomSeed: boolean;
@@ -50,7 +50,6 @@ const emptyDraft = (): Draft => ({
   prompt: "",
   aspect: "16:9",
   duration: "5",
-  mode: "sfw",
   count: 1,
   randomSeed: true,
   seed: "0",
@@ -79,7 +78,6 @@ function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
             ? entry.duration
             : "5",
         exportImages: entry?.exportImages === true,
-        mode: entry?.mode === "nsfw" ? "nsfw" : "sfw",
         count:
           Number.isInteger(entry?.count) &&
           entry.count >= 1 &&
@@ -217,9 +215,10 @@ function App() {
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [libraryLoaded, setLibraryLoaded] = useState(false);
   const [libraryError, setLibraryError] = useState("");
-  const [showNsfw, setShowNsfw] = useState(false);
+  const { spicy } = useSpicy();
+  const mode = spicy ? "nsfw" : "sfw";
   const visibleAssets = assets.filter(
-    (asset) => showNsfw || asset.mode !== "nsfw",
+    (asset) => spicy || asset.mode !== "nsfw",
   );
   const [assetCursor, setAssetCursor] = useState<string | null>(null);
   const loadedMore = useRef(false);
@@ -301,7 +300,7 @@ function App() {
         if (!response.ok) throw new Error("Unavailable");
         const library = await response.json();
         if (disposed) return;
-        library.items = library.items.filter(
+        library.items = library.items.map(presentAsset).filter(
           (asset: LibraryAsset) => !deletedAssets.current.has(asset.id),
         );
         setAssets((current) =>
@@ -373,7 +372,7 @@ function App() {
       (references.groups.video.length > 0 &&
         referenceIssues(references.groups.video, "video").length === 0)) &&
     capability?.workflows[workflow]?.enabled &&
-    capability.workflows[workflow].modes.includes(draft.mode) &&
+    capability.workflows[workflow].modes.includes(mode) &&
     studio?.worker.connected &&
     !studio.worker.stale &&
     seedValid &&
@@ -387,7 +386,7 @@ function App() {
       if (workflow === "reference-to-video")
         uploaded = await uploadReferences(
           references.groups.video,
-          draft.mode,
+          mode,
           setUploadProgress,
         );
     } catch (failure) {
@@ -401,7 +400,7 @@ function App() {
       workflow,
       capabilities_revision: capability?.revision,
       prompt: draft.prompt,
-      mode: draft.mode,
+      mode,
       output: {
         aspect: draft.aspect,
         size: video ? "720p" : "1mp",
@@ -462,7 +461,7 @@ function App() {
     loadedMore.current = true;
     setAssets((current) => [
       ...current,
-      ...page.items.filter(
+      ...page.items.map(presentAsset).filter(
         (asset: LibraryAsset) =>
           !deletedAssets.current.has(asset.id) &&
           !current.some((existing) => existing.id === asset.id),
@@ -618,19 +617,10 @@ function App() {
   return (
     <div className="studio-shell">
       <header className="topbar">
-        <a
-          className="brand"
-          href="/"
-          onClick={(event) => {
-            event.preventDefault();
-            navigate("generate");
-          }}
-        >
-          <span className="brand-mark">
-            <SeedMark />
-          </span>
+        <SpicyBrand onNavigate={() => navigate("generate")}>
+          <span className="brand-mark"><SeedMark /></span>
           seed
-        </a>
+        </SpicyBrand>
         <nav aria-label="Main navigation">
           {["generate", "library"].map((item) => (
             <button
@@ -884,22 +874,6 @@ function App() {
                   ))}
                 </select>
               </label>
-              {workflow !== "image-to-image" && (
-                <div className="mode-group" aria-label="Content mode">
-                  <span>Mode</span>
-                  <div className="segmented">
-                    {(["sfw", "nsfw"] as const).map((mode) => (
-                      <button
-                        key={mode}
-                        aria-pressed={draft.mode === mode}
-                        onClick={() => updateDraft({ mode })}
-                      >
-                        {mode.toUpperCase()}
-                      </button>
-                    ))}
-                  </div>
-                </div>
-              )}
             </div>
             <section
               className="composer"
@@ -1111,12 +1085,11 @@ function App() {
               {!advancedOpen && !seedValid && (
                 <p role="alert">Check the starting seed in Advanced.</p>
               )}
-              {workflow === "text-to-image" &&
-                draft.mode === "nsfw" &&
+              {mode === "nsfw" &&
                 capability?.workflows[workflow]?.enabled &&
                 !capability.workflows[workflow].modes.includes("nsfw") && (
                   <p className="popover-note">
-                    The NSFW LoRA is not available on this pod.
+                    Spicy mode is not available on this pod.
                   </p>
                 )}
               {missingReference && <p role="alert">{missingReference}</p>}
@@ -1216,14 +1189,7 @@ function App() {
           <section className="library">
             <div className="library-heading">
               <h1>Library</h1>
-              <label className="library-nsfw">
-                <input
-                  type="checkbox"
-                  checked={showNsfw}
-                  onChange={(event) => setShowNsfw(event.target.checked)}
-                />
-                Show NSFW
-              </label>
+
             </div>
             {deleteError && <p role="alert">{deleteError}</p>}
             {libraryError && <p role="alert">{libraryError}</p>}
@@ -1236,7 +1202,7 @@ function App() {
                 </div>
                 <p>
                   {assets.length
-                    ? "No visible files. Enable Show NSFW to see hidden items."
+                    ? "No visible files."
                     : "No saved files yet."}
                 </p>
               </div>
@@ -1286,6 +1252,6 @@ function App() {
 
 createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <App />
+    <SpicyProvider><App /></SpicyProvider>
   </React.StrictMode>,
 );

@@ -11,7 +11,9 @@ test('gallery respects available slots, NSFW opt-in, and reuses saved assets', a
   const picker=page.getByRole('dialog',{name:'Choose from gallery'});
   await expect(picker).toContainText('max: 12');
   await expect(picker.getByRole('button',{name:'Select Image 3'})).toHaveCount(0);
-  await picker.getByLabel('Show NSFW').check();
+  await picker.getByRole('button', {name:'Close gallery'}).click();
+  await page.getByRole('button', {name:'Seed',exact:true}).click({delay:900});
+  await page.getByRole('button',{name:'Gallery',exact:true}).click();
   await picker.getByRole('button',{name:'Select Image 1'}).click();
   await picker.getByRole('button',{name:'Select Image 2'}).click();
   await expect(picker.getByRole('button',{name:'Select Image 3'})).toBeEnabled();

@@ -1464,3 +1464,19 @@ footer {
 @media(max-width:600px) { .frame-viewer { width:100vw; height:100dvh; max-height:none; border:0; border-radius:0; } .frame-viewer>header { padding:0 12px; } .frame-controls { padding:12px 16px max(16px,env(safe-area-inset-bottom)); } .frame-viewer>header>div { gap:8px; } }
 
 .frame-buffering { display:block; color:#b9bdc5; font-size:10px; margin-top:3px; }
+
+.brand-controls { display: flex; align-items: center; gap: 6px; }
+button.brand { border: 0; background: none; padding: 0; cursor: pointer; user-select: none; -webkit-touch-callout: none; touch-action: manipulation; }
+.spicy-off { border: 0; background: none; padding: 5px; cursor: pointer; font-size: 18px; }
+
+button.brand { -webkit-tap-highlight-color: transparent; }
+.mode-toasts { position: fixed; top: 50%; left: 16px; right: 16px; transform: translateY(-50%); z-index: 10000; display: flex; flex-direction: column; align-items: center; gap: 8px; pointer-events: none; }
+.mode-toast { display: flex; align-items: center; gap: 14px; max-width: 100%; min-width: 250px; padding: 14px 22px 14px 14px; color: #f7f3e9; background: linear-gradient(135deg, #30352b, #20251e); border: 1px solid #59634b; border-radius: 18px; box-shadow: 0 12px 36px #0006, inset 0 1px #ffffff0a; font-size: 16px; font-weight: 600; letter-spacing: -0.2px; pointer-events: auto; animation: mode-toast-enter 320ms cubic-bezier(.16, 1, .3, 1) both; }
+.mode-toast.is-spicy { background: linear-gradient(135deg, #432b22, #28231e); border-color: #986044; }
+.mode-toast-icon { display: grid; place-items: center; width: 44px; height: 44px; flex-shrink: 0; border-radius: 13px; background: #ffffff09; font-size: 28px; line-height: 1; }
+.is-spicy .mode-toast-icon { background: #ec79331c; }
+.is-standard .mode-toast-icon { filter: saturate(0.3); }
+@keyframes mode-toast-enter { from { opacity: 0; transform: translateY(-22px) scale(.94); } to { opacity: 1; transform: translateY(0) scale(1); } }
+.mode-toast.is-exiting { animation: mode-toast-exit 200ms ease-in both; pointer-events: none; }
+@keyframes mode-toast-exit { to { opacity: 0; transform: translateY(-12px) scale(.97); } }
+@media (prefers-reduced-motion: reduce) { .mode-toast, .mode-toast.is-exiting { animation: none; } .mode-toast.is-exiting { opacity: 0; } }
