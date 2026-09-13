@@ -275,3 +275,12 @@ invalid-settings/false-success regression. Installed the fix and retried the
 owner's puppy request: one durable, undecided image card is now in the Connection
 test chat, with no submitted jobs. Image generation still requires owner approval
 and a connected worker; no GPU generation was performed.
+
+### Approval error visibility (2026-09-13)
+
+Owner reported Generate doing nothing while the worker was disconnected. The
+request remained undecided with no jobs; approval errors rendered behind the
+modal. Review now displays action errors inside the dialog. All three Chat
+browser cases, build and typecheck pass, including a rejected approval whose
+error stays visible in the open modal. Updated the installed app. No GPU rented
+or generation submitted.

@@ -30,6 +30,12 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
   await page.screenshot({path:test.info().outputPath('chat-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath('chat-mobile.png'),fullPage:true});
+  await page.route('**/api/v1/chats/chat-ui/cards/card/decision',r=>r.fulfill({status:409,json:{error:{message:'GPU worker is disconnected. Connect it before generating.'}}}));
+  await page.getByRole('button',{name:'Review / history'}).click();
+  await review.getByRole('button',{name:/^Generate/}).click();
+  await expect(review.getByRole('alert')).toContainText('GPU worker is disconnected');
+  await expect(review).toBeVisible();
+
 });
 
 test('real Chat API supports rename and delete without a configured model',async({page})=>{
@@ -53,3 +59,4 @@ test('Chat upload reaches Library before sending and notes reject stale writes',
   const conflict=await page.request.put('/api/v1/notes/'+assetId,{headers:{origin:'http://127.0.0.1:4311'},data:{note:'Stale replacement',revision:0}});expect(conflict.status()).toBe(409);
   expect((await(await page.request.get('/api/v1/notes/'+assetId)).json()).note).toBe('Green fabric reference');
 });
+

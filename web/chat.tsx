@@ -96,7 +96,7 @@ export function Chat(){
     {refs.notes.length>0&&<NoteModal ids={refs.notes} close={refs.dismissNotes}/>}
     {preview&&<MediaPreview media={preview} onClose={()=>setPreview(null)} controls={<AssetNote id={preview.id}/>}/>}
     {sequence&&<FrameViewer id={sequence} onClose={()=>setSequence(null)}/>}
-    {review&&chat&&target&&<Review key={review.card.id} card={target} initial={review.revision} assets={chat.asset_manifest??[]} mode={chat.mode} busy={busy} editable={openGroup?.cards.some(c=>c.id===target.id)??false} activeWorkflow={chat.workflow} close={()=>setReview(null)}
+    {review&&chat&&target&&<Review key={review.card.id} card={target} initial={review.revision} error={error||chat.error||''} assets={chat.asset_manifest??[]} mode={chat.mode} busy={busy} editable={openGroup?.cards.some(c=>c.id===target.id)??false} activeWorkflow={chat.workflow} close={()=>setReview(null)}
       save={async request=>{const result=await act(()=>api(`chats/${chat.id}/cards/${target.id}/revise`,'POST',{revision:target.revisions.at(-1)!.number,request}));if(result){const card=result.groups.flatMap((g:any)=>g.cards).find((c:any)=>c.id===target.id);setReview({card,revision:card.revisions.at(-1)});}return Boolean(result);}}
       approve={async()=>{const result=await act(()=>api(`chats/${chat.id}/cards/${target.id}/decision`,'POST',{revision:target.revisions.at(-1)!.number,decision:'approved'}));if(result)setReview(null);}}
       restore={async(revision,request)=>{const value=await act(()=>api(`chats/${chat.id}/cards/${target.id}/restore`,'POST',{revision,request}));if(value)setReview(null);}}
@@ -106,7 +106,7 @@ export function Chat(){
   </section>;
 }
 
-function Review({card,initial,assets,mode,busy,editable,activeWorkflow,close,save,approve,feedback,restore,stop}:{card:ChatCard;initial:ChatRevision;assets:AssetContext[];mode:'sfw'|'nsfw';busy:boolean;editable:boolean;activeWorkflow:ChatWorkflow|null;close:()=>void;save:(request:unknown)=>Promise<boolean>;approve:()=>Promise<void>;feedback:(text:string)=>Promise<void>;restore:(revision:number,request:unknown)=>Promise<void>;stop:()=>void}){
+function Review({card,initial,error,assets,mode,busy,editable,activeWorkflow,close,save,approve,feedback,restore,stop}:{card:ChatCard;initial:ChatRevision;error:string;assets:AssetContext[];mode:'sfw'|'nsfw';busy:boolean;editable:boolean;activeWorkflow:ChatWorkflow|null;close:()=>void;save:(request:unknown)=>Promise<boolean>;approve:()=>Promise<void>;feedback:(text:string)=>Promise<void>;restore:(revision:number,request:unknown)=>Promise<void>;stop:()=>void}){
   const dialog=useRef<HTMLDialogElement>(null),[revision,setRevision]=useState(initial.number),[request,setRequest]=useState(initial.request),[message,setMessage]=useState('');
   useEffect(()=>{dialog.current?.showModal();return()=>dialog.current?.close();},[]);
   useEffect(()=>{setRevision(initial.number);setRequest(initial.request);},[initial.number]);
@@ -114,6 +114,7 @@ function Review({card,initial,assets,mode,busy,editable,activeWorkflow,close,sav
   const dirty=JSON.stringify(request)!==JSON.stringify(card.revisions.at(-1)!.request)||revision!==card.revisions.at(-1)!.number;
   const raw=()=>{const value:any={...request};delete value.workflow;delete value.capabilities_revision;if(mode==='sfw')delete value.mode;return value;};
   return <dialog ref={dialog} className="chat-review" onCancel={close} aria-label="Review generation"><header><h2>{workflows[card.workflow].label}</h2>{busy&&<button onClick={stop}>Stop</button>}<button onClick={close}>Close</button></header>
+    {error&&<p role="alert">{error}</p>}
     <label>Revision<select value={revision} onChange={e=>{const value=card.revisions.find(r=>r.number===Number(e.target.value))!;setRevision(value.number);setRequest(value.request);}}>{card.revisions.map(r=><option key={r.number} value={r.number}>{r.number} · {r.decision}</option>)}</select></label>
     <fieldset disabled={busy}><label>Prompt<textarea value={request.prompt} onChange={e=>change({prompt:e.target.value})}/></label>
       <div className="chat-fields"><label>Aspect<select value={request.output.aspect} onChange={e=>change({output:{...request.output,aspect:e.target.value as '16:9'|'9:16'}})}><option>16:9</option><option>9:16</option></select></label><label>Count<input type="number" min={1} max={16} value={request.count} onChange={e=>change({count:Number(e.target.value)})}/></label><label>Seed<input value={request.seed} onChange={e=>change({seed:e.target.value})}/></label>
