@@ -86,6 +86,11 @@ export function createChatAgent(options: {
         fetch: accountingFetch(options.fetch ?? fetch, options.onAccounting ?? (() => {})),
         onPayload(payload) {
           const body = payload as Record<string, unknown>;
+          // OpenRouter's strict parameter routing uses max_tokens and does not
+          // advertise OpenAI's response-storage parameter for these endpoints.
+          body.max_tokens = body.max_completion_tokens ?? 8192;
+          delete body.max_completion_tokens;
+          delete body.store;
           body.provider = { order: ['parasail'], allow_fallbacks: true, require_parameters: true };
           body.reasoning = { enabled: options.reasoning !== false };
           delete body.reasoning_effort;

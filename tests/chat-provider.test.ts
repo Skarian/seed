@@ -20,6 +20,9 @@ describe('Seed Pi/OpenRouter integration', () => {
     await agent.prompt('Hello');
     expect(requests).toHaveLength(1);
     expect(requests[0].model).toBe(CHAT_MODEL);
+    expect(requests[0].max_tokens).toBe(8192);
+    expect(requests[0]).not.toHaveProperty('max_completion_tokens');
+    expect(requests[0]).not.toHaveProperty('store');
     expect(requests[0].tools ?? []).toHaveLength(0);
     expect(requests[0].reasoning).toEqual({ enabled: false });
     expect(requests[0].provider).toEqual({ order: ['parasail'], allow_fallbacks: true, require_parameters: true });

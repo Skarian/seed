@@ -6,6 +6,17 @@ retains failures, fixes, timing evidence and earlier partial bills.
 
 ## Chat implementation acceptance (2026-09-13)
 
+Owner subsequently authorized testing the saved key. The first live request
+exposed OpenAI-specific `store` / `max_completion_tokens` fields rejected by
+OpenRouter strict parameter routing. The adapter now omits `store` and sends
+`max_tokens`; regression checks, build and typecheck pass. A live Parasail reply
+succeeded with reasoning enabled (27 input / 59 output tokens, reported cost
+$0.00002711). The installed Chat subsequently replied successfully through
+DeepInfra despite the Parasail preference (311 input / 43 output tokens,
+$0.00004261). This confirms an alternate provider was selected, but does not
+establish why Parasail was bypassed. Live tools, image interpretation and GPU
+generation remain untested.
+
 Implemented on `codex/seed-chat-openrouter`. Local verification passed: 106
 application tests, 70 operations tests, 61 worker tests (one skipped), typecheck,
 build and credential scan (328 files, no potential matches). Browser coverage
