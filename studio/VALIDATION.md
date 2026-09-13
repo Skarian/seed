@@ -320,3 +320,12 @@ rollback and data preservation (`seed-package-hCTwyf`). No claim is made that
 this isolated probe failure's root cause is established. No paid model or GPU
 requests were submitted during the redesign. Physical iOS/Android keyboard and
 owner visual acceptance remain to be checked on the actual devices.
+
+
+## Reference-informed Chat refinement
+
+See [UI reference study](UI-REFERENCES.md). Replaced the composer dropdown with
+a caret-aware slash menu, compact active-workflow label, and denser sidebar and
+composer spacing. Full browser regression: 34 passed; final command-submission
+edge cases verified in the Chat suite. Build/typecheck passed. Visually inspected
+desktop and mobile menu screenshots; no paid requests submitted.
