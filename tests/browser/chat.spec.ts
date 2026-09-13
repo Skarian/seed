@@ -48,6 +48,8 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
   await page.getByRole('button',{name:'Library',exact:true}).first().click();await page.getByRole('button',{name:'Chat',exact:true}).click();
   await expect.poll(()=>chat.workflow).toBe('text-to-image');
   await page.reload();await expect(page.getByRole('button',{name:'Open chat: A new creation'})).toBeVisible();
+  chat.groups[0].cards[0].revisions.push({...chat.groups[0].cards[0].revisions[0],number:2,request:{...chat.groups[0].cards[0].revisions[0].request,prompt:'A misty valley'}});chat.version++;
+  const card=page.locator('.chat-card');await expect(card.locator('.revision-controls')).toContainText('2/2');await card.getByRole('button',{name:'Previous request revision'}).click();await expect(card.locator('.revision-controls')).toContainText('1/2');await card.click({button:'right',position:{x:30,y:20}});await page.getByRole('button',{name:'Edit request',exact:true}).click();await expect(review.getByRole('textbox',{name:'Prompt',exact:true})).toHaveValue('A green valley');await page.keyboard.press('Escape');await card.getByRole('button',{name:'Next request revision'}).click();
   await page.screenshot({path:test.info().outputPath('chat-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await input.fill('/');await expect(page.getByRole('listbox')).toBeVisible();await page.screenshot({path:'.local/qa-slash-mobile.png'});await input.press('Escape');await input.fill('');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath('chat-mobile.png'),fullPage:true});

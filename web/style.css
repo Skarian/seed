@@ -1759,3 +1759,11 @@ body { background:#171917; }
 
 .chat-history { overflow-anchor:none; scroll-behavior:auto; }
 .chat-history-content { display:flow-root; }
+
+.revision-controls { display:flex; align-items:center; justify-content:flex-end; gap:3px; margin-top:8px; color:var(--muted); font-size:13px; }
+.revision-controls button { border:0; background:transparent; color:inherit; font-size:24px; padding:0; width:28px; height:30px; line-height:1; }
+.revision-controls button:disabled { opacity:.3; }
+.message-edit-popup { position:fixed; inset:auto; margin:0; padding:2px; border:1px solid #49523e; border-radius:9px; background:#262c22; color:var(--text); box-shadow:0 4px 14px #0004; }
+.message-edit-popup button { display:grid; place-items:center; padding:8px; margin:0; background:transparent; color:inherit; border:0; }
+
+.chat-message.user { width:fit-content; max-width:82%; margin-left:auto; margin-right:0; box-sizing:border-box; }
