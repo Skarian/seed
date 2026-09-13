@@ -1,3 +1,5 @@
+import {workflowLabels} from './workflow-labels.js';
+import {toast} from 'react-hot-toast/headless';
 import {Modal} from './modal.js';
 import {createPortal,flushSync} from 'react-dom';
 import React,{useEffect,useRef,useState} from 'react';
@@ -12,9 +14,9 @@ import {FrameViewer} from './frame-viewer.js';
 import {ConfirmDialog} from './confirm-dialog.js';
 
 const workflows:Record<ChatWorkflow,{label:string;command:string}>={
-  'text-to-image':{label:'Create image',command:'/create-image'},
-  'text-to-video':{label:'Create video',command:'/create-video'},
-  'reference-to-video':{label:'Animate image',command:'/animate-image'},
+  'text-to-image':{label:workflowLabels['text-to-image'],command:'/text-to-image'},
+  'text-to-video':{label:workflowLabels['text-to-video'],command:'/text-to-video'},
+  'reference-to-video':{label:workflowLabels['reference-to-video'],command:'/reference-to-video'},
 };
 function remembered(key:string){try{return sessionStorage.getItem('seed.chat.'+key)??'';}catch{return '';}}
 function remember(key:string,value:string){try{sessionStorage.setItem('seed.chat.'+key,value);}catch{/* Server history remains durable. */}}
@@ -38,7 +40,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   const [caret,setCaret]=useState(0),[commandIndex,setCommandIndex]=useState(0),[dismissed,setDismissed]=useState(false);
   const commandMatch=text.slice(0,caret).match(/(?:^|\s)(\/[^\s/]*)$/);
   const commandToken=commandMatch?.[1];
-  const commandResults=Object.entries(workflows).filter(([,w])=>!commandToken||w.command.includes(commandToken.toLowerCase())||w.label.toLowerCase().includes(commandToken.slice(1).toLowerCase()));
+  const commandResults=Object.entries({...workflows,reasoning:{label:`Reasoning · ${chat?.reasoning?'on':'off'}`,command:'/reasoning'}}).filter(([,w])=>!commandToken||w.command.includes(commandToken.toLowerCase())||w.label.toLowerCase().includes(commandToken.slice(1).toLowerCase()));
   const commandOpen=Boolean(commandToken)&&!dismissed;
 
   const history=useRef<HTMLDivElement>(null),follow=useRef(true);
@@ -59,9 +61,10 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   async function open(next:string){onChooseChat();if(id)drafts.current[id]=text;remember('selected.'+mode,next);currentId.current=next;setId(next);setChat(null);setText(drafts.current[next]??remembered('draft.'+next));setSelected([]);refs.reset('video');setReview(null);const value=await act(()=>api('chats/'+next));if(value&&currentId.current===next)setChat(value);}
   async function create(){onChooseChat();const value=await act(()=>api('chats','POST',{mode}));if(value){remember('selected.'+mode,value.id);setId(value.id);currentId.current=value.id;setChat(value);setText('');setSelected([]);refs.reset('video');}}
   async function settings(values:object){if(chat)return act(()=>api('chats/'+chat.id,'PATCH',{version:chat.version,...values}));}
-  async function chooseWorkflow(workflow:ChatWorkflow){
+  async function chooseWorkflow(workflow:ChatWorkflow|'reasoning'){
     if(busy)return;const original=text,position=caret,token=commandToken;setDismissed(true);
-    const changed=await settings({workflow});if(!changed){setDismissed(false);return;}
+    const changed=await settings(workflow==='reasoning'?{reasoning:!chat?.reasoning}:{workflow});if(!changed){setDismissed(false);return;}
+    if(workflow==='reasoning')toast.success(`Reasoning ${changed.reasoning?'enabled':'disabled'}`);
     const next=token?original.slice(0,position-token.length)+original.slice(position):original;
     if(composer.current?.value===original){
       flushSync(()=>setText(next));
@@ -69,10 +72,11 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
     }
   }
   async function send(message=text,card?:ChatCard,revision?:number){if(!chat||busy)return;
-    if(!card&&commandOpen&&message===text){if(commandResults.length)await chooseWorkflow(commandResults[commandIndex%commandResults.length]![0] as ChatWorkflow);else setError('No matching workflow. Edit the command or press Escape to dismiss it.');return;}
+    if(!card&&commandOpen&&message===text){if(commandResults.length)await chooseWorkflow(commandResults[commandIndex%commandResults.length]![0] as ChatWorkflow|'reasoning');else setError('No matching command. Edit the command or press Escape to dismiss it.');return;}
     follow.current=true;
     const command=message.trim().split(/\s+/)[0],entry=Object.entries(workflows).find(([,w])=>w.command===command);
     let current=chat;
+    if(command==='/reasoning'){const changed=await settings({reasoning:!chat.reasoning});if(!changed)return;current=changed;toast.success(`Reasoning ${changed.reasoning?'enabled':'disabled'}`);message=message.trim().slice(command.length).trim();if(!message){setText('');return;}}
     if(entry){const changed=await settings({workflow:entry[0]});if(!changed)return;current=changed;message=message.trim().slice(command!.length).trim();if(!message){setText('');return;}}
     if(card&&card.workflow!==current.workflow){const changed=await settings({workflow:card.workflow});if(!changed)return;current=changed;}
     const value=await act(()=>api('chats/'+current.id+'/messages','POST',{version:current.version,text:message,assets:[...new Set([...selected,...refs.groups.video.map(r=>r.asset_id!)])],...(card?{card_id:card.id,revision}: {})}));
@@ -102,14 +106,14 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
           {chat.activity!=='idle'&&<p role="status">{chat.activity==='thinking'?'Thinking…':chat.activity==='preparing'?'Preparing approved requests…':'Generating…'}</p>}
         </div>
         <form className="chat-composer" onSubmit={e=>{e.preventDefault();void send();}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!busy)void refs.add('video',Array.from(e.dataTransfer.files));}}>
-          {commandOpen&&!busy&&<div className="workflow-menu" id="workflow-options" role="listbox" aria-label="Workflows"><div className="workflow-menu-heading">Workflows <span>↑ ↓ to navigate · Enter to select</span></div>{commandResults.length?commandResults.map(([id,w],index)=><button type="button" role="option" id={'workflow-option-'+index} aria-selected={index===commandIndex%commandResults.length} key={id} onMouseDown={e=>e.preventDefault()} onClick={()=>void chooseWorkflow(id as ChatWorkflow)}><span className="workflow-symbol">{id==='text-to-image'?'▧':id==='text-to-video'?'▷':'◈'}</span><span><strong>{w.label}</strong><small>{w.command}</small></span><span className="workflow-enter">↵</span></button>):<p>No matching workflow</p>}</div>}
+          {commandOpen&&!busy&&<div className="workflow-menu" id="workflow-options" role="listbox" aria-label="Commands"><div className="workflow-menu-heading">Commands <span>↑ ↓ to navigate · Enter to select</span></div>{commandResults.length?commandResults.map(([id,w],index)=><button type="button" role="option" id={'workflow-option-'+index} aria-selected={index===commandIndex%commandResults.length} key={id} onMouseDown={e=>e.preventDefault()} onClick={()=>void chooseWorkflow(id as ChatWorkflow|'reasoning')}><span className="workflow-symbol">{id==='text-to-image'?'▧':id==='text-to-video'?'▷':id==='reasoning'?'✧':'◈'}</span><span><strong>{w.label}</strong><small>{w.command}</small></span><span className="workflow-enter">↵</span></button>):<p>No matching command</p>}</div>}
           <div className="composer-input-line">{chat.workflow&&<div className="active-workflow"><span>{workflows[chat.workflow].label}</span><button type="button" aria-label="Deactivate workflow" disabled={busy} onClick={()=>void settings({workflow:null})}>×</button></div>}
 
-          <textarea ref={composer} rows={1} aria-label="Chat message" role="combobox" aria-autocomplete="list" aria-expanded={commandOpen&&!busy} aria-controls={commandOpen&&!busy?'workflow-options':undefined} aria-activedescendant={commandOpen&&commandResults.length?'workflow-option-'+(commandIndex%commandResults.length):undefined} onSelect={e=>setCaret(e.currentTarget.selectionStart)} value={text} maxLength={16000} placeholder="Message Seed…  / for workflows" onChange={e=>{setText(e.target.value);setCaret(e.target.selectionStart);setDismissed(false);setCommandIndex(0);e.target.style.height='auto';e.target.style.height=Math.min(180,e.target.scrollHeight)+'px';}} onKeyDown={e=>{if(!e.nativeEvent.isComposing&&commandOpen&&!busy){if(e.key==='Escape'){e.preventDefault();setDismissed(true);return;}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();setCommandIndex(i=>(i+(e.key==='ArrowDown'?1:-1)+commandResults.length)%Math.max(1,commandResults.length));return;}if((e.key==='Enter'||e.key==='Tab')&&commandResults.length){e.preventDefault();void chooseWorkflow(commandResults[commandIndex%commandResults.length]![0] as ChatWorkflow);return;}}if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}} onPaste={e=>{const files=Array.from(e.clipboardData.files);if(files.length&&!busy){e.preventDefault();void refs.add('video',files);}}}/></div>
+          <textarea ref={composer} rows={1} aria-label="Chat message" role="combobox" aria-autocomplete="list" aria-expanded={commandOpen&&!busy} aria-controls={commandOpen&&!busy?'workflow-options':undefined} aria-activedescendant={commandOpen&&commandResults.length?'workflow-option-'+(commandIndex%commandResults.length):undefined} onSelect={e=>setCaret(e.currentTarget.selectionStart)} value={text} maxLength={16000} placeholder="Message Seed…  / for commands" onChange={e=>{setText(e.target.value);setCaret(e.target.selectionStart);setDismissed(false);setCommandIndex(0);e.target.style.height='auto';e.target.style.height=Math.min(180,e.target.scrollHeight)+'px';}} onKeyDown={e=>{if(!e.nativeEvent.isComposing&&commandOpen&&!busy){if(e.key==='Escape'){e.preventDefault();setDismissed(true);return;}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();setCommandIndex(i=>(i+(e.key==='ArrowDown'?1:-1)+commandResults.length)%Math.max(1,commandResults.length));return;}if((e.key==='Enter'||e.key==='Tab')&&commandResults.length){e.preventDefault();void chooseWorkflow(commandResults[commandIndex%commandResults.length]![0] as ChatWorkflow|'reasoning');return;}}if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}} onPaste={e=>{const files=Array.from(e.clipboardData.files);if(files.length&&!busy){e.preventDefault();void refs.add('video',files);}}}/></div>
           {refs.groups.video.map(ref=><button type="button" key={ref.id} onClick={()=>refs.remove('video',ref.id)}>{ref.name} ×</button>)}{selected.map(asset=><button type="button" key={asset} onClick={()=>setSelected(current=>current.filter(v=>v!==asset))}>Selected asset ×</button>)}
           {refs.errors.video.map((error,i)=><p role="alert" key={i}>{error}</p>)}
           {error&&!review&&<p role="alert" className="composer-error">{error}</p>}
-          <div className="composer-actions"><input ref={file} hidden type="file" multiple accept="image/*,video/*,audio/*" onChange={e=>{void refs.add('video',Array.from(e.target.files??[]));e.target.value='';}}/><button type="button" className="attachment-trigger" aria-label="Add attachments" popoverTarget="chat-attachments" onClick={e=>{const rect=e.currentTarget.getBoundingClientRect(),menu=document.getElementById('chat-attachments');if(menu){menu.style.left=rect.left+'px';menu.style.bottom=(window.innerHeight-rect.top+8)+'px';}}} disabled={busy||refs.busy}>+</button><div id="chat-attachments" className="attachment-menu" popover="auto"><button type="button" onClick={()=>{document.getElementById('chat-attachments')?.hidePopover();file.current?.click();}}>Add File(s)</button><button type="button" onClick={()=>{document.getElementById('chat-attachments')?.hidePopover();setGallery(true);}}>Add from Library</button></div>{refs.busy&&<span className="upload-status">Uploading…</span>}<label className="reasoning-toggle"><input type="checkbox" checked={chat.reasoning} disabled={busy} onChange={e=>void settings({reasoning:e.target.checked})}/>Reasoning</label><button className="primary-action send-button" type="submit" disabled={busy||refs.busy||!text.trim()||!configured}>Send</button>{busy&&<button type="button" className="stop-action" onClick={()=>void act(()=>api('chats/'+chat.id+'/stop','POST',{}))}>Stop</button>}</div>
+          <div className="composer-actions"><input ref={file} hidden type="file" multiple accept="image/*,video/*,audio/*" onChange={e=>{void refs.add('video',Array.from(e.target.files??[]));e.target.value='';}}/><button type="button" className="attachment-trigger" aria-label="Add attachments" popoverTarget="chat-attachments" onClick={e=>{const rect=e.currentTarget.getBoundingClientRect(),menu=document.getElementById('chat-attachments');if(menu){menu.style.left=rect.left+'px';menu.style.bottom=(window.innerHeight-rect.top+8)+'px';}}} disabled={busy||refs.busy}>+</button><div id="chat-attachments" className="attachment-menu" popover="auto"><button type="button" onClick={()=>{document.getElementById('chat-attachments')?.hidePopover();file.current?.click();}}>Add File(s)</button><button type="button" onClick={()=>{document.getElementById('chat-attachments')?.hidePopover();setGallery(true);}}>Add from Library</button></div>{refs.busy&&<span className="upload-status">Uploading…</span>}<button className="primary-action send-button" type="submit" disabled={busy||refs.busy||!text.trim()||!configured}>Send</button>{busy&&<button type="button" className="stop-action" onClick={()=>void act(()=>api('chats/'+chat.id+'/stop','POST',{}))}>Stop</button>}</div>
         </form>
       </>}
     </div>

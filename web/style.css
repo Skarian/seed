@@ -1729,3 +1729,5 @@ body { background:#171917; }
 .attachment-menu button { display:block; width:100%; text-align:left; padding:10px 12px; border:0; background:transparent; color:inherit; border-radius:7px; }
 .attachment-menu button:hover,.attachment-menu button:focus-visible { background:#3b4531; }
 .upload-status { font-size:11px; color:var(--muted); }
+
+.composer-actions .send-button { margin-left:auto; }

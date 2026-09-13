@@ -1,3 +1,4 @@
+import {workflowLabels} from './workflow-labels.js';
 import {Sidebar} from './sidebar.js';
 import * as Collapsible from '@radix-ui/react-collapsible';
 import {useAppLayout} from './app-layout.js';
@@ -26,19 +27,19 @@ import {
 
 const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
   "text-to-image": {
-    title: "Text to image",
+    title: workflowLabels["text-to-image"],
     placeholder: "Describe your image…",
   },
   "image-to-image": {
-    title: "Image to image",
+    title: workflowLabels["image-to-image"],
     placeholder: "Describe what to change…",
   },
   "text-to-video": {
-    title: "Text to video",
+    title: workflowLabels["text-to-video"],
     placeholder: "Describe the scene, movement and sound…",
   },
   "reference-to-video": {
-    title: "Reference to video",
+    title: workflowLabels["reference-to-video"],
     placeholder: "Describe the scene using your references…",
   },
 };
