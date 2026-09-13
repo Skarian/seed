@@ -52,7 +52,7 @@ export class Media {
     app.addContentTypeParser('application/offset+octet-stream',(_request,_payload,done)=>done(null));
     const handle=async(req:any,reply:any)=>{const id=String(req.params?.['*']??'');this.activeUploads.add(id);try{reply.hijack();await tus.handle(req.raw,reply.raw);if(req.method==='DELETE'&&reply.raw.statusCode===204)this.mark(id,{state:'error',error:'Upload cancelled.'});}finally{this.activeUploads.delete(id);}};
     app.all('/api/v1/uploads',handle);app.all('/api/v1/uploads/*',handle);
-    app.get('/api/v1/assets/:id',async(req,reply)=>{const item=await this.describe((req.params as any).id);return item?{id:item.id,kind:item.kind,...item.metadata}:reply.code(404).send({error:{message:'File not found.'}});});
+    app.get('/api/v1/assets/:id',async(req,reply)=>{const item=await this.describe((req.params as any).id);return item?{id:item.id,kind:item.kind,...item.metadata,name:item.name}:reply.code(404).send({error:{message:'File not found.'}});});
     this.timer=setInterval(()=>void this.scan(),2000);void this.scan();
 
   }

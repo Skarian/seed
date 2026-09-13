@@ -126,7 +126,7 @@ test('thumbnail dropbox opens a reusable viewer with info, roles, download and d
     { name: 'scene.png', mimeType: 'image/png', buffer: image },
     { name: 'person.png', mimeType: 'image/png', buffer: image },
   ]);
-  await page.getByRole('button',{name:'Done / Skip'}).click();
+  await page.getByRole('button',{name:'Done',exact:true}).click();
   await expect(page.getByText('max: 12', { exact: true })).not.toBeVisible();
   await page.getByLabel('Asset limits').click();
   await expect(page.getByText('max: 12', { exact: true })).toBeVisible();
@@ -147,7 +147,7 @@ test('thumbnail dropbox opens a reusable viewer with info, roles, download and d
   await page.getByLabel('Choose reference files').setInputFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('not media') });
   await expect(page.getByRole('alert')).toContainText('choose an image, video or audio');
   await page.getByLabel('Choose reference files').setInputFiles({ name: 'anchor.png', mimeType: 'image/png', buffer: image });
-  await page.getByRole('button',{name:'Done / Skip'}).click();
+  await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.getByRole('button', { name: 'Preview anchor.png' }).click();
   await page.getByLabel('Role for anchor.png').selectOption('last_frame');
   await page.getByRole('button', { name: 'Close preview' }).click();
@@ -193,7 +193,7 @@ test('audio and video previews expose source duration and editable clip ranges',
     { name: 'motion.webm', mimeType: 'video/webm', buffer: Buffer.from(videoBytes) },
     { name: 'sound.wav', mimeType: 'audio/wav', buffer: wav },
   ]);
-  await page.getByRole('button',{name:'Done / Skip'}).click();
+  await page.getByRole('button',{name:'Done',exact:true}).click();
   await page.getByRole('button', { name: 'Preview motion.webm' }).click();
   await expect(page.locator('.viewer-canvas video')).toBeVisible();
   await page.locator('.viewer-canvas video').evaluate(element => (element as HTMLVideoElement).play());

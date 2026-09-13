@@ -1,3 +1,4 @@
+import {AssetThumbnail} from './asset-thumbnail.js';
 import {Modal} from './modal.js';
 import React, { useEffect, useRef, useState } from "react";
 import { GalleryPicker } from "./gallery-picker.js";
@@ -649,10 +650,11 @@ export function ReferenceInputs({
 }
 
 export function NoteModal({ids,close}:{ids:string[];close:()=>void}) {
-  const dialog=useRef<HTMLDivElement>(null);
-  return <Modal ref={dialog} className="gallery-picker" aria-label="Describe assets" onCancel={close}>
-    <header><h2>Describe your assets</h2><button onClick={close}>Done / Skip</button></header>
-    <p>Optional notes help the agent refer to each asset. Save each note you want to keep.</p>
-    {ids.map(id=><div key={id}><a href={'/api/v1/assets/'+id+'/content'} target="_blank" rel="noreferrer">View asset</a><AssetNote id={id}/></div>)}
-  </Modal>;
+  const [preview,setPreview]=useState<any>(null),[error,setError]=useState('');
+  async function show(id:string){try{const response=await fetch('/api/v1/assets/'+id);if(!response.ok)throw Error('Could not open this asset.');const asset=await response.json();setPreview({...asset,url:'/api/v1/assets/'+id+'/content',type:asset.mime_type??''});}catch(e){setError((e as Error).message);}}
+  return <><Modal className="asset-notes-modal" aria-label="Describe assets" onCancel={close}>
+    <header><div><h2>Describe your assets</h2><p>Add an optional note to help Seed understand each file.</p></div><button className="notes-close" aria-label="Close asset notes" onClick={close}>×</button></header>
+    <div className="asset-notes-list">{ids.map(id=><section className="asset-note-row" key={id}><AssetThumbnail id={id} onOpen={()=>void show(id)}/><AssetNote id={id}/></section>)}</div>
+    {error&&<p role="alert">{error}</p>}<footer><span>Save any notes you want to keep.</span><button className="primary-action" onClick={close}>Done</button></footer>
+  </Modal>{preview&&<MediaPreview media={preview} onClose={()=>setPreview(null)}/>}</>;
 }

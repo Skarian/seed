@@ -1,3 +1,5 @@
+import {execFileSync} from 'node:child_process';
+import ffmpeg from 'ffmpeg-static';
 import {test,expect} from '@playwright/test';
 import sharp from 'sharp';
 
@@ -32,7 +34,7 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
   await input.fill('Before /ref after');await input.evaluate((e:HTMLTextAreaElement)=>{e.setSelectionRange(11,11);e.dispatchEvent(new Event('select',{bubbles:true}));});await input.press('ArrowLeft');await input.press('ArrowRight');await page.getByRole('option').click();await expect(input).toHaveValue('Before /reference-to-video  after');await input.press('Backspace');await expect(input).toHaveValue('Before  after');await expect.poll(()=>chat.workflow).toBe(null);
   await input.fill('/text');await expect(page.getByRole('option')).toHaveCount(2);await input.press('ArrowDown');await input.press('Enter');
   await expect.poll(()=>chat.workflow).toBe('text-to-video');await expect(input).toHaveValue('/text-to-video ');expect(messages).toHaveLength(0);
-  await input.fill('/reference');await page.getByRole('option').click();await expect.poll(()=>chat.workflow).toBe('reference-to-video');
+  await input.fill('/reference');await page.getByRole('option').click();await expect.poll(()=>chat.workflow).toBe('reference-to-video');await expect(input).toHaveValue('/reference-to-video ');
   await input.fill('/');await input.press('Escape');await expect(page.getByRole('listbox')).toHaveCount(0);
   await input.fill('/reference-to-video ');await input.press('Backspace');await expect(input).toHaveValue('');await expect.poll(()=>chat.workflow).toBe(null);
   await input.fill('/missing');await input.press('Enter');await expect(page.getByRole('alert')).toContainText('No matching command');expect(messages).toHaveLength(0);
@@ -75,9 +77,9 @@ test('Chat upload reaches Library before sending and notes reject stale writes',
   let assetId='';page.on('response',async response=>{if(response.request().method()==='POST'&&response.url().endsWith('/api/v1/uploads'))assetId=response.headers().location!.split('/').at(-1)!;});
   await page.locator('input[type=file]').setInputFiles({name:'Chat reference.png',mimeType:'image/png',buffer:pixels});
   const modal=page.getByRole('dialog',{name:'Describe assets'});await expect(modal).toBeVisible();
-  await modal.getByLabel('Asset note').fill('Green fabric reference');await modal.getByRole('button',{name:'Save note'}).click();
+  await modal.getByLabel('Asset note',{exact:true}).fill('Green fabric reference');await modal.getByRole('button',{name:'Save note'}).click();
   await expect.poll(async()=>{const response=await page.request.get('/api/v1/notes/'+assetId);return (await response.json()).revision;}).toBe(1);
-  await modal.getByRole('button',{name:'Done / Skip'}).click();
+  await modal.getByRole('button',{name:'Done',exact:true}).click();
   const library=await page.request.get('/api/v1/assets?mode=sfw');expect((await library.json()).items.some((a:any)=>a.id===assetId)).toBe(true);
   const conflict=await page.request.put('/api/v1/notes/'+assetId,{headers:{origin:'http://127.0.0.1:4311'},data:{note:'Stale replacement',revision:0}});expect(conflict.status()).toBe(409);
   expect((await(await page.request.get('/api/v1/notes/'+assetId)).json()).note).toBe('Green fabric reference');
@@ -123,4 +125,13 @@ test('mobile chat menu survives finger release and supports a separate action ta
  const action=await page.getByRole('menuitem',{name:'Rename'}).boundingBox();
  await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:action!.x+30,y:action!.y+15}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
  await expect(page.getByRole('dialog',{name:'Rename chat'})).toBeVisible();await expect(page.getByLabel('Chat title')).toHaveValue('Second chat');
+});
+
+test('video attachment has a thumbnail, playable preview, and independent removal',async({page})=>{
+ const video=test.info().outputPath('reference.mp4');execFileSync(ffmpeg as unknown as string,['-y','-f','lavfi','-i','color=c=teal:s=320x180:d=3','-c:v','libx264','-pix_fmt','yuv420p',video],{stdio:'ignore'});
+ await page.setViewportSize({width:390,height:844});await page.goto('/chat');await page.locator('input[type=file]').setInputFiles(video);
+ const notes=page.getByRole('dialog',{name:'Describe assets'});await expect(notes).toBeVisible();await expect(notes.locator('video')).toHaveCount(1);await page.screenshot({path:'.local/qa-notes-mobile.png'});
+ await notes.getByRole('button',{name:'Done',exact:true}).click();const tile=page.locator('.composer-attachments .asset-thumbnail');await expect(tile).toHaveCount(1);await expect(tile.locator('video')).toHaveJSProperty('readyState',4);
+ await tile.getByRole('button',{name:/Preview /}).click();const viewer=page.getByRole('dialog',{name:'Media preview'});await expect(page.locator('.viewer-canvas video')).toBeVisible();await page.locator('.viewer-canvas video').evaluate((v:HTMLVideoElement)=>v.play());await expect(page.locator('.viewer-canvas video')).toHaveJSProperty('paused',false);await page.getByRole('button',{name:'Close preview'}).click();
+ await page.screenshot({path:'.local/qa-video-attachment-mobile.png'});await tile.getByRole('button',{name:/Remove /}).click();await expect(tile).toHaveCount(0);
 });
