@@ -11,7 +11,7 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
     if(method==='PATCH'){Object.assign(chat,r.request().postDataJSON());chat.version++;}
     if(url.pathname.endsWith('/messages')){
       const body=r.request().postDataJSON();messages.push(body);chat.messages.push({id:'message-'+messages.length,role:'user',text:body.text,assets:[]});chat.version++;
-      if(!chat.groups.length)chat.groups=[{id:'group',workflow:'text-to-image',state:'reviewing',cards:[{id:'card',workflow:'text-to-image',revisions:[{number:1,decision:'undecided',notes:{},job_ids:[],request:{workflow:'text-to-image',prompt:'A green valley',mode:'sfw',capabilities_revision:'v1',seed:'random',count:1,output:{aspect:'16:9',size:'1mp'}}}]}]}];
+      if(!chat.groups.length)chat.groups=[{id:'group',after_message_id:chat.messages.at(-1).id,workflow:'text-to-image',state:'reviewing',cards:[{id:'card',workflow:'text-to-image',revisions:[{number:1,decision:'undecided',notes:{},job_ids:[],request:{workflow:'text-to-image',prompt:'A green valley',mode:'sfw',capabilities_revision:'v1',seed:'random',count:1,output:{aspect:'16:9',size:'1mp'}}}]}]}];
     }
     if(url.pathname.endsWith('/decision'))decisions++;
     await r.fulfill({json:chat});
@@ -41,7 +41,9 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
   await page.getByRole('button',{name:'Review / history'}).click();
   const review=page.getByRole('dialog',{name:'Review generation'});await expect(review).toBeVisible();
   await review.getByLabel('Provide feedback').fill('Make the valley misty');await review.getByLabel('Provide feedback').press('Enter');
-  await expect(review).toHaveCount(0);expect(messages[1]).toMatchObject({text:'Make the valley misty',card_id:'card',revision:1});expect(decisions).toBe(0);
+  await expect(review).toHaveCount(0);await expect(page.locator('.chat-card')).not.toContainText('A green valley');
+  expect(await page.locator('.chat-history > .chat-message, .chat-history > .chat-group').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('chat-group')?'request':n.textContent))).toEqual(['YouA valley','request','YouMake the valley misty']);
+  expect(messages[1]).toMatchObject({text:'Make the valley misty',card_id:'card',revision:1});expect(decisions).toBe(0);
   await page.getByRole('button',{name:'Library',exact:true}).first().click();await page.getByRole('button',{name:'Chat',exact:true}).click();
   await expect(page.locator('.active-workflow')).toContainText('Text to image');
   await page.reload();await expect(page.getByRole('button',{name:'Open chat: A new creation'})).toBeVisible();
@@ -59,7 +61,7 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
 test('real Chat API supports rename and delete without a configured model',async({page})=>{
   await page.goto('/chat');await page.getByRole('button',{name:'New chat',exact:true}).click();
   await expect(page.locator('.chat-sidebar > button.selected')).toBeVisible();
-  await expect(page.locator('.chat-header')).toHaveCount(0);await page.locator('.chat-sidebar > button.selected').click({button:'right'});await page.getByRole('menuitem',{name:'Rename',exact:true}).click();await page.getByLabel('Chat title').fill('Browser persistence test');await page.getByRole('button',{name:'Save name'}).click();
+  await expect(page.locator('.chat-header')).toHaveCount(0);await page.locator('.chat-sidebar > button.selected').click({button:'right'});await page.getByRole('menuitem',{name:'Rename',exact:true}).click();await page.getByLabel('Chat title').fill('Browser persistence test');await page.getByRole('button',{name:'Save name'}).click();await expect(page.getByRole('dialog',{name:'Rename chat'})).toHaveCount(0);
   await page.reload();await expect(page.getByRole('button',{name:'Open chat: Browser persistence test'})).toBeVisible();
   await page.getByRole('button',{name:'Open chat: Browser persistence test'}).focus();await page.keyboard.press('Shift+F10');await page.getByRole('menuitem',{name:'Delete',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Delete chat',exact:true}).click();await expect(page.getByRole('heading',{name:'What shall we create today?'})).toBeVisible();
 });

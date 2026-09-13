@@ -30,6 +30,7 @@ export class Chats {
     private transport?:typeof fetch) {
     for(const row of db.prepare('SELECT body_json FROM chats').all() as {body_json:string}[]) {
       const chat=JSON.parse(row.body_json) as StoredChat;
+      if(chat.groups.some(g=>g.after_message_id===undefined)){for(const group of chat.groups)if(group.after_message_id===undefined)group.after_message_id=chat.messages.at(-1)?.id??null;this.save(chat);}
       if(chat.activity==='thinking'||chat.activity==='preparing'){
         chat.activity='idle';chat.error='Interrupted by server restart. Send a message to continue.';
         for(const run of chat.runs)if(run.state==='running')run.state='interrupted';
@@ -103,7 +104,7 @@ export class Chats {
       execute:async(_call,params)=>{
         const current=this.get(id);if(current.epoch!==epoch||current.workflow!==workflow)throw Error('This workflow run is no longer active.');
         let group=openGroup(current);if(group&&group.workflow!==workflow)throw Error('Resolve or stop the outstanding review group first.');
-        if(!group){group={id:randomUUID(),workflow,state:'assembling',cards:[]};current.groups.push(group);}
+        if(!group){group={id:randomUUID(),after_message_id:current.messages.at(-1)?.id??null,workflow,state:'assembling',cards:[]};current.groups.push(group);}
         const results=[];
         for(const op of (params as any).operations){
           if(op.operation==='create'){if(group.cards.length>=16)throw Error('A review group supports at most 16 cards.');const card={id:randomUUID(),workflow,revisions:[this.revision(current,this.request(current,workflow,op.request),1)]};group.cards.push(card);results.push({id:card.id,revision:1});}
@@ -220,7 +221,7 @@ export class Chats {
     const originals=revision.job_ids.map(id=>this.jobs.get(id)).filter(j=>j&&(!failedOnly||j.state==='failed'));
     if(failedOnly&&!originals.length)throw Error('No definitively failed jobs to retry.');
     const requests=originals.length?originals.map(j=>({...revision.request,count:1,seed:fresh?'random':j!.seed})):[{...revision.request,seed:fresh?'random':revision.request.seed}];
-    const group:ChatGroup={id:randomUUID(),workflow:card.workflow,state:'reviewing',cards:requests.map(request=>({id:randomUUID(),workflow:card.workflow,revisions:[this.revision(chat,request,1)]}))};chat.groups.push(group);chat.version++;this.save(chat);return this.view(id);
+    const group:ChatGroup={id:randomUUID(),after_message_id:chat.messages.at(-1)?.id??null,workflow:card.workflow,state:'reviewing',cards:requests.map(request=>({id:randomUUID(),workflow:card.workflow,revisions:[this.revision(chat,request,1)]}))};chat.groups.push(group);chat.version++;this.save(chat);return this.view(id);
   }
   restore(id:string,cardId:string,number:number,raw:unknown){
     const chat=this.get(id);if(this.busy(chat)||openGroup(chat))throw Error('Resolve or stop current proposals first.');
@@ -228,7 +229,7 @@ export class Chats {
     if(!source||!prior)throw Error('Revision not found.');
     const request=this.request(chat,source.workflow,raw,prior.request);
     const card:ChatCard={id:randomUUID(),workflow:source.workflow,revisions:[...source.revisions,this.revision(chat,request,latest(source).number+1)]};
-    chat.groups.push({id:randomUUID(),workflow:source.workflow,state:'reviewing',cards:[card]});chat.version++;this.save(chat);return this.view(id);
+    chat.groups.push({id:randomUUID(),after_message_id:chat.messages.at(-1)?.id??null,workflow:source.workflow,state:'reviewing',cards:[card]});chat.version++;this.save(chat);return this.view(id);
   }
   async close(){for(const [id] of this.agents)this.stop(id);await Promise.allSettled([...this.tasks.values()]);}
 }

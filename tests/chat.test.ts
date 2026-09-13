@@ -29,7 +29,7 @@ it('holds a whole group until all decisions and submits approved requests once',
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Another landscape'}}]);
   chats.send(chat.id,{version:chat.version,text:'Two ideas',assets:[]});chat=await idle(chats,chat.id);
   expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.length===1)).toBe(true);
-  const cards=chat.groups[0]!.cards;expect(cards).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
+  expect(chat.groups[0]!.after_message_id).toBe(chat.messages.filter(m=>m.role==='user').at(-1)!.id);const cards=chat.groups[0]!.cards;expect(cards).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[1]!.id,1,'denied');expect(jobs.all()).toHaveLength(1);
   await expect(chats.decide(chat.id,cards[0]!.id,1,'approved')).rejects.toThrow();expect(jobs.all()).toHaveLength(1);
@@ -80,7 +80,7 @@ it('filters exact modes before pagination and preserves media when deleting chat
 it('restoring an old revision keeps prior copies and requires new approval',async()=>fixture(async({chats,queue})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
   const card=c.groups[0]!.cards[0]!;chats.revise(c.id,card.id,1,{...request,prompt:'Second revision'});chats.stop(c.id);
-  c=chats.restore(c.id,card.id,1,request);const restored=c.groups.at(-1)!.cards[0]!;
+  c=chats.restore(c.id,card.id,1,request);const restored=c.groups.at(-1)!.cards[0]!;expect(c.groups.at(-1)!.after_message_id).toBe(c.messages.at(-1)!.id);
   expect(restored.revisions).toHaveLength(3);expect(restored.revisions.at(-1)).toMatchObject({number:3,decision:'undecided',request:{prompt:request.prompt}});
   expect(c.groups[0]!.cards[0]!.revisions).toHaveLength(2);
 }));
