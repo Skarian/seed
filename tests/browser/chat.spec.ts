@@ -44,7 +44,7 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
   await expect(review).toHaveCount(0);expect(messages[1]).toMatchObject({text:'Make the valley misty',card_id:'card',revision:1});expect(decisions).toBe(0);
   await page.getByRole('button',{name:'Library',exact:true}).first().click();await page.getByRole('button',{name:'Chat',exact:true}).click();
   await expect(page.locator('.active-workflow')).toContainText('Text to image');
-  await page.reload();await expect(page.getByRole('heading',{name:'A new creation'})).toBeVisible();
+  await page.reload();await expect(page.getByRole('button',{name:'Open chat: A new creation'})).toBeVisible();
   await page.screenshot({path:test.info().outputPath('chat-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await input.fill('/');await expect(page.getByRole('listbox')).toBeVisible();await page.screenshot({path:'.local/qa-slash-mobile.png'});await input.press('Escape');await input.fill('');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath('chat-mobile.png'),fullPage:true});
@@ -58,10 +58,10 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
 
 test('real Chat API supports rename and delete without a configured model',async({page})=>{
   await page.goto('/chat');await page.getByRole('button',{name:'New chat',exact:true}).click();
-  await expect(page.getByRole('heading',{name:'New chat',exact:true})).toBeVisible();
-  await page.getByRole('button',{name:'Rename',exact:true}).click();await page.getByLabel('Chat title').fill('Browser persistence test');await page.getByRole('button',{name:'Save name'}).click();
-  await page.reload();await expect(page.getByRole('heading',{name:'Browser persistence test'})).toBeVisible();
-  await page.getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Delete chat',exact:true}).click();await expect(page.getByRole('heading',{name:'What shall we create today?'})).toBeVisible();
+  await expect(page.locator('.chat-sidebar > button.selected')).toBeVisible();
+  await expect(page.locator('.chat-header')).toHaveCount(0);await page.locator('.chat-sidebar > button.selected').click({button:'right'});await page.getByRole('menuitem',{name:'Rename',exact:true}).click();await page.getByLabel('Chat title').fill('Browser persistence test');await page.getByRole('button',{name:'Save name'}).click();
+  await page.reload();await expect(page.getByRole('button',{name:'Open chat: Browser persistence test'})).toBeVisible();
+  await page.getByRole('button',{name:'Open chat: Browser persistence test'}).focus();await page.keyboard.press('Shift+F10');await page.getByRole('menuitem',{name:'Delete',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Delete chat',exact:true}).click();await expect(page.getByRole('heading',{name:'What shall we create today?'})).toBeVisible();
 });
 
 test('Chat upload reaches Library before sending and notes reject stale writes',async({page})=>{
@@ -102,4 +102,15 @@ test('empty Chat has a centered welcome and bottom composer and creates a conver
   await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect(page.locator('.chat-message.user')).toContainText('A quiet mountain lake');
   await expect(page.locator('.chat-welcome-heading')).toHaveCount(0);expect(creates).toBe(1);
+});
+
+test('holding a sidebar chat opens its menu without selecting it',async({page})=>{
+ const base={mode:'sfw',workflow:null,version:0,reasoning:true,messages:[],groups:[],assets:[],activity:'idle',jobs:[],accounting:[]};
+ const chats=[{...base,id:'one',title:'First chat'},{...base,id:'two',title:'Second chat'}];
+ await page.route('**/api/v1/chats**',r=>r.fulfill({json:new URL(r.request().url()).pathname==='/api/v1/chats'?{items:chats}:chats[0]}));
+ await page.goto('/chat');
+ const row=page.getByRole('button',{name:'Open chat: Second chat'});await row.dispatchEvent('pointerdown',{pointerId:1,isPrimary:true,button:0,clientX:80,clientY:350,pointerType:'touch'});
+ await expect(page.getByRole('menu',{name:'Chat actions: Second chat'})).toBeVisible();await row.dispatchEvent('pointerup',{pointerId:1});
+ await expect(row).not.toHaveClass('selected');await page.screenshot({path:'.local/qa-chat-context.png'});
+ await page.keyboard.press('Escape');await expect(page.getByRole('menu')).toBeHidden();
 });

@@ -1747,3 +1747,9 @@ body { background:#171917; }
  .chat-welcome .chat-composer { width:calc(100% - 24px); padding:12px 14px; border-radius:24px; }
 }
 @media(max-height:500px) { .chat-welcome-heading { gap:10px; padding:48px 16px 16px; } .chat-welcome-heading h1 { font-size:26px; } .welcome-mark { font-size:32px; } }
+
+.chat-sidebar>button { -webkit-touch-callout:none; user-select:none; }
+.chat-context-menu { position:fixed; inset:auto; margin:0; width:180px; padding:5px; border:1px solid #49523e; border-radius:12px; background:#262c22; color:var(--text); box-shadow:0 8px 28px #0005; }
+.chat-context-menu button { display:block; width:100%; margin:0; padding:10px 12px; text-align:left; border:0; border-radius:7px; background:transparent; color:inherit; }
+.chat-context-menu button:hover,.chat-context-menu button:focus-visible { background:#3b4531; }
+.chat-context-menu .danger { color:#ed9690; }

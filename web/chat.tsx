@@ -1,3 +1,4 @@
+import {ChatSidebarRow} from './chat-sidebar-row.js';
 import {workflowLabels} from './workflow-labels.js';
 import {toast} from 'react-hot-toast/headless';
 import {Modal} from './modal.js';
@@ -33,7 +34,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   const [text,setText]=useState(''),[error,setError]=useState(''),[saving,setSaving]=useState(false),[configured,setConfigured]=useState(true);
   const [gallery,setGallery]=useState(false),[review,setReview]=useState<{card:ChatCard;revision:ChatRevision}|null>(null);
   const [preview,setPreview]=useState<(PreviewMedia&{id:string})|null>(null),[sequence,setSequence]=useState<string|null>(null);
-  const [deleting,setDeleting]=useState(false),[rename,setRename]=useState<string|null>(null);
+  const [deleting,setDeleting]=useState<string|null>(null),[rename,setRename]=useState<{id:string;title:string}|null>(null);
   const refs=useReferences(),file=useRef<HTMLInputElement>(null);
   const currentId=useRef(id);currentId.current=id;
   const generation=useRef(0),composer=useRef<HTMLTextAreaElement>(null);
@@ -52,7 +53,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   const busy=saving||Boolean(chat&&chat.activity!=='idle');
   useEffect(()=>{let disposed=false;const epoch=++generation.current;
     const restored=remembered('selected.'+mode)||null;currentId.current=restored;
-    setList([]);setId(restored);setChat(null);setText(restored?remembered('draft.'+restored):'');setReview(null);setPreview(null);setSequence(null);setGallery(false);setSelected([]);setRename(null);setDeleting(false);
+    setList([]);setId(restored);setChat(null);setText(restored?remembered('draft.'+restored):'');setReview(null);setPreview(null);setSequence(null);setGallery(false);setSelected([]);setRename(null);setDeleting(null);
     void api('chat-config').then(v=>{if(!disposed)setConfigured(v.configured);}).catch(()=>{});
     async function refresh(){try{const value=await api('chats?mode='+mode);if(!disposed)setList(value.items);const active=currentId.current;if(active){const value=await api('chats/'+active);if(!disposed&&epoch===generation.current&&active===currentId.current&&value.mode===mode)setChat(value);}}catch(e){if(!disposed)setError((e as Error).message);}}
     void refresh();const timer=setInterval(()=>void refresh(),1000);return()=>{disposed=true;clearInterval(timer);};
@@ -89,12 +90,10 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   const target=review&&chat?.groups.flatMap(g=>g.cards).find(c=>c.id===review.card.id);
   const openGroup=chat?.groups.find(g=>!['released','stopped'].includes(g.state));
   return <section className="chat-layout">
-    {sidebarTarget&&createPortal(<aside className="chat-sidebar"><p className="section-label">Your chats</p><button className="primary-action" onClick={()=>void create()} disabled={saving}>New chat</button>{list.map(item=><button key={item.id} aria-label={'Open chat: '+item.title} className={item.id===id?'selected':''} onClick={()=>void open(item.id)}>{item.title}<small>{item.activity!=='idle'?item.activity:item.error?'Needs attention':item.status}</small></button>)}</aside>,sidebarTarget)}
+    {sidebarTarget&&createPortal(<aside className="chat-sidebar"><p className="section-label">Your chats</p><button className="primary-action" onClick={()=>void create()} disabled={saving}>New chat</button>{list.map(item=><ChatSidebarRow key={item.id} title={item.title} selected={item.id===id} status={item.activity!=='idle'?item.activity:item.error?'Needs attention':item.status} onOpen={()=>void open(item.id)} onRename={()=>{onChooseChat();setRename({id:item.id,title:item.title});}} onDelete={()=>{onChooseChat();setDeleting(item.id);}}/>)}</aside>,sidebarTarget)}
     <div className={'chat-main'+(welcome?' chat-welcome':'')}>
       {!configured&&<p>Set up Chat with <code>seed setup --chat-only</code>.</p>}
         <>
-        {chat.id&&<header className="chat-header"><h1>{chat.title}</h1><button disabled={busy} onClick={()=>setRename(chat.title)}>Rename</button><button onClick={()=>setDeleting(true)}>Delete</button></header>}
-        {rename!==null&&<form onSubmit={e=>{e.preventDefault();void settings({title:rename}).then(value=>{if(value)setRename(null);});}}><input aria-label="Chat title" value={rename} maxLength={120} onChange={e=>setRename(e.target.value)}/><button>Save name</button><button type="button" onClick={()=>setRename(null)}>Cancel</button></form>}
         <div ref={history} className="chat-history" aria-live="polite" onScroll={()=>{const element=history.current;if(element)follow.current=element.scrollHeight-element.scrollTop-element.clientHeight<60;}}>
           {chat.messages.map(message=><article className={'chat-message '+message.role} key={message.id}><small>{message.role==='user'?'You':message.role==='assistant'?'Seed':'Workflow'}</small><p>{message.text}</p>{message.assets.map(asset=>{const info=chat.asset_manifest?.find(a=>a.id===asset);return <span className="chat-attachment" key={asset}><button onClick={()=>void show(asset)}>{info?.kind==='image'&&<img src={'/api/v1/assets/'+asset+'/content'} alt=""/>}{info?.name??'Open attached asset'}</button>{info?.note&&<small>{info.note}</small>}<button onClick={()=>setSelected(current=>current.includes(asset)?current.filter(v=>v!==asset):[...current,asset])}>{selected.includes(asset)?'Selected':'Use in next message'}</button></span>;})}</article>)}
           {chat.groups.map(group=><section className="chat-group" key={group.id}><small>{workflows[group.workflow].label} · {group.state}</small>{group.cards.map(card=>{const revision=card.revisions.at(-1)!;return <article className="chat-card" key={card.id}>
@@ -131,7 +130,8 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
       restore={async(revision,request)=>{const value=await act(()=>api(`chats/${chat.id}/cards/${target.id}/restore`,'POST',{revision,request}));if(value)setReview(null);}}
       stop={()=>{void act(()=>api('chats/'+chat.id+'/stop','POST',{}));setReview(null);}}
       feedback={(message)=>send(message,target,target.revisions.at(-1)!.number)} />}
-    {deleting&&chat&&<ConfirmDialog title="Delete chat?" description="Uploaded and generated media stays in Library." action="Delete chat" onClose={()=>setDeleting(false)} onConfirm={async()=>{await api('chats/'+chat.id,'DELETE');remember('selected.'+mode,'');setDeleting(false);setId(null);currentId.current=null;setChat(null);}}/>}
+    {rename&&<Modal aria-label="Rename chat" onCancel={()=>setRename(null)}><form onSubmit={e=>{e.preventDefault();void act(async()=>{const current=await api('chats/'+rename.id);const value=await api('chats/'+rename.id,'PATCH',{version:current.version,title:rename.title});setList(items=>items.map(item=>item.id===value.id?{...item,title:value.title}:item));setRename(null);return value;});}}><h2>Rename chat</h2><input autoFocus aria-label="Chat title" value={rename.title} maxLength={120} onChange={e=>setRename({...rename,title:e.target.value})}/>{error&&<p role="alert">{error}</p>}<button className="primary-action" disabled={saving||!rename.title.trim()}>Save name</button><button type="button" onClick={()=>setRename(null)}>Cancel</button></form></Modal>}
+    {deleting&&<ConfirmDialog title="Delete chat?" description="Uploaded and generated media stays in Library. Stop active generation before deleting a chat." action="Delete chat" onClose={()=>setDeleting(null)} onConfirm={async()=>{await api('chats/'+deleting,'DELETE');setList(items=>items.filter(item=>item.id!==deleting));if(currentId.current===deleting){remember('selected.'+mode,'');setId(null);currentId.current=null;setChat(null);setText('');}setDeleting(null);}}/>}
   </section>;
 }
 
