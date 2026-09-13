@@ -10,7 +10,7 @@ test('responsive shell, modal focus, keyboard space and streaming text',async({p
  await page.getByRole('button',{name:'Review / history'}).click();const dialog=page.getByRole('dialog',{name:'Review generation'});
  await expect(dialog).toBeVisible();await expect(page.locator('body')).toHaveAttribute('data-scroll-locked',/.+/);
  await page.screenshot({path:'.local/qa-review-desktop.png'});await page.keyboard.press('Escape');await expect(dialog).toHaveCount(0);
- await page.setViewportSize({width:390,height:844});await expect(page.getByRole('navigation')).toHaveCount(0);await page.screenshot({path:'.local/qa-chat-mobile.png'});
+ await page.setViewportSize({width:390,height:844});await expect(page.getByRole('navigation',{name:'Main navigation'})).toHaveCount(0);await page.screenshot({path:'.local/qa-chat-mobile.png'});
  await page.getByRole('button',{name:'Toggle sidebar'}).click();const drawer=page.getByRole('dialog',{name:'Sidebar'});await expect(drawer).toBeVisible();const width=(await drawer.boundingBox())!.width;expect(width).toBeGreaterThan(280);expect(width).toBeLessThan(330);await page.screenshot({path:'.local/qa-sidebar-mobile.png'});await page.keyboard.press('Escape');await expect(drawer).toHaveCount(0);
  await page.setViewportSize({width:390,height:480});await page.getByLabel('Chat message').focus();await expect.poll(async()=>{const b=await page.locator('.chat-composer').boundingBox();return b!.y+b!.height;}).toBeLessThanOrEqual(480);await page.screenshot({path:'.local/qa-keyboard-space.png'});
  await page.setViewportSize({width:390,height:844});await page.getByRole('button',{name:'Review / history'}).click();await expect(dialog).toBeVisible();await page.screenshot({path:'.local/qa-review-mobile.png'});
@@ -37,4 +37,21 @@ test('streaming follows near the bottom and preserves the reader position above 
  await stream();await expect.poll(gap).toBeLessThan(2);
  await page.setViewportSize({width:390,height:480});await expect.poll(gap).toBeLessThan(2);
  await history.locator('.chat-history-content').evaluate(e=>{const image=document.createElement('div');image.style.height='300px';e.append(image);});await expect.poll(gap).toBeLessThan(2);
+});
+
+test('provider reasoning streams expanded and collapses with the answer',async({page})=>{
+ await page.addInitScript(()=>{(window as any).EventSource=class {onmessage:any;constructor(){(window as any).chatStream=this;}close(){}};});
+ const chat:any={id:'thinking',title:'Reasoning test',mode:'sfw',workflow:null,version:0,activity:'thinking',reasoning:true,messages:[],groups:[],assets:[],jobs:[],accounting:[]};
+ await page.route('**/api/v1/chats**',r=>r.fulfill({json:new URL(r.request().url()).pathname==='/api/v1/chats'?{items:[chat]}:chat}));
+ await page.goto('/chat');await page.getByRole('button',{name:'Open chat: Reasoning test'}).click();
+ chat.partial_reasoning='I will use the reference image to guide the lighting.';
+ await page.evaluate(value=>(window as any).chatStream.onmessage({data:JSON.stringify(value)}),chat);
+ await expect(page.locator('.reasoning-body')).toBeVisible();await expect(page.locator('.reasoning-disclosure')).toHaveAttribute('aria-expanded','true');
+ await page.screenshot({path:'.local/qa-reasoning-stream.png'});
+ chat.partial='Here is the proposed scene.';await page.evaluate(value=>(window as any).chatStream.onmessage({data:JSON.stringify(value)}),chat);
+ await expect(page.locator('.reasoning-body')).toBeHidden();await expect(page.getByText(chat.partial,{exact:true})).toBeVisible();
+ chat.messages=[{id:'answer',role:'assistant',text:chat.partial,reasoning_text:chat.partial_reasoning,assets:[]}];chat.activity='idle';chat.partial='';chat.partial_reasoning='';
+ await page.evaluate(value=>(window as any).chatStream.onmessage({data:JSON.stringify(value)}),chat);
+ await expect(page.locator('.reasoning-disclosure')).toHaveCount(1);await page.reload();await page.locator('.reasoning-disclosure').click();await expect(page.locator('.reasoning-body')).toContainText('reference image');
+ await page.setViewportSize({width:390,height:844});await page.screenshot({path:'.local/qa-reasoning-expanded-mobile.png'});
 });

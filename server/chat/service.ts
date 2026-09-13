@@ -38,7 +38,7 @@ export class Chats {
       }
     }
   }
-  private save(chat:StoredChat){chat.updated_at=now();this.db.prepare('INSERT INTO chats VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body_json=excluded.body_json').run(chat.id,chat.mode,JSON.stringify(chat));for(const listener of this.listeners.get(chat.id)??[])listener({partial:chat.partial??'',activity:chat.activity,error:chat.error});}
+  private save(chat:StoredChat){chat.updated_at=now();this.db.prepare('INSERT INTO chats VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body_json=excluded.body_json').run(chat.id,chat.mode,JSON.stringify(chat));for(const listener of this.listeners.get(chat.id)??[])listener({partial:chat.partial??'',partial_reasoning:chat.partial_reasoning??'',activity:chat.activity,error:chat.error});}
   private get(id:string):StoredChat{const row=this.db.prepare('SELECT body_json FROM chats WHERE id=?').get(id) as {body_json:string}|undefined;if(!row)throw Error('Chat not found.');return JSON.parse(row.body_json);}
   private event(chat:StoredChat,text:string){chat.messages.push({id:randomUUID(),role:'event',text,assets:[],created_at:now()});}
   private jobIds(chat:ChatView){return [...new Set(chat.groups.flatMap(g=>g.cards.flatMap(c=>c.revisions.flatMap(r=>r.job_ids))))];}
@@ -131,7 +131,7 @@ export class Chats {
     const snapshot=chatPromptSnapshot(this.paths,chat.mode,chat.workflow);
     chat.messages.push({id:randomUUID(),role:'user',text:input.text,assets:input.assets,created_at:now()});
     if(chat.title==='New chat')chat.title=input.text.trim().slice(0,70);
-    if(group)group.state='revising';chat.activity='thinking';chat.error=null;chat.partial='';chat.version++;
+    if(group)group.state='revising';chat.activity='thinking';chat.error=null;chat.partial='';chat.partial_reasoning='';chat.version++;
     const run={id:randomUUID(),prompt:snapshot,accounting:[] as ChatAccounting[],messages:[] as AgentMessage[],state:'running'};chat.runs.push(run);this.save(chat);
     const task=this.run(chat.id,chat.epoch,run.id,key,snapshot,selected,target?.id).finally(()=>{this.tasks.delete(id);this.agents.delete(id);});this.tasks.set(id,task);return this.view(id);
   }
@@ -166,6 +166,7 @@ export class Chats {
         if(event.type==='message_update'&&event.message.role==='assistant'&&Date.now()-lastUpdate>150){
           const c=this.get(id);if(c.epoch!==epoch)return;
           c.partial=event.message.content.filter(part=>part.type==='text').map(part=>part.text).join('');
+          c.partial_reasoning=event.message.content.filter(part=>part.type==='thinking'&&!part.redacted).map(part=>part.type==='thinking'?part.thinking:'').join('');
           this.save(c);lastUpdate=Date.now();
         }
       });
@@ -180,9 +181,10 @@ export class Chats {
         const failed=toolResults.filter(m=>m.isError);
         if(failed.length){const detail=failed.map(m=>m.content.filter(p=>p.type==='text').map(p=>p.text).join(' ')).join(' ');this.event(current,'A request tool failed: '+detail);if(toolResults.at(-1)?.isError)current.error='The request was not saved. '+detail;}
         const text=agent.state.messages.filter(m=>m.role==='assistant').flatMap(m=>m.content.filter(p=>p.type==='text').map(p=>p.text)).join('\n');
-        if(text)current.messages.push({id:randomUUID(),role:'assistant',text,assets:[],created_at:now()});
+        const reasoning_text=agent.state.messages.filter(m=>m.role==='assistant').flatMap(m=>m.content.filter(p=>p.type==='thinking'&&!p.redacted).map(p=>p.type==='thinking'?p.thinking:'')).join('\n');
+        if(text||reasoning_text)current.messages.push({id:randomUUID(),role:'assistant',text,...(reasoning_text?{reasoning_text}:{}),assets:[],created_at:now()});
         const pending=openGroup(current);if(pending){if(pending.cards.length)pending.state='reviewing';else current.groups=current.groups.filter(g=>g.id!==pending.id);}
-        current.activity='idle';current.partial='';
+        current.activity='idle';current.partial='';current.partial_reasoning='';
       }
       this.save(current);
     }catch(error){const current=this.get(id);current.runs.find(r=>r.id===runId)!.state='failed';if(current.epoch===epoch){current.error=(error as Error).message;current.activity='idle';}this.save(current);}

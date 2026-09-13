@@ -1795,3 +1795,9 @@ body { background:#171917; }
 @media(max-width:360px) { .request-actions { gap:3px; } .request-actions .card-icon-action { width:30px; padding:5px; } }
 
 .chat-card { max-width:560px; box-sizing:border-box; }
+
+.model-reasoning { margin:4px 0 10px; }
+.chat-layout button.reasoning-disclosure { display:flex; align-items:center; gap:8px; padding:4px 0; margin:0; border:0; background:transparent; color:#a4ae9b; font-size:13px; font-weight:500; }
+.reasoning-body { margin-top:8px; padding-left:12px; border-left:2px solid #46533a; }
+.chat-message .reasoning-body p { color:#a4ae9b; font-size:14px; line-height:1.6; }
+.model-reasoning.is-streaming .reasoning-disclosure { color:#d4dfc6; }
