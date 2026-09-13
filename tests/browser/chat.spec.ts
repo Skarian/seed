@@ -27,8 +27,8 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
 
   await input.fill('/');await expect(page.getByRole('listbox',{name:'Commands'})).toBeVisible();await expect(page.getByRole('option')).toHaveCount(4);await page.screenshot({path:'.local/qa-slash-desktop.png'});
   await expect(page.getByRole('checkbox',{name:'Reasoning'})).toHaveCount(0);
-  await input.fill('/reasoning');await expect(page.getByRole('option')).toContainText('Reasoning · on');await input.press('Enter');await expect.poll(()=>chat.reasoning).toBe(false);expect(messages).toHaveLength(0);
-  await input.fill('/reasoning');await expect(page.getByRole('option')).toContainText('Reasoning · off');await input.press('Enter');await expect.poll(()=>chat.reasoning).toBe(true);
+  await input.fill('/reasoning');await expect(page.getByRole('option')).toContainText('Reasoning · on');await input.press('Enter');await expect.poll(()=>chat.reasoning).toBe(false);await expect(input).toHaveValue('');expect(messages).toHaveLength(0);
+  await input.fill('/reasoning');await expect(page.getByRole('option')).toContainText('Reasoning · off');await input.press('Enter');await expect.poll(()=>chat.reasoning).toBe(true);await expect(input).toHaveValue('');
   await input.fill('/text');await expect(page.getByRole('option')).toHaveCount(2);await input.press('ArrowDown');await input.press('Enter');
   await expect(page.locator('.active-workflow')).toContainText('Text to video');await expect(input).toHaveValue('');expect(messages).toHaveLength(0);
   await input.fill('/reference');await page.getByRole('option').click();await expect(page.locator('.active-workflow')).toContainText('Reference to video');
@@ -61,7 +61,7 @@ test('real Chat API supports rename and delete without a configured model',async
   await expect(page.getByRole('heading',{name:'New chat',exact:true})).toBeVisible();
   await page.getByRole('button',{name:'Rename',exact:true}).click();await page.getByLabel('Chat title').fill('Browser persistence test');await page.getByRole('button',{name:'Save name'}).click();
   await page.reload();await expect(page.getByRole('heading',{name:'Browser persistence test'})).toBeVisible();
-  await page.getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Delete chat',exact:true}).click();await expect(page.getByRole('heading',{name:'Direct your next creation'})).toBeVisible();
+  await page.getByRole('button',{name:'Delete',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Delete chat',exact:true}).click();await expect(page.getByRole('heading',{name:'What shall we create today?'})).toBeVisible();
 });
 
 test('Chat upload reaches Library before sending and notes reject stale writes',async({page})=>{
@@ -78,3 +78,28 @@ test('Chat upload reaches Library before sending and notes reject stale writes',
   expect((await(await page.request.get('/api/v1/notes/'+assetId)).json()).note).toBe('Green fabric reference');
 });
 
+
+test('empty Chat has a centered welcome and bottom composer and creates a conversation on first send',async({page})=>{
+  const chat:any={id:'welcome-chat',title:'New chat',mode:'sfw',workflow:null,version:0,epoch:0,reasoning:true,messages:[],groups:[],assets:[],activity:'idle',error:null,jobs:[],accounting:[]};
+  let creates=0;
+  await page.route('**/api/v1/chat-config',r=>r.fulfill({json:{configured:true}}));
+  await page.route('**/api/v1/chats**',async r=>{
+    const path=new URL(r.request().url()).pathname;
+    if(path==='/api/v1/chats'&&r.request().method()==='GET')return r.fulfill({json:{items:[]}});
+    if(path==='/api/v1/chats'&&r.request().method()==='POST')creates++;
+    if(path.endsWith('/messages')){chat.messages.push({id:'first',role:'user',text:r.request().postDataJSON().text,assets:[]});chat.version++;}
+    await r.fulfill({json:chat});
+  });
+  await page.goto('/chat');
+  await expect(page.getByRole('heading',{name:'What shall we create today?'})).toBeVisible();
+  expect(creates).toBe(0);
+  await page.screenshot({path:'.local/qa-welcome-desktop.png'});
+  await page.setViewportSize({width:390,height:844});
+  await page.screenshot({path:'.local/qa-welcome-mobile.png'});
+  const box=await page.locator('.chat-composer').boundingBox();expect(box!.y).toBeGreaterThan(650);expect(box!.y+box!.height).toBeLessThanOrEqual(844);
+  await page.setViewportSize({width:390,height:500});await page.screenshot({path:'.local/qa-welcome-keyboard.png'});const compact=await page.locator('.chat-composer').boundingBox();expect(compact!.y+compact!.height).toBeLessThanOrEqual(500);await expect(page.getByRole('heading',{name:'What shall we create today?'})).toBeVisible();
+  await page.getByLabel('Chat message').fill('A quiet mountain lake');
+  await page.getByRole('button',{name:'Send',exact:true}).click();
+  await expect(page.locator('.chat-message.user')).toContainText('A quiet mountain lake');
+  await expect(page.locator('.chat-welcome-heading')).toHaveCount(0);expect(creates).toBe(1);
+});
