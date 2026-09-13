@@ -1,3 +1,4 @@
+import {Modal} from './modal.js';
 import React, { useEffect, useRef, type ReactNode } from 'react';
 
 export type PreviewMedia = {
@@ -7,16 +8,8 @@ export type PreviewMedia = {
 export function MediaPreview({ media, onClose, onDelete, controls, label='Media preview' }: {
   media: PreviewMedia; onClose: () => void; onDelete?: () => void; controls?: ReactNode; label?:string;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    const element = dialog.current;
-    const trigger = document.activeElement as HTMLElement | null;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden';
-    element?.showModal();
-    return () => { element?.close(); document.body.style.overflow = overflow; if (trigger?.isConnected) trigger.focus(); };
-  }, []);
-  return <dialog ref={dialog} className="media-viewer" aria-label={label} onCancel={event => { event.preventDefault(); onClose(); }}>
+  const dialog = useRef<HTMLDivElement>(null);
+  return <Modal ref={dialog} className="media-viewer" aria-label={label} onCancel={event => { event.preventDefault(); onClose(); }}>
     <header className="viewer-toolbar">
       <button type="button" className="viewer-button" aria-label="Close preview" onClick={onClose}><Glyph name="close" /></button>
       <div className="viewer-actions">
@@ -29,7 +22,7 @@ export function MediaPreview({ media, onClose, onDelete, controls, label='Media 
       {media.kind === 'image' ? <img src={media.url} alt={media.name} /> : media.kind === 'video' ? <video src={media.url} controls playsInline preload="metadata" /> : <div className="viewer-audio"><span aria-hidden="true">♫</span><audio src={media.url} controls preload="metadata" /></div>}
     </div>
     {controls && <div className="viewer-controls">{controls}</div>}
-  </dialog>;
+  </Modal>;
 }
 export function Glyph({ name }: { name: 'close' | 'info' | 'download' | 'delete' }) {
   return <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">

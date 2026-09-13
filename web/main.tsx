@@ -1,3 +1,6 @@
+import {Sidebar} from './sidebar.js';
+import * as Collapsible from '@radix-ui/react-collapsible';
+import {useAppLayout} from './app-layout.js';
 import { SpicyProvider, SpicyBrand, useSpicy, presentAsset } from "./spicy-mode.js";
 import React, { useEffect, useRef, useState } from "react";
 import { createRoot } from "react-dom/client";
@@ -180,6 +183,10 @@ function SavedImage({
 }
 
 function App() {
+  const {open:sidebarOpen,setOpen:setSidebarOpen,wide}=useAppLayout();
+  const [sidebarTarget,setSidebarTarget]=useState<HTMLDivElement|null>(null);
+  const [libraryType,setLibraryType]=useState('all');
+  const [gpuOpen,setGpuOpen]=useState(false),[jobsOpen,setJobsOpen]=useState(false);
   const [page, setPage] = useState(
     location.pathname === "/chat" ? "chat" : location.pathname === "/library" ? "library" : "generate",
   );
@@ -197,7 +204,7 @@ function App() {
   const { spicy } = useSpicy();
   const mode = spicy ? "nsfw" : "sfw";
   const visibleAssets = assets.filter(
-    (asset) => (asset.mode ?? 'sfw') === mode,
+    (asset) => (asset.mode ?? 'sfw') === mode && (libraryType==='all'||asset.kind===libraryType),
   );
   const [assetCursor, setAssetCursor] = useState<string | null>(null);
   const loadedMore = useRef(false);
@@ -273,7 +280,7 @@ function App() {
     }
     async function refreshLibrary() {
       try {
-        const response = await fetch("/api/v1/assets?mode=" + mode, {
+        const response = await fetch("/api/v1/assets?mode=" + mode + (libraryType==='all'?'':'&kind='+libraryType), {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error("Unavailable");
@@ -313,8 +320,8 @@ function App() {
       controller.abort();
       clearInterval(timer);
     };
-  }, [connectionRevision, mode]);
-  useEffect(() => { setAssets([]); setAssetCursor(null); loadedMore.current=false; setLibraryLoaded(false); setViewAsset(null); setDeleteTarget(null); }, [mode]);
+  }, [connectionRevision, mode, libraryType]);
+  useEffect(() => { setAssets([]); setAssetCursor(null); loadedMore.current=false; setLibraryLoaded(false); setViewAsset(null); setDeleteTarget(null); }, [mode,libraryType]);
   useEffect(() => {
     try {
       localStorage.setItem("seed.drafts.v2", JSON.stringify(drafts));
@@ -331,6 +338,7 @@ function App() {
     return () => removeEventListener("popstate", onPopState);
   }, []);
   function navigate(next: string) {
+    if(!wide)setSidebarOpen(false);
     setPage(next);
     history.pushState(null, "", next === 'chat' ? '/chat' : next === "library" ? "/library" : "/");
   }
@@ -443,7 +451,7 @@ function App() {
   async function moreAssets() {
     if (!assetCursor) return;
     const response = await fetch(
-      "/api/v1/assets?mode=" + mode + "&cursor=" + encodeURIComponent(assetCursor),
+      "/api/v1/assets?mode=" + mode + (libraryType==='all'?'':'&kind='+libraryType) + "&cursor=" + encodeURIComponent(assetCursor),
     );
     if (!response.ok) {
       setGenerationError("Could not load older images.");
@@ -607,56 +615,32 @@ function App() {
   }
 
   return (
-    <div className="studio-shell">
-      <header className="topbar">
-        <SpicyBrand onNavigate={() => navigate("generate")}>
+    <div className={`studio-shell ${sidebarOpen?'sidebar-visible':''} page-${page}`}>
+      <header className="app-bar"><button className="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded={sidebarOpen} aria-controls="app-sidebar" onClick={()=>setSidebarOpen(!sidebarOpen)}>☰</button>        <SpicyBrand onNavigate={() => navigate("generate")}>
           <span className="brand-mark"><SeedMark /></span>
           seed
         </SpicyBrand>
-        <nav aria-label="Main navigation">
-          {["generate", "library", "chat"].map((item) => (
-            <button
-              key={item}
-              aria-current={page === item ? "page" : undefined}
-              onClick={() => navigate(item)}
-            >
-              {item === "generate" ? "Generate" : item === "chat" ? "Chat" : "Library"}
-            </button>
-          ))}
-        </nav>
+<span className="page-label">{page}</span></header>
+      <Sidebar open={sidebarOpen} wide={wide} onOpenChange={setSidebarOpen}>
         <div className="header-status">
-          <button
+<Collapsible.Root open={gpuOpen} onOpenChange={setGpuOpen}><Collapsible.Trigger asChild><button
             className="pod-button"
             data-tone={tone}
-            popoverTarget="pod-details"
             aria-label={`Pod connection: ${workerLabel}`}
           >
             <Icon name="pod" />
             <span className="status-dot" />
-            <span className="pod-label">{workerLabel}</span>
-          </button>
-          <button
-            className="jobs-button"
-            popoverTarget="job-details"
-            aria-label={`Jobs${jobCount === null ? "" : `, ${jobCount}`}`}
-          >
-            <Icon name="jobs" />
-            <span className="job-count">{jobCount ?? "–"}</span>
-          </button>
-        </div>
-      </header>
-      <section
+            <span className="pod-label">GPU connection<small>{workerLabel}</small></span><span className="chevron">⌄</span>
+          </button></Collapsible.Trigger><Collapsible.Content>      <section
         id="pod-details"
-        popover="auto"
-        className="status-popover"
+        className="sidebar-dropdown"
         aria-labelledby="pod-title"
       >
         <div className="popover-title">
           <h2 id="pod-title">Pod connection</h2>
           <button
             className="icon-button"
-            popoverTarget="pod-details"
-            popoverTargetAction="hide"
+            onClick={()=>setGpuOpen(false)}
             aria-label="Close pod details"
           >
             <Icon name="close" />
@@ -748,18 +732,23 @@ function App() {
           </p>
         )}
       </section>
-      <section
+</Collapsible.Content></Collapsible.Root>
+<Collapsible.Root open={jobsOpen} onOpenChange={setJobsOpen}><Collapsible.Trigger asChild><button
+            className="jobs-button"
+            aria-label={`Jobs${jobCount === null ? "" : `, ${jobCount}`}`}
+          >
+            <Icon name="jobs" />
+            <span>Jobs</span><span className="job-count">{jobCount ?? "–"}</span>
+          </button></Collapsible.Trigger><Collapsible.Content>      <section
         id="job-details"
-        popover="auto"
-        className="status-popover"
+        className="sidebar-dropdown"
         aria-labelledby="jobs-title"
       >
         <div className="popover-title">
           <h2 id="jobs-title">Jobs</h2>
           <button
             className="icon-button"
-            popoverTarget="job-details"
-            popoverTargetAction="hide"
+            onClick={()=>setJobsOpen(false)}
             aria-label="Close jobs"
           >
             <Icon name="close" />
@@ -845,6 +834,23 @@ function App() {
           </>
         )}
       </section>
+</Collapsible.Content></Collapsible.Root>
+        </div>
+        <nav aria-label="Main navigation">
+          {["library", "generate", "chat"].map((item) => (
+            <button
+              key={item}
+              aria-current={page === item ? "page" : undefined}
+              onClick={() => navigate(item)}
+            >
+              {item === "generate" ? "Generate" : item === "chat" ? "Chat" : "Library"}
+            </button>
+          ))}
+        </nav>
+        <div className="sidebar-section" ref={setSidebarTarget}/>
+        {page==='generate'&&<div className="sidebar-section"><p className="section-label">Workflows</p>{Object.entries(workflows).filter(([id])=>id!=='image-to-image').map(([id,value])=><button key={id} className={workflow===id?'selected':''} onClick={()=>{setWorkflow(id as WorkflowId);setAdvancedOpen(false);if(!wide)setSidebarOpen(false);}}>{value.title}</button>)}</div>}
+        {page==='library'&&<div className="sidebar-section"><p className="section-label">Media type</p>{['all','image','video','audio','sequence'].map(type=><button key={type} className={libraryType===type?'selected':''} onClick={()=>{setLibraryType(type);if(!wide)setSidebarOpen(false);}}>{type==='all'?'All media':type==='sequence'?'Frame sequences':type.charAt(0).toUpperCase()+type.slice(1)+'s'}</button>)}</div>}
+      </Sidebar>
       <main>
         {page === "generate" ? (
           <>
@@ -1179,7 +1185,7 @@ function App() {
               )}
             </section>
           </>
-        ) : page === 'chat' ? <Chat /> : (
+        ) : page === 'chat' ? <Chat sidebarTarget={sidebarTarget} onChooseChat={()=>{if(!wide)setSidebarOpen(false);}} /> : (
           <section className="library">
             <div className="library-heading">
               <h1>Library</h1>

@@ -9,7 +9,7 @@ test('Library floating delete requires confirmation and keeps the item on failur
   await expect(remove).toBeVisible();
   await remove.click(); await page.getByRole('button',{name:'Cancel',exact:true}).click(); expect(deletes).toBe(0);
   await remove.click(); await expect(page.getByRole('dialog')).toContainText('cannot be undone'); await page.getByRole('button',{name:'Delete',exact:true}).click();
-  await expect(page.getByRole('alert')).toContainText('File is busy.'); await expect(remove).toBeVisible();
+  await expect(page.getByRole('alert')).toContainText('File is busy.'); await expect(page.getByRole('button',{name:'Delete Test image',includeHidden:true})).toHaveCount(1);
   await page.screenshot({path:'.local/library-delete-mobile.png',fullPage:true});
   fail=false;await page.getByRole('button',{name:'Delete',exact:true}).click();
   await expect(remove).toHaveCount(0);await expect(page.getByText('No saved files yet.')).toBeVisible();expect(deletes).toBe(2);

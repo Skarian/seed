@@ -125,3 +125,16 @@ it('surfaces rejected tool calls even when the model falsely claims success',asy
   expect(schema.properties.output.properties).not.toHaveProperty('duration_seconds');
   expect(schema.properties.seed.pattern).toContain('random');
 }));
+
+it('publishes incremental assistant text before the completed chat snapshot',async()=>fixture(async({chats})=>{
+ const c=chats.create('sfw');const updates:any[]=[];const off=chats.subscribe(c.id,value=>updates.push(value));
+ chats.send(c.id,{version:c.version,text:'Hello',assets:[]});await idle(chats,c.id);off();
+ expect(updates.some(v=>v.activity==='thinking'&&v.partial==='Ready for review.')).toBe(true);
+ expect(updates.at(-1)).toMatchObject({activity:'idle',partial:''});
+}));
+
+it('filters Library media type before pagination',async()=>fixture(async({db})=>{
+ for(let i=0;i<60;i++)db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('kind-'+i,i===0?'video':'image','Media','media/originals/'+i,'{}',String(i).padStart(4,'0'));
+ expect(listAssets(db,'',50,'sfw','video').map(a=>a.id)).toEqual(['kind-0']);
+ expect(listAssets(db,'',50,'sfw','image')).toHaveLength(50);
+}));

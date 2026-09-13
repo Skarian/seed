@@ -1,3 +1,4 @@
+import {Modal} from './modal.js';
 import { FrameCanvas } from './frame-canvas.js';
 import { AssetNote } from './asset-note.js';
 import { useFrameImage } from './frame-images.js';
@@ -9,17 +10,12 @@ export function FrameViewer({ id, onClose, onChanged, onPick, selectedIds = [], 
   id:string; onClose:()=>void; onChanged?:()=>void;
   onPick?:(asset:LibraryAsset)=>void; selectedIds?:string[]; canPick?:(asset:LibraryAsset)=>boolean;
 }) {
-  const dialog=useRef<HTMLDialogElement>(null);
+  const dialog=useRef<HTMLDivElement>(null);
   const [sequence,setSequence]=useState<FrameSequence|null>(null), [position,setPosition]=useState(0);
   const [selected,setSelected]=useState<string[]>([]);
   const [error,setError]=useState(''), [confirm,setConfirm]=useState(false), [zoom,setZoom]=useState(false);
   const [retry,setRetry]=useState(0), [displayed,setDisplayed]=useState('');
   const frame=sequence?.frames[position];
-  useEffect(()=>{
-    const trigger=document.activeElement as HTMLElement, element=dialog.current;
-    const overflow=document.body.style.overflow; document.body.style.overflow='hidden'; element?.showModal();
-    return ()=>{element?.close();document.body.style.overflow=overflow;if(trigger?.isConnected)trigger.focus();};
-  },[]);
   useEffect(()=>{
     const controller=new AbortController();
     void fetch('/api/v1/sequences/'+encodeURIComponent(id),{signal:controller.signal}).then(async response=>{
@@ -42,7 +38,7 @@ export function FrameViewer({ id, onClose, onChanged, onPick, selectedIds = [], 
   const pickBlocked=Boolean(onPick&&!checked&&asset&&canPick&&!canPick(asset));
   const selectedPositions=(sequence?.frames??[]).flatMap((f,index)=>(onPick?selectedIds:selected).includes(f.id)?[index]:[]);
   const previous=[...selectedPositions].reverse().find(index=>index<position), next=selectedPositions.find(index=>index>position);
-  return <dialog ref={dialog} className="frame-viewer" aria-label="Image sequence" onCancel={e=>{e.preventDefault();onClose();}}>
+  return <Modal ref={dialog} className="frame-viewer" aria-label="Image sequence" onCancel={e=>{e.preventDefault();onClose();}}>
     <header><span>{sequence?.frames.length??0} frames{original.buffering && <small className="frame-buffering" role="status">Preparing previews…</small>}</span><div>
       {sequence?.cleanup_pending&&<p>Frame cleanup was interrupted. <button onClick={async()=>{
       try { const r=await fetch('/api/v1/sequences/'+id+'/retry-cleanup',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});const body=await r.json();if(!r.ok)throw Error(body.error?.message??'Cleanup failed.');onChanged?.();if(body.sequence)setSequence(body.sequence);else onClose(); }catch(e){setError((e as Error).message);}
@@ -77,5 +73,5 @@ export function FrameViewer({ id, onClose, onChanged, onPick, selectedIds = [], 
       const body=await response.json();if(!response.ok)throw Error(body.error?.message??'Could not remove frames.');
       setSequence(body);setPosition(0);setSelected([]);onChanged?.();
     }}/>}
-  </dialog>;
+  </Modal>;
 }

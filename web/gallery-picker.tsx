@@ -1,3 +1,4 @@
+import {Modal} from './modal.js';
 import { useSpicy, presentAsset } from "./spicy-mode.js";
 import { FrameViewer } from './frame-viewer.js';
 import React, { useEffect, useRef, useState } from 'react';
@@ -8,7 +9,7 @@ import { LoadingIndicator } from './media-card.js';
 export function GalleryPicker({ group, existing, onClose, onSelect }: {
   group: 'edit' | 'video'; existing: Reference[]; onClose: () => void; onSelect: (assets: LibraryAsset[]) => Promise<void>;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
+  const dialog = useRef<HTMLDivElement>(null);
   const [sequence, setSequence] = useState<string|null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [selected, setSelected] = useState<LibraryAsset[]>([]);
@@ -30,12 +31,7 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
     } catch (e) { setError((e as Error).message); }
     finally { setLoading(false); }
   }
-  useEffect(() => {
-    const element = dialog.current, trigger = document.activeElement as HTMLElement;
-    const overflow = document.body.style.overflow;
-    document.body.style.overflow = 'hidden'; element?.showModal(); void load();
-    return () => { element?.close(); document.body.style.overflow = overflow; trigger?.focus(); };
-  }, []);
+  useEffect(()=>{void load();},[]);
   const initialMode=useRef(spicy);
   useEffect(()=>{if(initialMode.current!==spicy)onClose();},[spicy]);
   const visible = assets.filter(a => (group !== 'edit' || a.kind === 'image' || a.kind === 'sequence') && (a.mode??'sfw') === (spicy?'nsfw':'sfw'));
@@ -43,7 +39,7 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
     return existing.some(a => a.asset_id === asset.id) || existing.length + selected.length >= maximum ||
       (group === 'video' && [...existing, ...selected].filter(a => a.kind === asset.kind).length >= (asset.kind === 'image' ? 9 : 3));
   }
-  return <dialog ref={dialog} className="gallery-picker" aria-label="Choose from gallery" onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}>
+  return <Modal ref={dialog} className="gallery-picker" aria-label="Choose from gallery" onCancel={event => { event.preventDefault(); if (!saving) onClose(); }}>
     <header><h2>Gallery</h2><button type="button" aria-label="Close gallery" disabled={saving} onClick={onClose}>×</button></header>
     <div className="gallery-options"><span>{selected.length} selected · {existing.length} already added · max: {maximum}</span></div>
     {group === 'video' && <p className="gallery-limits">Up to 9 images, 3 videos and 3 audio files; 12 combined.</p>}
@@ -63,5 +59,5 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
     </div>
     {sequence && <FrameViewer id={sequence} onClose={()=>setSequence(null)} selectedIds={selected.map(a=>a.id)} canPick={asset=>!unavailable(asset)} onPick={asset=>setSelected(items=>items.some(a=>a.id===asset.id)?items.filter(a=>a.id!==asset.id):[...items,asset])}/>}
     <footer><button type="button" disabled={saving} onClick={onClose}>Cancel</button><button type="button" disabled={!selected.length || saving} onClick={async () => { setSaving(true); try { await onSelect(selected); } catch (e) { setError((e as Error).message); setSaving(false); } }}>{saving ? 'Adding…' : `Select${selected.length ? ` (${selected.length})` : ''}`}</button></footer>
-  </dialog>;
+  </Modal>;
 }

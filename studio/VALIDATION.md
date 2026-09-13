@@ -294,3 +294,29 @@ passed. After installation, a phone-sized browser with that mocked response
 confirmed the full message visible and focused. Real Generate replay was blocked
 by automatic approval review due to possible paid job submission; no job was
 submitted during diagnosis.
+
+
+## Sidebar and UI overhaul (2026-09-13)
+
+Installed a shared sidebar with GPU/Jobs collapsibles, Library/Generate/Chat
+navigation and page-specific options. Desktop opens at 1100px; mobile uses a
+modal 78vw drawer. Chat fills the viewport with independent history scrolling,
+a growing composer, clear primary actions and keyboard-aware viewport sizing.
+All six dialog types use Radix Dialog through Modal. Library kind filtering
+happens before pagination. Chat partial text now arrives through SSE; a local
+HTTP check confirms streams end cleanly on server shutdown.
+
+Validation: 109 application tests passed (single-worker run after one timing-
+sensitive transfer test failed under concurrent browser load); typecheck/build
+and credential scan passed. All 34 browser cases passed. Expanded design QA then
+passed streaming visibility, drawer size/focus, modal scroll locking, a reduced
+keyboard viewport, and a 40-message long conversation. Visually inspected
+screenshots for desktop/mobile Chat, review dialogs, mobile drawer, Generate,
+and reduced viewport. Evidence is in `.local/qa-*.png` and browser test outputs.
+
+The first isolated package run failed its startup probe despite a listening
+server log; retry without concurrent suite load passed install, setup, upgrade,
+rollback and data preservation (`seed-package-hCTwyf`). No claim is made that
+this isolated probe failure's root cause is established. No paid model or GPU
+requests were submitted during the redesign. Physical iOS/Android keyboard and
+owner visual acceptance remain to be checked on the actual devices.

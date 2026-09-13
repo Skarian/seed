@@ -64,7 +64,7 @@ export function openDatabase(dataDirectory: string) {
   }
 }
 
-export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw'): LibraryAsset[] {
+export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string): LibraryAsset[] {
   return db.prepare(`WITH items AS (
     SELECT id, kind, name, created_at,
       COALESCE(json_extract(metadata_json, '$.mode'), (SELECT json_extract(snapshot_json, '$.request.mode') FROM jobs WHERE jobs.id=json_extract(assets.metadata_json, '$.job_id')), CASE WHEN name = 'Image · NSFW' THEN 'nsfw' ELSE 'sfw' END) AS mode,
@@ -75,7 +75,7 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
       (SELECT asset_id FROM sequence_frames WHERE sequence_id=s.id ORDER BY frame_index LIMIT 1),
       (SELECT COUNT(*) FROM sequence_frames WHERE sequence_id=s.id)
     FROM sequences s WHERE pending_json IS NOT NULL OR EXISTS(SELECT 1 FROM sequence_frames WHERE sequence_id=s.id)
-  ) SELECT * FROM items WHERE (? IS NULL OR mode=?) AND (? = '' OR (created_at,id) < (SELECT created_at,id FROM items WHERE id=?)) ORDER BY created_at DESC,id DESC LIMIT ?`).all(mode??null,mode??null,cursor,cursor,limit).map((row:any)=> {
+  ) SELECT * FROM items WHERE (? IS NULL OR mode=?) AND (? IS NULL OR kind=?) AND (? = '' OR (created_at,id) < (SELECT created_at,id FROM items WHERE id=?)) ORDER BY created_at DESC,id DESC LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,cursor,cursor,limit).map((row:any)=> {
     if(row.kind!=='sequence'){ delete row.cover_id; delete row.frame_count; }
     return row;
   }) as LibraryAsset[];

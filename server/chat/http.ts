@@ -1,3 +1,4 @@
+import type {ServerResponse} from 'node:http';
 import type { FastifyInstance } from 'fastify';
 import type { Chats } from './service.js';
 import type { ChatMode,ChatWorkflow } from '../../shared/chat.js';
@@ -5,11 +6,19 @@ const object=(properties:Record<string,unknown>,required=Object.keys(properties)
 const version={type:'integer',minimum:0};
 const text={type:'string',minLength:1,maxLength:16000};
 export function registerChats(app:FastifyInstance,chats:Chats,configured:()=>boolean){
+  const streams=new Set<ServerResponse>();
+  app.addHook('preClose',async()=>{for(const stream of streams)stream.end();streams.clear();});
   const id=(request:any)=>String(request.params.id);
   const perform=(action:(request:any)=>unknown)=>async(request:any,reply:any)=>{try{return await action(request);}catch(e){return reply.code(409).send({error:{message:(e as Error).message}});}};
   app.get('/api/v1/chat-config',()=>({configured:configured()}));
   app.get('/api/v1/chats',{schema:{querystring:object({mode:{enum:['sfw','nsfw']}})}},perform(r=>({items:chats.list((r.query as {mode:ChatMode}).mode)})));
   app.post('/api/v1/chats',{schema:{body:object({mode:{enum:['sfw','nsfw']}})}},perform(r=>chats.create(r.body.mode)));
+  app.get('/api/v1/chats/:id/events',async(request,reply)=>{
+    let unsubscribe:()=>void;
+    try{unsubscribe=chats.subscribe(id(request),value=>{if(!reply.raw.destroyed)reply.raw.write('data: '+JSON.stringify(value)+'\n\n');});}catch{return reply.code(404).send({error:{message:'Chat not found.'}});}
+    streams.add(reply.raw);reply.hijack();reply.raw.writeHead(200,{'Content-Type':'text/event-stream','Cache-Control':'no-cache','Connection':'keep-alive'});reply.raw.write(': connected\n\n');
+    const timer=setInterval(()=>reply.raw.write(': heartbeat\n\n'),25000);reply.raw.on('close',()=>{clearInterval(timer);unsubscribe();streams.delete(reply.raw);});
+  });
   app.get('/api/v1/chats/:id',perform(r=>chats.view(id(r))));
   app.patch('/api/v1/chats/:id',{schema:{body:object({version,title:{type:'string',minLength:1,maxLength:120},workflow:{enum:[null,'text-to-image','text-to-video','reference-to-video']},reasoning:{type:'boolean'}},['version'])}},perform(r=>chats.settings(id(r),r.body.version,r.body as {title?:string;workflow?:ChatWorkflow|null;reasoning?:boolean})));
   app.delete('/api/v1/chats/:id',perform(r=>{chats.delete(id(r));return {deleted:true};}));

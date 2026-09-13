@@ -1,3 +1,4 @@
+import {Modal} from './modal.js';
 import React, { useEffect, useRef, useState } from "react";
 import { GalleryPicker } from "./gallery-picker.js";
 import type { LibraryAsset } from "../shared/studio.js";
@@ -648,11 +649,10 @@ export function ReferenceInputs({
 }
 
 export function NoteModal({ids,close}:{ids:string[];close:()=>void}) {
-  const dialog=useRef<HTMLDialogElement>(null);
-  useEffect(()=>{dialog.current?.showModal();return()=>dialog.current?.close();},[]);
-  return <dialog ref={dialog} className="gallery-picker" aria-label="Describe assets" onCancel={close}>
+  const dialog=useRef<HTMLDivElement>(null);
+  return <Modal ref={dialog} className="gallery-picker" aria-label="Describe assets" onCancel={close}>
     <header><h2>Describe your assets</h2><button onClick={close}>Done / Skip</button></header>
     <p>Optional notes help the agent refer to each asset. Save each note you want to keep.</p>
     {ids.map(id=><div key={id}><a href={'/api/v1/assets/'+id+'/content'} target="_blank" rel="noreferrer">View asset</a><AssetNote id={id}/></div>)}
-  </dialog>;
+  </Modal>;
 }

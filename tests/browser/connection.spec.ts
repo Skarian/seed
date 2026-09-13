@@ -40,6 +40,7 @@ test('connection states stay truthful and pairing controls stay out of the ready
   ] as const) {
     worker = { state, connected, stale, preparation: { phase: 'Preparing models…', error: message ? { message } : null } };
     await page.reload();
+    if(await page.getByRole('button',{name:'Toggle sidebar'}).getAttribute('aria-expanded')==='false')await page.getByRole('button',{name:'Toggle sidebar'}).click();
     const badge = page.getByRole('button', { name: `Pod connection: ${label}`, exact: true });
     await expect(badge).toHaveAttribute('data-tone', tone);
     await badge.click();

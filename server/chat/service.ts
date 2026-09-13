@@ -21,6 +21,8 @@ const openGroup=(chat:ChatView)=>chat.groups.find(g=>!['released','stopped'].inc
 const now=()=>new Date().toISOString();
 
 export class Chats {
+  private listeners=new Map<string,Set<(value:unknown)=>void>>();
+  subscribe(id:string,listener:(value:unknown)=>void){this.get(id);let group=this.listeners.get(id);if(!group){group=new Set();this.listeners.set(id,group);}group.add(listener);return()=>{group!.delete(listener);if(!group!.size)this.listeners.delete(id);};}
   private agents=new Map<string,Agent>();
   private tasks=new Map<string,Promise<void>>();
   private preparing=new Set<string>();
@@ -35,7 +37,7 @@ export class Chats {
       }
     }
   }
-  private save(chat:StoredChat){chat.updated_at=now();this.db.prepare('INSERT INTO chats VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body_json=excluded.body_json').run(chat.id,chat.mode,JSON.stringify(chat));}
+  private save(chat:StoredChat){chat.updated_at=now();this.db.prepare('INSERT INTO chats VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body_json=excluded.body_json').run(chat.id,chat.mode,JSON.stringify(chat));for(const listener of this.listeners.get(chat.id)??[])listener({partial:chat.partial??'',activity:chat.activity,error:chat.error});}
   private get(id:string):StoredChat{const row=this.db.prepare('SELECT body_json FROM chats WHERE id=?').get(id) as {body_json:string}|undefined;if(!row)throw Error('Chat not found.');return JSON.parse(row.body_json);}
   private event(chat:StoredChat,text:string){chat.messages.push({id:randomUUID(),role:'event',text,assets:[],created_at:now()});}
   private jobIds(chat:ChatView){return [...new Set(chat.groups.flatMap(g=>g.cards.flatMap(c=>c.revisions.flatMap(r=>r.job_ids))))];}

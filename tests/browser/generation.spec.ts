@@ -41,6 +41,7 @@ test('both image modes submit selected settings and show saved output in preview
   await page.getByRole('button', {name:'Delete',exact:true}).click();
   await expect(page.getByRole('img', { name: 'Generated image', exact: true })).toHaveCount(0);
   expect(deletes).toBe(1);
+  if(!await page.getByRole('button', { name: 'Library', exact: true }).isVisible())await page.getByRole('button',{name:'Toggle sidebar'}).click();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByText('No saved files yet.')).toBeVisible();
 });

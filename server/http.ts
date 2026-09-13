@@ -95,7 +95,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
       catch { return fail(reply, 409, 'worker_unavailable', 'Connect a ready worker before resuming.', request.id); }
     });
   }
-  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},mode:{enum:['sfw','nsfw']}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw'}; const items = listAssets(db, query.cursor ?? '', 51, query.mode); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},kind:{enum:['image','video','audio','sequence']},mode:{enum:['sfw','nsfw']}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw';kind?:string}; const items = listAssets(db, query.cursor ?? '', 51, query.mode, query.kind); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/sequences/:id', async (request,reply)=> {
     try {return sequences.get((request.params as any).id) ?? fail(reply,404,'not_found','Sequence not found.',request.id);}
     catch(e){return fail(reply,409,'sequence_busy',(e as Error).message,request.id);}

@@ -47,6 +47,7 @@ test('workflow drafts persist, reset is scoped, and mode controls work', async (
   await page.getByLabel('Workflow').selectOption('reference-to-video');
   await expect(page.getByRole('button', { name: 'Turn off Spicy mode', exact: true })).toBeVisible();
   await expect(page.getByText('References', { exact: true })).toBeVisible();
+  if(!await page.getByRole('button', { name: 'Library', exact: true }).isVisible())await page.getByRole('button',{name:'Toggle sidebar'}).click();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Library', exact: true })).toBeVisible();
   await page.reload();
@@ -59,14 +60,17 @@ test('mobile layout, popovers and prompt resize are usable', async ({ page }) =>
   await expect(page.getByLabel('Workflow')).toBeVisible();
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: test.info().outputPath('generate-mobile.png'), fullPage: true });
+  if(await page.getByRole('button',{name:'Toggle sidebar'}).getAttribute('aria-expanded')==='false')await page.getByRole('button',{name:'Toggle sidebar'}).click();
   await page.getByRole('button', { name: /^Pod connection:/ }).click();
   await expect(page.locator('#pod-details').getByText('Not connected', { exact: true })).toBeVisible();
   await page.keyboard.press('Escape');
   await expect(page.locator('#pod-details').getByText('Not connected', { exact: true })).not.toBeVisible();
+  if(await page.getByRole('button',{name:'Toggle sidebar'}).getAttribute('aria-expanded')==='false')await page.getByRole('button',{name:'Toggle sidebar'}).click();
   await page.getByRole('button', { name: /^Jobs/ }).click();
   await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).toBeVisible();
   await page.getByRole('button', { name: 'Close jobs', exact: true }).click();
   await expect(page.getByRole('heading', { name: 'Jobs', exact: true })).not.toBeVisible();
+  await page.getByRole('button',{name:'Close sidebar'}).click();
   const before = await page.getByLabel('Prompt', { exact: true }).boundingBox();
   await page.getByRole('button', { name: 'Resize prompt', exact: true }).focus();
   await page.keyboard.press('ArrowDown');
@@ -147,7 +151,9 @@ test('thumbnail dropbox opens a reusable viewer with info, roles, download and d
   await page.getByRole('button', { name: 'Preview anchor.png' }).click();
   await page.getByLabel('Role for anchor.png').selectOption('last_frame');
   await page.getByRole('button', { name: 'Close preview' }).click();
+  if(!await page.getByRole('button', { name: 'Library', exact: true }).isVisible())await page.getByRole('button',{name:'Toggle sidebar'}).click();
   await page.getByRole('button', { name: 'Library', exact: true }).click();
+  if(!await page.getByRole('button', { name: 'Generate', exact: true }).isVisible())await page.getByRole('button',{name:'Toggle sidebar'}).click();
   await page.getByRole('button', { name: 'Generate', exact: true }).click();
   await page.getByRole('button', { name: 'Preview anchor.png' }).click();
   await expect(page.getByLabel('Role for anchor.png')).toHaveValue('last_frame');
@@ -213,6 +219,7 @@ test('audio and video previews expose source duration and editable clip ranges',
 
 test('connection form rejects invalid codes and clears them without browser persistence', async ({ page }) => {
   await page.goto('/');
+  if(await page.getByRole('button',{name:'Toggle sidebar'}).getAttribute('aria-expanded')==='false')await page.getByRole('button',{name:'Toggle sidebar'}).click();
   await page.getByRole('button', { name: /^Pod connection:/ }).click();
   await page.getByLabel('Connection code', { exact: true }).fill('studio1.invalid-connection-code');
   await page.getByRole('button', { name: 'Connect', exact: true }).click();

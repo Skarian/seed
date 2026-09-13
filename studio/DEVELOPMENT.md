@@ -90,3 +90,14 @@ research/, not appended as conflicting instructions. Commit coherent tested chan
 at milestones. Preserve unrelated worktree changes. Update the installed package
 when handing off a working change; publishing a worker image is needed only when
 its runtime changes. Read [release rules](RELEASE-AND-INFRASTRUCTURE.md) before that.
+
+
+## Shared UI foundation
+
+Radix Dialog powers the shared Modal and mobile Sidebar; Radix Collapsible powers
+GPU and Jobs dropdowns. Keep styling in the shared Seed stylesheet. Add dialogs
+through Modal so nested focus, Escape, and scroll locking stay consistent.
+The sidebar opens automatically at 1100px; smaller screens use a 78vw drawer.
+Chat uses the visual viewport for keyboard-aware sizing, SSE for partial text,
+and durable snapshot polling for history/reconnect. Physical mobile keyboard
+acceptance remains separate from simulated viewport browser checks.

@@ -517,7 +517,8 @@ GPU rental and paid inference remain separate acceptance steps.
   tests; no coding-agent extensions or helper tools are loaded.
 - Chats, guide/run snapshots, revisions and cancellation intent persist in SQLite.
   Browser reconnection currently uses periodic durable state snapshots, including
-  incrementally saved assistant text, rather than an SSE event-log endpoint.
+  durable state. The UI overhaul adds an SSE stream for incremental assistant text;
+  snapshots remain the reconnect and history fallback.
 - Context assembly summarizes older dialogue once its budget is reached, retaining
   recent turns and canonical current request/asset state separately. Summarization
   uses a bounded, accounted, tool-free model call and participates in Stop.
