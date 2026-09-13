@@ -12,15 +12,15 @@ import {compactConversation} from '../server/chat/context.js';
 
 const request={prompt:'A quiet landscape',seed:'random',count:1,output:{aspect:'16:9',size:'1mp'}};
 function sse(chunk:unknown){return new Response('data: '+JSON.stringify(chunk)+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});}
-async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDatabase>;paths:ReturnType<typeof resolvePaths>;queue:unknown[];requests:any[];cap:any})=>Promise<void>){
+async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDatabase>;paths:ReturnType<typeof resolvePaths>;queue:unknown[];requests:any[];titleRequests:any[];cap:any})=>Promise<void>){
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/chat-')),paths=resolvePaths(root);prepareStorage(paths);
   writeFileSync(path.join(paths.config,'credentials.json'),JSON.stringify({openrouterApiKey:'fake'}));
-  const db=openDatabase(paths.data),queue:unknown[]=[],requests:any[]=[];
+  const db=openDatabase(paths.data),queue:unknown[]=[],requests:any[]=[],titleRequests:any[]=[];
   const cap={revision:'v1',ready:true,workspace_id:'test',engine_session_id:'engine',nsfw:null};
   const worker={identity:{workspace_id:'test'},json:async()=>cap} as unknown as WorkerConnection;
   const jobs=new Jobs(db,paths,worker);
-  const chats=new Chats(db,paths,jobs,async(_url,init)=>{requests.push(JSON.parse(String(init?.body)));const ops=queue.shift();return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:[{index:0,id:'call-'+requests.length,type:'function',function:{name:'prepare_image',arguments:JSON.stringify({operations:ops})}}]}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
-  try{await run({chats,jobs,db,paths,queue,requests,cap});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
+  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:[{index:0,id:'call-'+requests.length,type:'function',function:{name:'prepare_image',arguments:JSON.stringify({operations:ops})}}]}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
+  try{await run({chats,jobs,db,paths,queue,requests,titleRequests,cap});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
 }
 async function idle(chats:Chats,id:string){for(let i=0;i<200;i++){const value=chats.view(id);if(value.activity==='idle')return value;await new Promise(r=>setTimeout(r,5));}throw Error('Agent did not settle.');}
 
@@ -137,4 +137,20 @@ it('filters Library media type before pagination',async()=>fixture(async({db})=>
  for(let i=0;i<60;i++)db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('kind-'+i,i===0?'video':'image','Media','media/originals/'+i,'{}',String(i).padStart(4,'0'));
  expect(listAssets(db,'',50,'sfw','video').map(a=>a.id)).toEqual(['kind-0']);
  expect(listAssets(db,'',50,'sfw','image')).toHaveLength(50);
+}));
+
+it('generates a title in a separate tool-free call from only the first message',async()=>fixture(async({chats,titleRequests})=>{
+ let chat=chats.create('sfw');chats.send(chat.id,{version:chat.version,text:'Create a quiet mountain landscape',assets:[]});chat=await idle(chats,chat.id);
+ expect(titleRequests).toHaveLength(1);expect(titleRequests[0].max_tokens).toBe(128);expect(titleRequests[0].reasoning).toEqual({enabled:false});expect(titleRequests[0].tools??[]).toHaveLength(0);
+ expect(titleRequests[0].messages).toHaveLength(2);expect(JSON.stringify(titleRequests[0].messages[1])).toContain('Create a quiet mountain landscape');expect(chat.title).toBe('Quiet Mountain Landscape');
+ chats.send(chat.id,{version:chat.version,text:'Now add mist',assets:[]});await idle(chats,chat.id);expect(titleRequests).toHaveLength(1);
+}));
+it('preserves a manual title set before the first message',async()=>fixture(async({chats,titleRequests})=>{
+ let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{title:'My project'});chats.send(chat.id,{version:chat.version,text:'Create a mountain',assets:[]});chat=await idle(chats,chat.id);expect(chat.title).toBe('My project');expect(titleRequests).toHaveLength(0);
+}));
+
+it('a delayed title never overwrites a manual rename',async()=>fixture(async({db,paths,jobs})=>{
+ let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
+ const service=new Chats(db,paths,jobs,async(_url,init)=>{const title=String(init?.body).includes('Generate a concise chat title');if(title)await gate;return sse({choices:[{index:0,delta:{content:title?'Automatic title':'Answer'},finish_reason:'stop'}]});});
+ try{let chat=service.create('sfw');service.send(chat.id,{version:chat.version,text:'First message',assets:[]});chat=await idle(service,chat.id);chat=service.settings(chat.id,chat.version,{title:'Keep this name'});release();await new Promise(resolve=>setTimeout(resolve,30));expect(service.view(chat.id).title).toBe('Keep this name');}finally{release();await service.close();}
 }));

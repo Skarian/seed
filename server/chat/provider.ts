@@ -67,6 +67,7 @@ export function createChatAgent(options: {
   messages?: AgentMessage[];
   tool?: AgentTool;
   reasoning?: boolean;
+  maxTokens?: number;
   fetch?: typeof fetch;
   onAccounting?: (value: ChatAccounting) => void;
 }) {
@@ -81,7 +82,7 @@ export function createChatAgent(options: {
     streamFn: (_model, context, streamOptions) => {
       if (++turns > 8) throw new Error('Agent turn limit reached. Send another message to continue.');
       return streamSimple(model, context, {
-        ...streamOptions, apiKey: options.apiKey, maxTokens: 8192,
+        ...streamOptions, apiKey: options.apiKey, maxTokens: options.maxTokens??8192,
         maxRetries: 0, timeoutMs: 120_000,
         fetch: accountingFetch(options.fetch ?? fetch, options.onAccounting ?? (() => {})),
         onPayload(payload) {

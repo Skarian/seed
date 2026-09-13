@@ -10,7 +10,7 @@ export const chatWorkflows = {
   'reference-to-video': {label:'Animate image', command:'/animate-image', tool:'animate_image', guide:'animate-an-image.md'},
 } as const;
 export type ChatWorkflow = keyof typeof chatWorkflows;
-const names = ['chat/standard.md','chat/spicy.md','chat/summarize.md', ...Object.values(chatWorkflows).map(w=>w.guide)];
+const names = ['chat/standard.md','chat/spicy.md','chat/summarize.md','chat/title.md', ...Object.values(chatWorkflows).map(w=>w.guide)];
 const bundled = fileURLToPath(new URL('../../../prompting/', import.meta.url));
 // Source and compiled modules have different depths from the package root.
 function bundleRoot() { return existsSync(path.join(bundled,'chat/standard.md')) ? bundled : fileURLToPath(new URL('../../prompting/',import.meta.url)); }
@@ -32,3 +32,5 @@ export function chatPromptSnapshot(paths: StudioPaths, mode:'sfw'|'nsfw', workfl
   const system=contents[0]!.content + (workflow?'\n\nActive workflow: '+workflow+'. The following guide governs the generation prompt FIELD only. “Return only the prompt” does not limit chat clarification or workflow tool calls.\n\n'+contents[1]!.content:'\n\nNo workflow is active. Chat normally; ask the user to select a workflow before preparing requests.');
   return {system,summarySystem:contents.at(-1)!.content,files:contents,hash:createHash('sha256').update(JSON.stringify(contents)).digest('hex')};
 }
+
+export function chatTitlePrompt(paths:StudioPaths){const custom=path.join(paths.config,'prompting/chat/title.md');return readFileSync(existsSync(custom)?custom:path.join(bundleRoot(),'chat/title.md'),'utf8');}

@@ -10,11 +10,11 @@ import { imageRequest, type ImageRequest } from '../workflows.js';
 import type { Jobs } from '../jobs.js';
 import { createChatAgent, type ChatAccounting } from './provider.js';
 import { chatCredential } from './credentials.js';
-import { chatPromptSnapshot, chatWorkflows } from './prompts.js';
+import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js';
 import { chatReferenceLabels, preserveChatLabels, validateChatReferences } from './references.js';
 import { compactConversation, type ConversationSummary } from './context.js';
 
-interface StoredChat extends ChatView {summary?:ConversationSummary;runs:Array<{id:string;prompt:ReturnType<typeof chatPromptSnapshot>;accounting:ChatAccounting[];messages:AgentMessage[];state:string;summary?:ConversationSummary}>}
+interface StoredChat extends ChatView {title_manual?:boolean;title_accounting?:ChatAccounting[];title_error?:string;summary?:ConversationSummary;runs:Array<{id:string;prompt:ReturnType<typeof chatPromptSnapshot>;accounting:ChatAccounting[];messages:AgentMessage[];state:string;summary?:ConversationSummary}>}
 const terminal=['completed','failed','cancelled'];
 const latest=(card:ChatCard)=>card.revisions.at(-1)!;
 const openGroup=(chat:ChatView)=>chat.groups.find(g=>!['released','stopped'].includes(g.state));
@@ -26,6 +26,7 @@ export class Chats {
   private agents=new Map<string,Agent>();
   private tasks=new Map<string,Promise<void>>();
   private preparing=new Set<string>();
+  private titles=new Map<string,{agent:Agent;task:Promise<void>}>();
   constructor(private db:Database.Database,private paths:StudioPaths,private jobs:Jobs,
     private transport?:typeof fetch) {
     for(const row of db.prepare('SELECT body_json FROM chats').all() as {body_json:string}[]) {
@@ -49,19 +50,19 @@ export class Chats {
   view(id:string){const chat=this.get(id);const {runs,...view}=chat;
     view.activity=this.tasks.has(id)?'thinking':this.preparing.has(id)?'preparing':this.generating(chat)?'generating':'idle';
     for(const job of this.jobIds(chat).map(id=>this.jobs.get(id)))for(const asset of job?.outputs??[])if(!chat.assets.includes(asset))chat.assets.push(asset);
-    return {...view,asset_manifest:this.contextAssets(chat),jobs:this.jobIds(chat).map(id=>this.jobs.get(id)).filter(Boolean),accounting:runs.flatMap(run=>run.accounting)};
+    return {...view,asset_manifest:this.contextAssets(chat),jobs:this.jobIds(chat).map(id=>this.jobs.get(id)).filter(Boolean),accounting:[...runs.flatMap(run=>run.accounting),...(chat.title_accounting??[])]};
   }
   list(mode:ChatMode){return (this.db.prepare('SELECT id FROM chats WHERE mode=?').all(mode) as {id:string}[]).map(row=>{const c=this.view(row.id);return {id:c.id,title:c.title,activity:c.activity,error:c.error??c.jobs.find(j=>j?.state==='failed')?.error,status:c.jobs.some(j=>j?.state==='failed')?'Failed':c.jobs.length&&c.jobs.every(j=>j&&terminal.includes(j.state))?'Completed':'',updated_at:c.updated_at};}).sort((a,b)=>b.updated_at.localeCompare(a.updated_at));}
   create(mode:ChatMode){const id=randomUUID();this.save({id,mode,title:'New chat',workflow:null,version:0,epoch:0,reasoning:true,messages:[],groups:[],assets:[],runs:[],activity:'idle',error:null,created_at:now(),updated_at:now()});return this.view(id);}
   settings(id:string,version:number,values:{title?:string;workflow?:ChatWorkflow|null;reasoning?:boolean}){
     const chat=this.get(id);this.checkVersion(chat,version);if(this.busy(chat))throw Error('Stop this chat before changing its settings.');
-    if(values.title!==undefined){if(!values.title.trim()||values.title.length>120)throw Error('Choose a title of 1–120 characters.');chat.title=values.title.trim();}
+    if(values.title!==undefined){if(!values.title.trim()||values.title.length>120)throw Error('Choose a title of 1–120 characters.');chat.title=values.title.trim();chat.title_manual=true;}
     if(values.workflow!==undefined){if(values.workflow!==null&&!Object.hasOwn(chatWorkflows,values.workflow))throw Error('Unknown workflow.');chat.workflow=values.workflow;}
     if(values.reasoning!==undefined)chat.reasoning=values.reasoning;
     chat.version++;this.save(chat);return this.view(id);
   }
-  delete(id:string){const chat=this.get(id);if(this.busy(chat))throw Error('Stop generation before deleting this chat, then try again.');if(this.activeJobs(chat).length)throw Error('Remote cancellation or output saving is still pending. Reconnect the worker and try deletion after it settles.');this.db.prepare('DELETE FROM chats WHERE id=?').run(id);}
-  stop(id:string){const chat=this.get(id);chat.epoch++;chat.version++;chat.activity='idle';
+  delete(id:string){const chat=this.get(id);if(this.busy(chat))throw Error('Stop generation before deleting this chat, then try again.');if(this.activeJobs(chat).length)throw Error('Remote cancellation or output saving is still pending. Reconnect the worker and try deletion after it settles.');this.titles.get(id)?.agent.abort();this.db.prepare('DELETE FROM chats WHERE id=?').run(id);}
+  stop(id:string){this.titles.get(id)?.agent.abort();const chat=this.get(id);chat.epoch++;chat.version++;chat.activity='idle';
     for(const run of chat.runs)if(run.state==='running')run.state='stopped';
     for(const group of chat.groups)if(group.state!=='released')group.state='stopped';
     this.db.transaction(()=>{this.jobs.stopJobs(this.jobIds(chat));this.event(chat,'Stopped this chat. Completed media is preserved.');this.save(chat);})();
@@ -130,10 +131,15 @@ export class Chats {
     if(selected.filter(id=>this.jobs.media.get(id)?.kind==='image').length>9)throw Error('Choose at most nine images for this message.');
     const snapshot=chatPromptSnapshot(this.paths,chat.mode,chat.workflow);
     chat.messages.push({id:randomUUID(),role:'user',text:input.text,assets:input.assets,created_at:now()});
-    if(chat.title==='New chat')chat.title=input.text.trim().slice(0,70);
+    const needsTitle=chat.messages.filter(m=>m.role==='user').length===1&&!chat.title_manual;
     if(group)group.state='revising';chat.activity='thinking';chat.error=null;chat.partial='';chat.partial_reasoning='';chat.version++;
     const run={id:randomUUID(),prompt:snapshot,accounting:[] as ChatAccounting[],messages:[] as AgentMessage[],state:'running'};chat.runs.push(run);this.save(chat);
-    const task=this.run(chat.id,chat.epoch,run.id,key,snapshot,selected,target?.id).finally(()=>{this.tasks.delete(id);this.agents.delete(id);});this.tasks.set(id,task);return this.view(id);
+    const task=this.run(chat.id,chat.epoch,run.id,key,snapshot,selected,target?.id).finally(()=>{this.tasks.delete(id);this.agents.delete(id);});this.tasks.set(id,task);if(needsTitle){try{this.generateTitle(id,input.text,key);}catch(error){const current=this.get(id);current.title_error=(error as Error).message;this.save(current);}}return this.view(id);
+  }
+  private generateTitle(id:string,firstMessage:string,key:string){
+    const agent=createChatAgent({apiKey:key,systemPrompt:chatTitlePrompt(this.paths),reasoning:false,maxTokens:128,fetch:this.transport,onAccounting:value=>{try{const chat=this.get(id);chat.title_accounting=[value];this.save(chat);}catch{/* Chat may have been deleted. */}}});
+    const task=(async()=>{try{await agent.prompt(firstMessage);const final=agent.state.messages.at(-1);if(final?.role!=='assistant'||final.stopReason!=='stop')throw Error('Title generation did not complete.');const title=final.content.filter(p=>p.type==='text').map(p=>p.text).join('').trim().replace(/^['"“”]+|['"“”]+$/g,'').replace(/\s+/g,' ').slice(0,70);if(!title)throw Error('Title generation returned no title.');const chat=this.get(id);if(!chat.title_manual){chat.title=title;this.save(chat);}}catch(error){try{const chat=this.get(id);chat.title_error=(error as Error).message;this.save(chat);}catch{/* Chat was deleted. */}}finally{this.titles.delete(id);}})();
+    this.titles.set(id,{agent,task});
   }
   private async run(id:string,epoch:number,runId:string,key:string,snapshot:ReturnType<typeof chatPromptSnapshot>,selected:string[],target?:string){
     try{
@@ -233,5 +239,5 @@ export class Chats {
     const card:ChatCard={id:randomUUID(),workflow:source.workflow,revisions:[...source.revisions,this.revision(chat,request,latest(source).number+1)]};
     chat.groups.push({id:randomUUID(),after_message_id:chat.messages.at(-1)?.id??null,workflow:source.workflow,state:'reviewing',cards:[card]});chat.version++;this.save(chat);return this.view(id);
   }
-  async close(){for(const [id] of this.agents)this.stop(id);await Promise.allSettled([...this.tasks.values()]);}
+  async close(){for(const title of this.titles.values())title.agent.abort();await Promise.allSettled([...this.titles.values()].map(t=>t.task));for(const [id] of this.agents)this.stop(id);await Promise.allSettled([...this.tasks.values()]);}
 }
