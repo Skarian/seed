@@ -22,10 +22,13 @@ retains failures, fixes, timing evidence and earlier partial bills.
 ## H3 High Quality candidate — September 12, 2026
 
 The optional HQ implementation and native-resolution exports passed local
-application, operations, worker, browser and package checks. The candidate image
-was published to GHCR. Live GPU validation is blocked by a slow or stalled RunPod
-image pull; no new inference result is claimed. The test rental and disk are
-retained as instructed by the owner. See the
+application, operations, worker, browser and package checks. Eleven live GPU
+jobs passed on a verified 96GB Vast worker, covering both content/quality modes,
+mixed references and Fast first/last frames. Native sparse attention was verified
+in GPU logs. The owner approved ending testing: the 15-second portrait HQ run
+was cancelled and the two PNG GPU runs were skipped. Both rented workers and
+their disks were deleted; nine completed videos remain saved locally. The
+installed app uses the published candidate and High Quality defaults off. See the
 [candidate report](../research/development/H3-HQ-VALIDATION-2026-09-12.md)
 for timings, the unexecuted test matrix and exact image identity.
 

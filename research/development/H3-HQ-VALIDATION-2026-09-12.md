@@ -11,7 +11,7 @@ the researched native 30-step H3 recipe for HQ, with Turbo bypassed.
 
 [GitHub Actions publication](https://github.com/Skarian/seed/actions/runs/34723568844)
 succeeded. The application image pin and final local package use this digest.
-The owner's installed app has not been replaced pending live GPU validation.
+The installed application is updated from the tested local archive after GPU validation; its existing settings and Library are preserved.
 
 ## Completed checks and measured timings
 
@@ -46,42 +46,103 @@ This does not prove CUDA kernel availability or generated video quality.
 Implementation/research and every individual CPU inspection were not separately
 instrumented; no exact duration is claimed for those activities.
 
-## Live GPU blocker
+## Live GPU results and approved scope reduction
 
-RunPod `9ndkngn38ve3f2` was created at approximately 22:52:25 UTC in EUR-IS-2:
-RTX PRO 6000 Blackwell Server Edition, quoted $2.09/hour, 180GB disposable disk.
-No preexisting RunPod pod was present. GPU hardware has not yet been independently
-verified with `nvidia-smi` because SSH is unavailable.
+Eleven GPU jobs completed and passed output validation. At the owner's request,
+testing stopped after that coverage: the in-progress 15-second portrait HQ job
+was explicitly cancelled, and the Fast/HQ PNG GPU tests were not started.
+These are uncompleted checks, not passing GPU results. PNG behavior still has
+local regression coverage. No completed GPU test failed.
 
-After approximately 20 minutes, RunPod still reported image download activity,
-with no worker runtime or direct SSH endpoint. The repeated active layer
-`74f288efe069` is 194,448,843 compressed bytes. The provider logs expose neither
-byte progress nor an explicit error, so a stalled or unusually slow provider
-image pull is suspected, not proven. The full compressed image is 9.08GB.
+| Pipeline | Clip seconds | Engine execution | Request to locally saved | Result |
+|---|---:|---:|---:|---|
+| image-normal | Image | 0m 7.1s | 0m 16.3s | Passed |
+| image-spicy | Image | 0m 2.9s | 0m 7.1s | Passed |
+| fast-text-normal | 5 | 1m 55.7s | 1m 59.6s | Passed |
+| fast-text-spicy | 5 | 1m 51.5s | 1m 55.2s | Passed |
+| hq-text-normal | 10 | 8m 20.7s | 8m 25.3s | Passed |
+| hq-text-spicy | 10 | 8m 21.3s | 8m 25.5s | Passed |
+| fast-mixed-reference-sfw | 5 | 4m 12.0s | 4m 24.9s | Passed |
+| fast-mixed-reference-nsfw | 5 | 4m 11.3s | 4m 19.5s | Passed |
+| high-mixed-reference-sfw | 10 | 15m 11.6s | 15m 17.7s | Passed |
+| high-mixed-reference-nsfw | 10 | 15m 8.0s | 15m 16.1s | Passed |
+| fast-first-last | 5 | 2m 8.3s | 2m 17.0s | Passed |
 
-Per the owner's instructions, the pod and its disk are retained for inspection.
-Compute remains quoted at $2.09/hour plus approximately $0.025/hour for the disk
-at [RunPod's published storage rate](https://docs.runpod.io/pods/pricing).
-These are rate estimates, not a reconciled provider invoice.
+Engine execution includes model loading, sampling, decoding and encoding; those
+phases were not separately instrumented. Request-to-saved includes reference
+preparation/transfers and output saving. Do not add overlapping columns.
+The cancelled portrait run recorded 7m 58.8s
+of engine execution before interruption; no completed video is claimed for it.
 
-No model preparation or inference was started. Consequently no GPU generation,
-export, transfer, quality, or kernel-activation timing/result is claimed.
+All nine completed videos have native 1344×768 dimensions, 24fps, exact requested
+frame count/duration, and matching nonempty decoded audio tracks. The two images
+retain 1280×720 dimensions. Repeated submissions with the same idempotency key
+returned the same jobs without duplicate generation. Mixed-reference tests used
+an image, a video including its soundtrack, and a separate audio reference.
 
-## Prepared, unexecuted GPU test matrix
+The actual worker reported ComfyUI 0.35.0, PyTorch 2.11.0+cu130 and an NVIDIA RTX
+PRO 6000 Blackwell Server Edition with 97,887 MiB physical VRAM. Sampled peak
+usage across completed jobs was 63736 MiB
+under ComfyUI's reported-memory definition. This is sampled usage, not a promise
+that every maximum-reference/duration combination fits.
 
-The isolated test app is at `http://127.0.0.1:4312`. It uses separate Library,
-configuration and rental tracking; the existing app and Library are preserved.
-Fourteen verified model files (101.48GB total) are available in its local cache.
+Native Sol sparse producer-path activation was confirmed in engine logs for
+text-only and mixed-reference HQ. The early dense phase was approximately
+25.5s/step versus 12.9s/step sparse for text-only HQ, and 40.3s versus 25.4s for
+mixed-reference HQ. The window uses model noise levels; these observations do not
+mean every job has the same speedup. No Turbo fallback was used for HQ.
 
-The harness covers Normal/Spicy images; Fast/HQ text videos in both modes;
-Fast/HQ mixed image/video/audio references in both modes; Fast first/last frames;
-HQ 15-second portrait first/last frames with silent output; and Fast/HQ PNG
-sequences. It verifies native dimensions, frame count, frame rate, duration,
-audio presence/duration/nonempty samples and duplicate-submission idempotency.
-Native Sol attention activation must additionally be verified from GPU logs.
-Successful execution would still be separate from subjective acting/dialogue
-quality assessment.
+Representative Fast/HQ frames were visually inspected and were coherent and
+intact. These functional checks and still-frame inspection do not constitute a
+controlled acting, dialogue, or temporal-quality benchmark. First/last-frame
+execution passed in Fast, but visual last-frame influence was not quantitatively
+validated. The cancelled portrait/silent run and unexecuted PNG runs remain
+explicit live-validation limits.
 
-Private timing and diagnostic evidence is retained under `.local/hq/`.
-Changing hosts or the approved model/runtime recipe requires the owner's
-check-in before further work.
+## Infrastructure, timing and cleanup
+
+The first RunPod rental, 9ndkngn38ve3f2 in EUR-IS-2, pulled the image from about
+22:52:29 to 23:23:40 UTC (31m 11s), then started at 23:23:44. Calling it stuck at
+20 minutes was premature. The owner subsequently reported a host maintenance
+alert warning of intermittent connectivity and public-IP reassignment. The pod
+had no direct SSH endpoint, although its rental public key was correctly set.
+The account had no proxy SSH keys; no account key was added.
+
+The owner authorized deleting that rental and trying another region. RunPod
+confirmed deletion of its pod and disposable disk. US-NC-2, US-NE-1 and EU-RO-1
+each rejected replacement allocation for unavailable capacity despite catalog
+listings. Each attempt was reconciled before another attempt; no RunPod pod
+remains. The owner then explicitly authorized switching to Vast.
+
+Vast instance 50820350 used verified Spain host 43574, the same candidate image,
+a 96GB RTX PRO 6000 S and 180GB disk, quoted at $1.9833/hour including disk.
+It was requested at 23:35:42 UTC and became SSH-ready in approximately 3m 20s.
+Actual GPU identity and VRAM were verified over SSH before inference.
+
+| Additional phase | Elapsed |
+|---|---:|
+| Vast model preparation, all 14 files / 101.48GB | 3m 29.4s |
+| Completed GPU matrix, first submission to last saved output | 63m 10.3s |
+| Vast deletion and confirmation | 0m 2.9s |
+| Installed application update | 0m 15.6s |
+
+After the owner's approval to wrap up, the active job was cancelled and the
+queue was left paused. Vast confirmed the instance was destroyed with
+disk_retained=false. All completed videos remain on this PC. The pre-deletion
+Vast billing snapshot showed $3.301 for this rental, including GPU, disk and
+transfer; billing can lag and this is not a combined final invoice. The RunPod
+billing query had no posted record at collection time, which does not mean zero
+cost.
+
+## Saved videos and evidence
+
+Nine clearly named original MP4s and a local playback page are saved at:
+
+`C:/projects/runpod/.local/hq/review-videos/index.html`
+
+The original outputs also remain in the isolated test Library. Private raw
+results, per-job metrics, preparation logs, full engine logs, billing snapshots,
+cancellation result and confirmed deletion receipts are retained in .local/hq.
+No credentials are included in this report. The model/runtime recipe was not
+changed during testing; provider relocation and reduced scope were explicitly
+approved by the owner.
