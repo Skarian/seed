@@ -1715,3 +1715,17 @@ body { background:#171917; }
  .workflow-menu { max-height:35vh; }
 }
 .composer-error { padding:8px 10px; margin:4px 0; border-radius:8px; background:#452c29; color:#f0c4bb; font-size:12px; }
+
+/* Keep workflow context beside the draft instead of reserving a separate row. */
+.composer-input-line { display:flex; align-items:flex-start; gap:8px; }
+.composer-input-line .active-workflow { flex:none; margin:8px 0 0; padding:1px 3px 1px 7px; }
+.composer-input-line textarea { flex:1; width:0; min-width:80px; }
+.chat-message { margin:4px 0 10px; padding:4px 0; }
+.chat-message p { margin:4px 0; line-height:1.55; }
+.chat-message.user { padding:7px 13px; }
+.chat-message.event { margin:8px 0; }
+.composer-actions .attachment-trigger { font-size:24px; line-height:28px; width:32px; height:32px; padding:0; border-radius:50%; anchor-name:--chat-attachment-trigger; }
+.attachment-menu { position:fixed; inset:auto; bottom:anchor(--chat-attachment-trigger top); left:anchor(--chat-attachment-trigger left); margin:0 0 8px; padding:5px; min-width:180px; border:1px solid #49523e; border-radius:12px; background:#262c22; color:var(--text); box-shadow:0 8px 28px #0005; }
+.attachment-menu button { display:block; width:100%; text-align:left; padding:10px 12px; border:0; background:transparent; color:inherit; border-radius:7px; }
+.attachment-menu button:hover,.attachment-menu button:focus-visible { background:#3b4531; }
+.upload-status { font-size:11px; color:var(--muted); }

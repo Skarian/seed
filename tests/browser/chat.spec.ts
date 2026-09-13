@@ -19,6 +19,12 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
   await page.goto('/chat');await page.getByRole('button',{name:'New chat',exact:true}).click();
   await expect(page.locator('.chat-composer select')).toHaveCount(0);await expect(page.locator('.active-workflow')).toHaveCount(0);
   const input=page.getByLabel('Chat message');
+  await page.getByRole('button',{name:'Add attachments'}).click();
+  await expect(page.getByRole('button',{name:'Add File(s)',exact:true})).toBeVisible();
+  await expect(page.getByRole('button',{name:'Add from Library',exact:true})).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('button',{name:'Add from Library',exact:true})).toBeHidden();
+
   await input.fill('/');await expect(page.getByRole('listbox',{name:'Workflows'})).toBeVisible();await expect(page.getByRole('option')).toHaveCount(3);await page.screenshot({path:'.local/qa-slash-desktop.png'});
   await input.fill('/create');await expect(page.getByRole('option')).toHaveCount(2);await input.press('ArrowDown');await input.press('Enter');
   await expect(page.locator('.active-workflow')).toContainText('Create video');await expect(input).toHaveValue('');expect(messages).toHaveLength(0);
