@@ -106,13 +106,18 @@ test('empty Chat has a centered welcome and bottom composer and creates a conver
   await expect(page.locator('.chat-welcome-heading')).toHaveCount(0);expect(creates).toBe(1);
 });
 
-test('holding a sidebar chat opens its menu without selecting it',async({page})=>{
+test('mobile chat menu survives finger release and supports a separate action tap',async({page})=>{
  const base={mode:'sfw',workflow:null,version:0,reasoning:true,messages:[],groups:[],assets:[],activity:'idle',jobs:[],accounting:[]};
  const chats=[{...base,id:'one',title:'First chat'},{...base,id:'two',title:'Second chat'}];
  await page.route('**/api/v1/chats**',r=>r.fulfill({json:new URL(r.request().url()).pathname==='/api/v1/chats'?{items:chats}:chats[0]}));
- await page.goto('/chat');
- const row=page.getByRole('button',{name:'Open chat: Second chat'});await row.dispatchEvent('pointerdown',{pointerId:1,isPrimary:true,button:0,clientX:80,clientY:350,pointerType:'touch'});
- await expect(page.getByRole('menu',{name:'Chat actions: Second chat'})).toBeVisible();await row.dispatchEvent('pointerup',{pointerId:1});
- await expect(row).not.toHaveClass('selected');await page.screenshot({path:'.local/qa-chat-context.png'});
- await page.keyboard.press('Escape');await expect(page.getByRole('menu')).toBeHidden();
+ await page.setViewportSize({width:390,height:844});await page.goto('/chat');await page.getByRole('button',{name:'Toggle sidebar'}).click();
+ const row=page.getByRole('button',{name:'Open chat: Second chat'});const box=await row.boundingBox();const cdp=await page.context().newCDPSession(page);
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:box!.x+30,y:box!.y+15}]});
+ const menu=page.getByRole('menu',{name:'Chat actions: Second chat'});await expect(menu).toBeVisible();
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ await expect(menu).toBeVisible();await expect(row).not.toHaveClass('selected');
+ await page.screenshot({path:'.local/qa-chat-hold-release.png'});
+ const action=await page.getByRole('menuitem',{name:'Rename'}).boundingBox();
+ await cdp.send('Input.dispatchTouchEvent',{type:'touchStart',touchPoints:[{x:action!.x+30,y:action!.y+15}]});await cdp.send('Input.dispatchTouchEvent',{type:'touchEnd',touchPoints:[]});
+ await expect(page.getByRole('dialog',{name:'Rename chat'})).toBeVisible();await expect(page.getByLabel('Chat title')).toHaveValue('Second chat');
 });
