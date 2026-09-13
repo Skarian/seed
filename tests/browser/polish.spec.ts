@@ -55,3 +55,14 @@ test('provider reasoning streams expanded and collapses with the answer',async({
  await expect(page.locator('.reasoning-disclosure')).toHaveCount(1);await page.reload();await page.locator('.reasoning-disclosure').click();await expect(page.locator('.reasoning-body')).toContainText('reference image');
  await page.setViewportSize({width:390,height:844});await page.screenshot({path:'.local/qa-reasoning-expanded-mobile.png'});
 });
+
+test('attachment menu stays anchored while keyboard space changes',async({page})=>{
+ await page.setViewportSize({width:390,height:480});await page.goto('/chat');await page.getByLabel('Chat message').focus();await page.getByRole('button',{name:'Add attachments'}).click();
+ const menu=page.locator('#chat-attachments'),trigger=page.getByRole('button',{name:'Add attachments'});
+ for(const height of [480,600,740,844,640,480]){
+  await page.setViewportSize({width:390,height});await expect(menu).toBeVisible();
+  await expect.poll(async()=>{const a=await menu.boundingBox(),b=await trigger.boundingBox();return Math.abs(b!.y-(a!.y+a!.height)-8);}).toBeLessThan(2);
+ }
+ await page.setViewportSize({width:390,height:844});await expect.poll(async()=>{const a=await menu.boundingBox(),b=await trigger.boundingBox();return Math.abs(b!.y-(a!.y+a!.height)-8);}).toBeLessThan(2);await page.screenshot({path:'.local/qa-attachment-keyboard-close.png'});
+ await page.keyboard.press('Escape');await expect(menu).toBeHidden();
+});

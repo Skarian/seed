@@ -1,3 +1,4 @@
+import {AttachmentMenu} from './attachment-menu.js';
 import {EditableItem,RevisionControls} from './revision-controls.js';
 import {ChatSidebarRow} from './chat-sidebar-row.js';
 import {workflowLabels} from './workflow-labels.js';
@@ -126,7 +127,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
           {refs.groups.video.map(ref=><button type="button" key={ref.id} onClick={()=>refs.remove('video',ref.id)}>{ref.name} ×</button>)}{selected.map(asset=><button type="button" key={asset} onClick={()=>setSelected(current=>current.filter(v=>v!==asset))}>Selected asset ×</button>)}
           {refs.errors.video.map((error,i)=><p role="alert" key={i}>{error}</p>)}
           {error&&!review&&<p role="alert" className="composer-error">{error}</p>}
-          <div className="composer-actions"><input ref={file} hidden type="file" multiple accept="image/*,video/*,audio/*" onChange={e=>{void refs.add('video',Array.from(e.target.files??[]));e.target.value='';}}/><button type="button" className="attachment-trigger" aria-label="Add attachments" popoverTarget="chat-attachments" onClick={e=>{const rect=e.currentTarget.getBoundingClientRect(),menu=document.getElementById('chat-attachments');if(menu){menu.style.left=rect.left+'px';menu.style.bottom=(window.innerHeight-rect.top+8)+'px';}}} disabled={busy||refs.busy}>+</button><div id="chat-attachments" className="attachment-menu" popover="auto"><button type="button" onClick={()=>{document.getElementById('chat-attachments')?.hidePopover();file.current?.click();}}>Add File(s)</button><button type="button" onClick={()=>{document.getElementById('chat-attachments')?.hidePopover();setGallery(true);}}>Add from Library</button></div>{refs.busy&&<span className="upload-status">Uploading…</span>}<button className="primary-action send-button" type="submit" disabled={busy||refs.busy||!text.trim()||!configured}>Send</button>{busy&&<button type="button" className="stop-action" onClick={()=>void act(()=>api('chats/'+chat.id+'/stop','POST',{}))}>Stop</button>}</div>
+          <div className="composer-actions"><input ref={file} hidden type="file" multiple accept="image/*,video/*,audio/*" onChange={e=>{void refs.add('video',Array.from(e.target.files??[]));e.target.value='';}}/><AttachmentMenu disabled={busy||refs.busy} onFiles={()=>file.current?.click()} onLibrary={()=>setGallery(true)}/>{refs.busy&&<span className="upload-status">Uploading…</span>}<button className="primary-action send-button" type="submit" disabled={busy||refs.busy||!text.trim()||!configured}>Send</button>{busy&&<button type="button" className="stop-action" onClick={()=>void act(()=>api('chats/'+chat.id+'/stop','POST',{}))}>Stop</button>}</div>
         </form>
       </>
     </div>
