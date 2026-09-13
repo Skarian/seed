@@ -146,3 +146,46 @@ cancellation result and confirmed deletion receipts are retained in .local/hq.
 No credentials are included in this report. The model/runtime recipe was not
 changed during testing; provider relocation and reduced scope were explicitly
 approved by the owner.
+
+## Additional 15-second mixed-reference validation
+
+A second Vast rental, 50830485 in Alberta, used the same pinned worker image on
+an RTX PRO 6000 Blackwell Workstation Edition: 97,887 MiB physical VRAM,
+440 W, driver 595.71.05. All three additional jobs completed successfully.
+Gemma was neither installed nor loaded.
+
+| Pipeline | Engine execution | Request to saved | Physical VRAM peak |
+|---|---:|---:|---:|
+| HQ Normal, 15 seconds | 22m 54s | 23m 11s | 61.94 GiB |
+| HQ Spicy, 15 seconds | 22m 58s | 23m 7s | 66.62 GiB |
+| Fast Normal, 15 seconds | 15m 24s | 15m 37s | 67.15 GiB |
+
+The three-job wall time was 61m 57.5s. Every output passed validation for native
+1344x768 resolution, 24fps, 360 frames, and 15 seconds each of video and nonempty
+audio. Inputs were the same image, a three-second video with its soundtrack,
+and a separate three-second audio reference, with seed 424242 and the same
+non-explicit dialogue prompt. Normal/Spicy selected the corresponding adapter.
+
+Physical memory was sampled with nvidia-smi approximately every 1.03 seconds;
+this includes allocator cache and retained models, unlike the earlier ComfyUI
+memory metric. The largest sampled footprint left 28.44 GiB physically free.
+Shorter spikes may be missed, and this does not establish maximum-reference or
+concurrent LLM capacity. HQ Normal included cold loading; subsequent runs were
+warm sequential mode switches. HQ sparse steps settled around 37.5 seconds.
+Fast retained its original attention setup and eight-step Turbo workflow.
+
+The three originals are in the main Seed Library, with additional local copies
+and private measurements in `.local/gemma-h3/`. After review, the owner requested
+shutdown. The CLI confirmed deletion of instance 50830485 with disk_retained=false,
+and a subsequent status check returned no Vast instances. All videos remain local.
+This adds maximum-duration landscape mixed-reference coverage; the previously
+noted portrait/silent and PNG GPU coverage limits remain unchanged.
+
+## Merge readiness
+
+A fresh full verification passed before merge: build, typecheck, 90 application
+tests, 70 operations tests, 61 worker tests (one skipped), and credential scan.
+All 30 browser tests passed in 13.8 seconds. The initial verification attempt
+hit the existing worker-connection test's five-second timeout during its first
+HTTP app import, followed by a Windows teardown race; the full unchanged rerun
+passed. No source or timeout changes were made to obtain the passing result.
