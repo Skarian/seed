@@ -18,7 +18,7 @@ function remembered(key:string){try{return sessionStorage.getItem('seed.chat.'+k
 function remember(key:string,value:string){try{sessionStorage.setItem('seed.chat.'+key,value);}catch{/* Server history remains durable. */}}
 type AssetContext={id:string;name:string;kind:'image'|'video'|'audio';note:string;metadata?:{duration?:number}};
 type View=ChatView&{asset_manifest?:AssetContext[];jobs:Array<{id:string;state:string;seed:string;outputs:string[];error:string|null;request:ImageRequest}>;accounting:Array<{cost:number|null}>};
-async function api(url:string,method='GET',body?:unknown){const response=await fetch('/api/v1/'+url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const result=await response.json();if(!response.ok)throw Error(result.error?.message??'Request failed.');return result;}
+async function api(url:string,method='GET',body?:unknown){const response=await fetch('/api/v1/'+url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const result=await response.json();if(!response.ok){const message=result.error?.message;throw Error(message==='fetch failed'?'Cannot reach the GPU worker. Connect or reconnect the GPU, then try Generate again.':message||'Request failed. Please try again.');}return result;}
 
 export function Chat(){
   const {spicy}=useSpicy(),mode=spicy?'nsfw':'sfw';
@@ -66,8 +66,7 @@ export function Chat(){
     <aside className="chat-sidebar"><button onClick={()=>void create()} disabled={saving}>New chat</button>{list.map(item=><button key={item.id} aria-label={'Open chat: '+item.title} className={item.id===id?'selected':''} onClick={()=>void open(item.id)}>{item.title}<small>{item.activity!=='idle'?item.activity:item.error?'Needs attention':item.status}</small></button>)}</aside>
     <div className="chat-main">
       {!configured&&<p>Set up Chat with <code>seed setup --chat-only</code>.</p>}
-      {error&&<p role="alert">{error}</p>}
-      {!chat?<div className="chat-empty"><h1>Direct your next creation</h1><p>Start a chat, choose a workflow, and describe what you have in mind.</p></div>:<>
+        {!chat?<div className="chat-empty"><h1>Direct your next creation</h1><p>Start a chat, choose a workflow, and describe what you have in mind.</p></div>:<>
         <header className="chat-header"><h1>{chat.title}</h1><button disabled={busy} onClick={()=>setRename(chat.title)}>Rename</button><button onClick={()=>setDeleting(true)}>Delete</button></header>
         {rename!==null&&<form onSubmit={e=>{e.preventDefault();void settings({title:rename}).then(value=>{if(value)setRename(null);});}}><input aria-label="Chat title" value={rename} maxLength={120} onChange={e=>setRename(e.target.value)}/><button>Save name</button><button type="button" onClick={()=>setRename(null)}>Cancel</button></form>}
         <div ref={history} className="chat-history" aria-live="polite" onScroll={()=>{const element=history.current;if(element)follow.current=element.scrollHeight-element.scrollTop-element.clientHeight<60;}}>
@@ -107,6 +106,8 @@ export function Chat(){
 }
 
 function Review({card,initial,error,assets,mode,busy,editable,activeWorkflow,close,save,approve,feedback,restore,stop}:{card:ChatCard;initial:ChatRevision;error:string;assets:AssetContext[];mode:'sfw'|'nsfw';busy:boolean;editable:boolean;activeWorkflow:ChatWorkflow|null;close:()=>void;save:(request:unknown)=>Promise<boolean>;approve:()=>Promise<void>;feedback:(text:string)=>Promise<void>;restore:(revision:number,request:unknown)=>Promise<void>;stop:()=>void}){
+  const failure=useRef<HTMLParagraphElement>(null);
+  useEffect(()=>{if(error){failure.current?.scrollIntoView({block:'nearest'});failure.current?.focus({preventScroll:true});}},[error,busy]);
   const dialog=useRef<HTMLDialogElement>(null),[revision,setRevision]=useState(initial.number),[request,setRequest]=useState(initial.request),[message,setMessage]=useState('');
   useEffect(()=>{dialog.current?.showModal();return()=>dialog.current?.close();},[]);
   useEffect(()=>{setRevision(initial.number);setRequest(initial.request);},[initial.number]);
@@ -114,7 +115,6 @@ function Review({card,initial,error,assets,mode,busy,editable,activeWorkflow,clo
   const dirty=JSON.stringify(request)!==JSON.stringify(card.revisions.at(-1)!.request)||revision!==card.revisions.at(-1)!.number;
   const raw=()=>{const value:any={...request};delete value.workflow;delete value.capabilities_revision;if(mode==='sfw')delete value.mode;return value;};
   return <dialog ref={dialog} className="chat-review" onCancel={close} aria-label="Review generation"><header><h2>{workflows[card.workflow].label}</h2>{busy&&<button onClick={stop}>Stop</button>}<button onClick={close}>Close</button></header>
-    {error&&<p role="alert">{error}</p>}
     <label>Revision<select value={revision} onChange={e=>{const value=card.revisions.find(r=>r.number===Number(e.target.value))!;setRevision(value.number);setRequest(value.request);}}>{card.revisions.map(r=><option key={r.number} value={r.number}>{r.number} · {r.decision}</option>)}</select></label>
     <fieldset disabled={busy}><label>Prompt<textarea value={request.prompt} onChange={e=>change({prompt:e.target.value})}/></label>
       <div className="chat-fields"><label>Aspect<select value={request.output.aspect} onChange={e=>change({output:{...request.output,aspect:e.target.value as '16:9'|'9:16'}})}><option>16:9</option><option>9:16</option></select></label><label>Count<input type="number" min={1} max={16} value={request.count} onChange={e=>change({count:Number(e.target.value)})}/></label><label>Seed<input value={request.seed} onChange={e=>change({seed:e.target.value})}/></label>
@@ -128,6 +128,7 @@ function Review({card,initial,error,assets,mode,busy,editable,activeWorkflow,clo
       </div>)}
       {card.workflow==='reference-to-video'&&<label>Add provided asset<select value="" onChange={e=>{const asset=assets.find(a=>a.id===e.target.value);if(asset)change({references:[...(request.references??[]),{id:asset.id,asset_id:asset.id,kind:asset.kind,role:'reference',...(asset.kind==='image'?{framing:'fit' as const}:{range:{start_seconds:0,duration_seconds:Math.min(15,asset.metadata?.duration??2)}})}]});}}><option value="">Choose an asset from this conversation</option>{assets.filter(a=>a.kind&&!request.references?.some(r=>r.asset_id===a.id)).map(a=><option key={a.id} value={a.id}>{a.name}{a.note?' · '+a.note:''}</option>)}</select></label>}
       {request.references?.map(ref=>{const asset=assets.find(a=>a.id===ref.asset_id);return <div key={'note-'+ref.id}><strong>{asset?.name??'Missing asset'}</strong>{asset?.kind==='image'&&<img className="chat-reference-preview" src={'/api/v1/assets/'+ref.asset_id+'/content'} alt="Reference"/>}<p>{card.revisions.find(r=>r.number===revision)?.approved_snapshot?card.revisions.find(r=>r.number===revision)?.notes[ref.asset_id]:asset?.note}</p></div>;})}
+      {error&&<p className="chat-review-error" role="alert" ref={failure} tabIndex={-1}>{error}</p>}
       {editable?<><button onClick={()=>void save(raw())}>Save as latest revision</button><button disabled={dirty} onClick={()=>void approve()}>Generate · approve this revision</button>{dirty&&<p>Save your changes before approving or sending feedback.</p>}</>:<button onClick={()=>void restore(revision,raw())}>Restore as new request</button>}
     </fieldset>
     {editable&&<form onSubmit={e=>{e.preventDefault();if(!dirty)void feedback(message);}}><label>Provide feedback<textarea value={message} onChange={e=>setMessage(e.target.value)} onKeyDown={e=>{if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();if(message.trim()&&!busy&&!dirty)void feedback(message);}}}/></label><button disabled={busy||dirty||!message.trim()}>{activeWorkflow===card.workflow?'Send feedback':'Switch workflow and send feedback'}</button></form>}

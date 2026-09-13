@@ -284,3 +284,13 @@ modal. Review now displays action errors inside the dialog. All three Chat
 browser cases, build and typecheck pass, including a rejected approval whose
 error stays visible in the open modal. Updated the installed app. No GPU rented
 or generation submitted.
+
+Follow-up: owner still saw no error. The installed desktop/mobile UI displayed
+mocked failures, so the exact missing-message symptom was not reproduced. A
+read-only worker capability check returned `fetch failed`. Chat now translates
+that into an actionable disconnected-worker message, places a highlighted error
+beside Generate and scrolls/focuses it. Three browser tests, build and typecheck
+passed. After installation, a phone-sized browser with that mocked response
+confirmed the full message visible and focused. Real Generate replay was blocked
+by automatic approval review due to possible paid job submission; no job was
+submitted during diagnosis.

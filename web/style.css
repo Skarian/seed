@@ -1534,3 +1534,5 @@ button.brand { -webkit-tap-highlight-color: transparent; }
   .chat-composer-tools select { max-width:100%; }
   .chat-header { flex-wrap:wrap; gap:4px; }
 }
+
+.chat-review-error { padding:12px; border:1px solid #d97777; border-radius:8px; background:#3a2020; color:#fff; }
