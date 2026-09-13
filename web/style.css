@@ -1767,3 +1767,14 @@ body { background:#171917; }
 .message-edit-popup button { display:grid; place-items:center; padding:8px; margin:0; background:transparent; color:inherit; border:0; }
 
 .chat-message.user { width:fit-content; max-width:82%; margin-left:auto; margin-right:0; box-sizing:border-box; }
+
+.chat-card>.request-heading:first-child { display:flex; flex-direction:row; align-items:flex-start; justify-content:space-between; gap:12px; }
+.request-heading>div { min-width:0; }
+.request-heading strong { font-size:15px; }
+.request-heading>div>span { margin-top:5px; }
+.chat-card .request-status { flex:none; padding:5px 9px; border-radius:7px; background:#3b4430; color:#e1edcd; font-size:12px; font-weight:650; text-align:right; }
+.chat-card .status-approved { background:#2d4934; color:#bee6c9; }
+.chat-card .status-denied { background:#49322e; color:#edbbb3; }
+.request-actions { display:flex; justify-content:flex-end; align-items:center; gap:6px; margin-top:16px; }
+.request-actions button { margin:0; }
+.request-actions .review-action { order:1; min-height:40px; padding:9px 16px; font-size:14px; }

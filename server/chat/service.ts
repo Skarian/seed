@@ -56,7 +56,7 @@ export class Chats {
   settings(id:string,version:number,values:{title?:string;workflow?:ChatWorkflow|null;reasoning?:boolean}){
     const chat=this.get(id);this.checkVersion(chat,version);if(this.busy(chat))throw Error('Stop this chat before changing its settings.');
     if(values.title!==undefined){if(!values.title.trim()||values.title.length>120)throw Error('Choose a title of 1–120 characters.');chat.title=values.title.trim();}
-    if(values.workflow!==undefined){if(values.workflow!==null&&!Object.hasOwn(chatWorkflows,values.workflow))throw Error('Unknown workflow.');chat.workflow=values.workflow;this.event(chat,values.workflow?'Workflow: '+chatWorkflows[values.workflow].label:'Workflow turned off.');}
+    if(values.workflow!==undefined){if(values.workflow!==null&&!Object.hasOwn(chatWorkflows,values.workflow))throw Error('Unknown workflow.');chat.workflow=values.workflow;}
     if(values.reasoning!==undefined)chat.reasoning=values.reasoning;
     chat.version++;this.save(chat);return this.view(id);
   }
