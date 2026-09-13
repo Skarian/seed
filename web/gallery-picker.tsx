@@ -21,7 +21,7 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
   async function load(after = '') {
     setLoading(true); setError('');
     try {
-      const response = await fetch('/api/v1/assets?cursor=' + encodeURIComponent(after));
+      const response = await fetch('/api/v1/assets?mode=' + (spicy?'nsfw':'sfw') + '&cursor=' + encodeURIComponent(after));
       if (!response.ok) throw Error('Could not load the gallery. Try again.');
       const page = await response.json();
       page.items = page.items.map(presentAsset);
@@ -36,7 +36,9 @@ export function GalleryPicker({ group, existing, onClose, onSelect }: {
     document.body.style.overflow = 'hidden'; element?.showModal(); void load();
     return () => { element?.close(); document.body.style.overflow = overflow; trigger?.focus(); };
   }, []);
-  const visible = assets.filter(a => (group !== 'edit' || a.kind === 'image' || a.kind === 'sequence') && (spicy || a.mode !== 'nsfw'));
+  const initialMode=useRef(spicy);
+  useEffect(()=>{if(initialMode.current!==spicy)onClose();},[spicy]);
+  const visible = assets.filter(a => (group !== 'edit' || a.kind === 'image' || a.kind === 'sequence') && (a.mode??'sfw') === (spicy?'nsfw':'sfw'));
   function unavailable(asset: LibraryAsset) {
     return existing.some(a => a.asset_id === asset.id) || existing.length + selected.length >= maximum ||
       (group === 'video' && [...existing, ...selected].filter(a => a.kind === asset.kind).length >= (asset.kind === 'image' ? 9 : 3));

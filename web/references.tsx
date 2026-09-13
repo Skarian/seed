@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { GalleryPicker } from "./gallery-picker.js";
 import type { LibraryAsset } from "../shared/studio.js";
 import { MediaPreview, Glyph } from "./media-preview.js";
+import { useSpicy } from './spicy-mode.js';
+import { uploadReferences } from './uploads.js';
+import { AssetNote } from './asset-note.js';
 export type MediaKind = "image" | "video" | "audio";
 export type Reference = {
   file?: File;
@@ -128,11 +131,16 @@ async function inspect(file: File | LibraryAsset): Promise<Reference> {
   }
 }
 export function useReferences() {
+  const {spicy}=useSpicy();
+  const mode=spicy?'nsfw':'sfw';
+  const [notes,setNotes]=useState<string[]>([]);
   const [groups, setGroups] = useState<Record<Group, Reference[]>>({
     edit: [],
     video: [],
   });
   const latest = useRef(groups);
+  const modeGroups=useRef<Record<string,Record<Group,Reference[]>>>({});
+  const previousMode=useRef(mode);
   latest.current = groups;
   const epochs = useRef({ edit: 0, video: 0 });
   const [errors, setErrors] = useState<Record<Group, string[]>>({
@@ -145,6 +153,7 @@ export function useReferences() {
     () => () => {
       for (const list of Object.values(latest.current))
         for (const item of list) URL.revokeObjectURL(item.url);
+      for(const saved of Object.values(modeGroups.current))for(const list of Object.values(saved))for(const item of list)URL.revokeObjectURL(item.url);
     },
     [],
   );
@@ -164,6 +173,7 @@ export function useReferences() {
     setBusy(true);
     const epoch = epochs.current[group];
     const messages: string[] = [];
+    const missingNotes:string[]=[];
     try {
       for (const file of files) {
         let item: Reference;
@@ -209,10 +219,21 @@ export function useReferences() {
             : item.kind === "image" && !rest.length
               ? "first_frame"
               : "reference";
-        change(group, [...rest, item]);
+        try {
+          const uploaded=await uploadReferences([item],mode,()=>{});
+          item.asset_id=uploaded[0]!.asset_id;
+          const response=await fetch('/api/v1/notes/'+item.asset_id);
+          if(!response.ok)throw Error('Could not load asset note.');
+          const saved=await response.json();
+          if(epochs.current[group]!==epoch){URL.revokeObjectURL(item.url);break;}
+          if(!saved.note&&!saved.inherited)missingNotes.push(item.asset_id!);
+          change(group, [...latest.current[group], item]);
+        } catch(error){messages.push((error as Error).message);URL.revokeObjectURL(item.url);}
       }
-      if (epochs.current[group] === epoch)
+      if (epochs.current[group] === epoch) {
         setErrors((previous) => ({ ...previous, [group]: messages }));
+        if(missingNotes.length)setNotes(missingNotes);
+      }
     } finally {
       pending.current = false;
       setBusy(false);
@@ -234,7 +255,14 @@ export function useReferences() {
       ),
     );
   }
-  return { groups, errors, busy, add, remove, update, reset };
+  useEffect(()=>{
+    if(previousMode.current===mode)return;
+    modeGroups.current[previousMode.current]=latest.current;previousMode.current=mode;
+    epochs.current.edit++;epochs.current.video++;
+    latest.current=modeGroups.current[mode]??{edit:[],video:[]};setGroups(latest.current);
+    setNotes([]);setErrors({edit:[],video:[]});
+  },[mode]);
+  return { groups, errors, busy, add, remove, update, reset, notes, dismissNotes:()=>setNotes([]) };
 }
 export function referenceIssues(items: Reference[], group: Group) {
   const issues: string[] = [];
@@ -611,9 +639,20 @@ export function ReferenceInputs({
             state.remove(group, active.id);
             setSelected(null);
           }}
-          controls={controls}
+          controls={<>{controls}{active.asset_id&&<AssetNote id={active.asset_id}/>}</>}
         />
       )}
+      {state.notes.length>0&&<NoteModal ids={state.notes} close={state.dismissNotes}/>}
     </section>
   );
+}
+
+export function NoteModal({ids,close}:{ids:string[];close:()=>void}) {
+  const dialog=useRef<HTMLDialogElement>(null);
+  useEffect(()=>{dialog.current?.showModal();return()=>dialog.current?.close();},[]);
+  return <dialog ref={dialog} className="gallery-picker" aria-label="Describe assets" onCancel={close}>
+    <header><h2>Describe your assets</h2><button onClick={close}>Done / Skip</button></header>
+    <p>Optional notes help the agent refer to each asset. Save each note you want to keep.</p>
+    {ids.map(id=><div key={id}><a href={'/api/v1/assets/'+id+'/content'} target="_blank" rel="noreferrer">View asset</a><AssetNote id={id}/></div>)}
+  </dialog>;
 }

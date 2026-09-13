@@ -10,7 +10,7 @@ const archive=path.resolve(process.argv[2] ?? '');
 if(!archive.endsWith('.tgz'))throw Error('Usage: node scripts/test-package.mjs PACKAGE.tgz');
 const root=await mkdtemp(path.join(os.tmpdir(),'seed-package-'));
 const env={...process.env,STUDIO_DEV_ROOT:path.join(root,'data'),APPDATA:path.join(root,'profile'),VAST_API_KEY:'fixture-test-key',HF_TOKEN:'fixture-test-key'};
-for(const key of ['RUNPOD_API_KEY','CIVITAI_API_TOKEN','NODE_OPTIONS','SEED_MANAGED'])delete env[key];
+for(const key of ['RUNPOD_API_KEY','CIVITAI_API_TOKEN','OPENROUTER_API_KEY','NODE_OPTIONS','SEED_MANAGED'])delete env[key];
 const npm=process.env.npm_execpath;
 if(!npm)throw Error('Run via npm run test:package -- PACKAGE.tgz.');
 const run=(args)=>new Promise((resolve,reject)=>{
@@ -23,12 +23,16 @@ const probe=createServer();await new Promise(r=>probe.listen(0,'127.0.0.1',r));c
 await run([npm,'install','--prefix',root,archive,'--no-audit','--no-fund']);
 try {
  await run([cli,'setup','--provider','vast','--no-cache-models','--port',String(port)]);
+ const guide=path.join(env.STUDIO_DEV_ROOT,'config','prompting','chat','standard.md');
+ assert.match(await readFile(guide,'utf8'),/creative assistant/);
+ await writeFile(guide,'Owner customized instructions');
  const marker=path.join(env.STUDIO_DEV_ROOT,'data','media','originals','preserved.txt');await writeFile(marker,'preserve me');
  assert.match(await run([cli,'gpu','vast','doctor']),/"built": true/);
  await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);await run([cli,'stop']);
  const credentials=await readFile(path.join(env.STUDIO_DEV_ROOT,'config','credentials.json'),'utf8');
  await run([npm,'install','--prefix',root,archive,'--no-audit','--no-fund']);
  assert.equal(await readFile(marker,'utf8'),'preserve me');
+ assert.equal(await readFile(guide,'utf8'),'Owner customized instructions');
  assert.equal(await readFile(path.join(env.STUDIO_DEV_ROOT,'config','credentials.json'),'utf8'),credentials);
  await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);
  await run([cli,'stop']);

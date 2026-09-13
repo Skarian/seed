@@ -49,6 +49,20 @@ port 18080 free. Fault variants and remote-host instructions are in
 
 ## Package and installation
 
+Chat uses a separate optional OpenRouter credential. Run `seed setup --chat-only`
+to enter it through a masked prompt without configuring GPU credentials. Normal
+setup also offers this optional step. Prompt defaults ship under `prompting/`;
+setup prints the location of editable user copies. Changes apply on the next Chat
+message and package upgrades preserve existing copies.
+The isolated `--chat-only` path can run while Seed is open; it does not change
+GPU, server-address or cache settings.
+
+Use the Chat workflow picker or `/create-image`, `/create-video`, `/animate-image`
+to activate exactly one workflow tool. Request cards require button approval;
+feedback never approves. A group's approved jobs start only after every card has
+been decided. Stop is scoped to the current conversation.
+
+
 ```sh
 npm pack
 npm install --global ./skarian-seed-0.1.0.tgz

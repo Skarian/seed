@@ -12,7 +12,7 @@ test('buffered scrubbing draws the correct tile and waits for original quality b
   }
   const original=await sharp({create:{width:1344,height:768,channels:3,background:'#123456'}}).png().toBuffer();
   let release!:()=>void;const gate=new Promise<void>(resolve=>release=resolve);let requests=0;
-  await page.route('**/api/v1/assets',r=>r.fulfill({json:{items:[{id:'seq',kind:'sequence',name:'Image sequence',cover_id:'f0',frame_count:48}]}}));
+  await page.route('**/api/v1/assets?*',r=>r.fulfill({json:{items:[{id:'seq',kind:'sequence',name:'Image sequence',cover_id:'f0',frame_count:48}]}}));
   await page.route('**/api/v1/assets/f*/*',async r=>{if(r.request().url().includes('/f40/content'))await gate;await r.fulfill({contentType:'image/png',body:original});});
   await page.route('**/api/v1/sequences/seq',r=>r.fulfill({json:{id:'seq',revision:0,mode:'sfw',frames}}));
   await page.route('**/api/v1/sequences/seq/preview/*',r=>{requests++;return r.fulfill({contentType:'image/png',body:sheets[Number(new URL(r.request().url()).pathname.split('/').pop())]!});});
@@ -41,7 +41,7 @@ test('sequence slider inspects originals, selects frames, confirms keep-only and
   let revision=0, frames=Array.from({length:12},(_,index)=>({id:'frame-'+index,index,time:index/24,width:1344,height:768}));
   let removed=0;
   const png=await sharp({create:{width:1344,height:768,channels:3,background:'#387a82'}}).png().toBuffer();
-  await page.route('**/api/v1/assets',r=>r.fulfill({json:{items:[{id:'seq',kind:'sequence',name:'Image sequence',mode:'sfw',cover_id:frames[0]!.id,frame_count:frames.length}]}}));
+  await page.route('**/api/v1/assets?*',r=>r.fulfill({json:{items:[{id:'seq',kind:'sequence',name:'Image sequence',mode:'sfw',cover_id:frames[0]!.id,frame_count:frames.length}]}}));
   await page.route('**/api/v1/assets/frame-*/*',r=>r.fulfill({contentType:'image/png',body:png}));
   await page.route('**/api/v1/sequences/seq',r=>r.fulfill({json:{id:'seq',revision,mode:'sfw',frames}}));
   await page.route('**/api/v1/sequences/seq/keep-only',r=>{
@@ -86,6 +86,7 @@ test('image export uses the existing video request and whole-second duration',as
 });
 
 test('Gallery opens a sequence and selects individual frames as image references',async({page})=>{
+  await page.route('**/api/v1/notes/*',r=>r.fulfill({json:{note:'Sequence note',revision:1}}));
   const png=await sharp({create:{width:100,height:80,channels:3,background:'#abc'}}).png().toBuffer();
   await page.route('**/api/v1/assets?*',r=>r.fulfill({json:{items:[{id:'seq',kind:'sequence',name:'Image sequence',cover_id:'frame-a',frame_count:2}]}}));
   await page.route('**/api/v1/assets/frame-*/*',r=>r.fulfill({contentType:'image/png',body:png}));

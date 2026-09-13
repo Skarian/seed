@@ -1,8 +1,32 @@
 # Validation status
 
-Current as of September 12, 2026. This is the latest summary; the
+Current as of September 13, 2026. This is the latest summary; the
 [historical test journal](../research/development/HISTORICAL-VALIDATION.md)
 retains failures, fixes, timing evidence and earlier partial bills.
+
+## Chat implementation acceptance (2026-09-13)
+
+Implemented on `codex/seed-chat-openrouter`. Local verification passed: 106
+application tests, 70 operations tests, 61 worker tests (one skipped), typecheck,
+build and credential scan (328 files, no potential matches). Browser coverage
+includes 33 cases: the full run passed 32 and exposed an ambiguous new-chat
+selector; after the accessible-name fix, all three Chat cases passed. The final
+shared-viewer change also passed Chat and generation browser checks. Tests use
+fake OpenRouter/worker transports and isolated storage.
+
+The final archive passed Windows installation, setup, restart, reinstall,
+synthetic version upgrade, broken-start rollback, and media/credential/custom
+prompt preservation (fixture `seed-package-OWmPok`). Installed the archive after
+stopping the idle owner app and backing up SQLite under
+`.local/backups/seed-before-chat/`. The restarted `/chat` returns 200 at the
+existing LAN address. Installed Chat service matches the built source; all 42
+assets and 69 historical jobs remain, with zero active/waiting jobs.
+
+The optional OpenRouter key is not configured. Owner can use
+`seed setup --chat-only` while the app runs. Prompt defaults were initialized in
+the per-user Config/prompting directory. No paid hosted inference, real provider
+fallback, or GPU generation was run for Chat; these and owner visual acceptance
+remain explicit follow-up checkpoints.
 
 | Area | Status |
 |---|---|

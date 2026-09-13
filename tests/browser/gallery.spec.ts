@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import sharp from 'sharp';
+test.beforeEach(async({page})=>{await page.route('**/api/v1/notes/*',r=>r.fulfill({json:{note:'Existing asset description',revision:1}}));});
 test('gallery respects available slots, NSFW opt-in, and reuses saved assets', async ({page}) => {
   const image=await sharp({create:{width:64,height:48,channels:3,background:'#b59171'}}).png().toBuffer();
   await page.route('**/api/v1/assets?*',r=>r.fulfill({json:{items:[1,2,3].map(n=>({id:'saved-'+n,kind:'image',name:'Image '+n,mode:n===3?'nsfw':'sfw'})),next_cursor:null}}));
@@ -14,9 +15,13 @@ test('gallery respects available slots, NSFW opt-in, and reuses saved assets', a
   await picker.getByRole('button', {name:'Close gallery'}).click();
   await page.getByRole('button', {name:'Seed',exact:true}).click({delay:900});
   await page.getByRole('button',{name:'Gallery',exact:true}).click();
+  await expect(picker.getByRole('button',{name:'Select Image 1'})).toHaveCount(0);
+  await expect(picker.getByRole('button',{name:'Select Image 3'})).toBeEnabled();
+  await picker.getByRole('button',{name:'Close gallery'}).click();
+  await page.getByRole('button',{name:'Turn off Spicy mode'}).click();
+  await page.getByRole('button',{name:'Gallery',exact:true}).click();
   await picker.getByRole('button',{name:'Select Image 1'}).click();
   await picker.getByRole('button',{name:'Select Image 2'}).click();
-  await expect(picker.getByRole('button',{name:'Select Image 3'})).toBeEnabled();
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'.local/gallery-mobile.png'});
   await picker.getByRole('button',{name:'Select (2)',exact:true}).click();

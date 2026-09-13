@@ -1,4 +1,8 @@
 import { Sequences } from './sequences.js';
+import { registerNotes } from './notes.js';
+import { Chats } from './chat/service.js';
+import { registerChats } from './chat/http.js';
+import { chatCredential } from './chat/credentials.js';
 import { Previews } from './previews.js';
 import Fastify from 'fastify';
 import { WorkerConnection } from './worker.js';
@@ -18,6 +22,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   const db = openDatabase(options.paths.data);
   const worker = new WorkerConnection(options.paths, options.localTestWorkerOrigin);
   const jobs = new Jobs(db, options.paths, worker);
+  const chats = new Chats(db, options.paths, jobs);
   const sequences = new Sequences(db, options.paths.data, options.paths.cache, jobs);
   const previews = new Previews(options.paths.data, options.paths.cache);
   sequences.recover();
@@ -51,8 +56,10 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     return fail(reply, status, status === 500 ? 'internal_error' : 'invalid_request', status === 500 ? 'seed could not complete this request.' : 'Check the request and try again.', request.id);
   });
   await jobs.media.register(app);
+  registerNotes(app, db);
+  registerChats(app,chats,()=>Boolean(chatCredential(options.paths)));
   app.addHook('onReady', async () => { jobs.start(); });
-  app.addHook('preClose', async () => { await jobs.close(); });
+  app.addHook('preClose', async () => { await chats.close(); await jobs.close(); });
   app.addHook('onClose', async () => { await jobs.media.close(); db.close(); });
   app.get('/api/v1/health', async () => ({ application: 'seed', version: '0.1.0', instance_id: instanceId }));
   app.get('/api/v1/studio', async (): Promise<StudioSnapshot> => {
@@ -88,7 +95,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
       catch { return fail(reply, 409, 'worker_unavailable', 'Connect a ready worker before resuming.', request.id); }
     });
   }
-  app.get('/api/v1/assets', async request => { const cursor = String((request.query as { cursor?: string }).cursor ?? ''); const items = listAssets(db, cursor, 51); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},mode:{enum:['sfw','nsfw']}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw'}; const items = listAssets(db, query.cursor ?? '', 51, query.mode); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/sequences/:id', async (request,reply)=> {
     try {return sequences.get((request.params as any).id) ?? fail(reply,404,'not_found','Sequence not found.',request.id);}
     catch(e){return fail(reply,409,'sequence_busy',(e as Error).message,request.id);}
@@ -199,6 +206,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   if (existsSync(path.join(webRoot, 'index.html'))) {
     await app.register(fastifyStatic, { root: webRoot, dotfiles: 'deny', index: 'index.html' });
     app.get('/library', async (_request, reply) => reply.sendFile('index.html'));
+    app.get('/chat', async (_request, reply) => reply.sendFile('index.html'));
   }
   app.setNotFoundHandler((request, reply) => fail(reply, 404, 'not_found', 'This page or operation is not available.', request.id));
   return app;

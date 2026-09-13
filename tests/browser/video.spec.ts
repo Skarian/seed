@@ -113,6 +113,7 @@ test('reference video uses real tus upload and verified asset IDs with inserted 
   await page.goto('/');
   await page.getByLabel('Workflow').selectOption('reference-to-video');
   await page.getByLabel('Choose reference files').setInputFiles({ name: 'video-test-reference.png', mimeType: 'image/png', buffer: pixels });
+  await page.getByRole('button',{name:'Done / Skip'}).click();
   await page.getByRole('button', { name: 'Preview video-test-reference.png' }).click();
   await page.getByLabel('Role for video-test-reference.png').selectOption('reference');
   await page.getByRole('button', { name: 'Close preview' }).click();
@@ -147,6 +148,7 @@ test('deleting and reclassifying images leaves prompt text untouched and flags i
   await page.goto('/');
   await page.getByLabel('Workflow').selectOption('reference-to-video');
   await page.getByLabel('Choose reference files').setInputFiles(['one.png', 'two.png', 'three.png'].map(name => ({ name, mimeType: 'image/png', buffer })));
+  await page.getByRole('button',{name:'Done / Skip'}).click();
   await page.getByRole('button', { name: 'Preview one.png' }).click();
   await page.getByLabel('Role for one.png').selectOption('reference');
   await page.getByRole('button', { name: 'Close preview' }).click();

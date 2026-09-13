@@ -4,8 +4,8 @@ export type PreviewMedia = {
   name: string; url: string; kind: 'image' | 'video' | 'audio'; type: string;
   width?: number; height?: number; duration?: number;
 };
-export function MediaPreview({ media, onClose, onDelete, controls }: {
-  media: PreviewMedia; onClose: () => void; onDelete?: () => void; controls?: ReactNode;
+export function MediaPreview({ media, onClose, onDelete, controls, label='Media preview' }: {
+  media: PreviewMedia; onClose: () => void; onDelete?: () => void; controls?: ReactNode; label?:string;
 }) {
   const dialog = useRef<HTMLDialogElement>(null);
   useEffect(() => {
@@ -16,7 +16,7 @@ export function MediaPreview({ media, onClose, onDelete, controls }: {
     element?.showModal();
     return () => { element?.close(); document.body.style.overflow = overflow; if (trigger?.isConnected) trigger.focus(); };
   }, []);
-  return <dialog ref={dialog} className="media-viewer" aria-label="Media preview" onCancel={event => { event.preventDefault(); onClose(); }}>
+  return <dialog ref={dialog} className="media-viewer" aria-label={label} onCancel={event => { event.preventDefault(); onClose(); }}>
     <header className="viewer-toolbar">
       <button type="button" className="viewer-button" aria-label="Close preview" onClick={onClose}><Glyph name="close" /></button>
       <div className="viewer-actions">

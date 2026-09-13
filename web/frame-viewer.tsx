@@ -1,4 +1,5 @@
 import { FrameCanvas } from './frame-canvas.js';
+import { AssetNote } from './asset-note.js';
 import { useFrameImage } from './frame-images.js';
 import React, { useEffect, useRef, useState } from 'react';
 import type { FrameSequence, LibraryAsset } from '../shared/studio.js';
@@ -67,6 +68,8 @@ export function FrameViewer({ id, onClose, onChanged, onPick, selectedIds = [], 
         </div>
       </div>
     </>}
+    <details><summary>Sequence note</summary><AssetNote id={id}/></details>
+    {frame&&<details><summary>Frame note</summary><AssetNote key={frame.id} id={frame.id}/></details>}
     {(error||original.error)&&<p role="alert">{error||original.error} <button onClick={()=>setRetry(v=>v+1)}>Retry</button></p>}
     {!sequence&&!error&&<p role="status">Loading frames…</p>}
     {confirm&&sequence&&<ConfirmDialog title={`Keep ${selected.length} frames?`} description={`Permanently delete the other ${sequence.frames.length-selected.length} frames from your PC? This cannot be undone.`} action="Keep only" onClose={()=>setConfirm(false)} onConfirm={async()=>{

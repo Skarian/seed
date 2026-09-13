@@ -14,7 +14,7 @@ test('both image modes submit selected settings and show saved output in preview
     }
     return route.fulfill({ json: { items: job ? [job] : [] } });
   });
-  await page.route('**/api/v1/assets', route => route.fulfill({ json: { items: job?.outputs.length ? [{ id: job.outputs[0], kind: 'image', name: 'Saved image' }] : [] } }));
+  await page.route('**/api/v1/assets?*', route => route.fulfill({ json: { items: job?.outputs.length ? [{ id: job.outputs[0], kind: 'image', name: 'Saved image',mode:job.id.endsWith('nsfw')?'nsfw':'sfw' }] : [] } }));
   await page.route('**/api/v1/assets/*/content', route => route.fulfill({ contentType: 'image/png', body: Buffer.from('iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aWZkAAAAASUVORK5CYII=', 'base64') }));
   await page.goto('/');
   await page.getByLabel('Prompt', { exact: true }).fill('An illustrated landscape');

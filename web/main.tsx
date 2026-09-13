@@ -8,6 +8,9 @@ import type {
 } from "../shared/studio.js";
 import "./style.css";
 import { FrameViewer } from "./frame-viewer.js";
+import { AssetNote } from './asset-note.js';
+import { Chat } from './chat.js';
+import { MediaPreview } from './media-preview.js';
 import { ConfirmDialog } from "./confirm-dialog.js";
 import { MediaCard, LoadingIndicator } from "./media-card.js";
 import { uploadReferences } from "./uploads.js";
@@ -171,46 +174,14 @@ function SavedImage({
   kind: "image" | "video" | "audio" | "sequence";
   close: () => void;
 }) {
-  const dialog = useRef<HTMLDialogElement>(null);
-  useEffect(() => {
-    dialog.current?.showModal();
-    return () => dialog.current?.close();
-  }, []);
-  return (
-    <dialog
-      ref={dialog}
-      className="saved-viewer"
-      aria-label={kind === "image" ? "Saved image" : "Saved media"}
-      onCancel={close}
-      onClose={close}
-    >
-      <div>
-        <a href={`/api/v1/assets/${id}/content`} download>
-          Download
-        </a>
-        <button onClick={close} aria-label="Close saved image">
-          <Icon name="close" />
-        </button>
-      </div>
-      {kind === "video" ? (
-        <video
-          src={`/api/v1/assets/${id}/content`}
-          controls
-          playsInline
-          autoPlay
-        />
-      ) : kind === "audio" ? (
-        <audio src={`/api/v1/assets/${id}/content`} controls />
-      ) : (
-        <img src={`/api/v1/assets/${id}/content`} alt="Saved generation" />
-      )}
-    </dialog>
-  );
+  return <MediaPreview label={kind==='image'?'Saved image':'Saved media'}
+    media={{name:'Saved generation',url:`/api/v1/assets/${id}/content`,kind:kind==='sequence'?'image':kind,type:kind}}
+    onClose={close} controls={<AssetNote id={id}/>}/>;
 }
 
 function App() {
   const [page, setPage] = useState(
-    location.pathname === "/library" ? "library" : "generate",
+    location.pathname === "/chat" ? "chat" : location.pathname === "/library" ? "library" : "generate",
   );
   const [workflow, setWorkflow] = useState<WorkflowId>("text-to-image");
   const [drafts, setDrafts] = useState(loadDrafts);
@@ -226,7 +197,7 @@ function App() {
   const { spicy } = useSpicy();
   const mode = spicy ? "nsfw" : "sfw";
   const visibleAssets = assets.filter(
-    (asset) => spicy || asset.mode !== "nsfw",
+    (asset) => (asset.mode ?? 'sfw') === mode,
   );
   const [assetCursor, setAssetCursor] = useState<string | null>(null);
   const loadedMore = useRef(false);
@@ -302,7 +273,7 @@ function App() {
     }
     async function refreshLibrary() {
       try {
-        const response = await fetch("/api/v1/assets", {
+        const response = await fetch("/api/v1/assets?mode=" + mode, {
           signal: controller.signal,
         });
         if (!response.ok) throw new Error("Unavailable");
@@ -342,7 +313,8 @@ function App() {
       controller.abort();
       clearInterval(timer);
     };
-  }, [connectionRevision]);
+  }, [connectionRevision, mode]);
+  useEffect(() => { setAssets([]); setAssetCursor(null); loadedMore.current=false; setLibraryLoaded(false); setViewAsset(null); setDeleteTarget(null); }, [mode]);
   useEffect(() => {
     try {
       localStorage.setItem("seed.drafts.v2", JSON.stringify(drafts));
@@ -354,13 +326,13 @@ function App() {
   }, [drafts, highQuality]);
   useEffect(() => {
     const onPopState = () =>
-      setPage(location.pathname === "/library" ? "library" : "generate");
+      setPage(location.pathname === "/chat" ? "chat" : location.pathname === "/library" ? "library" : "generate");
     addEventListener("popstate", onPopState);
     return () => removeEventListener("popstate", onPopState);
   }, []);
   function navigate(next: string) {
     setPage(next);
-    history.pushState(null, "", next === "library" ? "/library" : "/");
+    history.pushState(null, "", next === 'chat' ? '/chat' : next === "library" ? "/library" : "/");
   }
   const video = workflow.endsWith("video");
   const videoCapability = capability?.workflows[workflow];
@@ -471,7 +443,7 @@ function App() {
   async function moreAssets() {
     if (!assetCursor) return;
     const response = await fetch(
-      "/api/v1/assets?cursor=" + encodeURIComponent(assetCursor),
+      "/api/v1/assets?mode=" + mode + "&cursor=" + encodeURIComponent(assetCursor),
     );
     if (!response.ok) {
       setGenerationError("Could not load older images.");
@@ -642,13 +614,13 @@ function App() {
           seed
         </SpicyBrand>
         <nav aria-label="Main navigation">
-          {["generate", "library"].map((item) => (
+          {["generate", "library", "chat"].map((item) => (
             <button
               key={item}
               aria-current={page === item ? "page" : undefined}
               onClick={() => navigate(item)}
             >
-              {item === "generate" ? "Generate" : "Library"}
+              {item === "generate" ? "Generate" : item === "chat" ? "Chat" : "Library"}
             </button>
           ))}
         </nav>
@@ -1207,7 +1179,7 @@ function App() {
               )}
             </section>
           </>
-        ) : (
+        ) : page === 'chat' ? <Chat /> : (
           <section className="library">
             <div className="library-heading">
               <h1>Library</h1>

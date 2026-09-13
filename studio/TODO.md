@@ -1,3 +1,17 @@
+# Current feature: Chat
+
+Approved specification: [Chat plan](CHAT-PLAN.md). Implemented, locally verified,
+package-tested and installed on `codex/seed-chat-openrouter`.
+
+- [x] Pin Pi and prove routing, reasoning, images, tools, errors, usage and abort with a fake transport.
+- [x] Persistent chats, workflow activation, prompt defaults and optional masked CLI credential setup.
+- [x] Asset notes, immediate upload persistence and exact Library mode filtering.
+- [x] Review groups, revisions, feedback, approval, repeat, restore and scoped Stop.
+- [x] Final archive acceptance and installed-app verification; database backed up.
+- [ ] Owner visual acceptance and optional OpenRouter key setup (`seed setup --chat-only`).
+- [ ] Separately authorized live Parasail/fallback and GPU generation acceptance.
+- [x] Compact older conversation with bounded summaries; preserve original history and canonical requests/approvals separately.
+
 # SSH-only reliability checklist
 
 Active approved [implementation plan](SSH-RELIABILITY.md). Implementation and

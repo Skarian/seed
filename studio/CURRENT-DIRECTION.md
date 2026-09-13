@@ -21,6 +21,13 @@ new rentals after bounded recovery. Preserve established sessions and saved medi
 Current work and evidence: [TODO](TODO.md), [validation](VALIDATION.md).
 Identity editing and maximum-reference performance tests are deferred.
 
+Chat is a separate persistent workspace. The owner activates one workflow at a
+time through the picker or slash command, reviews immutable request revisions,
+and approves every generation. OpenRouter routing prefers Parasail, with automatic
+compatible-provider fallback. Prompts ship with the package and have editable
+per-user copies. Jobs continue when the browser leaves Chat; Stop cancels work
+only for the current chat. Chats, Library and pickers show the current mode only.
+
 ## Spicy mode
 
 One session-scoped setting controls all generation workflows, Library visibility,

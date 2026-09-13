@@ -163,6 +163,10 @@ export class Jobs {
     return row ? JSON.parse(row.snapshot_json) : null;
   }
   save(job: Job) {
+    if(this.cancelled(job.id)) {
+      if(job.state==='queued'){job.state='cancelled';job.output_save_state='not_applicable';}
+      else if(['submitting','running'].includes(job.state))job.state='cancel_requested';
+    }
     if (
       job.metrics &&
       terminal.includes(job.state) &&
@@ -197,6 +201,12 @@ export class Jobs {
     this.checkedAt = null;
   }
   async submit(raw: unknown, key: string) {
+    const prepared = await this.prepareSubmission(raw, key);
+    const result = this.db.transaction(prepared.commit)();
+    this.pause(false);
+    return result;
+  }
+  async prepareSubmission(raw: unknown, key: string) {
     if (this.all().some(job => job.recovery_blocked))
       throw new Error('Fix the reported transfer problem and resume the queue before creating another job.');
     const request = imageRequest(raw);
@@ -209,10 +219,10 @@ export class Jobs {
     if (previous) {
       if (previous.body_json !== body)
         throw new Error("This submission key belongs to different settings.");
-      return {
+      return {commit: () => ({
         submission_id: previous.id,
         jobs: this.all().filter((j) => j.submission_id === previous.id),
-      };
+      })};
     }
     const cap = await this.inspectCapabilities();
     if (request.capabilities_revision !== cap.revision)
@@ -299,7 +309,7 @@ export class Jobs {
         updated_at: now,
       };
     });
-    this.db.transaction(() => {
+    return {commit: () => {
       this.db
         .prepare("INSERT INTO submissions VALUES (?,?,?)")
         .run(submission_id, key, body);
@@ -317,10 +327,8 @@ export class Jobs {
           submission_id,
           job.submission_index,
         );
-    })();
-    // Explicit Create resumes new work; never a pod start operation.
-    this.pause(false);
-    return { submission_id, jobs };
+      return { submission_id, jobs };
+    }};
   }
   async inspectCapabilities(requireReady = true) {
     const cap = (await this.worker.json("/comfy/capabilities")) as Capabilities;
@@ -359,6 +367,20 @@ export class Jobs {
     this.save(job);
     return job;
   }
+  /** Durable user intent is independent of remote job state and recovery. */
+  stopJobs(ids: string[]) {
+    this.db.transaction(()=>{
+      for(const id of ids) {
+        const job=this.get(id);if(!job||terminal.includes(job.state))continue;
+        this.db.prepare('INSERT OR IGNORE INTO job_cancel_intents(id) VALUES (?)').run(id);
+        if(this.transfer?.id===id)this.transfer.abort.abort();
+        if(job.state==='queued'){job.state='cancelled';job.output_save_state='not_applicable';}
+        else if(job.state!=='needs_attention')job.state='cancel_requested';
+        this.save(job);
+      }
+    })();
+  }
+  private cancelled(id:string) {return Boolean(this.db.prepare('SELECT id FROM job_cancel_intents WHERE id=?').get(id));}
   acknowledge(id: string) {
     const job = this.get(id);
     if (!job || job.state !== "needs_attention")
@@ -456,7 +478,7 @@ export class Jobs {
       const response = await this.worker.request("/worker/v1/jobs/" + job.id);
       if (response.status === 404) {
         await response.body?.cancel();
-        if (job.submission_pending && job.state !== 'cancel_requested' &&
+        if (job.submission_pending && job.state !== 'cancel_requested' && !this.cancelled(job.id) &&
             job.engine_session_id === cap.engine_session_id && !this.paused &&
             !foreign && !orphan && nativeIds.length === 0) {
           await this.dispatch(job, cap.engine_session_id);
@@ -512,7 +534,7 @@ export class Jobs {
         job.error =
           "Generation was interrupted or its outcome is uncertain. No automatic rerun.";
         this.save(job);
-      } else if (job.state === "cancel_requested") {
+      } else if (job.state === "cancel_requested" || this.cancelled(job.id)) {
         if (!foreign)
           await this.worker.json("/comfy/cancel", {
             method: "POST",
@@ -549,7 +571,7 @@ export class Jobs {
       !unresolved &&
       nativeIds.length === 0
     ) {
-      const next = current.find((j) => j.state === "queued" && !j.recovery_blocked);
+      const next = current.find((j) => j.state === "queued" && !j.recovery_blocked && !this.cancelled(j.id));
       if (next) {
         if (next.metrics && !next.metrics.transfer_started_at) {
           next.metrics.transfer_started_at = new Date().toISOString();
@@ -610,6 +632,7 @@ export class Jobs {
             : "No active work or unsaved outputs.";
   }
   private async dispatch(job: Job, session: string) {
+    if(this.cancelled(job.id))return;
     this.attempt(job, 'submit');
     job.state = 'submitting'; job.submission_pending = true;
     if (job.metrics && !job.metrics.submitted_at) job.metrics.submitted_at = new Date().toISOString();

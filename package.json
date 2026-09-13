@@ -20,6 +20,8 @@
     "test:worker-network": "node scripts/test-worker-network.mjs"
   },
   "dependencies": {
+    "@earendil-works/pi-agent-core": "0.85.1",
+    "@earendil-works/pi-ai": "0.85.1",
     "@fastify/static": "10.1.3",
     "@inquirer/password": "5.2.2",
     "@tus/file-store": "2.1.1",
@@ -49,6 +51,7 @@
     "seed": "dist/server/cli.js"
   },
   "files": [
+    "prompting/",
     "dist/server/",
     "dist/shared/",
     "dist/worker/models.json",

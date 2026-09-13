@@ -9,6 +9,8 @@ import { prepareStorage, resolvePaths } from './storage.js';
 import { settings, saveSettings } from './settings.js';
 import { control } from './lifecycle.js';
 import { ensureCredentials, webServerEnvironment } from './credentials.js';
+import { setupChatCredential } from './chat/credentials.js';
+import { initializeChatPrompts } from './chat/prompts.js';
 
 const paths = resolvePaths(process.env.STUDIO_DEV_ROOT);
 const [command = 'help', ...args] = process.argv.slice(2);
@@ -26,12 +28,12 @@ try {
     await gpuCommand(args);
   } else {
   if (!['setup', 'models', 'start', 'status', 'stop', 'help'].includes(command)) throw new Error(`Unknown command: ${command}. Use seed help.`);
-  const known = command === 'models' ? ['--quiet'] : ['--quiet', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models'] : [])];
+  const known = command === 'models' ? ['--quiet'] : ['--quiet', '--host', '--port', ...(command === 'setup' ? ['--provider', '--cache-models', '--no-cache-models', '--chat-only'] : [])];
   for (let i = 0; i < args.length; i++) {
     if (!known.includes(args[i]!)) throw new Error(`Unknown option: ${args[i]}`);
     if (args[i] === '--host' || args[i] === '--port' || args[i] === '--provider') { if (!args[++i] || args[i]!.startsWith('--')) throw new Error('Option needs a value.'); }
   }
-  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310]\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|reconnect|status|reconcile|destroy|billing>\nseed gpu runpod <help|catalog|datacenters|status|create|wait|prepare|connect|safe|logs|billing|reconcile|destroy>');
+  if (command === 'help') say('seed setup [--provider vast|runpod] [--cache-models | --no-cache-models] [--host LOCAL_IP] [--port 4310]\nseed setup --chat-only\nseed models [--quiet]\nseed start [--quiet]\nseed status\nseed stop\nseed gpu vast <doctor|offers|rent|wait|boot|connect|reconnect|status|reconcile|destroy|billing>\nseed gpu runpod <help|catalog|datacenters|status|create|wait|prepare|connect|safe|logs|billing|reconcile|destroy>');
   else {
     prepareStorage(paths);
     if (command === 'setup' || command === 'start') { const { verifyMediaTools } = await import('./media.js'); await verifyMediaTools(); }
@@ -41,13 +43,18 @@ try {
     } else if (command === 'setup') {
       const current = settings(paths);
       const value = (flag: string) => args.includes(flag) ? args[args.indexOf(flag) + 1] : undefined;
-      if (await control(paths, 'status')) throw new Error('Stop seed before changing setup: seed stop.');
+      if (args.includes('--chat-only') && args.some(arg=>['--provider','--host','--port','--cache-models','--no-cache-models'].includes(arg))) throw new Error('Run --chat-only separately from GPU or server configuration.');
+      if (!args.includes('--chat-only') && await control(paths, 'status')) throw new Error('Stop seed before changing setup: seed stop.');
       current.host = value('--host') ?? current.host;
       current.port = Number(value('--port') ?? current.port);
       const { validateAddress } = await import('./address.js'); validateAddress(current.host, current.port);
       if (args.includes('--cache-models') && args.includes('--no-cache-models')) throw new Error('Choose --cache-models or --no-cache-models.');
       const provider = value('--provider') ?? current.provider ?? 'vast';
       if (provider !== 'vast' && provider !== 'runpod') throw new Error('Choose --provider vast or --provider runpod.');
+      const chatConfigured=await setupChatCredential(paths,Boolean(process.stdin.isTTY)&&!quiet);
+      say(`Chat: ${chatConfigured?'configured':'skipped (optional)'}. Editable prompts: ${initializeChatPrompts(paths)}`);
+      if(args.includes('--chat-only')) { say('Chat setup complete. Changes apply on the next message.'); }
+      else {
       const credentials = await ensureCredentials(paths, { provider, interactive: Boolean(process.stdin.isTTY) && !quiet });
       current.provider = provider;
       if (args.includes('--cache-models')) current.localModelCache = true;
@@ -68,6 +75,7 @@ try {
       }
       say(`Local model fallback: ${current.localModelCache ? 'enabled' : 'disabled'}. GPU downloads are attempted first.`);
       say(`Setup complete. ${current.provider === 'vast' ? 'Vast' : 'RunPod'} and Hugging Face configured.\nCivitai: ${credentials.civitaiConfigured ? 'configured' : 'skipped (optional)'}\nCredentials: ${credentials.file}\nThe repository .env is not modified.\nData: ${paths.data}\nRun seed start.`);
+      }
     } else if (command === 'status') {
       const running = await control(paths, 'status'); say(running ? `Running: ${running.url}` : 'seed is stopped.');
     } else if (command === 'stop') {
