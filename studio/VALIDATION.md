@@ -333,3 +333,5 @@ desktop and mobile menu screenshots; no paid requests submitted.
 Chat command follow-up: Generate and Chat share workflow labels. The reasoning checkbox is replaced by /reasoning with current state in the command menu and toast feedback. Build/typecheck and all four Chat/responsive checks passed; mobile command menu inspected.
 
 Welcome screen: centered serif heading ('What shall we create today?') above a bottom composer, based on the owner's revised reference. The no-selection state accepts input directly and creates a chat on first send or settings change. Five Chat/responsive browser checks passed, including first-send transition and reduced-height viewport; desktop/mobile screenshots inspected. Physical phone keyboard remains unverified.
+
+Scroll follow: reviewed Open WebUI Chat.svelte response scroll scheduling. Seed follows within 80px of the bottom, preserves reading position above that, and observes content/viewport size changes. Browser checks cover multiple streamed chunks, scrolling away and back, viewport reflow, and delayed content growth. Typecheck/build pass.

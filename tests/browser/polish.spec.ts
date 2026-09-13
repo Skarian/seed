@@ -21,3 +21,20 @@ test('responsive shell, modal focus, keyboard space and streaming text',async({p
  await page.screenshot({path:'.local/qa-long-chat.png'});
 });
 
+
+test('streaming follows near the bottom and preserves the reader position above it',async({page})=>{
+ await page.addInitScript(()=>{(window as any).EventSource=class {onmessage:any;constructor(){(window as any).chatStream=this;}close(){}};});
+ const chat:any={id:'scrolling',title:'Scroll test',mode:'sfw',workflow:null,version:0,activity:'thinking',reasoning:true,partial:'Starting',groups:[],assets:[],jobs:[],accounting:[],messages:Array.from({length:25},(_,i)=>({id:String(i),role:'assistant',text:('Message '+i+' with some detail. ').repeat(20),assets:[]}))};
+ await page.route('**/api/v1/chats**',r=>r.fulfill({json:new URL(r.request().url()).pathname==='/api/v1/chats'?{items:[chat]}:chat}));
+ await page.goto('/chat');await page.getByRole('button',{name:'Open chat: Scroll test'}).click();
+ const history=page.locator('.chat-history');const gap=()=>history.evaluate(e=>e.scrollHeight-e.scrollTop-e.clientHeight);
+ await expect.poll(gap).toBeLessThan(2);
+ async function stream(){chat.partial+=' More streamed text with enough content to wrap across several lines.'.repeat(15);await page.evaluate(value=>(window as any).chatStream.onmessage({data:JSON.stringify({partial:value,activity:'thinking'})}),chat.partial);}
+ for(let i=0;i<3;i++){await stream();await expect.poll(gap).toBeLessThan(2);}
+ await history.evaluate(e=>{e.scrollTop-=500;e.dispatchEvent(new Event('scroll'));});const above=await history.evaluate(e=>e.scrollTop);
+ await stream();await expect.poll(()=>history.evaluate(e=>e.scrollTop)).toBe(above);
+ await history.evaluate(e=>{e.scrollTop=e.scrollHeight-e.clientHeight-40;e.dispatchEvent(new Event('scroll'));});
+ await stream();await expect.poll(gap).toBeLessThan(2);
+ await page.setViewportSize({width:390,height:480});await expect.poll(gap).toBeLessThan(2);
+ await history.locator('.chat-history-content').evaluate(e=>{const image=document.createElement('div');image.style.height='300px';e.append(image);});await expect.poll(gap).toBeLessThan(2);
+});

@@ -3,7 +3,7 @@ import {workflowLabels} from './workflow-labels.js';
 import {toast} from 'react-hot-toast/headless';
 import {Modal} from './modal.js';
 import {createPortal,flushSync} from 'react-dom';
-import React,{useEffect,useRef,useState} from 'react';
+import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
 import type {ChatView,ChatWorkflow,ChatCard,ChatRevision,ChatMessage,ChatGroup} from '../shared/chat.js';
 import type {ImageRequest} from '../server/workflows.js';
 import {useSpicy} from './spicy-mode.js';
@@ -46,10 +46,12 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   const commandResults=Object.entries({...workflows,reasoning:{label:`Reasoning · ${chat?.reasoning?'on':'off'}`,command:'/reasoning'}}).filter(([,w])=>!commandToken||w.command.includes(commandToken.toLowerCase())||w.label.toLowerCase().includes(commandToken.slice(1).toLowerCase()));
   const commandOpen=Boolean(commandToken)&&!dismissed;
 
-  const history=useRef<HTMLDivElement>(null),follow=useRef(true);
-  useEffect(()=>{follow.current=true;},[id]);
+  const history=useRef<HTMLDivElement>(null),historyContent=useRef<HTMLDivElement>(null),follow=useRef(true),lastScrollTop=useRef(0),scrollSize=useRef('');
+  useLayoutEffect(()=>{follow.current=true;lastScrollTop.current=0;},[id]);
   const historyVersion=chat?JSON.stringify([chat.messages.at(-1)?.id,chat.partial,chat.groups.map(g=>[g.state,g.cards.map(c=>c.revisions.at(-1)?.number)]),chat.jobs.map(j=>[j.state,j.outputs.length])]):'';
-  useEffect(()=>{if(follow.current&&history.current)history.current.scrollTop=history.current.scrollHeight;},[historyVersion]);
+  function scrollFollowing(){const element=history.current;if(follow.current&&element){element.scrollTop=element.scrollHeight;lastScrollTop.current=element.scrollTop;scrollSize.current=[element.scrollHeight,element.clientHeight,element.clientWidth].join();}}
+  useLayoutEffect(scrollFollowing,[historyVersion,id]);
+  useLayoutEffect(()=>{const observer=new ResizeObserver(scrollFollowing);if(history.current)observer.observe(history.current);if(historyContent.current)observer.observe(historyContent.current);return()=>observer.disconnect();},[]);
   const busy=saving||Boolean(chat&&chat.activity!=='idle');
   useEffect(()=>{let disposed=false;const epoch=++generation.current;
     const restored=remembered('selected.'+mode)||null;currentId.current=restored;
@@ -98,7 +100,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
     <div className={'chat-main'+(welcome?' chat-welcome':'')}>
       {!configured&&<p>Set up Chat with <code>seed setup --chat-only</code>.</p>}
         <>
-        <div ref={history} className="chat-history" aria-live="polite" onScroll={()=>{const element=history.current;if(element)follow.current=element.scrollHeight-element.scrollTop-element.clientHeight<60;}}>
+        <div ref={history} className="chat-history" aria-live="polite" onScroll={()=>{const element=history.current;if(!element)return;const near=element.scrollHeight-element.scrollTop-element.clientHeight<=80;if(near)follow.current=true;else if(element.scrollTop<lastScrollTop.current-1&&scrollSize.current===[element.scrollHeight,element.clientHeight,element.clientWidth].join())follow.current=false;lastScrollTop.current=element.scrollTop;}}><div ref={historyContent} className="chat-history-content">
           {timeline.map(({message,group})=>message?<article className={'chat-message '+message.role} key={message.id}><small>{message.role==='user'?'You':message.role==='assistant'?'Seed':'Workflow'}</small><p>{message.text}</p>{message.assets.map(asset=>{const info=chat.asset_manifest?.find(a=>a.id===asset);return <span className="chat-attachment" key={asset}><button onClick={()=>void show(asset)}>{info?.kind==='image'&&<img src={'/api/v1/assets/'+asset+'/content'} alt=""/>}{info?.name??'Open attached asset'}</button>{info?.note&&<small>{info.note}</small>}<button onClick={()=>setSelected(current=>current.includes(asset)?current.filter(v=>v!==asset):[...current,asset])}>{selected.includes(asset)?'Selected':'Use in next message'}</button></span>;})}</article>:<section className="chat-group" key={group.id}><small>{workflows[group.workflow].label} · {group.state}</small>{group.cards.map(card=>{const revision=card.revisions.at(-1)!;return <article className="chat-card" key={card.id}>
             <div><strong>{workflows[card.workflow].label}</strong><span>Revision {revision.number} · {revision.decision} · {revision.request.count} output(s)</span></div>
             <button className="primary-action review-action" aria-label="Review / history" onClick={()=>setReview({card,revision})}><ActionIcon kind="review"/>Review</button>
@@ -109,7 +111,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
           {chat.partial&&<article className="chat-message assistant"><small>Seed</small><p>{chat.partial}</p></article>}
           {chat.error&&<p role="alert">{chat.error}</p>}
           {chat.activity!=='idle'&&<p role="status">{chat.activity==='thinking'?'Thinking…':chat.activity==='preparing'?'Preparing approved requests…':'Generating…'}</p>}
-        </div>
+        </div></div>
         {welcome&&<div className="chat-welcome-heading"><span className="welcome-mark" aria-hidden="true">✧</span><h1>What shall we create today?</h1></div>}
         <form className="chat-composer" onSubmit={e=>{e.preventDefault();void send();}} onDragOver={e=>e.preventDefault()} onDrop={e=>{e.preventDefault();if(!busy)void refs.add('video',Array.from(e.dataTransfer.files));}}>
           {commandOpen&&!busy&&<div className="workflow-menu" id="workflow-options" role="listbox" aria-label="Commands"><div className="workflow-menu-heading">Commands <span>↑ ↓ to navigate · Enter to select</span></div>{commandResults.length?commandResults.map(([id,w],index)=><button type="button" role="option" id={'workflow-option-'+index} aria-selected={index===commandIndex%commandResults.length} key={id} onMouseDown={e=>e.preventDefault()} onClick={()=>void chooseWorkflow(id as ChatWorkflow|'reasoning')}><span className="workflow-symbol">{id==='text-to-image'?'▧':id==='text-to-video'?'▷':id==='reasoning'?'✧':'◈'}</span><span><strong>{w.label}</strong><small>{w.command}</small></span><span className="workflow-enter">↵</span></button>):<p>No matching command</p>}</div>}

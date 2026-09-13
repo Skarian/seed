@@ -1756,3 +1756,6 @@ body { background:#171917; }
 
 .chat-card .review-action { display:inline-flex; align-items:center; gap:7px; background:var(--accent); color:#25321d; border-color:var(--accent); }
 .chat-card .card-icon-action { display:inline-flex; align-items:center; justify-content:center; width:36px; height:36px; padding:8px; vertical-align:middle; }
+
+.chat-history { overflow-anchor:none; scroll-behavior:auto; }
+.chat-history-content { display:flow-root; }

@@ -42,7 +42,7 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
   const review=page.getByRole('dialog',{name:'Review generation'});await expect(review).toBeVisible();
   await review.getByLabel('Provide feedback').fill('Make the valley misty');await review.getByLabel('Provide feedback').press('Enter');
   await expect(review).toHaveCount(0);await expect(page.locator('.chat-card')).not.toContainText('A green valley');
-  expect(await page.locator('.chat-history > .chat-message, .chat-history > .chat-group').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('chat-group')?'request':n.textContent))).toEqual(['YouA valley','request','YouMake the valley misty']);
+  expect(await page.locator('.chat-history-content > .chat-message, .chat-history-content > .chat-group').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('chat-group')?'request':n.textContent))).toEqual(['YouA valley','request','YouMake the valley misty']);
   expect(messages[1]).toMatchObject({text:'Make the valley misty',card_id:'card',revision:1});expect(decisions).toBe(0);
   await page.getByRole('button',{name:'Library',exact:true}).first().click();await page.getByRole('button',{name:'Chat',exact:true}).click();
   await expect(page.locator('.active-workflow')).toContainText('Text to image');
