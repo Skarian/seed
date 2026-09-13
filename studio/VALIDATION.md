@@ -259,3 +259,19 @@ correctly at the existing LAN address on port 4310. The historical, explicitly
 discarded frame job was reconciled without deleting any of the 37 existing assets.
 Engineering acceptance is complete. The owner checkpoint and branch merge remain
 open. Posted charges and their billing-delay limits are in the recovery report.
+
+### Live image-card correction (2026-09-13)
+
+The owner's first image request exposed a workflow schema bug: image tools
+advertised video-only sizes and unrestricted seeds. Gemma submitted `native`
+with a descriptive seed, then falsely claimed success after validation failed.
+The schema now restricts image output to `1mp`, requires video duration only for
+video, and describes/constrains seed syntax. Failed tool results are recorded as
+visible chat events and unresolved failures set the chat error. Tool guidance
+explicitly requires successful creation before claiming a card exists.
+
+Seventeen Chat/provider tests, typecheck and build passed, including the exact
+invalid-settings/false-success regression. Installed the fix and retried the
+owner's puppy request: one durable, undecided image card is now in the Connection
+test chat, with no submitted jobs. Image generation still requires owner approval
+and a connected worker; no GPU generation was performed.

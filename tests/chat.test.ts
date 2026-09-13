@@ -112,3 +112,16 @@ it('compacts older dialogue while retaining recent turns and the original histor
   expect(calls).toBe(1);expect(result.summary?.through).toBe(12);expect(result.recent).toEqual(history.slice(12));expect(history).toHaveLength(20);
   await compactConversation(history,result.summary,async()=>{throw Error('Should reuse summary');});
 });
+
+it('surfaces rejected tool calls even when the model falsely claims success',async()=>fixture(async({chats,jobs,queue,requests})=>{
+  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request:{...request,seed:'puppy_snapshot_01',output:{aspect:'16:9',size:'native'}}}]);
+  chats.send(c.id,{version:c.version,text:'A candid puppy photo',assets:[]});c=await idle(chats,c.id);
+  expect(c.groups).toHaveLength(0);expect(jobs.all()).toHaveLength(0);
+  expect(c.error).toContain('The request was not saved');
+  expect(c.messages.some(m=>m.role==='event'&&m.text.includes('tool failed'))).toBe(true);
+  const schema=requests[0].tools[0].function.parameters.properties.operations.items.anyOf[0].properties.request;
+  expect(schema.properties.output.properties.size.const).toBe('1mp');
+  expect(schema.properties.output.properties).not.toHaveProperty('duration_seconds');
+  expect(schema.properties.seed.pattern).toContain('random');
+}));
