@@ -53,8 +53,8 @@ it('routes anchors through FL and mixed references through Ref, matching content
   expect(Object.values(graph).find(n=>n.class_type==='MiniMaxH3AddGuide')!.inputs.frame_idx).toBe(119);
   expect(graph['11']!.inputs.latent_image).toEqual(['6',1]);
   request.references!.push({id:'ref',asset_id:'second',kind:'image',role:'reference'});expect(videoRoute(request)).toBe('ref');
-  expect(()=>imageRequest({...request,prompt:'Use <Picture 2>'})).toThrow('reference mentions');
-  expect(()=>imageRequest({...request,prompt:'Use [removed reference]'})).toThrow('reference mentions');
+  expect(()=>imageRequest({...request,prompt:'Use <Picture 2>'})).toThrow('reference mention');
+  expect(()=>imageRequest({...request,prompt:'Use [removed reference]'})).toThrow('reference mention');
   expect(imageRequest({...request,prompt:'Use <Picture 1>'}).prompt).toBe('Use <Picture 1>');
 });
 

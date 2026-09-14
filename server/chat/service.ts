@@ -1,9 +1,10 @@
+import {createReadInputTool} from './read-input.js';
+import {requestToolSchemas,prepareToolRequest,requestToolRules,requestToolResultError,toolInputLabels,toolPromptBindings,toolPromptReferencePattern,type ToolAsset} from './request-tools.js';
+import {visualContext} from './visual-context.js';
 import {recordTurnEvent,finishTurn} from './transcript.js';
 import type Database from 'better-sqlite3';
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
-import sharp from 'sharp';
-import { Type, type ImageContent } from '@earendil-works/pi-ai';
 import type { Agent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core';
 import type { ChatView, ChatMode, ChatWorkflow, ChatGroup, ChatCard, ChatRevision } from '../../shared/chat.js';
 import type { StudioPaths } from '../storage.js';
@@ -15,7 +16,17 @@ import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js
 import { chatReferenceLabels, preserveChatLabels, validateChatReferences } from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
 
-interface StoredChat extends ChatView {title_manual?:boolean;title_accounting?:ChatAccounting[];title_error?:string;summary?:ConversationSummary;runs:Array<{id:string;prompt:ReturnType<typeof chatPromptSnapshot>;accounting:ChatAccounting[];messages:AgentMessage[];state:string;summary?:ConversationSummary}>}
+/** Agent snapshots mirror the flat tool fields; canonical requests remain persisted unchanged. */
+function agentRequest(request:ImageRequest,assets:ToolAsset[]=[]){
+  const bindings=new Map([...toolPromptBindings(request.references??[])].map(([id,label])=>[label,'[['+id+']]']));
+  const prompt=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?request.prompt.replace(toolPromptReferencePattern,label=>bindings.get(label)??label):request.prompt;
+  return {prompt,batch_size:request.count,seed:request.seed,aspect_ratio:request.output.aspect,size:request.output.size,
+    ...(request.note?{note:request.note}:{}),...(request.mode==='nsfw'?{mode:request.mode}:{}),
+    ...(request.workflow!=='text-to-image'?{quality:request.quality,duration_seconds:request.output.duration_seconds,output_format:request.output.format,audio_output:request.audio?.output}:{}),
+    ...(request.references?{inputs:request.references.map(ref=>({id:ref.id,asset:assets.find(a=>a.asset_id===ref.asset_id)?.handle??ref.asset_id,role:ref.role,
+      ...(ref.framing?{framing:ref.framing}:{}),...(ref.range??{}),...(ref.kind==='video'?{include_audio:Boolean(ref.include_audio)}:{})}))}:{})};
+}
+interface StoredChat extends ChatView {title_manual?:boolean;title_accounting?:ChatAccounting[];title_error?:string;summary?:ConversationSummary;runs:Array<{id:string;workflow?:ChatWorkflow|null;source_assets?:string[];target_request_id?:string;prompt:ReturnType<typeof chatPromptSnapshot>;accounting:ChatAccounting[];messages:AgentMessage[];state:string;summary?:ConversationSummary}>}
 const terminal=['completed','failed','cancelled'];
 const latest=(card:ChatCard)=>card.revisions.at(-1)!;
 const openGroup=(chat:ChatView)=>chat.groups.find(g=>!['released','stopped'].includes(g.state));
@@ -41,7 +52,13 @@ export class Chats {
       }
     }
   }
-  private save(chat:StoredChat){chat.updated_at=now();this.db.prepare('INSERT INTO chats VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body_json=excluded.body_json').run(chat.id,chat.mode,JSON.stringify(chat));for(const listener of this.listeners.get(chat.id)??[])listener({partial:chat.partial??'',partial_reasoning:chat.partial_reasoning??'',activity:chat.activity,error:chat.error,stream_message:[...chat.messages].reverse().find(m=>m.transcript)});}
+  private save(chat:StoredChat){
+    chat.updated_at=now();this.db.prepare('INSERT INTO chats VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body_json=excluded.body_json').run(chat.id,chat.mode,JSON.stringify(chat));
+    for(const listener of this.listeners.get(chat.id)??[]){
+      try{listener({partial:chat.partial??'',partial_reasoning:chat.partial_reasoning??'',activity:chat.activity,error:chat.error,stream_message:[...chat.messages].reverse().find(m=>m.transcript)});}
+      catch{this.listeners.get(chat.id)?.delete(listener); /* A disconnected observer cannot undo a committed save. */}
+    }
+  }
   private get(id:string):StoredChat{const row=this.db.prepare('SELECT body_json FROM chats WHERE id=?').get(id) as {body_json:string}|undefined;if(!row)throw Error('Chat not found.');return JSON.parse(row.body_json);}
   private event(chat:StoredChat,text:string){chat.messages.push({id:randomUUID(),role:'event',text,assets:[],created_at:now()});}
   private jobIds(chat:ChatView){return [...new Set(chat.groups.flatMap(g=>g.cards.flatMap(c=>c.revisions.flatMap(r=>r.job_ids))))];}
@@ -86,50 +103,54 @@ export class Chats {
     if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Provide request settings.');
     if(chat.mode==='sfw'&&Object.hasOwn(value,'mode'))throw Error('Standard requests cannot supply a mode field.');
     let request:ImageRequest;
-    try{request=imageRequest({...value,workflow,mode:chat.mode==='sfw'?'sfw':value.mode??'nsfw',capabilities_revision:this.jobs.capabilities?.revision??'offline'});}catch(error){
-      const refs=Array.isArray(value.references)?value.references:previous?.references??[];
-      const labels=[...chatReferenceLabels({references:refs} as ImageRequest).values()];
-      throw Error((error as Error).message+' Reference ids are stable identifiers without spaces, not prompt labels. Valid prompt labels for these inputs: '+(labels.join(', ')||'none')+'. '+(refs.some(r=>r.role==='first_frame')&&refs.some(r=>r.role==='reference')?'A first_frame image combined with video/audio inputs is an opening-frame guide, not <Picture 1>; describe it without that label. ':'')+'Use operation revise with only changed fields to preserve other inputs and settings.');
-    }
+    request=imageRequest({...value,workflow,mode:chat.mode==='sfw'?'sfw':value.mode??'nsfw',capabilities_revision:this.jobs.capabilities?.revision??'offline'});
     if(previous){request=preserveChatLabels(previous,request);if(value.note===undefined&&previous.note)request.note=previous.note;}
     validateChatReferences(request);
     for(const ref of request.references??[])if(!chat.assets.includes(ref.asset_id))throw Error('Reference must be provided in this conversation.');
-    this.assertAssets(chat,(request.references??[]).map(r=>r.asset_id));return request;
+    this.assertAssets(chat,[...new Set((request.references??[]).map(r=>r.asset_id))]);return request;
   }
   private revision(chat:StoredChat,request:ImageRequest,number:number,sourceJobId?:string):ChatRevision{
     const notes=Object.fromEntries(this.contextAssets(chat).filter(a=>request.references?.some(r=>r.asset_id===a.id)).map(a=>[a.id,a.note]));
     return {number,request,notes,decision:'undecided',job_ids:[],...(sourceJobId?{source_job_id:sourceJobId}:{}),after_message_id:chat.messages.at(-1)?.id??null};
   }
-  private workflowTool(id:string,epoch:number,workflow:ChatWorkflow,runId:string,target?:string):AgentTool {
-    const chat=this.get(id);
-    const reference=Type.Object({id:Type.String({pattern:'^[-\\w]{1,100}$',description:'Stable reference identifier, e.g. image1. No spaces. Not a prompt label.'}),asset_id:Type.String({pattern:'^[-\\w]{1,100}$'}),kind:Type.Union([Type.Literal('image'),Type.Literal('video'),Type.Literal('audio')]),role:Type.Union([Type.Literal('reference'),Type.Literal('first_frame'),Type.Literal('last_frame')]),framing:Type.Optional(Type.Union([Type.Literal('fit'),Type.Literal('fill')])),range:Type.Optional(Type.Object({start_seconds:Type.Number(),duration_seconds:Type.Number()})),include_audio:Type.Optional(Type.Boolean())},{additionalProperties:false});
-    const fields={prompt:Type.String({minLength:1,maxLength:12000}),seed:Type.String({pattern:'^(random|0|[1-9][0-9]{0,15})$',description:'Use random unless the user specifies a numeric seed. Numeric seed plus count minus one must not exceed 9007199254740991.'}),count:Type.Integer({minimum:1,maximum:16}),output:Type.Object({aspect:Type.Union([Type.Literal('16:9'),Type.Literal('9:16')]),size:workflow==='text-to-image'?Type.Literal('1mp'):Type.Union([Type.Literal('720p'),Type.Literal('native')]),...(workflow==='text-to-image'?{}:{duration_seconds:Type.Integer({minimum:5,maximum:15}),format:Type.Optional(Type.Union([Type.Literal('video'),Type.Literal('images')]))})},{additionalProperties:false}),...(workflow!=='text-to-image'?{references:Type.Optional(Type.Array(reference,{maxItems:12})),quality:Type.Optional(Type.Union([Type.Literal('fast'),Type.Literal('high')])),audio:Type.Optional(Type.Object({output:Type.Union([Type.Literal('generated'),Type.Literal('silent')])}))}:{}),...(chat.mode==='nsfw'?{mode:Type.Optional(Type.Union([Type.Literal('sfw'),Type.Literal('nsfw')]))}:{})};
-    const promptPatch=Type.Object({old:Type.String({minLength:1}),new:Type.String()},{additionalProperties:false});
-    const changes=Type.Partial(Type.Object({...fields,prompt:Type.Union([fields.prompt,promptPatch]),replace_prompt:promptPatch},{additionalProperties:false}));
-    const parameters=Type.Object({operations:Type.Array(Type.Union([
-      Type.Object({operation:Type.Literal('create'),request:Type.Object(fields,{additionalProperties:false})},{additionalProperties:false}),
-      Type.Object({operation:Type.Literal('revise'),request_id:Type.String(),expected_revision:Type.Integer(),changes:Type.Optional(changes),replace_prompt:Type.Optional(promptPatch)},{additionalProperties:false}),
-    ]),{minItems:1,maxItems:16})},{additionalProperties:false});
-    return {name:chatWorkflows[workflow].tool,label:chatWorkflows[workflow].label,description:'Create or revise review cards for this workflow. Never runs generation. Only a successful tool result creates a card. If rejected, correct the settings or explain the failure; never claim the card is ready. Revisions use exact expected_revision and changed fields. Prompt replacements must match exactly once. For a simple edit use {operation:"revise", request_id: the current card id, expected_revision: its current number, changes:{prompt: the full new prompt}}. Preserve inputs by omitting references when they are unchanged. Do not recreate a request to edit it.',parameters,
-      execute:async(_call,params)=>{
-        const current=this.get(id);if(current.epoch!==epoch||current.workflow!==workflow)throw Error('This workflow run is no longer active.');
-        let group=openGroup(current);if(group&&group.workflow!==workflow)throw Error('Resolve or stop the outstanding review group first.');
-        if(!group){group={id:randomUUID(),after_message_id:[...current.messages].reverse().find(m=>m.role==='user')?.id??null,workflow,state:'assembling',cards:[]};current.groups.push(group);}
-        const results=[];
-        for(let op of (params as any).operations){
-          // Explicit feedback must replace its target, even when the model calls create.
-          if(op.operation==='create'&&target){const card=group.cards.find(c=>c.id===target);if(card){op={operation:'revise',request_id:target,expected_revision:latest(card).number,changes:op.request};target=undefined;}}
-          if(op.operation==='create'){if(group.cards.length>=16)throw Error('A review group supports at most 16 cards.');const card={id:randomUUID(),workflow,revisions:[this.revision(current,this.request(current,workflow,op.request),1)]};card.revisions[0]!.run_id=runId;group.cards.push(card);results.push({id:card.id,revision:1});}
-          else {const card=group.cards.find(c=>c.id===op.request_id);if(!card)throw Error('Request not found. Available request ids: '+group.cards.map(c=>c.id+' (revision '+latest(c).number+')').join(', '));if(latest(card).number!==op.expected_revision)throw Error('Request revision changed. Use request_id '+card.id+' with expected_revision '+latest(card).number+'. Retry your edit against this current revision.');
-            const changed={...(op.changes??{})};const nestedPatch=typeof changed.prompt==='object'?changed.prompt:undefined;
-            const patches=[op.replace_prompt,changed.replace_prompt,nestedPatch].filter(Boolean);if(patches.length>1)throw Error('Use only one prompt replacement.');const patch=patches[0];delete changed.replace_prompt;if(nestedPatch)delete changed.prompt;
-            if(!Object.keys(changed).length&&!patch)throw Error('Supply changes or replace_prompt.');
-            const raw:any={...latest(card).request,...changed};delete raw.workflow;delete raw.capabilities_revision;if(current.mode==='sfw')delete raw.mode;
-            if(patch){const {old,new:replacement}=patch;if(raw.prompt.split(old).length!==2)throw Error('Prompt text must match exactly once. Copy the exact current text, or use changes.prompt with the complete replacement prompt.');raw.prompt=raw.prompt.replace(old,()=>replacement);}
-            card.revisions.push(this.revision(current,this.request(current,workflow,raw,latest(card).request),latest(card).number+1,latest(card).source_job_id));latest(card).run_id=runId;if(target===card.id)target=undefined;results.push({id:card.id,revision:latest(card).number});}
-        }
-        this.save(current);return {content:[{type:'text',text:JSON.stringify(results)}],details:results};
-      }};
+  private workflowTools(id:string,epoch:number,workflow:ChatWorkflow,runId:string,assets:ToolAsset[],target?:string):AgentTool[] {
+    const initial=this.get(id),snapshots=new Map(initial.groups.flatMap(g=>g.cards).map(c=>[c.id,latest(c).number]));
+    const schemas=requestToolSchemas(workflow,initial.mode);
+    const referenceMode=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct';
+    return (['create','edit'] as const).map(operation=>({
+      name:operation+'_request',label:operation==='create'?'Create request':'Edit request',
+      description:operation==='create'?'Prepare one new request for user review. Does not generate media.':'Change an existing request. Copy request_id from context. Send only changed fields; all omitted fields stay unchanged.',
+      parameters:schemas[operation],
+      execute:async(_call,raw)=>{
+        try{
+          const current=this.get(id);
+          if(current.epoch!==epoch||current.workflow!==workflow)throw Error('This run is no longer active.');
+          let group=openGroup(current);
+          if(group&&group.workflow!==workflow)throw Error('Resolve the current review before changing workflows.');
+          const value=raw as Record<string,unknown>;
+          const editId=operation==='edit'?String(value.request_id):target;
+          const card=editId?group?.cards.find(c=>c.id===editId):undefined;
+          if(editId&&!card)throw Error('Request not found. Use a request_id listed in current review. A failed create has no request_id.');
+          if(card&&snapshots.get(card.id)!==latest(card).number)throw Error('Request changed after this agent started. Read the current request before editing; no changes were saved.');
+          const request=prepareToolRequest({workflow,mode:current.mode,capabilitiesRevision:this.jobs.capabilities?.revision??'offline',assets,previous:card?latest(card).request:undefined,referenceMode},value);
+          for(const ref of request.references??[])if(!current.assets.includes(ref.asset_id))throw Error('Input is not attached to this chat.');
+          this.assertAssets(current,[...new Set((request.references??[]).map(r=>r.asset_id))]);
+          validateChatReferences(request);
+          if(!group){group={id:randomUUID(),after_message_id:[...current.messages].reverse().find(m=>m.role==='user')?.id??null,workflow,state:'assembling',cards:[]};current.groups.push(group);}
+          let saved:ChatCard;
+          if(card){
+            card.revisions.push(this.revision(current,request,latest(card).number+1,latest(card).source_job_id));saved=card;
+          }else{
+            if(group.cards.length>=16)throw Error('A review supports at most 16 requests.');
+            saved={id:randomUUID(),workflow,revisions:[this.revision(current,request,1)]};group.cards.push(saved);
+          }
+          latest(saved).run_id=runId;snapshots.set(saved.id,latest(saved).number);if(target===saved.id)target=undefined;
+          this.save(current);
+          const result={ok:true,saved:true,request_id:saved.id,revision:latest(saved).number,request:agentRequest(request,assets),reference_labels:Object.fromEntries(toolInputLabels(request.references??[]))};
+          return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
+        }catch(error){throw Error(JSON.stringify(requestToolResultError(error,operation)));}
+      }
+    }));
   }
   send(id:string,input:{version:number;text:string;assets:string[];card_id?:string;revision?:number;attach_request?:boolean}){
     const chat=this.get(id);this.checkVersion(chat,input.version);if(this.busy(chat))throw Error('This chat is busy. Stop it before sending another message.');
@@ -144,14 +165,17 @@ export class Chats {
     if(input.attach_request&&!target)throw Error('Choose the request to attach.');
     const contextCards=target?[target]:(group??[...chat.groups].reverse().find(g=>g.workflow===chat.workflow))?.cards??[];
     const inherited=settingsOnlyMessage(input.text)?[]:contextCards.flatMap(c=>latest(c).request.references?.map(r=>r.asset_id)??[]);
-    const selected=[...new Set([...input.assets,...inherited])];
+    const priorInputs=[...chat.messages].reverse().find(m=>m.role==='user'&&m.assets.length)?.assets??[];
+    const selected=[...new Set([...input.assets,...inherited,...(!input.assets.length&&!inherited.length&&!settingsOnlyMessage(input.text)?priorInputs:[])])];
     if(selected.filter(id=>this.jobs.media.get(id)?.kind==='image').length>9)throw Error('Choose at most nine images for this message.');
     const snapshot=chatPromptSnapshot(this.paths,chat.mode,chat.workflow);
+    snapshot.system+='\n\n'+requestToolRules(process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct');
+    snapshot.hash=createHash('sha256').update(JSON.stringify({version:snapshot.version,system:snapshot.system,summarySystem:snapshot.summarySystem})).digest('hex');
     chat.messages.push({id:randomUUID(),role:'user',text:input.text,assets:input.assets,...(input.attach_request&&target?{request_attachment:{card_id:target.id,revision:latest(target).number,request:structuredClone(latest(target).request),notes:structuredClone(latest(target).notes)}}:{}),created_at:now()});
     const needsTitle=chat.messages.filter(m=>m.role==='user').length===1&&!chat.title_manual;
     if(group)group.state='revising';chat.activity='thinking';chat.error=null;chat.partial='';chat.partial_reasoning='';chat.version++;
-    const run={id:randomUUID(),prompt:snapshot,accounting:[] as ChatAccounting[],messages:[] as AgentMessage[],state:'running'};chat.runs.push(run);chat.messages.push({id:run.id,role:'assistant',text:'',assets:[],created_at:now(),transcript:{started_at:now(),state:'running',steps:[]}});this.save(chat);
-    const task=this.run(chat.id,chat.epoch,run.id,key,snapshot,selected,target?.id,contextCards.map(c=>c.id)).finally(()=>{this.tasks.delete(id);this.agents.delete(id);});this.tasks.set(id,task);if(needsTitle){try{this.generateTitle(id,input.text,key);}catch(error){const current=this.get(id);current.title_error=(error as Error).message;this.save(current);}}return this.view(id);
+    const run={id:randomUUID(),workflow:chat.workflow,source_assets:[...input.assets],target_request_id:target?.id,prompt:snapshot,accounting:[] as ChatAccounting[],messages:[] as AgentMessage[],state:'running'};chat.runs.push(run);chat.messages.push({id:run.id,role:'assistant',text:'',assets:[],created_at:now(),transcript:{started_at:now(),state:'running',steps:[]}});this.save(chat);
+    const task=this.run(chat.id,chat.epoch,run.id,key,snapshot,selected,target?.id,contextCards.map(c=>c.id)).finally(()=>{if(this.tasks.get(id)===task){this.tasks.delete(id);this.agents.delete(id);}});this.tasks.set(id,task);if(needsTitle){try{this.generateTitle(id,input.text,key);}catch(error){const current=this.get(id);current.title_error=(error as Error).message;this.save(current);}}return this.view(id);
   }
   private generateTitle(id:string,firstMessage:string,key:string){
     const agent=createChatAgent({apiKey:key,systemPrompt:chatTitlePrompt(this.paths),reasoning:false,maxTokens:128,fetch:this.transport,onAccounting:value=>{try{const chat=this.get(id);chat.title_accounting=[value];this.save(chat);}catch{/* Chat may have been deleted. */}}});
@@ -160,14 +184,17 @@ export class Chats {
   }
   private async run(id:string,epoch:number,runId:string,key:string,snapshot:ReturnType<typeof chatPromptSnapshot>,selected:string[],target?:string,contextCardIds:string[]=[]){
     try{
-      const chat=this.get(id),images:ImageContent[]=[],imageIds:string[]=[],unavailableImages:string[]=[];
-      for(const assetId of selected){const asset=this.jobs.media.get(assetId);if(asset?.kind==='image'){
-        const file=path.resolve(this.paths.data,asset.relative_path);if(!file.startsWith(path.resolve(this.paths.data)+path.sep))throw Error('Invalid asset path.');
-        try{const bytes=await sharp(file).rotate().resize({width:1536,height:1536,fit:'inside',withoutEnlargement:true}).jpeg({quality:85}).toBuffer();
-        images.push({type:'image',mimeType:'image/jpeg',data:bytes.toString('base64')});imageIds.push(assetId);}catch{unavailableImages.push(assetId);}
-      }}
+      const chat=this.get(id);
+      const ranges=new Map<string,Array<{start_seconds:number;duration_seconds:number;input_id:string}>>();
+      for(const ref of chat.groups.flatMap(g=>g.cards).filter(c=>contextCardIds.includes(c.id)).flatMap(c=>latest(c).request.references??[])){if(ref.range)ranges.set(ref.asset_id,[...(ranges.get(ref.asset_id)??[]),{...ref.range,input_id:ref.id}]);}
+      const visual=await visualContext(this.paths.data,selected.map(assetId=>this.jobs.media.get(assetId)).filter(Boolean),ranges);
+      const images=visual.images,imageIds=visual.evidence.filter(e=>e.type==='image').map(e=>e.asset_id),unavailableImages=visual.unavailable;
       if(this.get(id).epoch!==epoch)return;
       const manifest=this.contextAssets(chat),group=openGroup(chat);
+      const toolAssets=manifest.map((a,index)=>({handle:'input'+(index+1),asset_id:a.id,kind:a.kind as 'image'|'video'|'audio',duration_seconds:Number(a.metadata?.duration)||undefined})).filter(a=>a.kind);
+      const defaultLabels=toolInputLabels(toolAssets.map(a=>({id:a.handle,asset_id:a.asset_id,kind:a.kind,role:'reference' as const})));
+      const availableInputs=toolAssets.map(a=>({...a,...(process.env.SEED_AGENT_REFERENCE_MODE==='direct'?{prompt_label:defaultLabels.get(a.handle)}:{}),...(a.kind==='video'?{soundtrack_token:'[['+a.handle+':audio]]',soundtrack_usage:'Set include_audio true to use this soundtrack.'}:{}),prompt_token:'[['+a.handle+']]',name:manifest.find(m=>m.id===a.asset_id)?.name}));
+
       const account=(value:ChatAccounting)=>{const c=this.get(id),r=c.runs.find(r=>r.id===runId)!;const prior=value.id?r.accounting.findIndex(v=>v.id===value.id):-1;if(prior<0)r.accounting.push(value);else r.accounting[prior]=value;this.save(c);};
       const history=chat.messages.filter(m=>m.role!=='event'&&m.id!==runId).map(m=>({role:m.role==='assistant'?'assistant':'user',text:m.text}));
       const compact=await compactConversation(history,chat.summary,async input=>{
@@ -179,9 +206,24 @@ export class Chats {
       });
       const afterSummary=this.get(id);if(afterSummary.epoch!==epoch)return;
       afterSummary.summary=compact.summary;afterSummary.runs.find(r=>r.id===runId)!.summary=compact.summary;this.save(afterSummary);
-      const context=JSON.stringify({earlier_conversation_summary:compact.summary?.text,conversation:compact.recent,assets:manifest,images_in_order:imageIds,unavailable_images:unavailableImages,request_context:chat.groups.flatMap(g=>g.cards.filter(c=>contextCardIds.includes(c.id)).map(c=>({id:c.id,state:g.state,...latest(c),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))}))),review:group?.cards.map(c=>({id:c.id,...latest(c),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))})),feedback_card:target,capabilities:this.jobs.capabilities});
+      const currentRun=chat.runs.find(r=>r.id===runId)!;
+      let previousAttempt;
+      if(!currentRun.source_assets?.length){
+        for(const priorRun of [...chat.runs].reverse().filter(r=>r.id!==runId)){
+          if(priorRun.workflow!==chat.workflow||priorRun.target_request_id!==currentRun.target_request_id)break;
+          previousAttempt=[...(chat.messages.find(m=>m.id===priorRun.id)?.transcript?.steps??[])].reverse().find(s=>s.kind==='tool'&&['create_request','edit_request'].includes(s.name??''));
+          if(previousAttempt||priorRun.source_assets?.length)break;
+        }
+      }
+      let previousResult:unknown=previousAttempt?.result;
+      const previousText=(previousAttempt?.result as any)?.content?.filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('\n');
+      if(previousText){try{previousResult=JSON.parse(previousText);}catch{previousResult={message:previousText.slice(0,3000),truncated:previousText.length>3000};}}
+      const last_attempt=previousAttempt&&previousAttempt.state!=='succeeded'?{tool:previousAttempt.name,input:previousAttempt.input,saved:false,result:previousResult}:undefined;
+      const context=JSON.stringify({last_attempt,earlier_conversation_summary:compact.summary?.text,conversation:compact.recent,assets:manifest,available_inputs:availableInputs,images_in_order:imageIds,visual_evidence_in_order:visual.evidence,video_evidence_note:"Video images are sampled frames, not a full video. Audio has not been supplied. Do not claim to hear audio.",unavailable_images:unavailableImages,unavailable_inputs:visual.unavailable_inputs,request_context:chat.groups.flatMap(g=>g.cards.filter(c=>contextCardIds.includes(c.id)).map(c=>({id:c.id,state:g.state,...latest(c),request:agentRequest(latest(c).request,toolAssets),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))}))),review:group?.cards.map(c=>({id:c.id,revision:latest(c).number,decision:latest(c).decision})),feedback_card:target,capabilities:this.jobs.capabilities});
       if(context.length>400000)throw Error('Current requests and attachments exceed the context budget. Start another chat with fewer assets.');
-      const agent=createChatAgent({apiKey:key,systemPrompt:snapshot.system,tool:chat.workflow?this.workflowTool(id,epoch,chat.workflow,runId,target):undefined,reasoning:chat.reasoning,fetch:this.transport,
+      const tools=chat.workflow?this.workflowTools(id,epoch,chat.workflow,runId,toolAssets,target):[];
+      if(chat.workflow==='reference-to-video'&&toolAssets.some(a=>a.kind==='video'))tools.push(createReadInputTool({data:this.paths.data,assets:toolAssets,getAsset:assetId=>this.jobs.media.get(assetId)}));
+      const agent=createChatAgent({apiKey:key,systemPrompt:snapshot.system,tools,reasoning:chat.reasoning,fetch:this.transport,
         onAccounting:account});
       this.agents.set(id,agent);
       let lastUpdate=0,messageIndex=-1;
@@ -235,7 +277,7 @@ export class Chats {
 
       const approved=group.cards.filter(c=>latest(c).decision==='approved');
       const staged:Array<Awaited<ReturnType<Jobs['prepareSubmission']>>>=[];
-      for(const card of approved){this.assertAssets(chat,(latest(card).request.references??[]).map(r=>r.asset_id));staged.push(await this.jobs.prepareSubmission(latest(card).request,`${group.id}-${card.id}-${latest(card).number}`,{chat_id:id,card_id:card.id,revision:latest(card).number,...(latest(card).source_job_id?{job_id:latest(card).source_job_id}:{})}));}
+      for(const card of approved){this.assertAssets(chat,[...new Set((latest(card).request.references??[]).map(r=>r.asset_id))]);staged.push(await this.jobs.prepareSubmission(latest(card).request,`${group.id}-${card.id}-${latest(card).number}`,{chat_id:id,card_id:card.id,revision:latest(card).number,...(latest(card).source_job_id?{job_id:latest(card).source_job_id}:{})}));}
       const current=this.get(id);if(current.epoch!==chat.epoch||current.version!==chat.version)throw Error('Review changed during preparation. No jobs were submitted.');
       if(approved.length){const cap=await this.jobs.inspectCapabilities();if(approved.some(c=>latest(c).request.capabilities_revision!==cap.revision))throw Error('Worker changed. Review requests again.');}
       // Recheck after the final asynchronous capability request.

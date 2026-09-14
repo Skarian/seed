@@ -12,6 +12,7 @@ import {compactConversation,settingsOnlyMessage} from '../server/chat/context.js
 
 const request={prompt:'A quiet landscape',seed:'random',count:1,output:{aspect:'16:9',size:'1mp'}};
 function sse(chunk:unknown){return new Response('data: '+JSON.stringify(chunk)+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});}
+function flatRequest(r:any){const {output,count,audio,references,...rest}=r;return {...rest,...(count!==undefined?{batch_size:count}:{}),...(output?{aspect_ratio:output.aspect,size:output.size,...(output.duration_seconds!==undefined?{duration_seconds:output.duration_seconds}:{})}:{}),...(audio?{audio_output:audio.output}:{})};}
 async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDatabase>;paths:ReturnType<typeof resolvePaths>;queue:unknown[];requests:any[];titleRequests:any[];cap:any})=>Promise<void>){
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/chat-')),paths=resolvePaths(root);prepareStorage(paths);
   writeFileSync(path.join(paths.config,'credentials.json'),JSON.stringify({openrouterApiKey:'fake'}));
@@ -19,7 +20,7 @@ async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDa
   const cap={revision:'v1',ready:true,workspace_id:'test',engine_session_id:'engine',nsfw:null};
   const worker={identity:{workspace_id:'test'},json:async()=>cap} as unknown as WorkerConnection;
   const jobs=new Jobs(db,paths,worker);
-  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();if(ops instanceof Error)throw ops;return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:[{index:0,id:'call-'+requests.length,type:'function',function:{name:'prepare_image',arguments:JSON.stringify({operations:ops})}}]}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
+  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();if(ops instanceof Error)throw ops;return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
   try{await run({chats,jobs,db,paths,queue,requests,titleRequests,cap});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
 }
 async function idle(chats:Chats,id:string){for(let i=0;i<200;i++){const value=chats.view(id);if(value.activity==='idle')return value;await new Promise(r=>setTimeout(r,5));}throw Error('Agent did not settle.');}
@@ -28,7 +29,7 @@ it('holds a whole group until all decisions and submits approved requests once',
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Another landscape'}}]);
   chats.send(chat.id,{version:chat.version,text:'Two ideas',assets:[]});chat=await idle(chats,chat.id);
-  expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.length===1)).toBe(true);
+  expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.length===2)).toBe(true);
   expect(chat.groups[0]!.after_message_id).toBe(chat.messages.filter(m=>m.role==='user').at(-1)!.id);expect(chat.messages.filter(m=>m.role==='assistant').at(-1)?.reasoning_text).toContain('I will prepare the requested scene.');const cards=chat.groups[0]!.cards;expect(cards).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[1]!.id,1,'denied');expect(jobs.all()).toHaveLength(1);
@@ -131,9 +132,9 @@ it('surfaces rejected tool calls even when the model falsely claims success',asy
   expect(c.groups).toHaveLength(0);expect(jobs.all()).toHaveLength(0);
   expect(c.error).toBeNull();expect(c.messages.at(-1)?.transcript?.state).toBe('failed');expect(c.messages.at(-1)?.transcript?.steps.some(s=>s.kind==='tool'&&s.state==='failed')).toBe(true);
   expect(c.messages.some(m=>m.role==='event'&&m.text.includes('tool failed'))).toBe(false);
-  const schema=requests[0].tools[0].function.parameters.properties.operations.items.anyOf[0].properties.request;
-  expect(schema.properties.output.properties.size.const).toBe('1mp');
-  expect(schema.properties.output.properties).not.toHaveProperty('duration_seconds');
+  const schema=requests[0].tools[0].function.parameters;
+  expect(schema.properties.size.enum).toEqual(['1mp']);
+  expect(schema.properties).not.toHaveProperty('duration_seconds');
   expect(schema.properties.seed.pattern).toContain('random');
 }));
 
@@ -242,14 +243,15 @@ it('keeps a saved proposal reviewable when the model response times out',async()
 it('explains reference labels and ids instead of leaving the model to guess',async()=>fixture(async({chats,queue})=>{
  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'reference-to-video'});
  // The fixture emits prepare_image, so exercise request validation directly without a paid provider call.
- expect(()=> (chats as any).request((chats as any).get(c.id),'reference-to-video',{...request,prompt:'Use <Picture 1>',output:{aspect:'16:9',size:'native',duration_seconds:5},references:[{id:'image1',asset_id:'i',kind:'image',role:'first_frame'},{id:'video1',asset_id:'v',kind:'video',role:'reference',range:{start_seconds:0,duration_seconds:3}}]})).toThrow('opening-frame guide');
+ expect(()=> (chats as any).request((chats as any).get(c.id),'reference-to-video',{...request,prompt:'Use <Picture 1>',output:{aspect:'16:9',size:'native',duration_seconds:5},references:[{id:'image1',asset_id:'i',kind:'image',role:'first_frame'},{id:'video1',asset_id:'v',kind:'video',role:'reference',range:{start_seconds:0,duration_seconds:3}}]})).toThrow('input mapping');
 }));
 
-it('accepts unambiguous prompt patches in the forms the model actually emits',async()=>fixture(async({chats,queue})=>{
+it('edits prompts with a full replacement while preserving other settings',async()=>fixture(async({chats,queue})=>{
  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'A scene',assets:[]});c=await idle(chats,c.id);
- for(const form of ['top','nested','prompt']){const card=c.groups[0]!.cards[0]!,old=card.revisions.at(-1)!.request.prompt,patch={old,new:old+' softly lit'};const operation={operation:'revise',request_id:card.id,expected_revision:card.revisions.at(-1)!.number,...(form==='top'?{replace_prompt:patch}:form==='nested'?{changes:{replace_prompt:patch}}:{changes:{prompt:patch}})};
- queue.push([operation]);chats.send(c.id,{version:c.version,text:'Soften the lighting',assets:[],card_id:card.id,revision:card.revisions.at(-1)!.number});c=await idle(chats,c.id);expect(c.error).toBeNull();expect(c.groups[0]!.cards[0]!.revisions.at(-1)!.request.prompt).toBe(patch.new);
- }
+ const card=c.groups[0]!.cards[0]!;
+ queue.push([{operation:'revise',request_id:card.id,changes:{prompt:'A softly lit landscape'}}]);
+ chats.send(c.id,{version:c.version,text:'Soften the lighting',assets:[],card_id:card.id,revision:1});c=await idle(chats,c.id);
+ expect(c.groups[0]!.cards[0]!.revisions.at(-1)!.request).toMatchObject({...request,prompt:'A softly lit landscape'});
 }));
 
 it('persists the sent request snapshot independently of later revisions',async()=>fixture(async({chats,queue})=>{
@@ -267,7 +269,7 @@ it('records rejected and successful attempts separately with exact arguments and
  chats.send(c.id,{version:c.version,text:'Prepare a landscape',assets:[]});c=await idle(chats,c.id);
  const message=c.messages.at(-1)!,turn=message.transcript!,tools=turn.steps.filter(s=>s.kind==='tool');
  expect(turn.state).toBe('completed');expect(Date.parse(turn.ended_at!)).toBeGreaterThanOrEqual(Date.parse(turn.started_at));
- expect(tools.map(s=>s.state)).toEqual(['failed','succeeded']);expect(tools[0]!.input).toEqual({operations:[{operation:'create',request:invalid}]});expect(tools[1]!.input).toEqual({operations:[{operation:'create',request}]});expect(tools.every(s=>s.ended_at&&s.result)).toBe(true);
+ expect(tools.map(s=>s.state)).toEqual(['failed','succeeded']);expect(tools[0]!.input).toEqual(flatRequest(invalid));expect(tools[1]!.input).toEqual(flatRequest(request));expect(tools.every(s=>s.ended_at&&s.result)).toBe(true);
  expect(c.messages.filter(m=>m.role==='assistant')).toHaveLength(1);expect(c.messages.some(m=>m.text.includes('A request tool failed'))).toBe(false);expect(c.error).toBeNull();
  const stored=JSON.parse((db.prepare('select body_json from chats where id=?').get(c.id) as any).body_json);expect(stored.messages.at(-1).transcript).toEqual(turn);
 }));

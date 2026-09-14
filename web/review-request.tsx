@@ -7,8 +7,9 @@ import {RequestDialog} from './request-dialog.js';
 import {RequestFields,type RequestAsset} from './request-fields.js';
 import {jobName} from './job-ui.js';
 import {RevisionControls} from './revision-controls.js';
+import type {PreviewRequestInput} from './request-preview.js';
 import './review-request.css';
-export function Review({card,initial,error,assets,mode,busy,editable,close,save,approve,feedback,restore,stop,onPreview}:{card:ChatCard;initial:ChatRevision;error:string;assets:RequestAsset[];mode:'sfw'|'nsfw';busy:boolean;editable:boolean;close:()=>void;save:(r:unknown)=>Promise<boolean>;approve:()=>Promise<void>;feedback:()=>void;restore:(n:number,r:unknown)=>Promise<void>;stop:()=>void;onPreview:(id:string)=>void}){
+export function Review({card,initial,error,assets,mode,busy,editable,close,save,approve,feedback,restore,stop,onPreview}:{card:ChatCard;initial:ChatRevision;error:string;assets:RequestAsset[];mode:'sfw'|'nsfw';busy:boolean;editable:boolean;close:()=>void;save:(r:unknown)=>Promise<boolean>;approve:()=>Promise<void>;feedback:()=>void;restore:(n:number,r:unknown)=>Promise<void>;stop:()=>void;onPreview:PreviewRequestInput}){
  const [revision,setRevision]=useState(initial.number),[request,setRequest]=useState(initial.request),[step,setStep]=useState(1);
  useEffect(()=>{setRevision(initial.number);setRequest(initial.request);},[initial.number,initial.request]);
  useEffect(()=>{const abort=new AbortController();void fetch('/api/v1/capabilities',{signal:abort.signal}).then(r=>r.json()).then(c=>setStep(!c.revision||c.workflows?.[card.workflow]?.duration_seconds?.step===1?1:5)).catch(()=>{});return()=>abort.abort();},[card.workflow]);

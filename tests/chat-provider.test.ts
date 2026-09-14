@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { Type } from '@earendil-works/pi-ai';
-import { createChatAgent, CHAT_MODEL, type ChatAccounting } from '../server/chat/provider.js';
+import { createChatAgent, explainToolValidation, CHAT_MODEL, type ChatAccounting } from '../server/chat/provider.js';
 
 function response(chunks: unknown[]) {
   return new Response(chunks.map(chunk => `data: ${JSON.stringify(chunk)}\n\n`).join('') + 'data: [DONE]\n\n',
@@ -82,4 +82,14 @@ describe('Seed Pi/OpenRouter integration', () => {
     expect(calls).toBe(1);
     expect(agent.state.messages.at(-1)).toMatchObject({ stopReason: 'aborted' });
   });
+});
+
+it('explains rejected enum choices without changing original tool evidence',()=>{
+ const tool:any={name:'create_request',parameters:Type.Object({audio_output:Type.String({enum:['generated','silent']})})};
+ const result:any={role:'toolResult',toolName:'create_request',isError:true,content:[{type:'text',text:'Validation failed for tool "create_request":\n  - audio_output: must be equal to one of the allowed values'}]};
+ const explained=explainToolValidation([result],[tool]) as any[];
+ expect(explained[0].content[1].text).toContain('"enum":["generated","silent"]');
+ expect(explained[0].content[1].text).toContain('"saved":false');
+ expect(result.content).toHaveLength(1);
+ expect(explainToolValidation([{...result,isError:false}],[tool])[0]).toEqual({...result,isError:false});
 });

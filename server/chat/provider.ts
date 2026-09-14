@@ -61,11 +61,31 @@ function accountingFetch(transport: typeof fetch, report: (value: ChatAccounting
   };
 }
 
+/** Add the applicable schema fragment to SDK validation errors for model recovery.
+ * The original transcript keeps the exact rejected call and SDK result. */
+export function explainToolValidation(messages:AgentMessage[],tools:AgentTool[]):AgentMessage[]{
+  return messages.map(message=>{
+    if(message.role!=='toolResult'||!message.isError)return message;
+    const text=message.content.filter(p=>p.type==='text').map(p=>p.text).join('\n');
+    if(!text.startsWith('Validation failed for tool '))return message;
+    const schema=tools.find(t=>t.name===message.toolName)?.parameters as any;
+    if(!schema)return message;
+    const fields=[...new Set([...text.matchAll(/^  - ([^:]+):/gm)].map(m=>m[1]!))];
+    const expected=fields.map(field=>{
+      let node=schema;
+      for(const part of field.replace(/\[(\d+)\]/g,'.$1').replace(/^\//,'').split(/[./]/))node=/^\d+$/.test(part)?node?.items:node?.properties?.[part];
+      return {field,...(node?{expected:node}:{message:'Use only properties in the tool schema.'})};
+    });
+    return {...message,content:[...message.content,{type:'text' as const,text:JSON.stringify({saved:false,correction:expected,next_action:'Correct the rejected fields and retry. Preserve all other requested settings; do not omit them to bypass an error.'})}]};
+  });
+}
+
 export function createChatAgent(options: {
   apiKey: string;
   systemPrompt: string;
   messages?: AgentMessage[];
   tool?: AgentTool;
+  tools?: AgentTool[];
   reasoning?: boolean;
   maxTokens?: number;
   fetch?: typeof fetch;
@@ -76,9 +96,10 @@ export function createChatAgent(options: {
   return new Agent({
     initialState: {
       model, systemPrompt: options.systemPrompt, messages: options.messages ?? [],
-      tools: options.tool ? [options.tool] : [], thinkingLevel: options.reasoning === false ? 'off' : 'medium',
+      tools: options.tools ?? (options.tool ? [options.tool] : []), thinkingLevel: options.reasoning === false ? 'off' : 'medium',
     },
     toolExecution: 'sequential',
+    transformContext: async messages=>explainToolValidation(messages,options.tools??(options.tool?[options.tool]:[])),
     streamFn: (_model, context, streamOptions) => {
       if (++turns > 8) throw new Error('Agent turn limit reached. Send another message to continue.');
       return streamSimple(model, context, {

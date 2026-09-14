@@ -1,7 +1,7 @@
 import {ResizablePrompt} from './resizable-prompt.js';
 import {PromptInput} from './prompt-input.js';
 import type {ComposerHandle} from './inline-composer.js';
-import {inputLabels,remapReferences} from '../shared/reference-labels.js';
+import {inputLabels,promptBindings,remapReferences} from '../shared/reference-labels.js';
 import type {PreviewMedia} from './media-preview.js';
 import {AspectPicker,BatchPicker,LengthPicker,SeedControl} from './request-controls.js';
 import type {JobRecord} from '../shared/jobs.js';
@@ -388,9 +388,10 @@ function App() {
         : ""
     : "";
   const promptLabels=inputLabels(references.groups.video.map(r=>({...r,asset_id:r.id})));
+  const allPromptBindings=promptBindings(references.groups.video.map(r=>({...r,asset_id:r.id})));
   const promptMentions=[...promptLabels].map(([id,token])=>{const ref=references.groups.video.find(r=>r.id===(id.endsWith(':audio')?id.slice(0,-6):id))!;return {id,token,label:token.slice(1,-1),name:ref.name+(id.endsWith(':audio')?' · soundtrack':''),kind:ref.kind,url:ref.url,onPreview:()=>setInputPreview(ref)};});
   promptMentions.sort((a,b)=>references.groups.video.findIndex(r=>r.id===(a.id.endsWith(':audio')?a.id.slice(0,-6):a.id))-references.groups.video.findIndex(r=>r.id===(b.id.endsWith(':audio')?b.id.slice(0,-6):b.id))||Number(a.id.endsWith(':audio'))-Number(b.id.endsWith(':audio')));
-  useEffect(()=>{const prior=priorInputs.current;let prompt=draft.prompt;if(prior?.workflow===workflow&&prior.prompt===draft.prompt){prompt=remapReferences(prompt,prior.labels,promptLabels);if(prompt!==draft.prompt)updateDraft({prompt});}priorInputs.current={workflow,labels:promptLabels,prompt};},[workflow,draft.prompt,JSON.stringify([...promptLabels])]);
+  useEffect(()=>{const prior=priorInputs.current;let prompt=draft.prompt;if(prior?.workflow===workflow&&prior.prompt===draft.prompt){prompt=remapReferences(prompt,prior.labels,allPromptBindings);if(prompt!==draft.prompt)updateDraft({prompt});}priorInputs.current={workflow,labels:allPromptBindings,prompt};},[workflow,draft.prompt,JSON.stringify([...allPromptBindings])]);
   const seedValid =
     draft.randomSeed ||
     (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) &&
