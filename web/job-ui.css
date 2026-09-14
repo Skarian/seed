@@ -17,3 +17,10 @@
 .request-card-summary .asset-thumbnail img,.request-card-summary .asset-thumbnail video{width:100%;height:100%;object-fit:cover}
 
 .request-card-title-row{display:flex;align-items:center;gap:4px}.job-loading-spinner{width:20px;height:20px;border:2px solid #81b9e333;border-top-color:#81b9e3;border-radius:50%;animation:job-spin .9s linear infinite;margin:3px 0}.job-output-tile:has(.job-loading-spinner)>.job-dot{display:none}@keyframes job-spin{to{transform:rotate(360deg)}}@media(prefers-reduced-motion:reduce){.job-loading-spinner{animation:none}}
+/* Keep the edit affordance quiet and avoid inherited composer button sizing. */
+.request-card-title-row{gap:2px}
+.chat-layout .request-card-title-row .job-button.icon-only{width:26px;min-width:26px;height:28px;min-height:28px;padding:5px;margin:0;color:#a5b19a;border:0;background:transparent;box-shadow:none}
+.request-card-title-row .job-button.icon-only svg{width:14px;height:14px}
+.request-card-title-row .job-button:focus:not(:focus-visible){outline:none}
+.job-request-card .job-controls>.job-button,.job-request-card .job-controls>.job-review-button{font-size:12px;line-height:18px;padding:6px 9px;min-height:32px;margin:0}
+@media(max-width:650px){.job-request-heading{gap:8px}.job-request-heading>.job-controls{margin-left:0;gap:6px}.request-card-title strong{white-space:nowrap}.job-request-card{padding:8px}.job-request-heading>.job-controls{flex-grow:1;justify-content:flex-end}}

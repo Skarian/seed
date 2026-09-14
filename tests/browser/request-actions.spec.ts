@@ -9,7 +9,8 @@ test('edit pencil, unknown progress and same-chat branch preserve the page',asyn
  await page.goto('/chat?chat=c');
  await page.getByRole('button',{name:'Edit request',exact:true}).click();
  await expect(page.getByRole('dialog')).toBeVisible();await page.keyboard.press('Escape');
- for(const width of [1280,390]){await page.setViewportSize({width,height:844});await page.screenshot({path:`.local/request-pencil-${width}.png`});expect(await page.locator('.job-request-card').evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);}
+ await page.locator('.chat-history').click({position:{x:5,y:5}});
+ for(const width of [1280,390]){await page.setViewportSize({width,height:844});await page.screenshot({path:`.local/request-pencil-${width}.png`});await page.locator('.job-request-card').screenshot({path:`.local/request-pencil-card-${width}.png`});expect(await page.locator('.job-request-card').evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);}
  if(await page.getByRole('button',{name:'Toggle sidebar',exact:true}).isVisible())await page.getByRole('button',{name:'Toggle sidebar',exact:true}).click();
  await page.locator('.jobs-button').click();await expect(page.locator('.job-loading-spinner')).toBeVisible();await page.screenshot({path:'.local/job-loading-mobile.png'});
  job.generation_percent=37;await expect(page.locator('.job-output-tile')).toContainText('37%');await expect(page.locator('.job-loading-spinner')).toHaveCount(0);
