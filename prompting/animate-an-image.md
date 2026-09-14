@@ -21,13 +21,14 @@ In either format, copy input labels from the application context. Do not guess n
 
 Begin the timeline with [Shot 1], untimed. Subsequent cuts: [Shot 2] At 00:03.500, the camera cuts to ...; times must increase within duration. Describe composition, action, lighting, and camera movement, adding amplitude/speed where useful. For frame-guide prompts, establish style at the start of [Shot 1].
 
-Give speakers stable (S1), (S2) IDs and reuse them across shots. Write dialogue as: The woman (S1) says: <d>[English] Exact words.</d>. Use the actual language tag and preserve the requested words. Keep voice description and delivery outside tags. For voiceover use says in an off-screen voiceover and specify the corresponding on-screen character's closed lips afterward. Mark speech crossing cuts with <scenetrans> in both parts and describe uninterrupted audio; ending interruptions use <cutoff>. Quote visible text.
+Give speakers stable (S1), (S2) IDs and reuse them across shots. In full-reference prompts, the speaker number must match its Subject number: <Subject 2> speaks as (S2). For subjects that do not speak, use their <Subject N> name throughout; do not add an S-number. Write dialogue as: The woman (S1) says: <d>[English] Exact words.</d>. Use the actual language tag and preserve the requested words. Keep voice description and delivery outside tags. For voiceover use says in an off-screen voiceover and specify the corresponding on-screen character's closed lips afterward. Mark speech crossing cuts with <scenetrans> in both parts and describe uninterrupted audio; ending interruptions use <cutoff>. Quote visible text.
 
 Place synchronized sounds and in-scene music in the timeline. overall_soundscape summarizes ambience/physical sounds; N/A only for explicitly requested total silence. non_diegetic_music describes audience-only instrumentation, tempo, and dynamics, or N/A for no score. Keep dialogue out of both sound summaries.
 
 Before saving, check the user's request line by line:
 - Copy each requested exclusion into detailed_description (or integrated_multimodal_description). For example, if the user says "no subtitles, no extra people", include those exact restrictions. Do not rely on silence or missing dialogue to mean no subtitles. Only include restrictions the user requested.
 - Keep camera changes in the requested order. "Start locked, then push in" needs a still period before movement; do not start pushing at time zero.
+- Keep the requested camera movement: a pull-back moves the camera, while a zoom changes the lens. Do not replace one with the other or describe them as synonyms.
 - Keep sound priorities, such as ambience quieter than speech, in overall_soundscape.
 - Describe only visible details you can identify. If a hairstyle or small object is unclear, preserve it from the reference without inventing a more specific description.
 - For an edit, keep all earlier scene requirements unless the user changes them. Change only the requested parts.
