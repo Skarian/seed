@@ -1,3 +1,14 @@
+import {ResizablePrompt} from './resizable-prompt.js';
+import {PromptInput} from './prompt-input.js';
+import type {ComposerHandle} from './inline-composer.js';
+import {inputLabels,remapReferences} from '../shared/reference-labels.js';
+import type {PreviewMedia} from './media-preview.js';
+import {AspectPicker,BatchPicker,LengthPicker,SeedControl} from './request-controls.js';
+import type {JobRecord} from '../shared/jobs.js';
+import {jobState} from '../shared/jobs.js';
+import {JobsView,JobDetails,JobOutputs,JobButton,JobMedia,jobName} from './job-ui.js';
+import {Modal} from './modal.js';
+import {BrandSwitcher} from './brand-switcher.js';
 import {workflowLabels} from './workflow-labels.js';
 import {Sidebar} from './sidebar.js';
 import * as Collapsible from '@radix-ui/react-collapsible';
@@ -11,6 +22,7 @@ import type {
   WorkflowId,
 } from "../shared/studio.js";
 import "./style.css";
+import './job-ui.css';
 import { FrameViewer } from "./frame-viewer.js";
 import { AssetNote } from './asset-note.js';
 import { Chat } from './chat.js';
@@ -44,6 +56,10 @@ const workflows: Record<WorkflowId, { title: string; placeholder: string }> = {
   },
 };
 type Draft = {
+  note?:string;
+  sourceJob?:string;
+  resolvedSeeds?:string[];
+  size?:string;
   prompt: string;
   aspect: "16:9" | "9:16";
   duration: string;
@@ -73,6 +89,8 @@ function loadDrafts(): Partial<Record<WorkflowId, Draft>> {
     for (const id of Object.keys(workflows) as WorkflowId[]) {
       const entry = saved?.[id];
       result[id] = {
+        note:typeof entry?.note==='string'?entry.note:'',
+        sourceJob:entry?.sourceJob,size:entry?.size,resolvedSeeds:entry?.resolvedSeeds,
         prompt:
           typeof entry?.prompt === "string"
             ? entry.prompt
@@ -180,7 +198,7 @@ function SavedImage({
 }) {
   return <MediaPreview label={kind==='image'?'Saved image':'Saved media'}
     media={{name:'Saved generation',url:`/api/v1/assets/${id}/content`,kind:kind==='sequence'?'image':kind,type:kind}}
-    onClose={close} controls={<AssetNote id={id}/>}/>;
+    onClose={close} note={<AssetNote id={id}/>}/>;
 }
 
 function App() {
@@ -195,9 +213,10 @@ function App() {
   const [drafts, setDrafts] = useState(loadDrafts);
   const [highQuality, setHighQuality] = useState(loadHighQuality);
   const references = useReferences();
-  const [promptHeight, setPromptHeight] = useState(240);
+  const promptInput=useRef<ComposerHandle>(null);
+  const [inputPreview,setInputPreview]=useState<PreviewMedia|null>(null);
+  const priorInputs=useRef<{workflow:string;labels:Map<string,string>;prompt:string}|null>(null);
   const [advancedOpen, setAdvancedOpen] = useState(false);
-  const drag = useRef<{ y: number; height: number } | null>(null);
   const [studio, setStudio] = useState<StudioSnapshot | null>(null);
   const [assets, setAssets] = useState<LibraryAsset[]>([]);
   const [libraryLoaded, setLibraryLoaded] = useState(false);
@@ -213,17 +232,8 @@ function App() {
   const [deletingAsset, setDeletingAsset] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<Pick<LibraryAsset, "id" | "kind"> | null>(null);
-  const [jobs, setJobs] = useState<
-    Array<{
-      id: string;
-      state: string;
-      generation_percent?: number;
-      outputs: string[];
-      request?: {output?: {format?: string};workflow?:string};
-      error: string | null;
-      uncertainty_acknowledged?: boolean;
-    }>
-  >([]);
+  const [jobs,setJobs]=useState<JobRecord[]>([]);
+  const [resultDetail,setResultDetail]=useState<string|null>(null),[resultPreview,setResultPreview]=useState<JobRecord|null>(null);
   const [capability, setCapability] = useState<{
     revision: string | null;
     workflows: Record<string, { enabled: boolean; modes: string[]; export_formats?: string[]; duration_seconds?: {step?:number}; qualities?: string[]; native_export?: boolean }>;
@@ -235,17 +245,40 @@ function App() {
   const pendingSubmission = useRef<{ key: string; body: string } | null>(null);
   const [viewAsset, setViewAsset] = useState<string | null>(null);
   const [error, setError] = useState("");
-  const [connectionCode, setConnectionCode] = useState("");
-  const [connectionError, setConnectionError] = useState("");
-  const [connecting, setConnecting] = useState(false);
-  const [editConnection, setEditConnection] = useState(false);
+
+
+
+
   const [connectionRevision, setConnectionRevision] = useState(0);
   const [draftError, setDraftError] = useState(false);
   const draft = drafts[workflow] ?? emptyDraft();
+  useEffect(()=>{
+    const query=new URLSearchParams(location.search),id=query.get('fromJob');if(!id)return;
+    let disposed=false;
+    void (async()=>{
+      const response=await fetch('/api/v1/jobs/'+encodeURIComponent(id));if(!response.ok)throw Error('Original job is no longer available.');
+      const job:JobRecord=await response.json(),r=job.request;
+      if(r.mode!==mode)throw Error('Switch to the original job’s mode to reuse this request.');
+      const refs=await Promise.all((r.references??[]).map(async ref=>{
+        const response=await fetch('/api/v1/assets/'+ref.asset_id);const asset=response.ok?await response.json():null;
+        return {id:ref.id,asset_id:ref.asset_id,name:asset?.name??'No longer available',kind:ref.kind,type:asset?.mime_type??ref.kind+'/*',url:'/api/v1/assets/'+ref.asset_id+'/content',role:ref.role,framing:ref.framing,include_audio:ref.include_audio,start:ref.range?.start_seconds??0,end:(ref.range?.start_seconds??0)+(ref.range?.duration_seconds??0),duration:asset?.metadata?.duration_seconds,width:asset?.metadata?.width,height:asset?.metadata?.height};
+      }));
+      const ids=query.get('outputs')?.split(',')??[id];
+      const originals=await Promise.all(ids.map(async output=>{const response=await fetch('/api/v1/jobs/'+encodeURIComponent(output));if(!response.ok)throw Error('Output no longer available.');return await response.json() as JobRecord;}));
+      if(originals.some(j=>j.submission_id!==job.submission_id))throw Error('Choose outputs from one request.');
+      if(disposed)return;
+      setWorkflow(r.workflow);setHighQuality(r.quality==='high');
+      setDrafts(current=>({...current,[r.workflow]:{prompt:r.prompt,note:r.note,aspect:r.output.aspect,duration:String(r.output.duration_seconds??5),exportImages:r.output.format==='images',audio:r.audio?.output??'generated',count:originals.length,resolvedSeeds:query.get('seed')==='new'?undefined:originals.map(j=>j.seed),randomSeed:query.get('seed')==='new',seed:job.seed,sourceJob:job.id,size:r.output.size}}));
+      references.replace('video',refs);setAdvancedOpen(true);
+      if(refs.some(ref=>ref.name==='No longer available'))setGenerationError('An original input is no longer available. Remove or replace it before generating.');
+      history.replaceState(null,'','/');
+    })().catch(e=>{if(!disposed)setGenerationError(e.message);});
+    return()=>{disposed=true;};
+  },[mode]);
   const updateDraft = (change: Partial<Draft>) =>
     setDrafts((current) => ({
       ...current,
-      [workflow]: { ...(current[workflow] ?? emptyDraft()), ...change },
+      [workflow]: { ...(current[workflow] ?? emptyDraft()), ...change, ...((change.seed!==undefined||change.randomSeed!==undefined||change.count!==undefined)?{resolvedSeeds:undefined}:{}) },
     }));
   useEffect(() => {
     let disposed = false;
@@ -354,6 +387,10 @@ function App() {
           ? "Fast video is unavailable. Turn on High Quality to continue."
         : ""
     : "";
+  const promptLabels=inputLabels(references.groups.video.map(r=>({...r,asset_id:r.id})));
+  const promptMentions=[...promptLabels].map(([id,token])=>{const ref=references.groups.video.find(r=>r.id===(id.endsWith(':audio')?id.slice(0,-6):id))!;return {id,token,label:token.slice(1,-1),name:ref.name+(id.endsWith(':audio')?' · soundtrack':''),kind:ref.kind,url:ref.url,onPreview:()=>setInputPreview(ref)};});
+  promptMentions.sort((a,b)=>references.groups.video.findIndex(r=>r.id===(a.id.endsWith(':audio')?a.id.slice(0,-6):a.id))-references.groups.video.findIndex(r=>r.id===(b.id.endsWith(':audio')?b.id.slice(0,-6):b.id))||Number(a.id.endsWith(':audio'))-Number(b.id.endsWith(':audio')));
+  useEffect(()=>{const prior=priorInputs.current;let prompt=draft.prompt;if(prior?.workflow===workflow&&prior.prompt===draft.prompt){prompt=remapReferences(prompt,prior.labels,promptLabels);if(prompt!==draft.prompt)updateDraft({prompt});}priorInputs.current={workflow,labels:promptLabels,prompt};},[workflow,draft.prompt,JSON.stringify([...promptLabels])]);
   const seedValid =
     draft.randomSeed ||
     (/^(0|[1-9][0-9]{0,15})$/.test(draft.seed) &&
@@ -363,6 +400,7 @@ function App() {
     workflow === "reference-to-video"
       ? referencePromptIssue(draft.prompt, references.groups.video)
       : "";
+  const gpuUnavailable = !studio?.worker.connected || Boolean(studio.worker.stale);
   const canGenerate =
     !videoQualityIssue &&
     !missingReference &&
@@ -379,7 +417,8 @@ function App() {
     seedValid &&
     Boolean(draft.prompt.trim());
   async function generate() {
-    if (missingReference) return;
+    if (gpuUnavailable) return;
+    if (!canGenerate || submitting) return;
     setSubmitting(true);
     setGenerationError("");
     let uploaded;
@@ -401,14 +440,16 @@ function App() {
       workflow,
       capabilities_revision: capability?.revision,
       prompt: draft.prompt,
+      ...(draft.note?.trim()?{note:draft.note.trim()}:{}),
       mode,
       output: {
         aspect: draft.aspect,
-        size: video ? "native" : "1mp",
+        size: draft.size ?? (video ? "native" : "1mp"),
         ...(video ? { duration_seconds: Number(draft.duration), ...(draft.exportImages ? {format:"images"} : {}) } : {}),
       },
       seed: draft.randomSeed ? "random" : draft.seed,
       count: draft.count,
+      ...(draft.resolvedSeeds?{resolved_seeds:draft.resolvedSeeds}:{}),
       ...(uploaded ? { references: uploaded } : {}),
       ...(video ? { quality: highQuality ? "high" : "fast", audio: { output: draft.audio ?? "generated" } } : {}),
     });
@@ -420,13 +461,13 @@ function App() {
         body,
       };
     try {
-      const response = await fetch("/api/v1/jobs", {
+      const response = await fetch(draft.sourceJob?"/api/v1/jobs/"+draft.sourceJob+"/repeat":"/api/v1/jobs", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
           "Idempotency-Key": pendingSubmission.current!.key,
         },
-        body,
+        body: draft.sourceJob?JSON.stringify({request:JSON.parse(body)}):body,
       });
       const result = await response.json();
       if (!response.ok) {
@@ -539,34 +580,6 @@ function App() {
       failed: "Failed",
       needs_attention: "Needs attention",
     })[state] ?? state;
-  async function changeConnection(remove = false) {
-    setConnecting(true);
-    setConnectionError("");
-    const code = connectionCode.trim();
-    setConnectionCode("");
-    try {
-      const response = await fetch(
-        "/api/v1/connection",
-        remove
-          ? { method: "DELETE" }
-          : {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ connection_code: code }),
-            },
-      );
-      const result = await response.json();
-      if (!response.ok)
-        throw new Error(result.error?.message ?? "Connection failed.");
-      setStudio(null);
-      setEditConnection(false);
-      setConnectionRevision((value) => value + 1);
-    } catch (failure) {
-      setConnectionError((failure as Error).message);
-    } finally {
-      setConnecting(false);
-    }
-  }
   const worker = studio?.worker;
   const preparationError =
     !worker?.stale && worker?.state === "preparing"
@@ -575,7 +588,7 @@ function App() {
   const tone =
     error || preparationError
       ? "error"
-      : connecting || !studio
+      : !studio
         ? "activity"
         : worker?.stale || worker?.state === "disconnected"
           ? "attention"
@@ -591,38 +604,30 @@ function App() {
   const detail = error
     ? "Cannot reach seed. Check that the app is running on your PC."
     : preparationError ||
-      (connecting
-        ? "Connecting…"
-        : !studio
+      (!studio
           ? "Checking connection…"
           : tone === "attention"
             ? worker?.connected
-              ? "Cannot reach your pod. Check it in RunPod, or connect another pod."
-              : "Paste a connection code from your pod to get started."
+              ? "Ask your setup agent to reconnect the GPU."
+              : "Ask your setup agent to connect a GPU."
             : tone === "ready"
-              ? "Your GPU is connected and ready."
+              ? "Ready to generate."
               : worker?.state === "busy"
                 ? "Generating…"
                 : "Preparing models and engine…");
-  const showConnectionForm =
-    (editConnection && (tone === "attention" || connecting)) ||
-    Boolean(studio && !worker?.connected);
   function reset() {
     if (workflow === "image-to-image") references.reset("edit");
     if (workflow === "reference-to-video") references.reset("video");
     setDrafts((current) => ({ ...current, [workflow]: emptyDraft() }));
-    setPromptHeight(240);
     setAdvancedOpen(false);
   }
 
   return (
     <div className={`studio-shell ${sidebarOpen?'sidebar-visible':''} page-${page}`}>
-      <header className="app-bar"><button className="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded={sidebarOpen} aria-controls="app-sidebar" onClick={()=>setSidebarOpen(!sidebarOpen)}>☰</button>        <SpicyBrand onNavigate={() => navigate("generate")}>
-          <span className="brand-mark"><SeedMark /></span>
+      {!sidebarOpen&&<header className="app-bar"><button className="sidebar-toggle" aria-label="Toggle sidebar" aria-expanded={sidebarOpen} aria-controls="app-sidebar" onClick={()=>setSidebarOpen(!sidebarOpen)}>☰</button></header>}
+      <Sidebar open={sidebarOpen} wide={wide} onOpenChange={setSidebarOpen} heading={<BrandSwitcher page={page} onNavigate={navigate} icon={<span className="brand-mark"><SeedMark /></span>}>
           seed
-        </SpicyBrand>
-<span className="page-label">{page}</span></header>
-      <Sidebar open={sidebarOpen} wide={wide} onOpenChange={setSidebarOpen}>
+        </BrandSwitcher>}>
         <div className="header-status">
 <Collapsible.Root open={gpuOpen} onOpenChange={setGpuOpen}><Collapsible.Trigger asChild><button
             className="pod-button"
@@ -630,250 +635,44 @@ function App() {
             aria-label={`Pod connection: ${workerLabel}`}
           >
             <Icon name="pod" />
-            <span className="status-dot" />
-            <span className="pod-label">GPU connection<small>{workerLabel}</small></span><span className="chevron">⌄</span>
+            <span className="pod-label">GPU Status<small>{workerLabel}</small></span><span className="gpu-indicator" aria-hidden="true"/>
           </button></Collapsible.Trigger><Collapsible.Content>      <section
         id="pod-details"
-        className="sidebar-dropdown"
-        aria-labelledby="pod-title"
+        className="gpu-details"
+        aria-label="GPU connection details"
       >
-        <div className="popover-title">
-          <h2 id="pod-title">Pod connection</h2>
-          <button
-            className="icon-button"
-            onClick={()=>setGpuOpen(false)}
-            aria-label="Close pod details"
-          >
-            <Icon name="close" />
-          </button>
-        </div>
-        <p className="popover-status" data-tone={tone} role="status">
-          <span className="status-dot" />
-          {workerLabel}
-        </p>
         <p className="popover-note">{detail}</p>
         {tone === "activity" &&
           worker?.state === "preparing" &&
-          !connecting &&
           !worker.stale && (
             <p className="popover-note preparation-detail">
               {worker.preparation?.phase}
             </p>
           )}
-        <a
-          className="popover-link"
-          href="https://console.runpod.io/pods"
-          target="_blank"
-          rel="noreferrer"
-        >
-          Open RunPod ↗
-        </a>
-        {showConnectionForm && (
-          <form
-            className="connection-form"
-            onSubmit={(event) => {
-              event.preventDefault();
-              void changeConnection();
-            }}
-          >
-            <label htmlFor="connection-code">Connection code</label>
-            <textarea
-              id="connection-code"
-              autoComplete="off"
-              spellCheck={false}
-              value={connectionCode}
-              onChange={(event) => setConnectionCode(event.target.value)}
-              placeholder="Paste from your pod"
-              rows={2}
-            />
-            <button
-              type="submit"
-              disabled={connecting || !connectionCode.trim()}
-            >
-              {connecting ? "Connecting…" : "Connect"}
-            </button>
-            {worker?.connected && (
-              <button
-                className="connection-secondary"
-                type="button"
-                disabled={connecting}
-                onClick={() => {
-                  setEditConnection(false);
-                  setConnectionCode("");
-                  setConnectionError("");
-                }}
-              >
-                Cancel
-              </button>
-            )}
-          </form>
-        )}
-        {worker?.connected && (
-          <div className="connection-actions">
-            {tone === "attention" && !showConnectionForm && (
-              <button
-                disabled={connecting}
-                onClick={() => setEditConnection(true)}
-              >
-                Connect a pod
-              </button>
-            )}
-            <button
-              className="connection-secondary"
-              disabled={connecting}
-              onClick={() => void changeConnection(true)}
-            >
-              Forget connection
-            </button>
-          </div>
-        )}
-        {connectionError && (
-          <p className="connection-error" role="alert">
-            {connectionError}
-          </p>
-        )}
       </section>
 </Collapsible.Content></Collapsible.Root>
-<Collapsible.Root open={jobsOpen} onOpenChange={setJobsOpen}><Collapsible.Trigger asChild><button
+<button onClick={()=>{if(!wide)setSidebarOpen(false);setJobsOpen(true);}} aria-haspopup="dialog"
             className="jobs-button"
             aria-label={`Jobs${jobCount === null ? "" : `, ${jobCount}`}`}
           >
             <Icon name="jobs" />
-            <span>Jobs</span><span className="job-count">{jobCount ?? "–"}</span>
-          </button></Collapsible.Trigger><Collapsible.Content>      <section
-        id="job-details"
-        className="sidebar-dropdown"
-        aria-labelledby="jobs-title"
-      >
-        <div className="popover-title">
-          <h2 id="jobs-title">Jobs</h2>
-          <button
-            className="icon-button"
-            onClick={()=>setJobsOpen(false)}
-            aria-label="Close jobs"
-          >
-            <Icon name="close" />
+            <span>Active Jobs</span><span className="job-count">{jobCount ?? "–"}</span>
           </button>
         </div>
-        {error ? (
-          <p role="status">Job status unavailable.</p>
-        ) : (
-          <>
-            <div className="job-summary">
-              <span>
-                Active <strong>{studio?.queue.active ?? "–"}</strong>
-              </span>
-              <span>
-                Waiting <strong>{studio?.queue.waiting ?? "–"}</strong>
-              </span>
-            </div>
-            <div className="job-list">
-              {jobs.length === 0 ? (
-                <p className="popover-note">No jobs yet.</p>
-              ) : (
-                jobs.map((job) => (
-                  <div key={job.id}>
-                    <span>
-                      {job.state === "running" && !job.generation_percent
-                        ? "Model loading…"
-                        : jobLabel(job.state)}
-                      {job.state === "running" &&
-                        (job.generation_percent ?? 0) > 0 && (
-                          <strong
-                            className="job-percent"
-                            title="Sampling progress; decoding and saving follow"
-                          >
-                            {job.generation_percent}%
-                          </strong>
-                        )}
-                    </span>
-                    {![
-                      "completed",
-                      "failed",
-                      "cancelled",
-                      "needs_attention",
-                    ].includes(job.state) && (
-                      <button
-                        onClick={() =>
-                          void jobAction(`/api/v1/jobs/${job.id}/cancel`)
-                        }
-                      >
-                        Cancel
-                      </button>
-                    )}
-                    {job.error && <p>{job.error}</p>}
-                    {job.state === "needs_attention" &&
-                      !job.uncertainty_acknowledged && (
-                        <button
-                          onClick={() =>
-                            void jobAction(`/api/v1/jobs/${job.id}/acknowledge`)
-                          }
-                        >
-                          Continue without rerunning
-                        </button>
-                      )}
-                    {job.uncertainty_acknowledged && (
-                      <p>Acknowledged. This job will not be rerun.</p>
-                    )}
-                  </div>
-                ))
-              )}
-            </div>
-            <button
-              className="queue-control"
-              onClick={() =>
-                void jobAction(
-                  `/api/v1/queue/${studio?.queue.paused ? "resume" : "pause"}`,
-                )
-              }
-            >
-              {studio?.queue.paused ? "Resume queue" : "Pause queue"}
-            </button>
-            {studio?.safe_to_terminate === true && (
-              <p className="popover-note">Safe to stop the pod.</p>
-            )}
-          </>
-        )}
-      </section>
-</Collapsible.Content></Collapsible.Root>
-        </div>
-        <nav aria-label="Main navigation">
-          {["library", "generate", "chat"].map((item) => (
-            <button
-              key={item}
-              aria-current={page === item ? "page" : undefined}
-              onClick={() => navigate(item)}
-            >
-              {item === "generate" ? "Generate" : item === "chat" ? "Chat" : "Library"}
-            </button>
-          ))}
-        </nav>
+
         <div className="sidebar-section" ref={setSidebarTarget}/>
+        {page!=='chat'&&<div className="sidebar-chats-heading"><button onClick={()=>navigate('chat')}>Chats</button><button aria-label="New chat" title="New chat" onClick={()=>{sessionStorage.removeItem('seed.chat.selected.'+(spicy?'nsfw':'sfw'));navigate('chat');}}>+</button></div>}
         {page==='generate'&&<div className="sidebar-section"><p className="section-label">Workflows</p>{Object.entries(workflows).filter(([id])=>id!=='image-to-image').map(([id,value])=><button key={id} className={workflow===id?'selected':''} onClick={()=>{setWorkflow(id as WorkflowId);setAdvancedOpen(false);if(!wide)setSidebarOpen(false);}}>{value.title}</button>)}</div>}
         {page==='library'&&<div className="sidebar-section"><p className="section-label">Media type</p>{['all','image','video','audio','sequence'].map(type=><button key={type} className={libraryType===type?'selected':''} onClick={()=>{setLibraryType(type);if(!wide)setSidebarOpen(false);}}>{type==='all'?'All media':type==='sequence'?'Frame sequences':type.charAt(0).toUpperCase()+type.slice(1)+'s'}</button>)}</div>}
       </Sidebar>
+
+      {inputPreview&&<MediaPreview media={inputPreview} referenceLabel={promptMentions.find(m=>m.url===inputPreview.url)?.label} onClose={()=>setInputPreview(null)}/>}
+      {jobsOpen&&<JobsView mode={spicy?'nsfw':'sfw'} onClose={()=>setJobsOpen(false)}/>}
+      {resultPreview&&<JobMedia job={resultPreview} onClose={()=>setResultPreview(null)}/>}
+      {resultDetail&&jobs.some(j=>j.id===resultDetail)&&<JobDetails initial={resultDetail} jobs={jobs.filter(j=>j.submission_id===jobs.find(j=>j.id===resultDetail)!.submission_id)} onClose={()=>setResultDetail(null)}/>}
       <main>
         {page === "generate" ? (
           <>
-            <div className="workflow-bar">
-              <label className="workflow-select">
-                <span>Workflow</span>
-                <select
-                  value={workflow}
-                  onChange={(event) => {
-                    setWorkflow(event.target.value as WorkflowId);
-                    setPromptHeight(240);
-                    setAdvancedOpen(false);
-                  }}
-                >
-                  {Object.entries(workflows).filter(([id])=>id!=="image-to-image").map(([id, value]) => (
-                    <option key={id} value={id}>
-                      {value.title}
-                    </option>
-                  ))}
-                </select>
-              </label>
-            </div>
             <section
               className="composer"
               aria-label={workflows[workflow].title}
@@ -890,63 +689,15 @@ function App() {
                 </button>
               </div>
               <div className="prompt-editor">
-                <textarea
+                {workflow==='reference-to-video'?<PromptInput key={workflow} ref={promptInput} id="prompt" value={draft.prompt} onChange={prompt=>updateDraft({prompt})} mentions={promptMentions} placeholder={workflows[workflow].placeholder}/>:(<ResizablePrompt><textarea
                   id="prompt"
                   value={draft.prompt}
                   onChange={(event) =>
                     updateDraft({ prompt: event.target.value })
                   }
                   placeholder={workflows[workflow].placeholder}
-                  style={{ height: promptHeight }}
-                />
-                <button
-                  className="resize-handle"
-                  aria-label="Resize prompt"
-                  title="Drag to resize; use arrow keys for small adjustments"
-                  onPointerDown={(event) => {
-                    drag.current = { y: event.clientY, height: promptHeight };
-                    event.currentTarget.setPointerCapture(event.pointerId);
-                  }}
-                  onPointerMove={(event) => {
-                    if (drag.current)
-                      setPromptHeight(
-                        Math.max(
-                          140,
-                          Math.min(
-                            800,
-                            drag.current.height +
-                              event.clientY -
-                              drag.current.y,
-                          ),
-                        ),
-                      );
-                  }}
-                  onPointerUp={() => {
-                    drag.current = null;
-                  }}
-                  onPointerCancel={() => {
-                    drag.current = null;
-                  }}
-                  onLostPointerCapture={() => {
-                    drag.current = null;
-                  }}
-                  onKeyDown={(event) => {
-                    if (event.key === "ArrowDown" || event.key === "ArrowUp") {
-                      event.preventDefault();
-                      setPromptHeight((height) =>
-                        Math.max(
-                          140,
-                          Math.min(
-                            800,
-                            height + (event.key === "ArrowDown" ? 20 : -20),
-                          ),
-                        ),
-                      );
-                    }
-                  }}
-                >
-                  <Icon name="resize" />
-                </button>
+                /></ResizablePrompt>)}
+
               </div>
               {draftError && (
                 <p role="alert">
@@ -960,75 +711,47 @@ function App() {
                   group={workflow === "image-to-image" ? "edit" : "video"}
                   state={references}
                   seconds={Number(draft.duration)}
-                  onInsert={(label) =>
-                    updateDraft({
-                      prompt:
-                        draft.prompt +
-                        (draft.prompt.endsWith(" ") || !draft.prompt
-                          ? ""
-                          : " ") +
-                        label +
-                        " ",
-                    })
-                  }
+                  onInsert={label=>promptInput.current?.insert(label+' ')}
                 />
               )}
               <div className="output-settings">
                 <fieldset>
                   <legend>Aspect ratio</legend>
-                  <div className="frame-options">
-                    {(["16:9", "9:16"] as const).map((aspect) => (
-                      <button
-                        key={aspect}
-                        className="frame-option"
-                        aria-pressed={draft.aspect === aspect}
-                        aria-label={`${aspect === "16:9" ? "Landscape" : "Portrait"} ${aspect}`}
-                        onClick={() => updateDraft({ aspect })}
-                      >
-                        <span
-                          className={`frame-shape ${aspect === "9:16" ? "portrait" : "landscape"}`}
-                        />
-                        <span>
-                          {aspect === "16:9" ? "Landscape" : "Portrait"}
-                          <small>{aspect}</small>
-                        </span>
-                      </button>
-                    ))}
-                  </div>
+                  <AspectPicker value={draft.aspect} onChange={aspect=>updateDraft({aspect})}/>
                 </fieldset>
+                <label className="batch-field">
+                  Batch size
+                  <BatchPicker value={draft.count} onChange={count=>updateDraft({count})}/>
+                </label>
                 {video && (
                   <fieldset>
                     <legend>Length</legend>
-                    {capability?.workflows[workflow]?.duration_seconds?.step === 1 || !capability?.revision ?
-                      <label className="duration-slider"><span>{draft.duration} seconds</span><input aria-label="Length" type="range" min="5" max="15" step="1" value={draft.duration} onChange={e=>updateDraft({duration:e.target.value})}/></label> :
-                      <div className="duration-options">{['5','10','15'].map(duration=><button key={duration} aria-pressed={draft.duration===duration} onClick={()=>updateDraft({duration})}>{duration}s</button>)}</div>}
-
+                    <LengthPicker value={Number(draft.duration)} step={capability?.workflows[workflow]?.duration_seconds?.step===1||!capability?.revision?1:5} onChange={duration=>updateDraft({duration:String(duration)})}/>
                   </fieldset>
                 )}
+                            {video && <label className="quality-field">Quality<select aria-label="Quality" value={highQuality?'high':'fast'} onChange={e=>setHighQuality(e.target.value==='high')}><option value="fast">Fast</option><option value="high">High</option></select></label>}
               </div>
-              {video && <label className="export-images" title="Prioritizes acting, motion and dialogue. Takes longer."><input type="checkbox" checked={highQuality} onChange={e=>setHighQuality(e.target.checked)}/>High Quality</label>}
+
               {videoQualityIssue && <p role="status">{videoQualityIssue}</p>}
-              {video && <label className="export-images"><input type="checkbox" checked={Boolean(draft.exportImages)} onChange={e=>updateDraft({exportImages:e.target.checked})}/>Export as images</label>}
-              {video && draft.exportImages && capability?.revision && !capability.workflows[workflow]?.export_formats?.includes('images') && <p>Update the worker to export images.</p>}
-              <div className="generation-options">
-                <label className="batch-field">
-                  Generations
+              {video&&<div className="generate-extra-settings"><label>Export<select value={draft.exportImages?'images':'video'} onChange={e=>updateDraft({exportImages:e.target.value==='images'})}><option value="video">Video</option><option value="images">Images</option></select></label>              {video && !draft.exportImages && (
+                <label className="video-audio">
+                  Soundtrack
                   <select
-                    aria-label="Generations"
-                    value={draft.count}
+                    value={draft.audio ?? "generated"}
                     onChange={(event) =>
-                      updateDraft({ count: Number(event.target.value) })
+                      updateDraft({
+                        audio: event.target.value as "generated" | "silent",
+                      })
                     }
                   >
-                    {Array.from({ length: 16 }, (_, index) => index + 1).map(
-                      (count) => (
-                        <option key={count} value={count}>
-                          {count}
-                        </option>
-                      ),
-                    )}
+                    <option value="generated">Generated</option>
+                    <option value="silent">Silent</option>
                   </select>
                 </label>
+              )}</div>}
+              {video && draft.exportImages && capability?.revision && !capability.workflows[workflow]?.export_formats?.includes('images') && <p>Update the worker to export images.</p>}
+              <div className="generation-options">
+
                 <button
                   className="advanced-toggle"
                   aria-expanded={advancedOpen}
@@ -1045,42 +768,8 @@ function App() {
                   className="advanced-options"
                   aria-label="Advanced settings"
                 >
-                  <label className="seed-switch">
-                    <input
-                      type="checkbox"
-                      checked={draft.randomSeed}
-                      onChange={(event) =>
-                        updateDraft({ randomSeed: event.target.checked })
-                      }
-                    />
-                    Random seed
-                  </label>
-                  {draft.randomSeed ? (
-                    <p>Different seed for each generation.</p>
-                  ) : (
-                    <>
-                      <label className="seed-field" htmlFor="seed">
-                        Starting seed
-                        <input
-                          id="seed"
-                          type="text"
-                          inputMode="numeric"
-                          maxLength={16}
-                          value={draft.seed}
-                          aria-invalid={!seedValid}
-                          aria-describedby="seed-help"
-                          onChange={(event) =>
-                            updateDraft({ seed: event.target.value })
-                          }
-                        />
-                      </label>
-                      <p id="seed-help">
-                        {seedValid
-                          ? "For batches, each seed increases by 1."
-                          : "Use a whole number from 0 to 9007199254740991, leaving room for the batch."}
-                      </p>
-                    </>
-                  )}
+                  <SeedControl random={draft.randomSeed} value={draft.seed} onChange={(randomSeed,seed)=>updateDraft({randomSeed,seed})}/>
+                  {!seedValid&&<p role="alert">Use a whole number from 0 to 9007199254740991, leaving room for the batch.</p>}
                 </section>
               )}
               {!advancedOpen && !seedValid && (
@@ -1094,25 +783,12 @@ function App() {
                   </p>
                 )}
               {missingReference && <p role="alert">{missingReference}</p>}
-              {video && !draft.exportImages && (
-                <label className="video-audio">
-                  Audio
-                  <select
-                    value={draft.audio ?? "generated"}
-                    onChange={(event) =>
-                      updateDraft({
-                        audio: event.target.value as "generated" | "silent",
-                      })
-                    }
-                  >
-                    <option value="generated">Generated soundtrack</option>
-                    <option value="silent">Silent</option>
-                  </select>
-                </label>
-              )}
-              <button
-                className="generate-button"
-                disabled={!canGenerate || submitting}
+
+                            <label className="generation-note">Note<input maxLength={4000} placeholder="Optional note for the generated assets" value={draft.note??''} onChange={e=>updateDraft({note:e.target.value})}/></label>
+{generationError && <p role="alert">{generationError}</p>}
+<button
+                className={"generate-button"+(gpuUnavailable?" no-gpu":"")}
+                disabled={submitting || !canGenerate}
                 onClick={() => void generate()}
                 title={
                   canGenerate
@@ -1122,7 +798,7 @@ function App() {
               >
                 {submitting ? (
                   "Submitting…"
-                ) : (
+                ) : gpuUnavailable ? "No GPU Available" : (
                   <>
                     Create{" "}
                     {draft.count > 1
@@ -1134,56 +810,10 @@ function App() {
                   </>
                 )}
               </button>
-              {generationError && <p role="alert">{generationError}</p>}
               {deleteError && <p role="alert">{deleteError}</p>}
               {uploadProgress && <p role="status">{uploadProgress}</p>}
-              {submission.length > 0 && (
-                <section
-                  className="generation-results"
-                  aria-label="Output preview"
-                >
-                  {submission.map((id) => {
-                    const job = jobs.find((j) => j.id === id);
-                    return (
-                      <div key={id}>
-                        {job?.outputs?.length ? (
-                          job.request?.output?.format === 'images' ? <MediaCard kind="sequence" src={`/api/v1/assets/${job.outputs[0]}/preview`} frameCount={job.outputs.length} name="Image sequence" onOpen={()=>setViewAsset(job.id)} onDelete={()=>setDeleteTarget({id:job.id,kind:'sequence'})} deleting={deletingAsset!==null}/> : job.outputs.map((asset) => (
-                            <MediaCard
-                              key={asset}
-                              src={`/api/v1/assets/${asset}/content`}
-                              kind={
-                                assets.find((item) => item.id === asset)
-                                  ?.kind ?? (video ? "video" : "image")
-                              }
-                              name={
-                                video ? "Generated video" : "Generated image"
-                              }
-                              onOpen={() => setViewAsset(asset)}
-                              onDelete={() =>
-                                setDeleteTarget({
-                                  id: asset,
-                                  kind:
-                                    assets.find((item) => item.id === asset)
-                                      ?.kind ?? (video ? "video" : "image"),
-                                })
-                              }
-                              deleting={deletingAsset !== null}
-                            />
-                          ))
-                        ) : (
-                          <>
-                            <div className="empty-mark">
-                              <SeedMark />
-                            </div>
-                            <p>{job ? jobLabel(job.state) : "Queued"}</p>
-                          </>
-                        )}
-                        {job?.error && <p role="alert">{job.error}</p>}
-                      </div>
-                    );
-                  })}
-                </section>
-              )}
+              {submission.length>0&&<section className="job-chat-wrap" aria-label="Output preview"><div className="job-request-card"><div className="job-request-heading"><strong>{jobName(workflow)}</strong><JobButton icon="info" label="View job details" iconOnly onClick={()=>setResultDetail(submission[0]!)}/></div><JobOutputs jobs={jobs.filter(j=>submission.includes(j.id))} onSelect={j=>jobState(j)==='completed'?setResultPreview(j):setResultDetail(j.id)}/></div></section>}
+
             </section>
           </>
         ) : page === 'chat' ? <Chat sidebarTarget={sidebarTarget} onChooseChat={()=>{if(!wide)setSidebarOpen(false);}} /> : (
@@ -1256,3 +886,6 @@ createRoot(document.getElementById("root")!).render(
     <SpicyProvider><App /></SpicyProvider>
   </React.StrictMode>,
 );
+
+
+

@@ -29,7 +29,7 @@ export function chatPromptSnapshot(paths: StudioPaths, mode:'sfw'|'nsfw', workfl
     if(!value.trim()||value.includes('\0')||value.length>64000)throw Error(`Repair prompting/${name} before sending another message.`);
     return {name,content:value};
   });
-  const system=contents[0]!.content + (workflow?'\n\nActive workflow: '+workflow+'. The following guide governs the generation prompt FIELD only. “Return only the prompt” does not limit chat clarification or workflow tool calls.\n\n'+contents[1]!.content:'\n\nNo workflow is active. Chat normally; ask the user to select a workflow before preparing requests.');
+  const system=contents[0]!.content + '\n\nA successful request tool call only prepares a request for review. Say the request is ready to review; never say a video or image is ready unless a completed job with an output exists. Tool rejection details are visible in the tool transcript; correct them when possible, and do not claim success after an unresolved rejection.' + (workflow?'\n\nActive workflow: '+workflow+'. The following guide governs the generation prompt FIELD only. “Return only the prompt” does not limit chat clarification or workflow tool calls.\n\n'+contents[1]!.content:'\n\nNo workflow is active. Chat normally; ask the user to select a workflow before preparing requests.');
   return {system,summarySystem:contents.at(-1)!.content,files:contents,hash:createHash('sha256').update(JSON.stringify(contents)).digest('hex')};
 }
 

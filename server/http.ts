@@ -146,7 +146,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try { unlinkSync(file); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return fail(reply, 409, 'delete_failed', 'Could not delete the file. Close any apps using it and try again.', request.id); }
     db.transaction(() => {
       db.prepare('DELETE FROM assets WHERE id=?').run(id);
-      for (const job of owners) { job.outputs = job.outputs.filter(output => output !== id); jobs.save(job); }
+      for (const job of owners) { job.deleted_outputs = [...(job.deleted_outputs??[]),id]; job.outputs = job.outputs.filter(output => output !== id); jobs.save(job); }
     })();
     return reply.code(204).send();
   }));
@@ -170,8 +170,19 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try { const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''))); return reply.code(202).send(result); }
     catch (error) { return fail(reply, 409, 'submission_failed', (error as Error).message, request.id); }
   });
-  app.get('/api/v1/jobs', async request => { const cursor = String((request.query as { cursor?: string }).cursor ?? ''); const items = jobs.list(51, cursor); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.get('/api/v1/jobs', async request => { const query=request.query as {cursor?:string;mode?:string};if(query.mode){const items=jobs.all().filter(j=>j.request.mode===query.mode).reverse();return {items,next_cursor:null};}const cursor = String(query.cursor ?? ''); const items = jobs.list(51, cursor); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/jobs/:id', async (request, reply) => jobs.get((request.params as { id: string }).id) ?? fail(reply, 404, 'not_found', 'Job not found.', request.id));
+  app.post('/api/v1/jobs/:id/branch-chat', {schema:{body:{type:'object',additionalProperties:false,required:['fresh'],properties:{draft:{type:'boolean'},fresh:{type:'boolean'},job_ids:{type:'array',minItems:1,maxItems:16,items:{type:'string'}}}}}}, async(request,reply)=>{
+    try{const id=(request.params as {id:string}).id,body=request.body as {fresh:boolean;draft?:boolean;job_ids?:string[]};if(body.job_ids&&!body.job_ids.includes(id))throw Error('Source output must be included.');return chats.branch(body.job_ids??[id],body.fresh,body.draft);}catch(e){return fail(reply,409,'branch_failed',(e as Error).message,request.id);}
+  });
+  app.post('/api/v1/jobs/:id/repeat', async(request,reply)=>{
+    try{return await jobs.serialize(async()=>{
+      const original=jobs.get((request.params as {id:string}).id);if(!original)throw Error('Job not found.');
+      const body=request.body as {request:unknown};
+      const staged=await jobs.prepareSubmission(body.request,String(request.headers['idempotency-key']??''),{...original.source,job_id:original.id});
+      const result=db.transaction(staged.commit)();jobs.pause(false);return result;
+    });}catch(e){return fail(reply,409,'repeat_failed',(e as Error).message,request.id);}
+  });
   app.post('/api/v1/jobs/:id/cancel', async (request, reply) => {
     const id = (request.params as { id: string }).id;
     jobs.interrupt(id);
@@ -211,3 +222,4 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.setNotFoundHandler((request, reply) => fail(reply, 404, 'not_found', 'This page or operation is not available.', request.id));
   return app;
 }
+

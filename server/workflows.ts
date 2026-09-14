@@ -4,9 +4,16 @@ import { randomBytes } from 'node:crypto';
 
 export type Preset = { filename: string; sha256: string; strength_model: number; revision: string };
 export type Capabilities = { revision: string; ready: boolean; nsfw: Preset | null; workspace_id: string; engine_session_id: string; video?: { image_export?:boolean; duration_step?:number; native_export?:boolean; quality?:{fast:boolean;high:boolean}; profile_revision?:string; ready:boolean; nsfw: Partial<Record<'fl'|'ref',Preset>> } };
-export type ImageRequest = { workflow: 'text-to-image' | 'text-to-video' | 'reference-to-video'; capabilities_revision: string; prompt: string; mode: 'sfw' | 'nsfw'; quality?: 'fast' | 'high'; output: { aspect: '16:9' | '9:16'; size: '1mp' | '720p' | 'native'; duration_seconds?: number; format?: 'video' | 'images' }; references?: InputReference[]; audio?: {output:'generated'|'silent'}; seed: string; count: number };
+export type ImageRequest = { note?: string; resolved_seeds?: string[]; workflow: 'text-to-image' | 'text-to-video' | 'reference-to-video'; capabilities_revision: string; prompt: string; mode: 'sfw' | 'nsfw'; quality?: 'fast' | 'high'; output: { aspect: '16:9' | '9:16'; size: '1mp' | '720p' | 'native'; duration_seconds?: number; format?: 'video' | 'images' }; references?: InputReference[]; audio?: {output:'generated'|'silent'}; seed: string; count: number };
 
 export function imageRequest(value: unknown): ImageRequest {
+  if(value && typeof value==='object' && ('note' in value || 'resolved_seeds' in value)) {
+    const {note,resolved_seeds,...rest}=value as ImageRequest;
+    const request=imageRequest(rest);
+    if(note!==undefined&&(typeof note!=='string'||note.length>4000))throw Error('Keep the note under 4000 characters.');
+    if(resolved_seeds!==undefined&&(!Array.isArray(resolved_seeds)||resolved_seeds.length!==request.count||resolved_seeds.some(seed=>typeof seed!=='string'||! /^(0|[1-9][0-9]{0,15})$/.test(seed)||BigInt(seed)>9007199254740991n)))throw Error('Check the output seeds.');
+    return {...request,...(note?.trim()?{note:note.trim()}:{}),...(resolved_seeds?{resolved_seeds}: {})};
+  }
   const v = value as ImageRequest;
   if (v?.workflow === 'text-to-video' || v?.workflow === 'reference-to-video') return videoRequest(v);
   if (!v || Object.keys(v).some(k => !['workflow', 'capabilities_revision', 'prompt', 'mode', 'output', 'seed', 'count'].includes(k))
@@ -18,6 +25,7 @@ export function imageRequest(value: unknown): ImageRequest {
 }
 
 export function seeds(request: ImageRequest) {
+  if(request.resolved_seeds)return [...request.resolved_seeds];
   const result = new Set<string>();
   while (result.size < request.count) result.add(request.seed === 'random' ? String(randomBytes(6).readUIntBE(0, 6)) : String(BigInt(request.seed) + BigInt(result.size)));
   return [...result];
@@ -41,3 +49,4 @@ export function graphFor(request: ImageRequest, id: string, seed: string, preset
   if (request.mode === 'nsfw') graph['10'] = { class_type: 'LoraLoaderModelOnly', inputs: { model: ['1', 0], lora_name: preset!.filename, strength_model: preset!.strength_model } };
   return graph;
 }
+

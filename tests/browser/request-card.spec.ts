@@ -6,12 +6,13 @@ test('request summaries stay compact and usable across mobile and desktop widths
  await page.goto('/chat');await page.getByRole('button',{name:'Open chat: Card layout'}).click();
  for(const width of [1280,390,320]){
   await page.setViewportSize({width,height:844});await page.locator('.chat-history').evaluate(e=>e.scrollTop=0);
-  await expect(page.locator('.chat-card')).toHaveCount(3);
-  for(const card of await page.locator('.chat-card').all()){
+  await expect(page.locator('.job-request-card')).toHaveCount(3);
+  for(const card of await page.locator('.job-request-card').all()){
    const box=await card.boundingBox();expect(box!.height).toBeLessThanOrEqual(130);
    expect(await card.evaluate(e=>e.scrollWidth<=e.clientWidth)).toBe(true);
-   const review=await card.getByRole('button',{name:'Review / history'}).boundingBox();expect(review!.x+review!.width).toBeLessThanOrEqual(box!.x+box!.width);
+   const review=await card.getByRole('button').first().boundingBox();expect(review!.x+review!.width).toBeLessThanOrEqual(box!.x+box!.width);
   }
   await page.screenshot({path:'.local/qa-request-cards-'+width+'.png'});
  }
 });
+

@@ -83,7 +83,7 @@ export function createChatAgent(options: {
       if (++turns > 8) throw new Error('Agent turn limit reached. Send another message to continue.');
       return streamSimple(model, context, {
         ...streamOptions, apiKey: options.apiKey, maxTokens: options.maxTokens??8192,
-        maxRetries: 0, timeoutMs: 120_000,
+        maxRetries: 0, timeoutMs: 600_000,
         fetch: accountingFetch(options.fetch ?? fetch, options.onAccounting ?? (() => {})),
         onPayload(payload) {
           const body = payload as Record<string, unknown>;

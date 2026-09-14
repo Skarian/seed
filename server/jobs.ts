@@ -23,7 +23,11 @@ import {
   type Preset,
 } from "./workflows.js";
 
-type Job = {
+export type Job = {
+  source?: {chat_id?:string;card_id?:string;revision?:number;job_id?:string};
+  input_snapshot?: Array<{id:string;name:string;kind:string;note:string;metadata:Record<string,unknown>}>;
+  workflow_version?: string;
+  deleted_outputs?: string[];
   metrics?: {
     version: 1;
     inputs: {
@@ -206,7 +210,7 @@ export class Jobs {
     this.pause(false);
     return result;
   }
-  async prepareSubmission(raw: unknown, key: string) {
+  async prepareSubmission(raw: unknown, key: string, source?:Job['source']) {
     if (this.all().some(job => job.recovery_blocked))
       throw new Error('Fix the reported transfer problem and resume the queue before creating another job.');
     const request = imageRequest(raw);
@@ -273,6 +277,9 @@ export class Jobs {
       const id = randomUUID(),
         preset = selectedPreset ?? null;
       return {
+        source,
+        workflow_version: isVideo ? VIDEO_PROFILE_REVISION : 'image-v1',
+        input_snapshot: (request.references??[]).map(ref=>{const asset=this.media.get(ref.asset_id)!;const note=this.db.prepare('SELECT note FROM asset_notes WHERE id=?').get(ref.asset_id) as {note:string}|undefined;return {id:ref.asset_id,name:asset.name,kind:asset.kind,note:note?.note??'',metadata:asset.metadata};}),
         metrics: {
           version: 1,
           inputs: {
@@ -807,6 +814,7 @@ export class Jobs {
             this.db.prepare('INSERT OR IGNORE INTO sequences(id,mode,created_at) VALUES (?,?,?)').run(job.id,job.request.mode,job.created_at);
             for(const output of outputs) this.db.prepare('INSERT OR IGNORE INTO sequence_frames VALUES (?,?,?)').run(job.id,job.id+'-'+output.id,Number(output.id));
           }
+          if(job.request.note){for(const id of job.request.output.format==='images'?[job.id]:outputs.map(o=>job.id+'-'+o.id))this.db.prepare('INSERT OR IGNORE INTO asset_notes(id,note,revision) VALUES (?,?,1)').run(id,job.request.note);}
           if (job.metrics && !job.metrics.saved_at) {
             job.metrics.saved_at = new Date().toISOString();
             job.metrics.elapsed_to_saved_seconds =

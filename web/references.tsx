@@ -1,3 +1,4 @@
+import {inputLabels} from '../shared/reference-labels.js';
 import {AssetThumbnail} from './asset-thumbnail.js';
 import {Modal} from './modal.js';
 import React, { useEffect, useRef, useState } from "react";
@@ -10,6 +11,7 @@ import { AssetNote } from './asset-note.js';
 export type MediaKind = "image" | "video" | "audio";
 export type Reference = {
   file?: File;
+  note?: string;
   asset_id?: string;
   include_audio?: boolean;
   framing?: "fit" | "fill";
@@ -132,7 +134,7 @@ async function inspect(file: File | LibraryAsset): Promise<Reference> {
     throw new Error(`${file.name}: ${(error as Error).message}`);
   }
 }
-export function useReferences() {
+export function useReferences(deferUploads=false) {
   const {spicy}=useSpicy();
   const mode=spicy?'nsfw':'sfw';
   const [notes,setNotes]=useState<string[]>([]);
@@ -221,6 +223,7 @@ export function useReferences() {
             : item.kind === "image" && !rest.length
               ? "first_frame"
               : "reference";
+        if(deferUploads&&item.file){change(group,[...latest.current[group],item]);missingNotes.push(item.id);continue;}
         try {
           const uploaded=await uploadReferences([item],mode,()=>{});
           item.asset_id=uploaded[0]!.asset_id;
@@ -264,7 +267,7 @@ export function useReferences() {
     latest.current=modeGroups.current[mode]??{edit:[],video:[]};setGroups(latest.current);
     setNotes([]);setErrors({edit:[],video:[]});
   },[mode]);
-  return { groups, errors, busy, add, remove, update, reset, notes, dismissNotes:()=>setNotes([]) };
+  return { groups, errors, busy, add, remove, update, reset, replace:(group:Group,list:Reference[])=>{reset(group);change(group,list);}, notes, dismissNotes:()=>setNotes([]) };
 }
 export function referenceIssues(items: Reference[], group: Group) {
   const issues: string[] = [];
@@ -307,25 +310,7 @@ export function referenceIssues(items: Reference[], group: Group) {
     );
   return issues;
 }
-export function referenceLabels(items: Reference[]) {
-  const labels = new Map<string, string>();
-  let audio = 0;
-  for (const item of items)
-    if (
-      item.kind === "video" &&
-      item.role === "reference" &&
-      item.include_audio
-    )
-      labels.set(item.id + ":audio", `<Audio ${++audio}>`);
-  const counts = { image: 0, video: 0, audio };
-  for (const item of items)
-    if (item.role === "reference")
-      labels.set(
-        item.id,
-        `<${{ image: "Picture", video: "Video", audio: "Audio" }[item.kind]} ${++counts[item.kind]}>`,
-      );
-  return labels;
-}
+export function referenceLabels(items:Reference[]){return inputLabels(items.map(item=>({...item,asset_id:item.id})));}
 export function referencePromptIssue(prompt: string, items: Reference[]) {
   const labels = new Set(referenceLabels(items).values());
   return prompt.includes("[removed reference]") ||
@@ -641,7 +626,7 @@ export function ReferenceInputs({
             state.remove(group, active.id);
             setSelected(null);
           }}
-          controls={<>{controls}{active.asset_id&&<AssetNote id={active.asset_id}/>}</>}
+          controls={controls} note={active.asset_id&&<AssetNote id={active.asset_id}/>}
         />
       )}
       {state.notes.length>0&&<NoteModal ids={state.notes} close={state.dismissNotes}/>}
@@ -649,12 +634,24 @@ export function ReferenceInputs({
   );
 }
 
-export function NoteModal({ids,close}:{ids:string[];close:()=>void}) {
+export function NoteModal({ids,close,local=[],onLocalNote}:{ids:string[];close:()=>void;local?:Reference[];onLocalNote?:(id:string,note:string)=>void}) {
   const [preview,setPreview]=useState<any>(null),[error,setError]=useState('');
-  async function show(id:string){try{const response=await fetch('/api/v1/assets/'+id);if(!response.ok)throw Error('Could not open this asset.');const asset=await response.json();setPreview({...asset,url:'/api/v1/assets/'+id+'/content',type:asset.mime_type??''});}catch(e){setError((e as Error).message);}}
-  return <><Modal className="asset-notes-modal" aria-label="Describe assets" onCancel={close}>
-    <header><div><h2>Describe your assets</h2><p>Add an optional note to help Seed understand each file.</p></div><button className="notes-close" aria-label="Close asset notes" onClick={close}>×</button></header>
-    <div className="asset-notes-list">{ids.map(id=><section className="asset-note-row" key={id}><AssetThumbnail id={id} onOpen={()=>void show(id)}/><AssetNote id={id}/></section>)}</div>
-    {error&&<p role="alert">{error}</p>}<footer><span>Save any notes you want to keep.</span><button className="primary-action" onClick={close}>Done</button></footer>
+  const [notes,setNotes]=useState<Record<string,{note:string;revision:number;original:string}>>({}),[saving,setSaving]=useState(false);
+  const idsKey=JSON.stringify(ids);
+  useEffect(()=>{const controller=new AbortController();setNotes({});setError('');
+    void Promise.all((JSON.parse(idsKey) as string[]).map(async id=>{const draft=local.find(r=>r.id===id);if(draft)return [id,{note:draft.note??'',revision:0,original:draft.note??''}] as const;const response=await fetch('/api/v1/notes/'+encodeURIComponent(id),{signal:controller.signal});if(!response.ok)throw Error('Could not load asset notes.');const value=await response.json();return [id,{note:value.note,revision:value.revision,original:value.note}] as const;})).then(entries=>{if(!controller.signal.aborted)setNotes(Object.fromEntries(entries));}).catch(e=>{if(!controller.signal.aborted)setError(e.message);});
+    return()=>controller.abort();
+  },[idsKey]);
+  async function save(){if(saving)return;setSaving(true);setError('');
+    try{for(const id of ids){const item=notes[id];if(!item)throw Error('Asset notes are still loading.');const note=item.note.trim();if(local.some(r=>r.id===id)){onLocalNote?.(id,note);continue;}if(!note||note===item.original)continue;
+      const response=await fetch('/api/v1/notes/'+encodeURIComponent(id),{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({note,revision:item.revision})});const value=await response.json();if(!response.ok)throw Error(value.error?.message??'Could not save note.');
+      setNotes(current=>({...current,[id]:{note:value.note,revision:value.revision,original:value.note}}));
+    }close();}catch(e){setError((e as Error).message);}finally{setSaving(false);}
+  }
+  async function show(id:string){const draft=local.find(r=>r.id===id);if(draft){setPreview(draft);return;}try{const response=await fetch('/api/v1/assets/'+id);if(!response.ok)throw Error('Could not open this asset.');const asset=await response.json();setPreview({...asset,url:'/api/v1/assets/'+id+'/content',type:asset.mime_type??''});}catch(e){setError((e as Error).message);}}
+  return <><Modal className="asset-notes-modal" aria-label="Describe assets" onCancel={()=>{if(!saving)close();}}>
+    <header><div><h2>Describe your assets</h2><p>Add an optional note to help Seed understand each file.</p></div><button className="notes-close" aria-label="Close asset notes" disabled={saving} onClick={close}>×</button></header>
+    <div className="asset-notes-list">{ids.map(id=><section className="asset-note-row" key={id}><AssetThumbnail id={id} local={local.find(r=>r.id===id)} onOpen={()=>void show(id)}/><div className="asset-note"><label htmlFor={"upload-note-"+id}>Note <span>(optional)</span></label><textarea id={"upload-note-"+id} aria-label="Asset note" value={notes[id]?.note??''} maxLength={4000} disabled={!notes[id]||saving} placeholder="Describe this file…" onChange={e=>{const note=e.target.value;setNotes(current=>({...current,[id]:{...current[id]!,note}}));}}/></div></section>)}</div>
+    {error&&<p role="alert">{error}</p>}<footer><button className="primary-action" disabled={saving||ids.some(id=>!notes[id])} onClick={()=>void save()}>{saving?'Saving…':'Save'}</button></footer>
   </Modal>{preview&&<MediaPreview media={preview} onClose={()=>setPreview(null)}/>}</>;
 }

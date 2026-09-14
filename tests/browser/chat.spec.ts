@@ -18,7 +18,7 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
     if(url.pathname.endsWith('/decision'))decisions++;
     await r.fulfill({json:chat});
   });
-  await page.goto('/chat');await page.getByRole('button',{name:'New chat',exact:true}).click();
+  await page.goto('/chat');await page.getByRole('button',{name:'Open chat: A new creation',exact:true}).click();
   await expect(page.locator('.chat-composer select')).toHaveCount(0);await expect(page.locator('.active-workflow')).toHaveCount(0);
   const input=page.getByLabel('Chat message');
   await page.getByRole('button',{name:'Add attachments'}).click();
@@ -29,29 +29,29 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
 
   await input.fill('/');await expect(page.getByRole('listbox',{name:'Commands'})).toBeVisible();await expect(page.getByRole('option')).toHaveCount(4);await page.screenshot({path:'.local/qa-slash-desktop.png'});
   await expect(page.getByRole('checkbox',{name:'Reasoning'})).toHaveCount(0);
-  await input.fill('/reasoning');await expect(page.getByRole('option')).toContainText('Reasoning · on');await input.press('Enter');await expect.poll(()=>chat.reasoning).toBe(false);await expect(input).toHaveValue('');expect(messages).toHaveLength(0);
-  await input.fill('/reasoning');await expect(page.getByRole('option')).toContainText('Reasoning · off');await input.press('Enter');await expect.poll(()=>chat.reasoning).toBe(true);await expect(input).toHaveValue('');
-  await input.fill('Before /ref after');await input.evaluate((e:HTMLTextAreaElement)=>{e.setSelectionRange(11,11);e.dispatchEvent(new Event('select',{bubbles:true}));});await input.press('ArrowLeft');await input.press('ArrowRight');await page.getByRole('option').click();await expect(input).toHaveValue('Before /reference-to-video  after');await input.press('Backspace');await expect(input).toHaveValue('Before  after');await expect.poll(()=>chat.workflow).toBe(null);
+  await input.fill('/reasoning');await expect(page.getByRole('option')).toContainText('Reasoning · on');await input.press('Enter');await expect.poll(()=>chat.reasoning).toBe(false);await expect(input).toHaveText('Reasoning×');expect(messages).toHaveLength(0);
+  await input.fill('/reasoning');await expect(page.getByRole('option')).toContainText('Reasoning · off');await input.press('Enter');await expect.poll(()=>chat.reasoning).toBe(true);await expect(input).toHaveText('Reasoning×');
+  await input.fill('Before /ref after');await input.evaluate(e=>{const r=document.createRange();r.setStart(e.firstChild!,11);r.collapse(true);getSelection()!.removeAllRanges();getSelection()!.addRange(r);});await input.press('ArrowLeft');await input.press('ArrowRight');await page.getByRole('option').click();await expect(input).toHaveText('Before Reference to video× after');await input.press('Backspace');await expect(input).toHaveText('Before after');await expect.poll(()=>chat.workflow).toBe(null);
   await input.fill('/text');await expect(page.getByRole('option')).toHaveCount(2);await input.press('ArrowDown');await input.press('Enter');
-  await expect.poll(()=>chat.workflow).toBe('text-to-video');await expect(input).toHaveValue('/text-to-video ');expect(messages).toHaveLength(0);
-  await input.fill('/reference');await page.getByRole('option').click();await expect.poll(()=>chat.workflow).toBe('reference-to-video');await expect(input).toHaveValue('/reference-to-video ');
+  await expect.poll(()=>chat.workflow).toBe('text-to-video');await expect(input).toHaveText('Text to video×');expect(messages).toHaveLength(0);
+  await input.fill('/reference');await page.getByRole('option').click();await expect.poll(()=>chat.workflow).toBe('reference-to-video');await expect(input).toHaveText('Reference to video×');
   await input.fill('/');await input.press('Escape');await expect(page.getByRole('listbox')).toHaveCount(0);
-  await input.fill('/reference-to-video ');await input.press('Backspace');await expect(input).toHaveValue('');await expect.poll(()=>chat.workflow).toBe(null);
+  await input.fill('/reference-to-video ');await input.press('Backspace');await expect(input).toHaveText('');await expect.poll(()=>chat.workflow).toBe(null);
   await input.fill('/missing');await input.press('Enter');await expect(page.getByRole('alert')).toContainText('No matching command');expect(messages).toHaveLength(0);
   await input.fill('/');await page.getByRole('button',{name:'Send',exact:true}).click();await expect.poll(()=>chat.workflow).toBe('text-to-image');expect(messages).toHaveLength(0);
   await page.getByLabel('Chat message').fill('/text-to-image A valley');await page.getByRole('button',{name:'Send',exact:true}).click();
-  await expect.poll(()=>chat.workflow).toBe('text-to-image');await expect.poll(()=>messages[0]?.text).toBe('A valley');expect(decisions).toBe(0);
+  await expect.poll(()=>chat.workflow).toBe('text-to-image');await expect.poll(()=>messages[0]?.text).toBe('/text-to-image A valley');expect(decisions).toBe(0);
   await page.getByRole('button',{name:'Review / history'}).click();
   const review=page.getByRole('dialog',{name:'Review generation'});await expect(review).toBeVisible();
   await review.getByLabel('Provide feedback').fill('Make the valley misty');await review.getByLabel('Provide feedback').press('Enter');
-  await expect(review).toHaveCount(0);await expect(page.locator('.chat-card')).not.toContainText('A green valley');
-  expect(await page.locator('.chat-history-content > .chat-message, .chat-history-content > .chat-group').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('chat-group')?'request':n.textContent))).toEqual(['YouA valley','request','YouMake the valley misty']);
+  await expect(review).toHaveCount(0);await expect(page.locator('.job-chat-wrap')).not.toContainText('A green valley');
+  expect(await page.locator('.chat-history-content > .chat-message, .chat-history-content > .chat-group').evaluateAll(nodes=>nodes.map(n=>n.classList.contains('chat-group')?'request':n.textContent))).toEqual(['YouText to image A valley','request','YouMake the valley misty']);
   expect(messages[1]).toMatchObject({text:'Make the valley misty',card_id:'card',revision:1});expect(decisions).toBe(0);
-  await page.getByRole('button',{name:'Library',exact:true}).first().click();await page.getByRole('button',{name:'Chat',exact:true}).click();
+  await page.locator('.brand').click();await page.getByRole('menuitem',{name:/^Library/}).click();await page.locator('.brand').click();await page.getByRole('menuitem',{name:/^Chat/}).click();
   await expect.poll(()=>chat.workflow).toBe('text-to-image');
   await page.reload();await expect(page.getByRole('button',{name:'Open chat: A new creation'})).toBeVisible();
   chat.groups[0].cards[0].revisions.push({...chat.groups[0].cards[0].revisions[0],number:2,request:{...chat.groups[0].cards[0].revisions[0].request,prompt:'A misty valley'}});chat.version++;
-  const card=page.locator('.chat-card');await expect(card.locator('.revision-controls')).toContainText('2/2');await card.getByRole('button',{name:'Previous request revision'}).click();await expect(card.locator('.revision-controls')).toContainText('1/2');await card.click({button:'right',position:{x:30,y:20}});await page.getByRole('button',{name:'Edit request',exact:true}).click();await expect(review.getByRole('textbox',{name:'Prompt',exact:true})).toHaveValue('A green valley');await page.keyboard.press('Escape');await card.getByRole('button',{name:'Next request revision'}).click();
+  const card=page.locator('.job-chat-wrap');await expect(card.locator('.revision-controls')).toContainText('2/2');await card.getByRole('button',{name:'Previous request revision'}).click();await expect(card.locator('.revision-controls')).toContainText('1/2');await card.click({button:'right',position:{x:30,y:20}});await page.getByRole('button',{name:'Edit request',exact:true}).click();await expect(review.getByRole('textbox',{name:'Prompt',exact:true})).toHaveValue('A green valley');await page.keyboard.press('Escape');await card.getByRole('button',{name:'Next request revision'}).click();
   await page.screenshot({path:test.info().outputPath('chat-desktop.png'),fullPage:true});
   await page.setViewportSize({width:390,height:844});await input.fill('/');await expect(page.getByRole('listbox')).toBeVisible();await page.screenshot({path:'.local/qa-slash-mobile.png'});await input.press('Escape');await input.fill('');expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.screenshot({path:test.info().outputPath('chat-mobile.png'),fullPage:true});
@@ -64,22 +64,29 @@ test('Chat persists selection, explicitly activates one workflow and sends card 
 });
 
 test('real Chat API supports rename and delete without a configured model',async({page})=>{
-  await page.goto('/chat');await page.getByRole('button',{name:'New chat',exact:true}).click();
+  const response=await page.request.post('/api/v1/chats',{headers:{origin:'http://127.0.0.1:4311'},data:{mode:'sfw'}});const created=await response.json();
+  await page.goto('/chat');await page.evaluate(id=>sessionStorage.setItem('seed.chat.selected.sfw',id),created.id);await page.reload();
   await expect(page.locator('.chat-sidebar > button.selected')).toBeVisible();
-  await expect(page.locator('.chat-header')).toHaveCount(0);await page.locator('.chat-sidebar > button.selected').click({button:'right'});await page.getByRole('menuitem',{name:'Rename',exact:true}).click();await page.getByLabel('Chat title').fill('Browser persistence test');await page.getByRole('button',{name:'Save name'}).click();await expect(page.getByRole('dialog',{name:'Rename chat'})).toHaveCount(0);
+  await expect(page.locator('.chat-header')).toHaveCount(0);await page.locator('.chat-sidebar > button.selected').click({button:'right'});await page.getByRole('menuitem',{name:'Rename',exact:true}).click();await page.getByLabel('Chat title').fill('Browser persistence test');await page.getByRole('button',{name:'Save',exact:true}).click();await expect(page.getByRole('dialog',{name:'Rename chat'})).toHaveCount(0);
   await page.reload();await expect(page.getByRole('button',{name:'Open chat: Browser persistence test'})).toBeVisible();
   await page.getByRole('button',{name:'Open chat: Browser persistence test'}).focus();await page.keyboard.press('Shift+F10');await page.getByRole('menuitem',{name:'Delete',exact:true}).click();await page.getByRole('dialog').getByRole('button',{name:'Delete chat',exact:true}).click();await expect(page.getByRole('heading',{name:'What shall we create today?'})).toBeVisible();
 });
 
-test('Chat upload reaches Library before sending and notes reject stale writes',async({page})=>{
+test('Chat keeps files local until Send and saves notes with the upload',async({page})=>{
+  await page.route('**/api/v1/chat-config',r=>r.fulfill({json:{configured:true}}));
   await page.goto('/chat');await page.getByRole('button',{name:'New chat',exact:true}).click();
   const pixels=await sharp({create:{width:32,height:32,channels:3,background:'#638450'}}).png().toBuffer();
   let assetId='';page.on('response',async response=>{if(response.request().method()==='POST'&&response.url().endsWith('/api/v1/uploads'))assetId=response.headers().location!.split('/').at(-1)!;});
   await page.locator('input[type=file]').setInputFiles({name:'Chat reference.png',mimeType:'image/png',buffer:pixels});
   const modal=page.getByRole('dialog',{name:'Describe assets'});await expect(modal).toBeVisible();
-  await modal.getByLabel('Asset note',{exact:true}).fill('Green fabric reference');await modal.getByRole('button',{name:'Save note'}).click();
+  await modal.getByLabel('Asset note',{exact:true}).fill('Green fabric reference');await page.screenshot({path:'.local/qa-notes-balanced-desktop.png'});await modal.getByRole('button',{name:'Save',exact:true}).click();
+  expect(assetId).toBe('');
+  await page.route('**/api/v1/chat-config',r=>r.fulfill({json:{configured:true}}));
+  await page.route('**/api/v1/chats/*/messages',async r=>{const id=r.request().url().split('/').at(-2);const response=await page.request.get('/api/v1/chats/'+id);await r.fulfill({json:await response.json()});});
+  await page.getByLabel('Chat message').fill('Use this fabric');
+  await expect(page.getByRole('button',{name:'Send',exact:true})).toBeEnabled();await page.getByRole('button',{name:'Send',exact:true}).click();
   await expect.poll(async()=>{const response=await page.request.get('/api/v1/notes/'+assetId);return (await response.json()).revision;}).toBe(1);
-  await modal.getByRole('button',{name:'Done',exact:true}).click();
+  await expect(modal).toHaveCount(0);
   const library=await page.request.get('/api/v1/assets?mode=sfw');expect((await library.json()).items.some((a:any)=>a.id===assetId)).toBe(true);
   const conflict=await page.request.put('/api/v1/notes/'+assetId,{headers:{origin:'http://127.0.0.1:4311'},data:{note:'Stale replacement',revision:0}});expect(conflict.status()).toBe(409);
   expect((await(await page.request.get('/api/v1/notes/'+assetId)).json()).note).toBe('Green fabric reference');
@@ -99,7 +106,9 @@ test('empty Chat has a centered welcome and bottom composer and creates a conver
   });
   await page.goto('/chat');
   await expect(page.getByRole('heading',{name:'What shall we create today?'})).toBeVisible();
+  await page.getByRole('button',{name:'New chat',exact:true}).click();await page.getByRole('button',{name:'New chat',exact:true}).click();
   expect(creates).toBe(0);
+  await page.getByLabel('Chat message').fill('/text-to-image');await page.getByRole('option',{name:/Text to Image/i}).click();expect(creates).toBe(0);
   await page.screenshot({path:'.local/qa-welcome-desktop.png'});
   await page.setViewportSize({width:390,height:844});
   await page.screenshot({path:'.local/qa-welcome-mobile.png'});
@@ -131,7 +140,9 @@ test('video attachment has a thumbnail, playable preview, and independent remova
  const video=test.info().outputPath('reference.mp4');execFileSync(ffmpeg as unknown as string,['-y','-f','lavfi','-i','color=c=teal:s=320x180:d=3','-c:v','libx264','-pix_fmt','yuv420p',video],{stdio:'ignore'});
  await page.setViewportSize({width:390,height:844});await page.goto('/chat');await page.locator('input[type=file]').setInputFiles(video);
  const notes=page.getByRole('dialog',{name:'Describe assets'});await expect(notes).toBeVisible();await expect(notes.locator('video')).toHaveCount(1);await page.screenshot({path:'.local/qa-notes-mobile.png'});
- await notes.getByRole('button',{name:'Done',exact:true}).click();const tile=page.locator('.composer-attachments .asset-thumbnail');await expect(tile).toHaveCount(1);await expect(tile.locator('video')).toHaveJSProperty('readyState',4);
+ let noteWrites=0;page.on('request',r=>{if(r.method()==='PUT'&&r.url().includes('/notes/'))noteWrites++;});await notes.getByRole('button',{name:'Save',exact:true}).click();await expect(notes).toHaveCount(0);expect(noteWrites).toBe(0);const tile=page.locator('.composer-attachments .asset-thumbnail');await expect(tile).toHaveCount(1);await expect(tile.locator('video')).toHaveJSProperty('readyState',4);
  await tile.getByRole('button',{name:/Preview /}).click();const viewer=page.getByRole('dialog',{name:'Media preview'});await expect(page.locator('.viewer-canvas video')).toBeVisible();await page.locator('.viewer-canvas video').evaluate((v:HTMLVideoElement)=>v.play());await expect(page.locator('.viewer-canvas video')).toHaveJSProperty('paused',false);await page.getByRole('button',{name:'Close preview'}).click();
  await page.screenshot({path:'.local/qa-video-attachment-mobile.png'});await tile.getByRole('button',{name:/Remove /}).click();await expect(tile).toHaveCount(0);
 });
+
+

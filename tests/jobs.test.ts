@@ -53,6 +53,14 @@ async function fixture(run: (f: any) => Promise<void>) {
   finally { await jobs.close(); db.close(); rmSync(root, { recursive: true, force: true }); }
 }
 
+it('keeps explicit per-output seeds together and applies the output note once',async()=>fixture(async({jobs,request,finish,db}:any)=>{
+ const staged=await jobs.prepareSubmission({...request,count:2,resolved_seeds:['91','307'],note:'Mountain study'},'snapshot-note-test-0001',{chat_id:'chat',card_id:'card',revision:2});
+ const result=db.transaction(staged.commit)();jobs.pause(false);expect(result.jobs.map((j:any)=>j.seed)).toEqual(['91','307']);expect(result.jobs[0].source).toEqual({chat_id:'chat',card_id:'card',revision:2});
+ await jobs.reconcile();finish(result.jobs[0].id);await jobs.reconcile();
+ const id=result.jobs[0].id+'-0';expect(db.prepare('SELECT note FROM asset_notes WHERE id=?').get(id).note).toBe('Mountain study');
+ db.prepare('UPDATE asset_notes SET note=? WHERE id=?').run('Edited in Library',id);await jobs.reconcile();expect(db.prepare('SELECT note FROM asset_notes WHERE id=?').get(id).note).toBe('Edited in Library');
+}));
+
 it.each(['failed', 'cancelled'])('retries cleanup after terminal %s without regenerating', async terminalState => fixture(async ({ jobs, state, request }: any) => {
   const { jobs: [job] } = await jobs.submit(request, 'terminal-cleanup-key');
   await jobs.reconcile();
@@ -270,3 +278,4 @@ it('keeps a blocked reference upload paused when another generation is requested
   fake.upload=async()=>{uploads++;};jobs.resumeRecovery();jobs.pause(false);await jobs.reconcile();
   expect(uploads).toBe(2);expect(state.submits).toBe(1);
 }));
+

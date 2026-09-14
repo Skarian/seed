@@ -8,7 +8,7 @@ import {Chats} from '../server/chat/service.js';
 import {initializeChatPrompts,chatPromptSnapshot} from '../server/chat/prompts.js';
 import type {WorkerConnection} from '../server/worker.js';
 import {preserveChatLabels,validateChatReferences} from '../server/chat/references.js';
-import {compactConversation} from '../server/chat/context.js';
+import {compactConversation,settingsOnlyMessage} from '../server/chat/context.js';
 
 const request={prompt:'A quiet landscape',seed:'random',count:1,output:{aspect:'16:9',size:'1mp'}};
 function sse(chunk:unknown){return new Response('data: '+JSON.stringify(chunk)+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});}
@@ -19,7 +19,7 @@ async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDa
   const cap={revision:'v1',ready:true,workspace_id:'test',engine_session_id:'engine',nsfw:null};
   const worker={identity:{workspace_id:'test'},json:async()=>cap} as unknown as WorkerConnection;
   const jobs=new Jobs(db,paths,worker);
-  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:[{index:0,id:'call-'+requests.length,type:'function',function:{name:'prepare_image',arguments:JSON.stringify({operations:ops})}}]}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
+  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();if(ops instanceof Error)throw ops;return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:[{index:0,id:'call-'+requests.length,type:'function',function:{name:'prepare_image',arguments:JSON.stringify({operations:ops})}}]}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
   try{await run({chats,jobs,db,paths,queue,requests,titleRequests,cap});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
 }
 async function idle(chats:Chats,id:string){for(let i=0;i<200;i++){const value=chats.view(id);if(value.activity==='idle')return value;await new Promise(r=>setTimeout(r,5));}throw Error('Agent did not settle.');}
@@ -34,6 +34,17 @@ it('holds a whole group until all decisions and submits approved requests once',
   await chats.decide(chat.id,cards[1]!.id,1,'denied');expect(jobs.all()).toHaveLength(1);
   await expect(chats.decide(chat.id,cards[0]!.id,1,'approved')).rejects.toThrow();expect(jobs.all()).toHaveLength(1);
   chats.stop(chat.id);expect(jobs.all()[0]!.state).toBe('cancelled');
+}));
+
+it('freezes batch seeds at approval and edits a running request without cancelling it',async()=>fixture(async({chats,jobs,queue})=>{
+ let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+ queue.push([{operation:'create',request:{...request,count:2}},{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'Two requests',assets:[]});chat=await idle(chats,chat.id);
+ const [first,second]=chat.groups[0]!.cards;
+ chat=await chats.decide(chat.id,first!.id,1,'approved');const saved=chat.groups[0]!.cards[0]!.revisions[0]!.request.resolved_seeds!;expect(saved).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
+ chat=await chats.decide(chat.id,second!.id,1,'denied');expect(jobs.all().map(j=>j.seed)).toEqual(saved);
+ const job=jobs.all()[0]!;job.state='running';jobs.save(job);
+ chat=chats.restore(chat.id,first!.id,1,{...request,prompt:'Changed scene',count:2,note:'My note'});expect(chat.groups.at(-1)!.cards[0]!.revisions.at(-1)!.request.note).toBe('My note');expect(jobs.get(job.id)!.state).toBe('running');
+ chats.stop(chat.id);
 }));
 
 it('rejects cross-workflow feedback and stale versions, and preserves workflow after Stop',async()=>fixture(async({chats,queue})=>{
@@ -118,8 +129,8 @@ it('surfaces rejected tool calls even when the model falsely claims success',asy
   queue.push([{operation:'create',request:{...request,seed:'puppy_snapshot_01',output:{aspect:'16:9',size:'native'}}}]);
   chats.send(c.id,{version:c.version,text:'A candid puppy photo',assets:[]});c=await idle(chats,c.id);
   expect(c.groups).toHaveLength(0);expect(jobs.all()).toHaveLength(0);
-  expect(c.error).toContain('The request was not saved');
-  expect(c.messages.some(m=>m.role==='event'&&m.text.includes('tool failed'))).toBe(true);
+  expect(c.error).toBeNull();expect(c.messages.at(-1)?.transcript?.state).toBe('failed');expect(c.messages.at(-1)?.transcript?.steps.some(s=>s.kind==='tool'&&s.state==='failed')).toBe(true);
+  expect(c.messages.some(m=>m.role==='event'&&m.text.includes('tool failed'))).toBe(false);
   const schema=requests[0].tools[0].function.parameters.properties.operations.items.anyOf[0].properties.request;
   expect(schema.properties.output.properties.size.const).toBe('1mp');
   expect(schema.properties.output.properties).not.toHaveProperty('duration_seconds');
@@ -129,7 +140,7 @@ it('surfaces rejected tool calls even when the model falsely claims success',asy
 it('publishes incremental assistant text before the completed chat snapshot',async()=>fixture(async({chats})=>{
  const c=chats.create('sfw');const updates:any[]=[];const off=chats.subscribe(c.id,value=>updates.push(value));
  chats.send(c.id,{version:c.version,text:'Hello',assets:[]});await idle(chats,c.id);off();
- expect(updates.some(v=>v.activity==='thinking'&&v.partial==='Ready for review.')).toBe(true);
+ expect(updates.some(v=>v.activity==='thinking'&&v.stream_message?.text==='Ready for review.')).toBe(true);
  expect(updates.at(-1)).toMatchObject({activity:'idle',partial:''});
 }));
 
@@ -153,4 +164,110 @@ it('a delayed title never overwrites a manual rename',async()=>fixture(async({db
  let release!:()=>void;const gate=new Promise<void>(resolve=>{release=resolve;});
  const service=new Chats(db,paths,jobs,async(_url,init)=>{const title=String(init?.body).includes('Generate a concise chat title');if(title)await gate;return sse({choices:[{index:0,delta:{content:title?'Automatic title':'Answer'},finish_reason:'stop'}]});});
  try{let chat=service.create('sfw');service.send(chat.id,{version:chat.version,text:'First message',assets:[]});chat=await idle(service,chat.id);chat=service.settings(chat.id,chat.version,{title:'Keep this name'});release();await new Promise(resolve=>setTimeout(resolve,30));expect(service.view(chat.id).title).toBe('Keep this name');}finally{release();await service.close();}
+}));
+
+it('retries only the selected output as an unsubmitted chat review',async()=>fixture(async({chats,jobs,queue})=>{
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
+ queue.push([{operation:'create',request:{...request,count:2}}]);chats.send(c.id,{version:c.version,text:'Two images',assets:[]});c=await idle(chats,c.id);
+ const card=c.groups[0]!.cards[0]!;await chats.decide(c.id,card.id,1,'approved');
+ const original=jobs.all()[1]!;original.state='failed';jobs.save(original);
+ c=chats.repeat(c.id,card.id,1,false,false,original.id);
+ const revision=c.groups.at(-1)!.cards[0]!.revisions[0]!;
+ expect(revision.request.count).toBe(1);expect(revision.request.seed).toBe(original.seed);
+ expect(revision.request.resolved_seeds).toEqual([original.seed]);expect(revision.decision).toBe('undecided');expect(revision.job_ids).toEqual([]);expect(jobs.all()).toHaveLength(2);
+ expect(()=>chats.repeat(c.id,card.id,1,true,false,original.id)).toThrow('Resolve or stop');
+ c=chats.stop(c.id);c=chats.repeat(c.id,card.id,1,true,false,original.id);
+ expect(c.groups.at(-1)!.cards[0]!.revisions[0]!.request.seed).toBe('random');
+ expect(jobs.all()).toHaveLength(2);
+}));
+
+it('branches Generate into a new chat and Chat back into its original conversation',async()=>fixture(async({chats,jobs,queue})=>{
+ const submitted=await jobs.submit({...request,workflow:'text-to-image',mode:'sfw',capabilities_revision:'v1'},'branch-generated-123');
+ const job=submitted.jobs[0]!;const created=chats.branch([job.id],false);
+ expect(created.groups[0]!.cards[0]!.revisions[0]).toMatchObject({decision:'undecided',job_ids:[],request:{count:1,seed:job.seed}});
+ expect(created.workflow).toBe('text-to-image');expect(jobs.all()).toHaveLength(1);
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'An image',assets:[]});c=await idle(chats,c.id);
+ await chats.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');const fromChat=jobs.all().find(j=>j.source?.chat_id===c.id)!;
+ const branched=chats.branch([fromChat.id],true);expect(branched.id).toBe(c.id);expect(branched.groups.at(-1)!.cards[0]!.revisions[0]!.request.seed).toBe('random');
+ expect(()=>chats.branch([fromChat.id],true)).toThrow('Resolve or stop');expect(jobs.all()).toHaveLength(2);
+}));
+
+it('anchors replacements below replies and keeps only the latest revision approvable',async()=>fixture(async({chats,queue,jobs})=>{
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
+ queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Sibling'}}]);
+ chats.send(c.id,{version:c.version,text:'Two scenes',assets:[]});c=await idle(chats,c.id);
+ const [a,b]=c.groups[0]!.cards;const originalAnchor=a!.revisions[0]!.after_message_id;
+ expect(originalAnchor).toBe(c.messages.at(-1)!.id);
+ await chats.decide(c.id,b!.id,1,'approved');c=chats.view(c.id);
+ queue.push([{operation:'create',request:{...request,prompt:'Updated scene'}}]);
+ chats.send(c.id,{version:c.version,text:'Change this scene',assets:[],card_id:a!.id,revision:1});c=await idle(chats,c.id);
+ expect(c.groups[0]!.cards).toHaveLength(2);
+ const revised=c.groups[0]!.cards[0]!;expect(revised.revisions).toHaveLength(2);
+ expect(revised.revisions[0]!.after_message_id).toBe(originalAnchor);
+ expect(revised.revisions[1]!.after_message_id).toBe(c.messages.at(-1)!.id);
+ expect(c.groups[0]!.cards[1]!.revisions[0]!.decision).toBe('approved');
+ await expect(chats.decide(c.id,a!.id,1,'approved')).rejects.toThrow();
+ expect(jobs.all()).toHaveLength(0);
+ c=chats.revise(c.id,a!.id,2,{...request,prompt:'Manual change'});
+ expect(c.groups[0]!.cards[0]!.revisions[2]!.after_message_id).toBe(c.messages.at(-1)!.id);
+ await chats.decide(c.id,a!.id,3,'approved');expect(jobs.all()).toHaveLength(2);chats.stop(c.id);
+}));
+
+it('only skips images for unambiguous settings changes',()=>{
+ for(const text of ['Set seed to 42','Please change the output count to 3.','Generate 2 variations','Change aspect ratio to 9:16'])expect(settingsOnlyMessage(text)).toBe(true);
+ for(const text of ['Set seed to 42 and add fog','Make it brighter','What was in that picture?','Generate 2 variations of the face'])expect(settingsOnlyMessage(text)).toBe(false);
+});
+it('reattaches request images on follow-ups, deduplicates them, and retains settings without images',async()=>fixture(async({chats,db,paths,requests})=>{
+ const sharp=(await import('sharp')).default;
+ const relative='media/originals/reference.png';mkdirSync(path.dirname(path.join(paths.data,relative)),{recursive:true});
+ await sharp({create:{width:4,height:4,channels:3,background:'green'}}).png().toFile(path.join(paths.data,relative));
+ db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('reference','image','Reference',relative,JSON.stringify({mode:'sfw'}),'2026-01-01');
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'reference-to-video'});
+ const stored=JSON.parse((db.prepare('SELECT body_json FROM chats WHERE id=?').get(c.id) as any).body_json);
+ stored.assets=['reference'];stored.groups=[{id:'prior',state:'released',workflow:'reference-to-video',cards:[{id:'card',workflow:'reference-to-video',revisions:[{number:1,decision:'approved',job_ids:[],notes:{reference:'Green scene'},request:{...request,workflow:'reference-to-video',references:[{id:'ref',asset_id:'reference',kind:'image',role:'first_frame'}]}}]}]}];
+ db.prepare('UPDATE chats SET body_json=? WHERE id=?').run(JSON.stringify(stored),c.id);
+ const payload=()=>{const parts=requests.at(-1).messages.flatMap((m:any)=>Array.isArray(m.content)?m.content:[]);const text=parts.filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('');return{images:parts.filter((p:any)=>p.type==='image_url'),text};};
+ chats.send(c.id,{version:c.version,text:'Add mist to the scene',assets:['reference']});c=await idle(chats,c.id);
+ expect(c.error).toBeNull();expect(payload().images).toHaveLength(1);expect(payload().text).toContain('Green scene');expect(payload().text).toContain('first_frame');
+ chats.send(c.id,{version:c.version,text:'Make the background darker',assets:[]});c=await idle(chats,c.id);expect(payload().images).toHaveLength(1);
+ chats.send(c.id,{version:c.version,text:'Set seed to 42',assets:[]});c=await idle(chats,c.id);expect(payload().images).toHaveLength(0);expect(payload().text).toContain('Green scene');expect(payload().text).toContain('A quiet landscape');
+}));
+
+it('keeps a saved proposal reviewable when the model response times out',async()=>fixture(async({chats,queue})=>{
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
+ queue.push([{operation:'create',request}],new Error('Request timed out.'));
+ chats.send(c.id,{version:c.version,text:'Create a scene',assets:[]});c=await idle(chats,c.id);
+ expect(c.error).toContain('timed out');expect(c.error).not.toContain('configuration');expect(c.groups[0]!.state).toBe('reviewing');expect(c.groups[0]!.cards[0]!.revisions).toHaveLength(1);
+}));
+it('explains reference labels and ids instead of leaving the model to guess',async()=>fixture(async({chats,queue})=>{
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'reference-to-video'});
+ // The fixture emits prepare_image, so exercise request validation directly without a paid provider call.
+ expect(()=> (chats as any).request((chats as any).get(c.id),'reference-to-video',{...request,prompt:'Use <Picture 1>',output:{aspect:'16:9',size:'native',duration_seconds:5},references:[{id:'image1',asset_id:'i',kind:'image',role:'first_frame'},{id:'video1',asset_id:'v',kind:'video',role:'reference',range:{start_seconds:0,duration_seconds:3}}]})).toThrow('opening-frame guide');
+}));
+
+it('accepts unambiguous prompt patches in the forms the model actually emits',async()=>fixture(async({chats,queue})=>{
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'A scene',assets:[]});c=await idle(chats,c.id);
+ for(const form of ['top','nested','prompt']){const card=c.groups[0]!.cards[0]!,old=card.revisions.at(-1)!.request.prompt,patch={old,new:old+' softly lit'};const operation={operation:'revise',request_id:card.id,expected_revision:card.revisions.at(-1)!.number,...(form==='top'?{replace_prompt:patch}:form==='nested'?{changes:{replace_prompt:patch}}:{changes:{prompt:patch}})};
+ queue.push([operation]);chats.send(c.id,{version:c.version,text:'Soften the lighting',assets:[],card_id:card.id,revision:card.revisions.at(-1)!.number});c=await idle(chats,c.id);expect(c.error).toBeNull();expect(c.groups[0]!.cards[0]!.revisions.at(-1)!.request.prompt).toBe(patch.new);
+ }
+}));
+
+it('persists the sent request snapshot independently of later revisions',async()=>fixture(async({chats,queue})=>{
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Create a scene',assets:[]});c=await idle(chats,c.id);const card=c.groups[0]!.cards[0]!;
+ queue.push([{operation:'revise',request_id:card.id,expected_revision:1,changes:{prompt:'A misty landscape'}}]);chats.send(c.id,{version:c.version,text:'Add mist',assets:[],card_id:card.id,revision:1,attach_request:true});c=await idle(chats,c.id);
+ const message=c.messages.filter(m=>m.role==='user').at(-1)!;expect(message.request_attachment).toMatchObject({card_id:card.id,revision:1,request:{prompt:request.prompt}});expect(c.groups[0]!.cards[0]!.revisions.at(-1)!.request.prompt).toBe('A misty landscape');
+ c=chats.revise(c.id,card.id,2,{...request,prompt:'Another edit'});expect(c.messages.find(m=>m.id===message.id)!.request_attachment!.request.prompt).toBe(request.prompt);
+ expect(()=>chats.send(c.id,{version:c.version,text:'Missing target',assets:[],attach_request:true})).toThrow('Choose the request');
+}));
+
+it('records rejected and successful attempts separately with exact arguments and timings',async()=>fixture(async({chats,queue,db})=>{
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
+ const invalid={...request,seed:'invalid'};
+ queue.push([{operation:'create',request:invalid}],[{operation:'create',request}]);
+ chats.send(c.id,{version:c.version,text:'Prepare a landscape',assets:[]});c=await idle(chats,c.id);
+ const message=c.messages.at(-1)!,turn=message.transcript!,tools=turn.steps.filter(s=>s.kind==='tool');
+ expect(turn.state).toBe('completed');expect(Date.parse(turn.ended_at!)).toBeGreaterThanOrEqual(Date.parse(turn.started_at));
+ expect(tools.map(s=>s.state)).toEqual(['failed','succeeded']);expect(tools[0]!.input).toEqual({operations:[{operation:'create',request:invalid}]});expect(tools[1]!.input).toEqual({operations:[{operation:'create',request}]});expect(tools.every(s=>s.ended_at&&s.result)).toBe(true);
+ expect(c.messages.filter(m=>m.role==='assistant')).toHaveLength(1);expect(c.messages.some(m=>m.text.includes('A request tool failed'))).toBe(false);expect(c.error).toBeNull();
+ const stored=JSON.parse((db.prepare('select body_json from chats where id=?').get(c.id) as any).body_json);expect(stored.messages.at(-1).transcript).toEqual(turn);
 }));

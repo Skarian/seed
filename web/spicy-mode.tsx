@@ -34,7 +34,7 @@ function ModeToasts() {
   </div>;
 }
 
-export function SpicyBrand({ children, onNavigate }: { children: React.ReactNode; onNavigate: () => void }) {
+export function SpicyBrand({ children, onNavigate, expanded }: { children: React.ReactNode; expanded?:boolean; onNavigate: () => void }) {
   const { spicy, setSpicy } = useSpicy();
   const timer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const held = useRef(false);
@@ -46,7 +46,7 @@ export function SpicyBrand({ children, onNavigate }: { children: React.ReactNode
   }
   useEffect(() => cancel, []);
   return <div className="brand-controls">
-    <button className="brand" aria-label="Seed" type="button"
+    <button className="brand" aria-label="Seed" aria-haspopup={expanded===undefined?undefined:"menu"} aria-expanded={expanded} type="button"
       onPointerDown={event => {
         if (!event.isPrimary || event.button !== 0) return;
         origin.current = { x: event.clientX, y: event.clientY }; start();
