@@ -1,3 +1,5 @@
+import {bindChatMentions,agentMentionContext} from './mentions.js';
+import type {MentionBinding} from '../../shared/chat-mentions.js';
 import {createReadInputTool} from './read-input.js';
 import {requestToolSchemas,prepareToolRequest,requestToolRules,requestToolResultError,toolInputLabels,toolPromptBindings,toolPromptReferencePattern,type ToolAsset} from './request-tools.js';
 import {visualContext} from './visual-context.js';
@@ -152,7 +154,7 @@ export class Chats {
       }
     }));
   }
-  send(id:string,input:{version:number;text:string;assets:string[];card_id?:string;revision?:number;attach_request?:boolean}){
+  send(id:string,input:{version:number;text:string;assets:string[];mention_bindings?:MentionBinding[];card_id?:string;revision?:number;attach_request?:boolean}){
     const chat=this.get(id);this.checkVersion(chat,input.version);if(this.busy(chat))throw Error('This chat is busy. Stop it before sending another message.');
     if(!input.text.trim()||input.text.length>16000)throw Error('Write a message of 1–16000 characters.');
     const key=chatCredential(this.paths);if(!key)throw Error('Configure Chat with seed setup --chat-only.');
@@ -164,14 +166,16 @@ export class Chats {
     if(input.card_id){target=group?.cards.find(c=>c.id===input.card_id);if(!target||latest(target).number!==input.revision)throw Error('This card changed or already started. Refresh it.');if(target.workflow!==chat.workflow)throw Error('Switch to this card’s workflow before sending feedback.');}
     if(input.attach_request&&!target)throw Error('Choose the request to attach.');
     const contextCards=target?[target]:(group??[...chat.groups].reverse().find(g=>g.workflow===chat.workflow))?.cards??[];
+    const mentionBindings=bindChatMentions(input.text,input.mention_bindings,this.contextAssets(chat),target?{card_id:target.id,revision:latest(target).number,references:latest(target).request.references??[]}:undefined);
+    this.assertAssets(chat,mentionBindings.map(binding=>binding.asset_id));
     const inherited=settingsOnlyMessage(input.text)?[]:contextCards.flatMap(c=>latest(c).request.references?.map(r=>r.asset_id)??[]);
     const priorInputs=[...chat.messages].reverse().find(m=>m.role==='user'&&m.assets.length)?.assets??[];
-    const selected=[...new Set([...input.assets,...inherited,...(!input.assets.length&&!inherited.length&&!settingsOnlyMessage(input.text)?priorInputs:[])])];
+    const selected=[...new Set([...input.assets,...mentionBindings.map(binding=>binding.asset_id),...inherited,...(!input.assets.length&&!inherited.length&&!settingsOnlyMessage(input.text)?priorInputs:[])])];
     if(selected.filter(id=>this.jobs.media.get(id)?.kind==='image').length>9)throw Error('Choose at most nine images for this message.');
     const snapshot=chatPromptSnapshot(this.paths,chat.mode,chat.workflow);
     snapshot.system+='\n\n'+requestToolRules(process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct');
     snapshot.hash=createHash('sha256').update(JSON.stringify({version:snapshot.version,system:snapshot.system,summarySystem:snapshot.summarySystem})).digest('hex');
-    chat.messages.push({id:randomUUID(),role:'user',text:input.text,assets:input.assets,...(input.attach_request&&target?{request_attachment:{card_id:target.id,revision:latest(target).number,request:structuredClone(latest(target).request),notes:structuredClone(latest(target).notes)}}:{}),created_at:now()});
+    chat.messages.push({id:randomUUID(),role:'user',text:input.text,mention_bindings:mentionBindings,assets:input.assets,...(input.attach_request&&target?{request_attachment:{card_id:target.id,revision:latest(target).number,request:structuredClone(latest(target).request),notes:structuredClone(latest(target).notes)}}:{}),created_at:now()});
     const needsTitle=chat.messages.filter(m=>m.role==='user').length===1&&!chat.title_manual;
     if(group)group.state='revising';chat.activity='thinking';chat.error=null;chat.partial='';chat.partial_reasoning='';chat.version++;
     const run={id:randomUUID(),workflow:chat.workflow,source_assets:[...input.assets],target_request_id:target?.id,prompt:snapshot,accounting:[] as ChatAccounting[],messages:[] as AgentMessage[],state:'running'};chat.runs.push(run);chat.messages.push({id:run.id,role:'assistant',text:'',assets:[],created_at:now(),transcript:{started_at:now(),state:'running',steps:[]}});this.save(chat);
@@ -196,7 +200,7 @@ export class Chats {
       const availableInputs=toolAssets.map(a=>({...a,...(process.env.SEED_AGENT_REFERENCE_MODE==='direct'?{prompt_label:defaultLabels.get(a.handle)}:{}),...(a.kind==='video'?{soundtrack_token:'[['+a.handle+':audio]]',soundtrack_usage:'Set include_audio true to use this soundtrack.'}:{}),prompt_token:'[['+a.handle+']]',name:manifest.find(m=>m.id===a.asset_id)?.name}));
 
       const account=(value:ChatAccounting)=>{const c=this.get(id),r=c.runs.find(r=>r.id===runId)!;const prior=value.id?r.accounting.findIndex(v=>v.id===value.id):-1;if(prior<0)r.accounting.push(value);else r.accounting[prior]=value;this.save(c);};
-      const history=chat.messages.filter(m=>m.role!=='event'&&m.id!==runId).map(m=>({role:m.role==='assistant'?'assistant':'user',text:m.text}));
+      const history=chat.messages.filter(m=>m.role!=='event'&&m.id!==runId).map(m=>({role:m.role==='assistant'?'assistant':'user',...agentMentionContext(m.text,m.mention_bindings,toolAssets,chat.groups.flatMap(g=>g.cards).filter(c=>contextCardIds.includes(c.id)).map(c=>({card_id:c.id,revision:latest(c).number,references:latest(c).request.references??[]})))}));
       const compact=await compactConversation(history,chat.summary,async input=>{
         const summarizer=createChatAgent({apiKey:key,systemPrompt:snapshot.summarySystem,reasoning:false,fetch:this.transport,onAccounting:account});
         this.agents.set(id,summarizer);await summarizer.prompt(input);

@@ -73,6 +73,38 @@ describe('stable prompt experiment',()=>{
   it('rejects raw provider labels, missing tokens, and malformed tokens',()=>{
     for(const prompt of ['<Picture 1>','[[missing]]','[[image1]'])expect(()=>compileStablePrompt(prompt,previous().references!)).toThrow(ToolRequestError);
   });
+  it('rejects a shared source token after naming clips and reports only actual instance tokens',()=>{
+    const refs=prepareToolRequest(context,{prompt:'Scene.',inputs:[
+      {asset:'video1',instance:'clipA',start_seconds:0,duration_seconds:2,include_audio:true},
+      {asset:'video1',instance:'clipB',start_seconds:4,duration_seconds:2,include_audio:false}
+    ]}).references!;
+    expect(()=>compileStablePrompt('[[clipA]] then [[clipB]], excluding colors from [[video1]].',refs)).toThrow('Available prompt tokens: [[clipA:audio]], [[clipA]], [[clipB]].');
+    try{compileStablePrompt('[[video1]]',refs);}catch(error){
+      const fix=(error as ToolRequestError).issues[0]!.fix!;
+      expect(fix).toContain('shared source in plain words');expect(fix).not.toContain('include_audio');
+    }
+    expect(compileStablePrompt('[[clipA]] then [[clipB]], excluding colors from the source video.',refs)).toBe('<Video 1> then <Video 2>, excluding colors from the source video.');
+    expect(()=>compileStablePrompt('[[clipB:audio]]',refs)).toThrow('That video soundtrack is excluded');
+    expect(requestToolRules('stable')).toContain('never selects one clip or adds the whole video');
+  });
+  it('compiles a known shared video source without selecting one of its clips',()=>{
+    const original=prepareToolRequest({...context,referenceMode:'stable'},{prompt:'[[clipA]] then [[clipB]]. Exclude colors from [[video1]].',inputs:[
+      {asset:'video1',instance:'clipA',start_seconds:0,duration_seconds:2,include_audio:true},
+      {asset:'video1',instance:'clipB',start_seconds:4,duration_seconds:2,include_audio:false}
+    ]});
+    expect(original.prompt).toBe('<Video 1> then <Video 2>. Exclude colors from the source video shared by <Video 1> and <Video 2>.');
+    expect(original.references).toHaveLength(2);
+    const refs=original.references!;
+    expect(()=>compileStablePrompt('[[video1:audio]]',refs,context.assets)).toThrow('not available');
+    expect(()=>compileStablePrompt('[[invented]]',refs,context.assets)).toThrow('not available');
+    expect(()=>compileStablePrompt('[[video1]]',refs.slice(0,1),context.assets)).toThrow('not available');
+    const ambiguousAssets=[...context.assets,{handle:'video1',asset_id:'other-video',kind:'video' as const}];
+    expect(()=>compileStablePrompt('[[video1]]',refs,ambiguousAssets)).toThrow('not available');
+    expect(compileStablePrompt('[[video1]]',[{...refs[0]!,id:'video1'},refs[1]!],context.assets)).toBe('<Video 1>');
+    const reordered=prepareToolRequest({...context,referenceMode:'stable',previous:original},{inputs:[{id:'clipB'},{id:'clipA'}]});
+    expect(reordered.prompt).toBe('<Video 2> then <Video 1>. Exclude colors from the source video shared by <Video 2> and <Video 1>.');
+    expect(()=>prepareToolRequest({...context,referenceMode:'stable',previous:original},{inputs:[{id:'clipA'}]})).toThrow('no longer has the same input');
+  });
   it('compiles supplied edits once and preserves canonical prompt on settings-only edit',()=>{
     const original=prepareToolRequest({...context,referenceMode:'stable'},{...base,prompt:'[[image1]] in [[video1]].'});
     expect(original.prompt).toBe('<Picture 1> in <Video 1>.');

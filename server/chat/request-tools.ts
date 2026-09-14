@@ -24,7 +24,7 @@ export function requestToolSchemas(workflow:ChatWorkflow,mode:ChatMode){
     asset:Type.Optional(Type.String({description:'New input: copy its supplied asset handle here. Example if the handle is input1: {asset: \"input1\", role: \"first_frame\"}.'})),
     replace_asset:Type.Optional(Type.String({description:'Replace the source of an existing id deliberately. Copy the new asset handle. For reordering, use only existing ids in the new order.'})),
     id:Type.Optional(Type.String({description:'Existing input only: copy an id from the current request. Never use id to add an asset. Omit for a new input.'})),
-    instance:Type.Optional(Type.String({pattern:'^[-\\w]{1,100}$',description:'New inputs only: optional distinct name when the same asset is used more than once, e.g. clipA and clipB. Omit for ordinary single use. Do not combine with id.'})),
+    instance:Type.Optional(Type.String({pattern:'^[-\\w]{1,100}$',description:'New inputs only: optional distinct name when the same asset is used more than once, e.g. clipA and clipB. Use this name for the specific clip token. When several selected video clips share a source, its asset handle names their shared source, not one clip. Omit for ordinary single use. Do not combine with id.'})),
     role:Type.Optional(enumOf(['reference','first_frame','last_frame'],'Video/audio: reference only. Images: reference, opening guide first_frame, or ending guide last_frame.')),
     framing:Type.Optional(enumOf(['fit','fill'],'Images only: default fit keeps the whole image. Use fill only when the user asks to crop.')),
     start_seconds:Type.Optional(Type.Number({minimum:0})),
@@ -51,21 +51,34 @@ export function requestToolSchemas(workflow:ChatWorkflow,mode:ChatMode){
   };
 }
 export function requestToolRules(mode:ReferenceMode='direct'){
-  return `Use create_request for a new review card. Use edit_request with the supplied request_id to change a card. Neither tool generates media. Send only changed settings when editing; omitted settings and inputs stay unchanged. Use a complete prompt, not a text replacement operation. For a new input, use asset, not id. Example when the supplied asset handle is input1: {"asset":"input1","role":"first_frame"}. For an existing input, copy its current id: {"id":"input1"}. Reorder by listing ids in the new order. To replace an input source deliberately, use {"id":"input1","replace_asset":"input2"}; do not use asset with a different existing id. To use one source twice, give each new input a distinct instance name, e.g. clipA and clipB; its prompt token uses that instance name. A supplied inputs array replaces the list: include each input to keep, using its existing id. A failed save creates no card or revision. Defaults for a new request: batch_size 1, seed random, aspect_ratio 16:9; video quality fast, size native, duration_seconds 5, generated audio, video output. High quality requires size native. For a silent result, set audio_output to silent explicitly. audio_output accepts only generated or silent; it is not the output file format. Do not omit a setting to bypass a rejection if the user asked for it. Video/audio inputs use role reference and need start_seconds plus duration_seconds (2–15). Only images can be first_frame or last_frame. Keep image framing fit unless the user asks to crop. If asked to use a video soundtrack, set include_audio true even when final audio_output is silent. A standalone audio input is already audio: omit include_audio. Its token is [[input1]], not [[input1:audio]]; :audio is for a video soundtrack. To exclude standalone audio, remove that input from the list. ${mode==='stable'?'Use input tokens in the prompt, for example [[input1]] or [[clipA]]. A video soundtrack uses [[clipA:audio]]. Frame guides use the same token form; the app translates it to the correct label or guide description. Do not write numbered Picture/Video/Audio labels.':'In the prompt, copy labels from the current input mapping. Do not use a prompt label as an input id.'}`;
+  return `Use create_request for a new review card. Use edit_request with the supplied request_id to change a card. Neither tool generates media. Send only changed settings when editing; omitted settings and inputs stay unchanged. Use a complete prompt, not a text replacement operation. For a new input, use asset, not id. Example when the supplied asset handle is input1: {"asset":"input1","role":"first_frame"}. For an existing input, copy its current id: {"id":"input1"}. Reorder by listing ids in the new order. To replace an input source deliberately, use {"id":"input1","replace_asset":"input2"}; do not use asset with a different existing id. To use one source twice, give each new input a distinct instance name, e.g. clipA and clipB; its prompt token uses that instance name. A supplied inputs array replaces the list: include each input to keep, using its existing id. A failed save creates no card or revision. Defaults for a new request: batch_size 1, seed random, aspect_ratio 16:9; video quality fast, size native, duration_seconds 5, generated audio, video output. High quality requires size native. For a silent result, set audio_output to silent explicitly. audio_output accepts only generated or silent; it is not the output file format. Do not omit a setting to bypass a rejection if the user asked for it. Video/audio inputs use role reference and need start_seconds plus duration_seconds (2–15). Only images can be first_frame or last_frame. Keep image framing fit unless the user asks to crop. If asked to use a video soundtrack, set include_audio true even when final audio_output is silent. A standalone audio input is already audio: omit include_audio. Its token is [[input1]], not [[input1:audio]]; :audio is for a video soundtrack. To exclude standalone audio, remove that input from the list. ${mode==='stable'?'Use input tokens in the prompt, for example [[input1]] or [[clipA]]. Use [[clipA]] and [[clipB]] for their specific clips. If both clips come from input2, [[input2]] means the source video shared by both selected clips; it never selects one clip or adds the whole video. Shared source tokens are general context only; timed actions must name the specific clip tokens. For a soundtrack, use a specific clip token, never a shared source token. A video soundtrack uses [[clipA:audio]]. Frame guides use the same token form; the app translates it to the correct label or guide description. Do not write numbered Picture/Video/Audio labels.':'In the prompt, copy labels from the current input mapping. Do not use a prompt label as an input id.'}`;
 }
 /** Resolver keyed by input instance, including distinct soundtrack channels. */
 export function toolInputLabels(refs:InputReference[]):Map<string,string>{return inputLabels(refs);}
 /** Every app-compiled reference, including frame guides without numbered labels. */
 export const toolPromptBindings=promptBindings;
 export const toolPromptReferencePattern=promptReferencePattern;
-export function compileStablePrompt(prompt:string,refs:InputReference[]):string{
+export function compileStablePrompt(prompt:string,refs:InputReference[],assets:ToolAsset[]=[]):string{
   const labels=toolPromptBindings(refs),issues:RequestIssue[]=[];
   if(/<(?:Picture|Video|Audio)\s+\d+>/.test(prompt))issues.push({field:'prompt',message:'Use supplied [[input_handle]] tokens instead of numbered provider labels.'});
   const compiled=prompt.replace(/\[\[([^\[\]]+)\]\]/g,(_all,handle:string)=>{
     const audioId=handle.endsWith(':audio')?handle.slice(0,-6):undefined;
     const audioAlias=audioId!==undefined&&refs.some(r=>r.id===audioId&&r.kind==='audio')?labels.get(audioId):undefined;
-    const label=labels.get(handle)??audioAlias;
-    if(!label)issues.push({field:'prompt',message:`Input token [[${handle}]] is not available in this request.`,fix:'Copy a token from the current input mapping. A soundtrack token needs include_audio true on that video input.'});
+    // A source handle can name the common source of several selected clips, but
+    // must never silently select one clip or merge their soundtrack channels.
+    const sourceIds=new Set(assets.filter(asset=>asset.handle===handle&&asset.kind==='video').map(asset=>asset.asset_id));
+    const clips=audioId===undefined&&sourceIds.size===1?refs.filter(ref=>ref.kind==='video'&&sourceIds.has(ref.asset_id)):[];
+    const clipLabels=clips.map(ref=>labels.get(ref.id));
+    const sourceGroup=clips.length>1&&clipLabels.every(Boolean)?`the source video shared by ${clipLabels.slice(0,-1).join(', ')} and ${clipLabels.at(-1)}`:undefined;
+    const label=labels.get(handle)??audioAlias??sourceGroup;
+    if(!label){
+      const valid=[...labels.keys()].map(id=>`[[${id}]]`).join(', ');
+      const disabledSoundtrack=audioId!==undefined&&refs.some(r=>r.id===audioId&&r.kind==='video'&&!r.include_audio);
+      issues.push({field:'prompt',message:`Input token [[${handle}]] is not available in this request.`,fix:[
+        valid?`Available prompt tokens: ${valid}.`:'This request has no available input tokens.',
+        disabledSoundtrack?'That video soundtrack is excluded. Set include_audio true only if the user wants to use it; otherwise remove its soundtrack token.':'Use the input instance tokens above. Describe a shared source in plain words, such as "the source video", without a token.'
+      ].join(' ')});
+    }
     return label??_all;
   });
   if(compiled.includes('[[')||compiled.includes(']]'))if(!issues.length)issues.push({field:'prompt',message:'An input token is incomplete. Use [[input_handle]].'});
@@ -162,7 +175,7 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
         const matching=refs.filter((r:InputReference)=>r.asset_id===key);
         return matching.length===1?'[['+matching[0].id+(soundtrack?':audio':'')+']]':token;
       });
-      request.prompt=compileStablePrompt(request.prompt,refs);
+      request.prompt=compileStablePrompt(request.prompt,refs,context.assets);
     }
     else if(context.previous&&value.prompt===undefined&&value.inputs!==undefined){
       const before=toolPromptBindings(context.previous.references??[]),after=toolPromptBindings(refs),byLabel=new Map([...before].map(([id,label])=>[label,after.get(id)]));
