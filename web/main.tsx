@@ -206,6 +206,7 @@ function App() {
   const [sidebarTarget,setSidebarTarget]=useState<HTMLDivElement|null>(null);
   const [libraryType,setLibraryType]=useState('all');
   const [gpuOpen,setGpuOpen]=useState(false),[jobsOpen,setJobsOpen]=useState(false);
+  useEffect(()=>{const close=()=>setJobsOpen(false);window.addEventListener('seed:branch-ready',close);return()=>window.removeEventListener('seed:branch-ready',close);},[]);
   const [page, setPage] = useState(
     location.pathname === "/chat" ? "chat" : location.pathname === "/library" ? "library" : "generate",
   );
