@@ -7,24 +7,22 @@
     "node": ">=26.8.2 <27"
   },
   "scripts": {
-    "build": "tsc -p tsconfig.server.json && node scripts/build-operations.mjs && vite build",
+    "build": "node scripts/clean-build.mjs && tsc -p tsconfig.server.json && vite build && node scripts/compress-web.mjs",
     "typecheck": "tsc --noEmit",
     "start": "node dist/server/main.js",
     "dev": "npm run build && npm start",
     "test": "vitest run",
-    "test:browser": "playwright test",
+    "test:browser": "node scripts/test-browser.mjs",
     "prepack": "npm run build",
     "verify": "node scripts/verify.mjs",
-    "test:package": "node scripts/test-package.mjs",
-    "test:network-dependencies": "node scripts/test-network-dependencies.mjs",
-    "test:worker-network": "node scripts/test-worker-network.mjs"
+    "test:package": "node scripts/test-package.mjs"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "0.85.1",
     "@earendil-works/pi-ai": "0.85.1",
+    "@fal-ai/client": "1.10.1",
     "@fastify/static": "10.1.3",
     "@inquirer/password": "5.2.2",
-    "@radix-ui/react-collapsible": "1.1.20",
     "@radix-ui/react-dialog": "1.1.23",
     "@tus/file-store": "2.1.1",
     "@tus/server": "2.4.5",
@@ -57,8 +55,6 @@
     "prompting/",
     "dist/server/",
     "dist/shared/",
-    "dist/worker/models.json",
-    "dist/web/",
-    "dist/operations/"
+    "dist/web/"
   ]
 }

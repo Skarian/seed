@@ -21,7 +21,8 @@ export async function verifyMediaTools(encoder = ffmpeg, inspector = ffprobe.pat
 export async function probe(file: string) {
   const { stdout } = await exec(ffprobe.path, ['-v','error','-show_streams','-show_format','-of','json',file], { maxBuffer: 2*1024*1024, timeout: 60000, windowsHide: true });
   const data = JSON.parse(stdout); const video = data.streams.find((s:any)=>s.codec_type==='video'), audio = data.streams.find((s:any)=>s.codec_type==='audio');
-  return { duration: Number(data.format.duration || 0), width: video?.width, height: video?.height, has_audio: Boolean(audio), has_video: Boolean(video), format: String(data.format.format_name || '') };
+  const [numerator,denominator]=String(video?.avg_frame_rate??'0/1').split('/').map(Number),fps=denominator?numerator!/denominator:0;
+  return { duration: Number(data.format.duration || 0), width: video?.width, height: video?.height, ...(fps>0?{fps}:{}), has_audio: Boolean(audio), has_video: Boolean(video), format: String(data.format.format_name || '') };
 }
 export async function transcode(args: string[]) { if (!ffmpeg) throw new Error('FFmpeg is unavailable.'); await exec(ffmpeg, ['-hide_banner','-loglevel','error','-nostdin','-y',...args], { maxBuffer: 2*1024*1024, timeout: 300000, windowsHide: true }); }
 export type InputReference = { id: string; asset_id: string; kind: 'image'|'video'|'audio'; role: 'reference'|'first_frame'|'last_frame'; framing?: 'fit'|'fill'; range?: { start_seconds: number; duration_seconds: number }; include_audio?: boolean };
@@ -77,7 +78,7 @@ export class Media {
   async prepare(ref:InputReference,aspect:string,seconds:number):Promise<PreparedReference>{
     const item=await this.describe(ref.asset_id);if(!item||(item.metadata.state??'ready')!=='ready'||item.kind!==ref.kind)throw new Error('Wait for references to finish uploading.');
     const original=path.resolve(this.paths.data,item.relative_path);if(!original.startsWith(path.resolve(this.paths.data)+path.sep))throw new Error('Invalid input path');
-    const key=createHash('sha256').update(JSON.stringify({ref,aspect,seconds,source:item.metadata.sha256,recipe:2})).digest('hex');
+    const key=createHash('sha256').update(JSON.stringify({ref,aspect,seconds,source:item.metadata.sha256,recipe:3})).digest('hex');
     const extension=ref.kind==='image'?'.png':ref.kind==='video'?'.mp4':'.wav';const filename=key+extension,file=path.join(this.paths.data,'media/prepared',filename);
     const [width,height]=aspect==='16:9'?[1344,768]:[768,1344];
     let effective_frames:number|undefined,audio_file:string|undefined,audio_filename:string|undefined;
@@ -90,7 +91,7 @@ export class Media {
       const range=ref.range!;if(!range||range.start_seconds<0||range.duration_seconds<2||range.duration_seconds>15||range.start_seconds+range.duration_seconds>item.metadata.duration+0.01)throw new Error('Choose a valid 2–15 second reference range.');
       const source=['-ss',String(range.start_seconds),'-i',original];
       if(ref.kind==='video'){
-        const generated=17*Math.ceil((seconds*24-5)/17)+5;effective_frames=17*Math.floor((Math.min(Math.floor(range.duration_seconds*24),generated)-5)/17)+5;
+        effective_frames=Math.round(range.duration_seconds*24);
         if(!existsSync(file)){await transcode([...source,'-vf',`fps=24,scale=${width}:${height}:force_original_aspect_ratio=decrease,pad=${width}:${height}:(ow-iw)/2:(oh-ih)/2`,'-frames:v',String(effective_frames),'-an','-c:v','libx264','-crf','18','-pix_fmt','yuv420p','-f','mp4',file+'.tmp']);renameSync(file+'.tmp',file);}
         if(ref.include_audio){if(!item.metadata.has_audio)throw new Error('This video has no audio track.');audio_filename=key+'-audio.wav';audio_file=path.join(this.paths.data,'media/prepared',audio_filename);if(!existsSync(audio_file)){await transcode([...source,'-t',String(effective_frames/24),'-vn','-ar','32000','-ac','2','-f','wav',audio_file+'.tmp']);renameSync(audio_file+'.tmp',audio_file);}}
       }else if(!existsSync(file)){await transcode([...source,'-t',String(range.duration_seconds),'-vn','-ar','32000','-ac','2','-f','wav',file+'.tmp']);renameSync(file+'.tmp',file);}

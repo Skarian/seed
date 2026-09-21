@@ -1,45 +1,14 @@
-# Current product direction
+# Current direction
 
-Seed is a personal browser art studio backed by rented GPU compute. The agent
-installs and operates it; the user generates through the UI. One local npm package
-contains all executable local code. The GitHub skill is instructions only. The GPU
-worker is a separate pinned container image. npm publication is deferred.
+Seed uses fal for Krea 2 Turbo images and standard MiniMax H3 videos. There is
+one video quality path. No RunPod/Vast backend, worker image, model provisioning,
+SSH tunnel, or Fast/H3 Max endpoint belongs in the application.
 
-Permanent media/history/credentials stay in per-user directories. Models download
-directly to the GPU, reusing existing files; optional local caching supplies fallback.
-Setup downloads the local cache immediately when selected. Tokens are transient
-SSH inputs on the GPU, not template or container-image contents.
+Keep local media, chat, approval, request editing, notes, repeat/branch, and job
+history. Keep the API key server-side and make paid submissions durable without
+blind retries. Import and select content-addressed adapters explicitly; separate
+H3 FL and Ref variants and mark untested compatibility honestly.
 
-No UI rental controls, background updater, provider-shopping daemon, Terraform,
-new storage service or multi-package framework. Small modules, shared operations,
-explicit CLI steps and observable progress. Updates only on request. The agent starts the local app when needed; no sign-in startup.
-
-Vast and RunPod are supported targets. New RunPod workers use global placement and disposable disk. One active
-GPU across providers. Resolve uncertain creation before retrying; clean up failed
-new rentals after bounded recovery. Preserve established sessions and saved media.
-
-Current work and evidence: [TODO](TODO.md), [validation](VALIDATION.md).
-Identity editing and maximum-reference performance tests are deferred.
-
-Chat is a separate persistent workspace. The owner activates one workflow at a
-time through the picker or slash command, reviews immutable request revisions,
-and approves every generation. OpenRouter routing prefers Parasail, with automatic
-compatible-provider fallback. Prompts ship with the package and have editable
-per-user copies. Jobs continue when the browser leaves Chat; Stop cancels work
-only for the current chat. Chats, Library and pickers show the current mode only.
-
-## Spicy mode
-
-One session-scoped setting controls all generation workflows, Library visibility,
-and the reference picker. Hold the Seed logo for 800 ms (mouse, touch, or keyboard)
-to toggle it; the pepper beside the logo turns it off immediately. The setting
-survives reloads in the same tab and starts off in a fresh tab. Workflow changes
-and form resets do not change it. Existing per-workflow mode preferences are ignored.
-
-Mode changes show a centered pepper toast for two seconds, with entrance and exit
-animations that respect reduced motion. React-hot-toast's headless API uses the
-app stylesheet to preserve the existing Content Security Policy.
-
-The UI calls the modes Standard/Spicy; stored and API values remain sfw/nsfw.
-Existing assets retain their metadata, and submitted jobs retain the mode captured
-when Create was clicked. This change does not reclassify historical assets.
+The existing Krea LoKR and H3 FL/Ref adapters have passed live fal tests. H3
+imports normalize the supported adapter naming without changing matrix values.
+See VALIDATION.md for measured cost, latency and remaining quality review.

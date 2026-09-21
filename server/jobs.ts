@@ -1,35 +1,35 @@
 import { Media, type PreparedReference } from "./media.js";
-import { videoRoute, HIGH_VIDEO_PROFILE, VIDEO_PROFILE_REVISION } from "./video.js";
+import { falRequest, loraRoute } from './fal-request.js';
+import { FalError, type FalTransport, type Receipt } from './fal.js';
+import {falIssue,type ProviderIssue} from './fal-errors.js';
+import type {Estimate} from '../shared/pricing.js';
+import { Loras, digest, type LoraSelection } from './loras.js';
+import { probe, transcode } from './media.js';
+import sharp from 'sharp';
 import type Database from "better-sqlite3";
-import { createHash, randomUUID } from "node:crypto";
+import { randomUUID } from "node:crypto";
 import {
-  createReadStream,
   existsSync,
   statSync,
   renameSync,
-  unlinkSync,
 } from "node:fs";
-import { open } from "node:fs/promises";
 import path from "node:path";
 import type { StudioPaths } from "./storage.js";
-import { WorkerConnection } from "./worker.js";
-import { WorkerHttpError, TransferIntegrityError, actionableTransfer } from './worker-transfer.js';
+
+
 import {
-  graphFor,
   imageRequest,
   seeds,
-  type Capabilities,
   type ImageRequest,
-  type Preset,
 } from "./workflows.js";
 
 export type Job = {
+  estimate?:Estimate;
+  provider_issue?:ProviderIssue;
   source?: {chat_id?:string;card_id?:string;revision?:number;job_id?:string};
   input_snapshot?: Array<{id:string;name:string;kind:string;note:string;metadata:Record<string,unknown>}>;
-  workflow_version?: string;
   deleted_outputs?: string[];
   metrics?: {
-    version: 1;
     inputs: {
       total: number;
       image: number;
@@ -38,15 +38,12 @@ export type Job = {
       prepared_bytes: number;
       video_soundtracks: number;
     };
-    transfer_started_at?: string;
     submitted_at?: string;
     saved_at?: string;
     terminal_at?: string;
     elapsed_to_terminal_seconds?: number;
     elapsed_to_saved_seconds?: number;
-    worker?: Record<string, unknown>;
   };
-  generation_percent?: number;
   prepared?: PreparedReference[];
   id: string;
   state: string;
@@ -54,60 +51,40 @@ export type Job = {
   submission_index: number;
   request: ImageRequest;
   seed: string;
-  preset: Preset | null;
-  video_profile?: typeof HIGH_VIDEO_PROFILE;
-  graph: ReturnType<typeof graphFor>;
-  workspace_id: string;
-  engine_session_id?: string;
+  fal: { endpoint?: string; receipt?: Receipt; input?: Record<string,unknown>; result?: any; loras: LoraSelection[]; queued_at?: string; running_at?: string; completed_at?: string; cancel_sent_at?: string; upload_seconds?: number };
   outputs: string[];
   error: string | null;
-  cleanup_state: string;
-  output_save_state: string;
   created_at: string;
   updated_at: string;
   uncertainty_acknowledged?: boolean;
   submission_pending?: boolean;
   recovery_blocked?: boolean;
-  integrity_failures?: number;
 };
-type Output = {
-  id: string;
-  path: string;
-  size: number;
-  sha256: string;
-  mime_type: string;
-};
-const terminal = ["completed", "failed", "cancelled"];
-const hashFile = async (file: string) => {
-  const hash = createHash("sha256");
-  for await (const bytes of createReadStream(file)) hash.update(bytes);
-  return hash.digest("hex");
-};
+const terminal = ['completed', 'failed', 'cancelled'];
 
 export class Jobs {
   private chain: Promise<unknown> = Promise.resolve();
   private timer?: ReturnType<typeof setInterval>;
   private ticking = false;
   private stopped = false;
-  private transfer?: {id: string; abort: AbortController};
-  private attempts = new Map<string, number>();
-  public capabilities: Capabilities | null = null;
-  public checkedAt: number | null = null;
-  public safe: boolean | null = null;
-  public reason = "Checking the engine and saved outputs.";
+  private inFlight = new Map<string, Promise<void>>();
+  private inputUploads = new Map<string, Promise<string>>();
+  private uploaded = new Map<string, {url: string; expires: number}>();
   public media: Media;
+  public loras: Loras;
   constructor(
     private db: Database.Database,
     private paths: StudioPaths,
-    private worker: WorkerConnection,
+    private fal: FalTransport,
   ) {
-    this.media = new Media(db, paths);
+    this.media = new Media(db, paths); this.loras = new Loras(paths);
   }
   serialize<T>(fn: () => Promise<T>): Promise<T> {
     const next = this.chain.then(fn);
     this.chain = next.catch(() => {});
     return next;
   }
+  resetUploads(){this.uploaded.clear();this.loras.clearUploads();}
   start() {
     this.timer = setInterval(() => {
       void this.tick();
@@ -116,31 +93,44 @@ export class Jobs {
   }
   async close() {
     this.stopped = true;
-    this.transfer?.abort.abort();
+    this.fal.close?.();
     clearInterval(this.timer);
     await this.chain;
+    await Promise.allSettled(this.inFlight.values());
   }
-  interrupt(id: string) { if (this.transfer?.id === id) this.transfer.abort.abort(); }
-  resumeRecovery() {
-    for (const job of this.all()) if (job.recovery_blocked) {
-      job.recovery_blocked = false; job.integrity_failures = 0; this.save(job);
+  interrupt(id: string) { this.stopJobs([id]); }
+  retrySave(id:string) {
+    const job=this.get(id);
+    if(!job?.recovery_blocked||!job.fal?.receipt)throw Error('This output does not need saving again.');
+    job.recovery_blocked=false;job.error=null;this.save(job);
+    return job;
+  }
+  continueRequest(id:string) {
+    this.ensureConfigured();
+    this.ensureResolved();
+    const job=this.get(id);
+    if(!job||job.state!=='blocked')throw Error('This request is not waiting for action.');
+    const waiting=this.all().filter(j=>j.submission_id===job.submission_id&&j.state==='blocked');
+    this.db.transaction(()=>{for(const item of waiting){item.state='queued';item.error=null;delete item.provider_issue;this.save(item);}})();
+    return {jobs:waiting};
+  }
+  private ensureResolved() {
+    if(this.all().some(j=>j.recovery_blocked))throw Error('Retry saving the output that needs attention in Activity before generating.');
+    if(this.all().some(j=>j.state==='needs_attention'&&!j.uncertainty_acknowledged))throw Error('Resolve the previous interrupted request in Activity before generating.');
+  }
+  private holdWaiting(issue?:ProviderIssue,message='Review the interrupted request in Activity before continuing.') {
+    for(const job of this.all().filter(j=>j.state==='queued')){
+      job.state='blocked';job.provider_issue=issue;job.error=issue?issue.message+' '+issue.action:message;this.save(job);
     }
+  }
+  private holdForIssue(issue?:ProviderIssue){
+    if(issue&&['insufficient_funds','invalid_credentials','access_denied','rate_limited'].includes(issue.code))this.holdWaiting(issue);
   }
   private blockRecovery(job: Job, error: unknown) {
     job.recovery_blocked = true;
-    job.error = `${error instanceof Error ? error.message : 'Transfer failed.'} Files are retained. Fix the problem, then resume the queue.`;
-    this.pause(true); this.save(job);
-  }
-  private attempt(job: Job, operation: string, offset = 0) {
-    const key = job.id + ':' + operation;
-    const attempt = (this.attempts.get(key) ?? 0) + 1;
-    this.attempts.set(key, attempt);
-    console.info(JSON.stringify({at: new Date().toISOString(), job_id: job.id, operation, attempt, offset}));
-  }
-  invalidate() {
-    this.safe = null;
-    this.checkedAt = null;
-    this.capabilities = null;
+    job.error = `${error instanceof Error ? error.message : 'Transfer failed.'} Fix the problem, then retry saving this output. No new generation is needed.`;
+    this.save(job);
+    this.holdWaiting(undefined,'Retry saving the output that needs attention in Activity before continuing.');
   }
   list(limit = 50, cursor = ""): Job[] {
     return (
@@ -168,8 +158,8 @@ export class Jobs {
   }
   save(job: Job) {
     if(this.cancelled(job.id)) {
-      if(job.state==='queued'){job.state='cancelled';job.output_save_state='not_applicable';}
-      else if(['submitting','running'].includes(job.state))job.state='cancel_requested';
+      if(['queued','blocked'].includes(job.state)){job.state='cancelled';}
+      else if(['uploading','submitting','running'].includes(job.state))job.state='cancel_requested';
     }
     if (
       job.metrics &&
@@ -188,31 +178,13 @@ export class Jobs {
       )
       .run(job.state, JSON.stringify(job), job.updated_at, job.id);
   }
-  get paused() {
-    return Boolean(
-      (
-        this.db
-          .prepare("SELECT paused FROM dispatcher_state WHERE id=1")
-          .get() as { paused: number }
-      ).paused,
-    );
-  }
-  pause(value: boolean) {
-    this.db
-      .prepare("UPDATE dispatcher_state SET paused=? WHERE id=1")
-      .run(value ? 1 : 0);
-    this.safe = null;
-    this.checkedAt = null;
-  }
-  async submit(raw: unknown, key: string) {
-    const prepared = await this.prepareSubmission(raw, key);
+  async submit(raw: unknown, key: string, estimate?:Estimate) {
+    const prepared = await this.prepareSubmission(raw, key,undefined,estimate);
     const result = this.db.transaction(prepared.commit)();
-    this.pause(false);
     return result;
   }
-  async prepareSubmission(raw: unknown, key: string, source?:Job['source']) {
-    if (this.all().some(job => job.recovery_blocked))
-      throw new Error('Fix the reported transfer problem and resume the queue before creating another job.');
+  async prepareSubmission(raw: unknown, key: string, source?:Job['source'], estimate?:Estimate) {
+    this.ensureResolved();
     const request = imageRequest(raw);
     if (!/^[\w-]{16,128}$/.test(key))
       throw new Error("A submission key is required.");
@@ -228,40 +200,8 @@ export class Jobs {
         jobs: this.all().filter((j) => j.submission_id === previous.id),
       })};
     }
-    const cap = await this.inspectCapabilities();
-    if (request.capabilities_revision !== cap.revision)
-      throw new Error("Pod settings changed. Refresh and try again.");
-    if (
-      this.all().some(
-        (j) => j.state === "needs_attention" && !j.uncertainty_acknowledged,
-      )
-    )
-      throw new Error(
-        "Resolve the previous interrupted job before generating.",
-      );
-    const isVideo = request.workflow !== "text-to-image";
-    if (isVideo && request.output.size === 'native' && cap.video?.native_export !== true)
-      throw new Error('Update the worker to preserve native video output.');
-    if (isVideo && request.quality === 'high' && (cap.video?.quality?.high !== true || cap.video.profile_revision !== VIDEO_PROFILE_REVISION))
-      throw new Error('Update the worker to use High Quality.');
-    if (isVideo && request.quality !== 'high' && cap.video?.quality?.fast === false)
-      throw new Error('Fast video is not available on this worker.');
-    if (isVideo && request.output.format === 'images' && !cap.video?.image_export)
-      throw new Error('Update the worker to export images.');
-    if (isVideo && ![5,10,15].includes(request.output.duration_seconds!) && cap.video?.duration_step !== 1)
-      throw new Error('Update the worker to use this duration.');
-    if (isVideo && !cap.video?.ready)
-      throw new Error("This worker does not support video yet.");
-    const selectedPreset =
-      request.mode === "nsfw"
-        ? isVideo
-          ? cap.video?.nsfw[videoRoute(request)]
-          : cap.nsfw
-        : null;
-    if (request.mode === "nsfw" && !selectedPreset)
-      throw new Error(
-        "The selected mode is not available for these references.",
-      );
+    this.ensureConfigured();
+    const selected = this.loras.resolve(request.loras, loraRoute(request), request.mode);
     const prepared: PreparedReference[] = [];
     for (const ref of request.references ?? [])
       prepared.push(
@@ -274,14 +214,12 @@ export class Jobs {
     const submission_id = randomUUID(),
       now = new Date().toISOString();
     const jobs = seeds(request).map((seed, index): Job => {
-      const id = randomUUID(),
-        preset = selectedPreset ?? null;
+      const id = randomUUID();
       return {
+        estimate,
         source,
-        workflow_version: isVideo ? VIDEO_PROFILE_REVISION : 'image-v1',
         input_snapshot: (request.references??[]).map(ref=>{const asset=this.media.get(ref.asset_id)!;const note=this.db.prepare('SELECT note FROM asset_notes WHERE id=?').get(ref.asset_id) as {note:string}|undefined;return {id:ref.asset_id,name:asset.name,kind:asset.kind,note:note?.note??'',metadata:asset.metadata};}),
         metrics: {
-          version: 1,
           inputs: {
             total: prepared.length,
             image: prepared.filter((r) => r.kind === "image").length,
@@ -303,15 +241,10 @@ export class Jobs {
         submission_index: index,
         request,
         seed,
-        preset,
-        ...(isVideo && request.quality === 'high' ? {video_profile: HIGH_VIDEO_PROFILE} : {}),
-        graph: graphFor(request, id, seed, preset, prepared),
+        fal: { loras: selected.map(({id,revision,scale}) => ({id,revision,scale})) },
         ...(prepared.length ? { prepared } : {}),
-        workspace_id: cap.workspace_id,
         outputs: [],
         error: null,
-        cleanup_state: "not_requested",
-        output_save_state: "pending",
         created_at: now,
         updated_at: now,
       };
@@ -337,40 +270,20 @@ export class Jobs {
       return { submission_id, jobs };
     }};
   }
-  async inspectCapabilities(requireReady = true) {
-    const cap = (await this.worker.json("/comfy/capabilities")) as Capabilities;
-    if (
-      typeof cap.ready !== 'boolean' || (requireReady && !cap.ready) ||
-      cap.workspace_id !== this.worker.identity?.workspace_id ||
-      typeof cap.engine_session_id !== "string" ||
-      typeof cap.revision !== "string"
-    )
-      throw new Error("The image engine is not ready.");
-    if (
-      cap.nsfw &&
-      (!/^[\w.-]+\.safetensors$/.test(cap.nsfw.filename) ||
-        !/^[a-f0-9]{64}$/i.test(cap.nsfw.sha256) ||
-        !Number.isFinite(cap.nsfw.strength_model) ||
-        cap.nsfw.strength_model < 0 ||
-        cap.nsfw.strength_model > 2)
-    )
-      throw new Error("The pod has an invalid LoRA preset.");
-    this.capabilities = cap;
-    return cap;
+  ensureConfigured() {
+    if (!this.fal.configured) throw Error("Set FAL_KEY or run seed setup.");
   }
   async cancel(id: string) {
     const job = this.get(id);
     if (!job) throw new Error("Job not found.");
     if (terminal.includes(job.state)) return job;
-    if (job.state === "queued") {
+    if (["queued","blocked"].includes(job.state)) {
       job.state = "cancelled";
-      job.output_save_state = "not_applicable";
     } else if (job.state === "needs_attention")
       throw new Error(
-        "The previous execution is uncertain. Reconnect the original worker if it still exists to recover it.",
+        "Check the request in your fal dashboard before acknowledging an uncertain submission.",
       );
     else job.state = "cancel_requested";
-    this.safe = null;
     this.save(job);
     return job;
   }
@@ -380,8 +293,7 @@ export class Jobs {
       for(const id of ids) {
         const job=this.get(id);if(!job||terminal.includes(job.state))continue;
         this.db.prepare('INSERT OR IGNORE INTO job_cancel_intents(id) VALUES (?)').run(id);
-        if(this.transfer?.id===id)this.transfer.abort.abort();
-        if(job.state==='queued'){job.state='cancelled';job.output_save_state='not_applicable';}
+        if(['queued','blocked'].includes(job.state)){job.state='cancelled';}
         else if(job.state!=='needs_attention')job.state='cancel_requested';
         this.save(job);
       }
@@ -394,465 +306,140 @@ export class Jobs {
       throw new Error("Only an uncertain job can be acknowledged.");
     job.uncertainty_acknowledged = true;
     this.save(job);
-    this.safe = null;
     return job;
   }
   async tick() {
     if (this.ticking || this.stopped) return;
     this.ticking = true;
-    try {
-      await this.serialize(() => this.reconcile());
-    } catch (error) {
-      this.invalidate();
-      this.reason =
-        actionableTransfer(error)
-          ? `${(error as Error).message} Check the connection before resuming. Pending files are retained.`
-          : "Cannot verify the pod. Pending work and files are retained.";
-      if (actionableTransfer(error)) this.pause(true);
-    } finally {
-      this.ticking = false;
-    }
+    try { await this.serialize(() => this.reconcile(true)); }
+    catch { /* Reconcile durable state on the next tick; never repeat an uncertain POST. */ }
+    finally { this.ticking = false; }
   }
-  async reconcile() {
-    if (!this.worker.connected) {
-      this.invalidate();
-      this.reason = "No pod connected.";
-      return;
+  async reconcile(background = false) {
+    if (!this.fal.configured) return;
+    for (const job of this.all().filter(j => j.fal && !terminal.includes(j.state) && j.state !== 'queued' && j.state !== 'blocked' && j.state !== 'needs_attention' && !j.recovery_blocked)) {
+      if(this.inFlight.has(job.id))continue;
+      if(!job.fal!.receipt) {
+        if(job.state==='uploading' || (this.cancelled(job.id)&&!job.submission_pending)){job.state=this.cancelled(job.id)?'cancelled':'queued';this.save(job);continue;}
+        job.state='needs_attention';job.error='Submission was interrupted before its fal request ID was saved. Check fal history before trying again.';this.save(job);this.holdWaiting();continue;
+      }
+      const task=this.track(job.id,()=>this.advance(job));
+      if(!background)await task;
     }
-    this.safe = null;
-    const cap = await this.inspectCapabilities(false);
-    const queue = await this.worker.json("/comfy/queue");
-    if (
-      !Array.isArray(queue.queue_running) ||
-      !Array.isArray(queue.queue_pending)
-    )
-      throw new Error("Unknown queue");
-    const session = await this.worker.json("/comfy/session");
-    if (
-      session.engine_session_id !== cap.engine_session_id ||
-      session.workspace_id !== cap.workspace_id
-    )
-      throw new Error("Engine changed");
-    const nativeIds = [...queue.queue_running, ...queue.queue_pending].map(
-      (item: unknown[]) => item[1],
-    );
-    const jobs = this.all();
-    const foreign = nativeIds.some(
-      (id: unknown) =>
-        !jobs.some(
-          (j) => j.id === id && j.engine_session_id === cap.engine_session_id,
-        ),
-    );
-    let cursor: string | null = "",
-      orphan = false;
-    const seen = new Set<string>();
-    do {
-      const inventory = await this.worker.json(
-        "/worker/v1/jobs" +
-          (cursor ? "?cursor=" + encodeURIComponent(cursor) : ""),
-      );
-      if (!Array.isArray(inventory.items))
-        throw new Error("Invalid spool inventory");
-      for (const item of inventory.items)
-        if (
-          !jobs.some((j) => j.id === item.job_id) &&
-          !item.acknowledged &&
-          (!item.manifest || item.manifest.state === "completed")
-        )
-          orphan = true;
-      cursor = inventory.next_cursor;
-      if (cursor) {
-        if (typeof cursor !== "string" || seen.has(cursor))
-          throw new Error("Invalid inventory cursor");
-        seen.add(cursor);
-      }
-    } while (cursor);
-    for (const job of jobs) {
-      if (
-        job.recovery_blocked || job.state === "queued" ||
-        (terminal.includes(job.state) && job.cleanup_state !== "pending")
-      )
-        continue;
-      if (job.workspace_id !== cap.workspace_id) {
-        if (!terminal.includes(job.state)) {
-          job.state = "needs_attention";
-          job.error =
-            "Reconnect the original worker if it still exists to recover this job.";
-          this.save(job);
-        }
-        continue;
-      }
-      const response = await this.worker.request("/worker/v1/jobs/" + job.id);
-      if (response.status === 404) {
-        await response.body?.cancel();
-        if (job.submission_pending && job.state !== 'cancel_requested' && !this.cancelled(job.id) &&
-            job.engine_session_id === cap.engine_session_id && !this.paused &&
-            !foreign && !orphan && nativeIds.length === 0) {
-          await this.dispatch(job, cap.engine_session_id);
-          return;
-        }
-        if (!terminal.includes(job.state)) {
-          job.state = "needs_attention";
-          job.error =
-            "Submission outcome is unknown; it will not be run again automatically.";
-          this.save(job);
-        }
-        continue;
-      }
-      if (!response.ok) {
-        await response.body?.cancel();
-        throw new Error("Cannot reconcile output");
-      }
-      // Use bounded JSON decoding for manifest inventory too.
-      await response.body?.cancel();
-      const record = await this.worker.json("/worker/v1/jobs/" + job.id);
-      if (
-        record.submission.job_id !== job.id ||
-        record.submission.workspace_id !== job.workspace_id ||
-        record.submission.engine_session_id !== job.engine_session_id
-      )
-        throw new Error("Job identity mismatch");
-      job.submission_pending = false;
-      if (
-        job.metrics &&
-        [1, 2].includes(record.telemetry?.version) &&
-        typeof record.telemetry === "object"
-      ) {
-        job.metrics.worker = record.telemetry;
+    if (this.all().some(j => j.recovery_blocked || j.state === 'needs_attention' && !j.uncertainty_acknowledged)) return;
+    // Bound concurrent paid requests; fal handles actual GPU scheduling and batching.
+    let slots = 2 - this.all().filter(j => !terminal.includes(j.state) && !['queued','blocked','needs_attention'].includes(j.state)).length;
+    for (const job of this.all().filter(j => j.state === 'queued' && j.fal)) {
+      if (slots-- <= 0 || this.stopped) break;
+      if(this.inFlight.has(job.id)||this.get(job.id)?.state!=='queued')continue;
+      const task=this.track(job.id,async()=>{
+      try { await this.dispatch(job); }
+      catch (error) {
+        if(job.submission_pending||job.fal?.receipt){job.state='needs_attention';job.error='Could not persist the fal submission. Check the fal dashboard before retrying.';this.holdWaiting();}
+        else if(!this.stopped){job.state='failed';job.provider_issue=error instanceof FalError?error.issue:undefined;job.error=error instanceof FalError?error.message:'Could not prepare inputs or adapters for fal. Check local files and fal access, then retry.';this.holdForIssue(job.provider_issue);}
         this.save(job);
       }
-      if (record.manifest) {
-        const manifest = this.manifest(job, record);
-        if (manifest.state === "completed") {
-          await this.retrieve(job, manifest.outputs, record.manifest_digest);
-        } else {
-          job.state = manifest.state === "cancelled" ? "cancelled" : "failed";
-          job.error = manifest.error;
-          job.output_save_state = "not_applicable";
-          job.cleanup_state = "pending";
-          this.save(job);
-          await this.acknowledgeOutputs(job, record.manifest_digest);
-        }
-      } else if (
-        job.engine_session_id !== cap.engine_session_id ||
-        !nativeIds.includes(job.id)
-      ) {
-        job.state = "needs_attention";
-        job.error =
-          "Generation was interrupted or its outcome is uncertain. No automatic rerun.";
-        this.save(job);
-      } else if (job.state === "cancel_requested" || this.cancelled(job.id)) {
-        if (!foreign)
-          await this.worker.json("/comfy/cancel", {
-            method: "POST",
-            body: { job_id: job.id },
-            session: job.engine_session_id,
-          });
-      } else {
-        job.state = "running";
-        const progress = session.sampling_progress;
-        const sampler = job.request.workflow.endsWith("video") ? "11" : "7";
-        job.generation_percent =
-          progress?.prompt_id === job.id &&
-          progress.node === sampler &&
-          Number.isInteger(progress.percent) &&
-          progress.percent >= 0 &&
-          progress.percent <= 100
-            ? progress.percent
-            : undefined;
-        this.save(job);
-      }
-    }
-    const current = this.all();
-    const unresolved = current.some(
-      (j) =>
-        !terminal.includes(j.state) &&
-        j.state !== "queued" &&
-        !(j.state === "needs_attention" && j.uncertainty_acknowledged),
-    );
-    if (
-      cap.ready &&
-      !this.paused &&
-      !foreign &&
-      !orphan &&
-      !unresolved &&
-      nativeIds.length === 0
-    ) {
-      const next = current.find((j) => j.state === "queued" && !j.recovery_blocked && !this.cancelled(j.id));
-      if (next) {
-        if (next.metrics && !next.metrics.transfer_started_at) {
-          next.metrics.transfer_started_at = new Date().toISOString();
-          this.save(next);
-        }
-        const abort = new AbortController(); this.transfer = {id: next.id, abort};
-        try {
-          if (next.prepared?.length) this.attempt(next, 'upload-inputs');
-          for (const ref of next.prepared ?? []) {
-            await this.worker.upload(next.id, ref.file, ref.filename, abort.signal);
-            if (ref.audio_file && ref.audio_filename)
-              await this.worker.upload(
-                next.id,
-                ref.audio_file,
-                ref.audio_filename,
-                abort.signal,
-              );
-          }
-        } catch (error) {
-          next.error =
-            "Reference transfer interrupted. It will restart automatically before generation.";
-          if (actionableTransfer(error)) this.blockRecovery(next, error);
-          this.save(next);
-          return;
-        } finally { this.transfer = undefined; }
-        if (abort.signal.aborted || this.stopped) return;
-        next.workspace_id = cap.workspace_id;
-        next.engine_session_id = cap.engine_session_id;
-        await this.dispatch(next, cap.engine_session_id);
-        return;
-      }
-    }
-    const finalQueue = await this.worker.json("/comfy/queue");
-    const finalSession = await this.worker.json("/comfy/session");
-    if (
-      finalSession.engine_session_id !== cap.engine_session_id ||
-      finalSession.workspace_id !== cap.workspace_id ||
-      !Array.isArray(finalQueue.queue_running) ||
-      !Array.isArray(finalQueue.queue_pending)
-    )
-      throw new Error("Engine changed during reconciliation");
-    this.checkedAt = Date.now();
-    this.safe =
-      this.paused &&
-      !foreign &&
-      !orphan &&
-      !unresolved &&
-      !finalQueue.queue_running.length &&
-      !finalQueue.queue_pending.length;
-    this.reason = orphan
-      ? "The worker has work from another seed library. Recover it before stopping or generating."
-      : foreign
-        ? "The pod is running work outside seed."
-        : unresolved
-          ? "Work or unsaved outputs remain."
-          : !this.paused
-            ? "Pause the queue before stopping the pod."
-            : "No active work or unsaved outputs.";
-  }
-  private async dispatch(job: Job, session: string) {
-    if(this.cancelled(job.id))return;
-    this.attempt(job, 'submit');
-    job.state = 'submitting'; job.submission_pending = true;
-    if (job.metrics && !job.metrics.submitted_at) job.metrics.submitted_at = new Date().toISOString();
-    this.save(job);
-    try {
-      const response = await this.worker.request('/comfy/prompt', {
-        method: 'POST', session,
-        body: {prompt_id: job.id, prompt: job.graph, preset: job.preset, ...(job.video_profile ? {video_profile: job.video_profile} : {})},
       });
-      if (!response.ok) {
-        const rejection = await response.json().catch(() => null);
-        if ([409,422].includes(response.status) && rejection?.accepted === false) {
-          job.submission_pending = false; job.state = 'failed';
-          job.output_save_state = 'not_applicable'; job.error = rejection.error;
-          this.save(job); return;
-        }
-        throw new WorkerHttpError(response.status);
-      }
-      await response.body?.cancel();
-      job.submission_pending = false; job.state = 'running'; job.error = null;
-    } catch (error) {
-      job.state = 'needs_attention';
-      if (error instanceof WorkerHttpError && error.permanent) job.submission_pending = false;
-      job.error = 'Submission response unavailable. Reconciling the original job before any further work.';
+      if(!background)await task;
+      if(this.all().some(j=>j.recovery_blocked||j.state==='needs_attention'&&!j.uncertainty_acknowledged))break;
     }
-    this.save(job);
   }
-  private manifest(job: Job, record: any) {
-    if (
-      typeof record.manifest_bytes !== "string" ||
-      createHash("sha256").update(record.manifest_bytes).digest("hex") !==
-        record.manifest_digest
-    )
-      throw new Error("Output manifest integrity failed");
-    const manifest = JSON.parse(record.manifest_bytes);
-    if (
-      manifest.job_id !== job.id ||
-      manifest.workspace_id !== job.workspace_id ||
-      manifest.engine_session_id !== job.engine_session_id ||
-      !["completed", "failed", "cancelled"].includes(manifest.state) ||
-      !Array.isArray(manifest.outputs)
-    )
-      throw new Error("Output identity mismatch");
-    const frames = job.request.output.format === 'images';
-    if (frames && (new Set(manifest.outputs.map((o:Output)=>o.path)).size!==manifest.outputs.length ||
-      manifest.outputs.some((o:Output)=>typeof o.path!=='string'||!o.path.startsWith('seed/'+job.id+'/')||o.path.includes('..')||o.path.includes('\\')||!o.path.endsWith('.png'))))
-      throw new Error('Invalid frame paths');
-    if (
-      manifest.state === "completed" &&
-      (manifest.outputs.length !== (job.request.output.format === 'images' ? job.request.output.duration_seconds! * 24 : 1) ||
-        manifest.outputs.some(
-          (x: Output, index: number) =>
-            x.id !== String(index) ||
-            x.mime_type !==
-              ((job.request.workflow === "text-to-image" || job.request.output.format === "images")
-                ? "image/png"
-                : "video/mp4") ||
-            !Number.isSafeInteger(x.size) ||
-            x.size < 1 ||
-            x.size > (frames ? 64 * 1024 * 1024 : 8 * 1024 * 1024 * 1024) ||
-            !/^[a-f0-9]{64}$/.test(x.sha256),
-        ))
-    )
-      throw new Error("Invalid image manifest");
-    return manifest;
+  private track(id: string, action: () => Promise<void>) {
+    const task=action().catch(()=>{/* Durable state is reconciled on the next tick. */}).finally(()=>{this.inFlight.delete(id);});
+    this.inFlight.set(id,task);return task;
   }
-  private async retrieve(job: Job, outputs: Output[], digest: string) {
-    const abort = new AbortController(); this.transfer = {id: job.id, abort};
-    try {
-      if (job.output_save_state !== "saved") {
-        job.state = "copying";
-        job.output_save_state = "saving";
-        job.error = null;
-        this.save(job);
-        for (const output of outputs) {
-          const filename =
-            job.id +
-            "-" +
-            output.id +
-            (output.mime_type === "video/mp4" ? ".mp4" : ".png");
-          const destination = path.join(
-            this.paths.data,
-            "media/outputs",
-            filename,
-          );
-          const temporary = path.join(
-            this.paths.data,
-            "transfers",
-            filename + ".part",
-          );
-          if (
-            !existsSync(destination) ||
-            statSync(destination).size !== output.size ||
-            (await hashFile(destination)) !== output.sha256
-          ) {
-            let offset = existsSync(temporary) ? statSync(temporary).size : 0;
-            if (offset > output.size) {
-              unlinkSync(temporary);
-              offset = 0;
-            }
-            if (offset < output.size) {
-              this.attempt(job, 'download-output-' + output.id, offset);
-              const response = await this.worker.request(
-                `/worker/v1/jobs/${job.id}/outputs/${output.id}`,
-                { range: offset, signal: abort.signal },
-              );
-              if (!response.ok) { await response.body?.cancel(); throw new WorkerHttpError(response.status); }
-              if (!response.body) throw new TransferIntegrityError('Empty output response.');
-              if (offset && response.status === 200) offset = 0;
-              else if (
-                offset &&
-                (response.status !== 206 ||
-                  response.headers.get("content-range") !==
-                    `bytes ${offset}-${output.size - 1}/${output.size}`)
-              ) {
-                await response.body.cancel();
-                throw new TransferIntegrityError("Invalid resumed transfer.");
-              }
-              const handle = await open(temporary, offset ? "a" : "w");
-              try {
-                for await (const chunk of response.body as any) {
-                  offset += chunk.length;
-                  if (offset > output.size)
-                    throw new TransferIntegrityError("Unexpected output size.");
-                  await handle.writeFile(chunk);
-                }
-                await handle.sync();
-              } finally {
-                await handle.close();
-              }
-            }
-            if (statSync(temporary).size !== output.size)
-              throw new Error("Image transfer is incomplete.");
-            if ((await hashFile(temporary)) !== output.sha256) {
-              unlinkSync(temporary);
-              job.integrity_failures = (job.integrity_failures ?? 0) + 1;
-              if (job.integrity_failures >= 2) throw new TransferIntegrityError('Output integrity verification failed twice.');
-              throw new Error(
-                "Image integrity check failed; retrying transfer.",
-              );
-            }
-            renameSync(temporary, destination);
-          }
+  private async advance(job: Job) {
+      if (!job.fal?.receipt) throw Error('Missing fal request ID.');
+      try {
+        if (job.state === 'cancel_requested' && !job.fal!.cancel_sent_at) {
+          const reply = await this.fal.cancel(job.fal!.receipt);
+          if (reply.status === 'CANCELLED') { job.state = 'cancelled'; this.save(job); return; }
+          job.fal!.cancel_sent_at = new Date().toISOString(); this.save(job);
+          // A running request may finish and incur its normal charge despite cancellation.
         }
-        this.db.transaction(() => {
-          for (const output of outputs) {
-            const id = job.id + "-" + output.id;
-            this.db
-              .prepare(
-                "INSERT OR IGNORE INTO assets(id,kind,name,relative_path,metadata_json,created_at) VALUES (?,?,?,?,?,?)",
-              )
-              .run(
-                id,
-                output.mime_type === "video/mp4" ? "video" : "image",
-                (output.mime_type === "video/mp4" ? "Video \u00b7 " : "Image \u00b7 ") +
-                  job.request.mode.toUpperCase(),
-                "media/outputs/" +
-                  id +
-                  (output.mime_type === "video/mp4" ? ".mp4" : ".png"),
-                JSON.stringify({
-                  job_id: job.id,
-                  ...(job.request.output.format === "images" ? {frame_index:Number(output.id), width:job.request.output.aspect === "16:9" ? 1344 : 768, height:job.request.output.aspect === "16:9" ? 768 : 1344} : {}),
-                  mode: job.request.mode,
-                  mime_type: output.mime_type,
-                  sha256: output.sha256,
-                  size: output.size,
-                }),
-                new Date().toISOString(),
-              );
-          }
-          if (job.request.output.format === 'images') {
-            this.db.prepare('INSERT OR IGNORE INTO sequences(id,mode,created_at) VALUES (?,?,?)').run(job.id,job.request.mode,job.created_at);
-            for(const output of outputs) this.db.prepare('INSERT OR IGNORE INTO sequence_frames VALUES (?,?,?)').run(job.id,job.id+'-'+output.id,Number(output.id));
-          }
-          if(job.request.note){for(const id of job.request.output.format==='images'?[job.id]:outputs.map(o=>job.id+'-'+o.id))this.db.prepare('INSERT OR IGNORE INTO asset_notes(id,note,revision) VALUES (?,?,1)').run(id,job.request.note);}
-          if (job.metrics && !job.metrics.saved_at) {
-            job.metrics.saved_at = new Date().toISOString();
-            job.metrics.elapsed_to_saved_seconds =
-              (Date.parse(job.metrics.saved_at) - Date.parse(job.created_at)) /
-              1000;
-          }
-          job.outputs = outputs.map((o) => job.id + "-" + o.id);
-          job.state = "completed";
-          job.output_save_state = "saved";
-          job.cleanup_state = "pending";
-          job.error = null;
-          this.save(job);
-        })();
+        if (job.fal!.result) { await this.retrieve(job); return; }
+        const status = await this.fal.status(job.fal!.receipt);
+        delete job.provider_issue;
+        job.error=null;
+        if (status.status === 'CANCELLED') { job.state = 'cancelled'; this.save(job); }
+        else if (status.status === 'COMPLETED') {
+          job.fal!.completed_at ??= new Date().toISOString();
+          if(status.error||status.error_type){job.state='failed';job.provider_issue=falIssue(500,status);job.error=job.provider_issue.message+' '+job.provider_issue.action;this.save(job);return;}
+          const result = await this.fal.result(job.fal!.receipt);
+          if (result.error || result.detail || (!result.video && !Array.isArray(result.images))) { job.state = 'failed';job.provider_issue=falIssue(422,result);job.error=job.provider_issue.message+' '+job.provider_issue.action;this.save(job); return; }
+          job.fal!.result = result; job.state = 'copying'; this.save(job); await this.retrieve(job);
+        } else if (status.status === 'IN_PROGRESS') {
+          job.fal!.running_at ??= new Date().toISOString(); if (job.state !== 'cancel_requested') job.state = 'running'; this.save(job);
+        } else if (status.status === 'IN_QUEUE') this.save(job);
+        else throw Error('Unrecognized fal status.');
+      } catch (error) {
+        if (error instanceof FalError && (error.status === 422||job.fal!.completed_at&&error.status>=500)) { job.state = 'failed'; job.provider_issue=error.issue;job.error = error.message; this.save(job); }
+        else if (job.fal!.result) this.blockRecovery(job, Error('The generated output could not be saved locally.'));
+        else if (error instanceof FalError && error.status === 404) { job.state='needs_attention'; job.error='fal cannot find this request. Check its saved request ID in fal history before retrying.'; this.save(job); this.holdWaiting(); }
+        else {job.provider_issue=error instanceof FalError?error.issue:undefined;job.error=(error instanceof FalError?error.message+' ':'')+'Cannot check fal yet. This request will be checked again without resubmitting.';this.holdForIssue(job.provider_issue);this.save(job); }
       }
-      await this.acknowledgeOutputs(job, digest);
-    } catch (error) {
-      if (job.output_save_state !== "saved") {
-        job.state = "copy_pending";
-        job.error =
-          "Image transfer interrupted. The worker copy is retained; transfer will retry when connected.";
-        if (actionableTransfer(error)) this.blockRecovery(job, error);
-        this.save(job);
-      }
-      // A lost acknowledgment never rolls back a durable local save.
-    } finally { this.transfer = undefined; }
   }
-  private async acknowledgeOutputs(job: Job, digest: string) {
+  private async dispatch(job: Job) {
+    const started = Date.now();
+    job.state='uploading';this.save(job);
+    const urls = [];
+    for (const ref of job.prepared ?? []) {
+      const url = await this.referenceUrl(ref.file);
+      const audio_url = ref.audio_file ? await this.referenceUrl(ref.audio_file) : undefined;
+      urls.push({kind: ref.kind, role: ref.role, url, audio_url});
+    }
+    this.loras.resolve(job.fal.loras, loraRoute(job.request), job.request.mode);
+    const loras = [];
+    for (const selected of job.fal!.loras) loras.push({...selected, path:await this.loras.url(selected.id,selected.revision,this.fal)});
+    if (this.cancelled(job.id) || this.stopped) { if (this.cancelled(job.id)) { job.state='cancelled'; this.save(job); } return; }
+    const mapped = falRequest(job.request,job.seed,urls,loras);
+    job.fal!.endpoint=mapped.endpoint; job.fal!.input=mapped.input; job.fal!.upload_seconds=(Date.now()-started)/1000;
+    job.state='submitting'; job.submission_pending=true; job.metrics!.submitted_at=new Date().toISOString(); this.save(job);
     try {
-      this.attempt(job, 'receipt');
-      const receipt = await this.worker.json(
-        "/worker/v1/jobs/" + job.id + "/receipt",
-        { method: "POST", body: { manifest_digest: digest } },
-      );
-      job.cleanup_state = receipt.cleanup_complete ? "complete" : "pending";
+      const receipt = await this.fal.submit(mapped.endpoint,mapped.input);
+      job.fal!.receipt=receipt; job.fal!.queued_at=new Date().toISOString(); job.submission_pending=false; job.state='running'; this.save(job);
+    } catch (error) {
+      const rejected=error instanceof FalError && [400,401,402,403,404,405,413,422,429].includes(error.status);
+      job.state=rejected?'failed':'needs_attention';
+      job.provider_issue=error instanceof FalError?error.issue:undefined;
+      job.error=rejected?error.message:'fal may have accepted this request. Check your fal request history before generating again; Seed will not retry this submission.';
+      if(rejected)job.submission_pending=false;
+      if(!rejected)this.holdWaiting();else this.holdForIssue(job.provider_issue);
       this.save(job);
-    } catch (error) {
-      if (actionableTransfer(error)) this.blockRecovery(job, error);
-      /* Terminal outcome remains durable; retry cleanup independently. */
     }
+  }
+  private async referenceUrl(file: string) {
+    let uploaded=this.uploaded.get(file);
+    if(!uploaded || uploaded.expires<Date.now()) {
+      let pending=this.inputUploads.get(file);
+      if(!pending){pending=this.fal.upload(file).finally(()=>this.inputUploads.delete(file));this.inputUploads.set(file,pending);}
+      uploaded={url:await pending,expires:Date.now()+6*86400000};this.uploaded.set(file,uploaded);
+    }
+    return this.fal.sign(uploaded.url);
+  }
+  private async retrieve(job: Job) {
+    job.state='copying'; this.save(job);
+    const image=job.request.workflow==='text-to-image', result=job.fal!.result;
+    const output=image?result.images?.[0]:result.video;
+    if(!output?.url || typeof output.url!=='string')throw Error('Missing output URL.');
+    const filename=job.id+'-0'+(image?'.png':'.mp4'), file=path.join(this.paths.data,'media/outputs',filename);
+    await this.fal.download(output.url,file);
+    let info: Record<string,unknown>;
+    if(image){const m=await sharp(file).metadata();if(!m.width||!m.height||m.format!=='png')throw Error('Invalid image output.');await sharp(file).stats();info={width:m.width,height:m.height};}
+    else {const m=await probe(file);if(!m.has_video||!m.duration)throw Error('Invalid video output.');info=m;
+      if(job.request.audio?.output==='silent'){const silent=file+'.silent.mp4';await transcode(['-i',file,'-map','0:v:0','-an','-c:v','copy',silent]);renameSync(silent,file);info={...info,has_audio:false};}
+    }
+    const outputs=[{id:job.id+'-0',file,metadata:info}];
+    for(const output of outputs)Object.assign(output.metadata,{job_id:job.id,mode:job.request.mode,mime_type:image?'image/png':'video/mp4',size:statSync(output.file).size,sha256:await digest(output.file)});
+    this.db.transaction(()=>{
+      outputs.forEach((output,i)=>{
+        this.db.prepare('INSERT OR IGNORE INTO assets VALUES (?,?,?,?,?,?)').run(output.id,image?'image':'video',image?'Generated image':'Generated video',path.relative(this.paths.data,output.file).split(path.sep).join('/'),JSON.stringify(output.metadata),job.created_at);
+          if(job.request.note)this.db.prepare('INSERT OR IGNORE INTO asset_notes VALUES (?,?,0)').run(output.id,job.request.note);
+      });
+      job.outputs=outputs.map(o=>o.id);job.state='completed';job.error=null;job.recovery_blocked=false;delete job.provider_issue;
+      job.metrics!.saved_at=new Date().toISOString();job.metrics!.elapsed_to_saved_seconds=(Date.now()-Date.parse(job.created_at))/1000;this.save(job);
+    })();
+    // Compatibility evidence is useful but must not invalidate an already saved output.
+    try { this.loras.markVerified(job.fal!.loras, job.fal!.receipt!.request_id, job.fal!.endpoint!); } catch { /* The next successful request can record it. */ }
   }
 }

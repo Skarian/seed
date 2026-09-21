@@ -1,18 +1,18 @@
 import {expect,it} from 'vitest';
 import {prepareToolRequest,type RequestToolContext} from '../server/chat/request-tools.js';
 
-const context:RequestToolContext={workflow:'reference-to-video',mode:'sfw',referenceMode:'stable',capabilitiesRevision:'test',assets:[
+const context:RequestToolContext={workflow:'reference-to-video',mode:'sfw',referenceMode:'stable',assets:[
  {handle:'input1',asset_id:'photo-a',kind:'image'},
  {handle:'input2',asset_id:'photo-b',kind:'image'},
  {handle:'input3',asset_id:'video-a',kind:'video',duration_seconds:8}
 ]};
 
 it('does not silently retain an opening-guide instruction after that input becomes an ending guide',()=>{
- const previous=prepareToolRequest(context,{prompt:'Match [[input1]], then follow [[input3]].',inputs:[{asset:'input1',role:'first_frame'},{asset:'input3',start_seconds:0,duration_seconds:2}]});
- expect(previous.prompt).toContain('opening-frame guide');
+ const previous=prepareToolRequest(context,{prompt:'Match [[input1]].',inputs:[{asset:'input1',role:'first_frame'}]});
+ expect(previous.prompt).toContain('<Picture 1>');
  // Either remap through preserved instance metadata, or require a replacement prompt.
  let result;
- try{result=prepareToolRequest({...context,previous},{inputs:[{id:'input1',role:'last_frame'},{id:'input3'}]});}
+ try{result=prepareToolRequest({...context,previous},{inputs:[{id:'input1',role:'last_frame'}]});}
  catch(error){expect(String(error)).toMatch(/prompt|guide|input/i);return;}
  expect(result.prompt).not.toContain('opening-frame guide');
 });
@@ -34,12 +34,11 @@ it('preserves two instances of one source when only one audio channel changes',(
 });
 
 for(const from of ['reference','first_frame','last_frame'] as const)for(const to of ['reference','first_frame','last_frame'] as const)if(from!==to){
- it(`preserves image identity across ${from} to ${to} with a video reference`,()=>{
-  const previous=prepareToolRequest(context,{prompt:'Match [[input1]] and motion from [[input3]].',inputs:[{asset:'input1',role:from},{asset:'input3',start_seconds:2,duration_seconds:3,include_audio:true}]});
-  const result=prepareToolRequest({...context,previous},{inputs:[{id:'input1',role:to},{id:'input3'}]});
+ it(`preserves image identity across ${from} to ${to}`,()=>{
+  const previous=prepareToolRequest(context,{prompt:'Match [[input1]].',inputs:[{asset:'input1',role:from}]});
+  const result=prepareToolRequest({...context,previous},{inputs:[{id:'input1',role:to}]});
   expect(result.references![0]).toMatchObject({id:'input1',asset_id:'photo-a',role:to});
-  expect(result.references![1]).toEqual(previous.references![1]);
-  expect(result.prompt).toBe(`Match ${to==='reference'?'<Picture 1>':to==='first_frame'?'the opening-frame guide':'the ending-frame guide'} and motion from <Video 1>.`);
+  expect(result.prompt).toBe(`Match ${to==='last_frame'?'the ending-frame guide':'<Picture 1>'}.`);
  });
 }
 

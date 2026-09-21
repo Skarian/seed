@@ -5,19 +5,9 @@ import { openDatabase, listAssets } from '../server/db.js';
 import { Sequences } from '../server/sequences.js';
 import { prepareStorage, resolvePaths } from '../server/storage.js';
 import type { Jobs } from '../server/jobs.js';
-import { videoGraph, videoRequest } from '../server/video.js';
+import { videoRequest } from '../server/video.js';
 
-const request={workflow:'text-to-video',capabilities_revision:'test',prompt:'A forest',mode:'sfw',seed:'5',count:1,output:{aspect:'16:9',size:'720p',duration_seconds:5}};
-it.each(Array.from({length:11},(_,i)=>i+5))('exports exact %i seconds in both formats without changing conditioning',seconds=>{
-  const v=videoRequest({...request,output:{...request.output,duration_seconds:seconds}});
-  const images=videoGraph({...v,output:{...v.output,format:'images'}},'job','5',null);
-  const video=videoGraph(v,'job','5',null);
-  expect(images['15']!.inputs.length).toBe(seconds*24);
-  expect(images['6']).toEqual(video['6']);expect(images['11']).toEqual(video['11']);
-  expect(images['6']!.inputs.length).toBe(17*Math.ceil((seconds*24-5)/17)+5);
-  expect(images['13']).toBeUndefined();expect(images['14']!.class_type).toBe('SaveImage');
-  expect(video['14']!.inputs.seconds).toBe(seconds);
-});
+const request={workflow:'text-to-video',prompt:'A forest',mode:'sfw',seed:'5',count:1,output:{aspect:'16:9',size:'768p',duration_seconds:5}};
 it.each([4,16,5.5,'5',null])('rejects invalid duration %s',duration=>{
   expect(()=>videoRequest({...request,output:{...request.output,duration_seconds:duration}})).toThrow();
 });
@@ -36,8 +26,10 @@ function fixture(run:(f:any)=>void) {
   try {run({db,paths,service,setJobs:(value:any[])=>jobs=value});}
   finally{db.close();rmSync(root,{recursive:true,force:true});}
 }
-it('groups all frames, preserves originals and order through pruning, retry and restart',()=>fixture(({db,paths,service}:any)=>{
-  expect(listAssets(db)).toEqual([{id:'seq',kind:'sequence',name:'Image sequence',mode:'nsfw',created_at:'2026-09-12T00:00:00Z',cover_id:'f0',frame_count:4}]);
+it('lists legacy frames as images and preserves originals through pruning, retry and restart',()=>fixture(({db,paths,service}:any)=>{
+  expect(listAssets(db).map(asset=>[asset.id,asset.kind,asset.mode])).toEqual(['f3','f2','f1','f0'].map(id=>[id,'image','nsfw']));
+  expect(listAssets(db,'',50,'sfw','image')).toEqual([]);
+  expect(listAssets(db,'',50,'nsfw','image')).toHaveLength(4);
   const result=service().prune('seq',['f3','f1'],0);
   expect(result.frames.map((f:any)=>f.id)).toEqual(['f1','f3']);expect(result.frames[0].time).toBe(1/24);
   expect(existsSync(path.join(paths.data,'media/outputs/f0.png'))).toBe(false);
@@ -45,7 +37,7 @@ it('groups all frames, preserves originals and order through pruning, retry and 
   expect(service().prune('seq',['f1','f3'],0).revision).toBe(1);
   expect(()=>service().prune('seq',['f1'],0)).toThrow('changed');
   expect(service().prune('seq',['f3'],1).frames).toHaveLength(1);
-  expect(listAssets(db)[0]!.frame_count).toBe(1);
+  expect(listAssets(db).map(asset=>asset.id)).toEqual(['f3']);
 }));
 it('preflights queued references before any file removal and rejects foreign/empty sets',()=>fixture(({service,setJobs,paths}:any)=>{
   setJobs([{state:'queued',request:{references:[{asset_id:'f2'}]},outputs:[]}]);
@@ -55,7 +47,7 @@ it('preflights queued references before any file removal and rejects foreign/emp
   expect(()=>service().prune('seq',['alien'],0)).toThrow();
 }));
 it('recovers persisted partial deletion intent and updates job output ownership',()=>fixture(({db,service,setJobs,paths}:any)=>{
-  const job={outputs:['f0','f1','f2','f3'],state:'completed',cleanup_state:'complete'};setJobs([job]);
+  const job={outputs:['f0','f1','f2','f3'],state:'completed'};setJobs([job]);
   db.prepare('UPDATE sequences SET pending_json=? WHERE id=?').run(JSON.stringify({keep:['f3'],remove:['f0','f1','f2'],deleting:false}),'seq');
   rmSync(path.join(paths.data,'media/outputs/f0.png'));
   service().recover();expect(service().get('seq').frames.map((f:any)=>f.id)).toEqual(['f3']);expect(job.outputs).toEqual(['f3']);

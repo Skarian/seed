@@ -9,8 +9,8 @@ import { createServer } from 'node:net';
 const archive=path.resolve(process.argv[2] ?? '');
 if(!archive.endsWith('.tgz'))throw Error('Usage: node scripts/test-package.mjs PACKAGE.tgz');
 const root=await mkdtemp(path.join(os.tmpdir(),'seed-package-'));
-const env={...process.env,STUDIO_DEV_ROOT:path.join(root,'data'),APPDATA:path.join(root,'profile'),VAST_API_KEY:'fixture-test-key',HF_TOKEN:'fixture-test-key'};
-for(const key of ['RUNPOD_API_KEY','CIVITAI_API_TOKEN','OPENROUTER_API_KEY','NODE_OPTIONS','SEED_MANAGED'])delete env[key];
+const env={...process.env,STUDIO_DEV_ROOT:path.join(root,'data'),APPDATA:path.join(root,'profile'),FAL_KEY:'fixture-test-key'};
+for(const key of Object.keys(env))if(key!=='FAL_KEY'&&(/_(KEY|TOKEN|SECRET|PASSWORD)$/i.test(key)||['NODE_OPTIONS','SEED_MANAGED'].includes(key)))delete env[key];
 const npm=process.env.npm_execpath;
 if(!npm)throw Error('Run via npm run test:package -- PACKAGE.tgz.');
 const run=(args)=>new Promise((resolve,reject)=>{
@@ -22,12 +22,12 @@ const cli=path.join(root,'node_modules/@skarian/seed/dist/server/cli.js');
 const probe=createServer();await new Promise(r=>probe.listen(0,'127.0.0.1',r));const port=probe.address().port;await new Promise(r=>probe.close(r));
 await run([npm,'install','--prefix',root,archive,'--no-audit','--no-fund']);
 try {
- await run([cli,'setup','--provider','vast','--no-cache-models','--port',String(port)]);
+ await run([cli,'setup','--port',String(port)]);
  const guide=path.join(env.STUDIO_DEV_ROOT,'config','prompting','chat','standard.md');
  assert.match(await readFile(guide,'utf8'),/creative assistant/);
  await writeFile(guide,'Owner customized instructions');
  const marker=path.join(env.STUDIO_DEV_ROOT,'data','media','originals','preserved.txt');await writeFile(marker,'preserve me');
- assert.match(await run([cli,'gpu','vast','doctor']),/"built": true/);
+ assert.equal(JSON.parse(await run([cli,'version'])).generation_provider,'fal');
  await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);await run([cli,'stop']);
  const credentials=await readFile(path.join(env.STUDIO_DEV_ROOT,'config','credentials.json'),'utf8');
  await run([npm,'install','--prefix',root,archive,'--no-audit','--no-fund']);
@@ -60,5 +60,5 @@ try {
  assert.equal(await readFile(marker,'utf8'),'preserve me');
  assert.equal(await readFile(path.join(env.STUDIO_DEV_ROOT,'config','credentials.json'),'utf8'),credentials);
  await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);
- console.log(JSON.stringify({passed:true,platform:process.platform,node:process.version,root,checks:['install','setup','provider-module-resolution','start-stop','idle-reinstall','synthetic-version-upgrade','failed-start-rollback','credential-and-media-preservation','restart']}));
+ console.log(JSON.stringify({passed:true,platform:process.platform,node:process.version,root,checks:['install','setup','fal-configuration','start-stop','idle-reinstall','synthetic-version-upgrade','failed-start-rollback','credential-and-media-preservation','restart']}));
 } finally {await run([cli,'stop']);}

@@ -1,4 +1,3 @@
-
 # Credentials and private backups
 *.private.*
 .env
@@ -7,17 +6,24 @@
 *.key
 id_rsa*
 id_ed25519*
+studio.local.json
+backups/
 
-# Local dependencies and Python caches
-deployment/vendor/
+# Dependencies and build/test output
+node_modules/
+dist/
+.local/
+test-results/
+playwright-report/
+coverage/
+/debug.log
 **/__pycache__/
 *.py[cod]
 .venv/
 venv/
+.pytest_cache/
 
-# Generated media, model weights and archives remain local/on the volume
-deployment/samples/
-deployment/reference.png
+# Media, model weights, and packages remain local
 *.png
 *.jpg
 *.jpeg
@@ -35,43 +41,18 @@ deployment/reference.png
 *.zip
 *.tar
 *.tar.gz
+*.tgz
 
-# Large, reproducible API inventories and downloaded application trees
-deployment/object_info.json
-deployment/*-object-info.json
-research/krea2/rebalance/live-object-info.json
-research/app-mode/tree.json
-research/hearmeman_h3/runtime/
-research/hearmeman_h3/template/
+# Archived research caches
+/research/archive/llm/snapshots/
+/research/archive/hearmeman_h3/runtime/
+/research/archive/hearmeman_h3/template/
+/research/archive/app-mode/tree.json
+/research/archive/krea2/rebalance/live-object-info.json
+/research/archive/deployment/vendor/
+/research/archive/deployment/*-object-info.json
 
-# Local editor/OS files
+# Editor/OS files
 .DS_Store
 Thumbs.db
 desktop.ini
-
-# Local studio acquisition configuration and private backups
-studio.local.json
-backups/
-
-# Downloaded LLM reference snapshots; curated research notes remain versioned
-/research/llm/snapshots/
-
-# Local studio development and build output
-node_modules/
-dist/
-.local/
-test-results/
-playwright-report/
-coverage/
-
-# Disposable provider/job captures belong in .local, not source control
-/deployment/*-history.json
-/deployment/*-submitted.json
-/deployment/*-state.json
-/deployment/*-validation.json
-/deployment/*-tests.json
-/deployment/queue.json
-/deployment/post-recreate-queue.json
-
-# Python test cache is disposable
-.pytest_cache/

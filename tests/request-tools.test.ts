@@ -3,7 +3,7 @@ import {validateToolCall} from '@earendil-works/pi-ai';
 import {prepareToolRequest,compileStablePrompt,toolInputLabels,requestToolResultError,requestToolSchemas,requestToolRules,ToolRequestError,type RequestToolContext} from '../server/chat/request-tools.js';
 import {imageRequest} from '../server/workflows.js';
 import {VideoRequestError} from '../server/video.js';
-const context:RequestToolContext={workflow:'reference-to-video',mode:'sfw',capabilitiesRevision:'test',assets:[
+const context:RequestToolContext={workflow:'reference-to-video',mode:'sfw',assets:[
   {handle:'image1',asset_id:'image-a',kind:'image'},
   {handle:'image2',asset_id:'image-b',kind:'image'},
   {handle:'video1',asset_id:'video-a',kind:'video',duration_seconds:10},
@@ -13,8 +13,8 @@ const base={prompt:'<Picture 1> speaks in <Video 1>.',inputs:[{asset:'image1'},{
 const previous=()=>prepareToolRequest(context,base);
 describe('simple request adapter',()=>{
   it('supports every canonical configurable setting and generates ids from supplied handles',()=>{
-    const result=prepareToolRequest(context,{...base,prompt:'<Picture 1> speaks.',batch_size:3,seed:'42',aspect_ratio:'9:16',size:'native',duration_seconds:15,quality:'high',output_format:'images',audio_output:'silent',note:'Save this note'});
-    expect(result).toMatchObject({count:3,seed:'42',quality:'high',note:'Save this note',output:{aspect:'9:16',size:'native',duration_seconds:15,format:'images'},audio:{output:'silent'},references:[{id:'image1',asset_id:'image-a',kind:'image',role:'reference'},{id:'video1',kind:'video',range:{start_seconds:0,duration_seconds:3}}]});
+    const result=prepareToolRequest(context,{...base,prompt:'<Picture 1> speaks.',batch_size:3,seed:'42',aspect_ratio:'9:16',size:'768p',duration_seconds:15,audio_output:'silent',note:'Save this note'});
+    expect(result).toMatchObject({count:3,seed:'42',note:'Save this note',output:{aspect:'9:16',size:'768p',duration_seconds:15,format:'video'},audio:{output:'silent'},references:[{id:'image1',asset_id:'image-a',kind:'image',role:'reference'},{id:'video1',kind:'video',range:{start_seconds:0,duration_seconds:3}}]});
   });
   it('edits one duration without losing aspect,size,inputs,note,or source settings',()=>{
     const original={...previous(),note:'keep'};const copy=structuredClone(original);
@@ -35,7 +35,7 @@ describe('simple request adapter',()=>{
     expect(result.references).toHaveLength(1);expect(result.prompt).toBe('<Picture 1> walks.');
   });
   it('reports independent role,clip,and quality problems together without irrelevant revise advice',()=>{
-    try{prepareToolRequest(context,{prompt:'Scene.',quality:'high',size:'720p',inputs:[{asset:'video1',role:'first_frame',duration_seconds:1}]});throw Error('expected rejection');}
+    try{prepareToolRequest(context,{prompt:'Scene.',size:'720p',inputs:[{asset:'video1',role:'first_frame',duration_seconds:1}]});throw Error('expected rejection');}
     catch(error){const result=requestToolResultError(error,'create');expect(result.saved).toBe(false);expect(result.errors.map(e=>e.field)).toEqual(expect.arrayContaining(['inputs[0].role','inputs[0].start_seconds','inputs[0].duration_seconds','size']));expect(result.next_action).toContain('No request was created');expect(JSON.stringify(result)).not.toContain('operation revise');}
   });
   it('rejects unknown inputs, invented ids, numeric strings and clips exceeding source',()=>{
@@ -112,7 +112,7 @@ describe('stable prompt experiment',()=>{
   });
 });
 it('canonical video errors remain useful without the agent adapter',()=>{
-  try{imageRequest({workflow:'reference-to-video',capabilities_revision:'test',mode:'sfw',prompt:'Scene.',quality:'high',output:{aspect:'16:9',size:'720p',duration_seconds:5},references:[{id:'v',asset_id:'v',kind:'video',role:'first_frame'}]});throw Error('expected rejection');}
+  try{imageRequest({workflow:'reference-to-video',mode:'sfw',prompt:'Scene.',output:{aspect:'16:9',size:'720p',duration_seconds:5},references:[{id:'v',asset_id:'v',kind:'video',role:'first_frame'}]});throw Error('expected rejection');}
   catch(error){expect(error).toBeInstanceOf(VideoRequestError);expect((error as VideoRequestError).issues.map(i=>i.field)).toEqual(expect.arrayContaining(['output.size','references[0].role','references[0].range']));}
 });
 
@@ -161,9 +161,8 @@ describe('provider-readable enums and input instance contract',()=>{
 
 it('keeps guide-token compilation deterministic through a simultaneous role and prompt edit',()=>{
   const original=previous();
-  const revised=prepareToolRequest({...context,previous:original,referenceMode:'stable'},{inputs:[{id:'image1',role:'first_frame'},{id:'video1'}],prompt:'Start at [[image1]] and follow [[video1]].'});
-  expect(revised.prompt).toBe('Start at the opening-frame guide and follow <Video 1>.');
-  expect(revised.prompt).not.toContain('<Picture');
+  const revised=prepareToolRequest({...context,previous:original,referenceMode:'stable'},{inputs:[{id:'image1',role:'first_frame'}],prompt:'Start at [[image1]].'});
+  expect(revised.prompt).toBe('Start at <Picture 1>.');
   expect(requestToolRules('stable')).toContain('Keep image framing fit unless the user asks to crop.');
   expect(requestToolRules('stable')).toContain('include_audio true even when final audio_output is silent');
 });

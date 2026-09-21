@@ -1,57 +1,81 @@
-# Seed architecture
+# Architecture
 
-A local React/Node art studio talks to an authenticated ComfyUI worker. The agent
-skill acquires compute separately. Permanent media and history belong to the PC;
-worker disk is temporary job storage and a reusable model cache where available.
+The application is local Fastify + React + SQLite. It calls fal's model APIs:
 
-| Code | Responsibility |
-|---|---|
-| `web/` | React/Vite Generate and Library, shared media previews, references and progress |
-| `server/http.ts` | Fastify routes, origin checks, tus uploads and streamed media |
-| `server/db.ts` | SQLite migrations and durable asset/job/dispatcher records |
-| `server/jobs.ts` | Serialized submission, reconciliation, cancellation and output receipt |
-| `server/worker.ts` | Authenticated worker connection, pairing and status |
-| `server/workflows.ts` | Trusted image/video graphs, reference roles and validation |
-| `server/media.ts`, `server/video.ts` | Sharp/FFmpeg/ffprobe media normalization and saved derivatives |
-| `server/storage.ts` | Standard per-user directories, separate media/config/cache/log locations |
-| `server/cli.ts`, `settings.ts`, `credentials.ts`, `lifecycle.ts` | Local setup/start/status/stop |
-| `operations/runpod-secrets.mjs` | Local pairing/Jupyter secrets for recorded disposable rentals |
-| `operations/` | Packaged provider-specific CLI operations, shared SSH/model transfer |
-| `worker/` | Pinned model preparation, authenticated control, transfer spool and Jupyter |
-| `worker/comfy_seed/` | Comfy execution/session integration and native telemetry aggregation |
-| `skills/seed/` | Agent instructions; no executable code |
-| `tests/`, `worker/test_*.py` | Local regression tests; paid lifecycle checks are separate |
+Browser → local API / approved chat requests → durable local jobs → fal queue
+→ private fal outputs → local verified media → Library.
 
-Package versions and runtime are pinned in package.json/lockfile and the worker
-image. There is no Zod, separate WebSocket library, ORM, generic graph compiler or
-provider orchestration daemon. Earlier module proposals are superseded by this map.
-Identity editing remains unfinished; see README for current workflow coverage.
+`server/fal.ts` owns credentials, bounded network requests, private multipart
+uploads, signed URLs, queue operations, and output downloads. Paid submission is
+one POST with no automatic retry. `server/fal-request.ts` maps application requests
+to the Krea/H3 contracts. It does not claim a provider precision or sampler.
 
-## State and transport
+`server/jobs.ts` persists one job per output and schedules at most two active fal
+requests. Request IDs, endpoint, actual input, pinned adapters, queue/processing
+observation times, upload duration, and local completion times are retained.
+Polling observations are approximate stage boundaries, not provider billing data.
 
-Keep the existing RunpodStudio internal directory name to preserve user data.
-SQLite, originals, prepared assets and outputs live in the data directory;
-credentials and worker connection live in config. Cache/temp can be recreated;
-permanent media and unfinished transfers cannot. Setup/update preserves user data.
+Known requests are recovered after restart. Unknown submission outcomes require
+review. Output-transfer failures retain the result receipt and offer a per-output retry of saving.
+Cancellation intent is durable; remote cancellation can race with completion.
+The app still saves a result if fal completes it. A missing/cancelled remote
+request whose outcome cannot be established requires manual acknowledgement.
 
-One local dispatcher submits jobs. Worker process/session identity prevents an
-engine restart from being mistaken for a continuation. Durable output receipt
-precedes deletion of the worker copy. Queue pause and fresh worker observations
-establish termination safety; disconnected never proves billing is off.
+Local media preparation preserves selected clip ranges, prepares frame guides,
+and separates selected video soundtracks into explicit audio slots. Those slots
+precede standalone audio to match the application's prompt bindings. Provider
+prompts translate Picture/Video/Audio labels into fal's Image/Video/Audio labels.
 
-RunPod uses authenticated HTTPS and disposable disk with global placement.
-Vast uses an SSH tunnel to the fixed loopback endpoint on port 18080. Both
-providers use the normal app launcher; ending a Vast session stops the tunnel,
-leaving the app and its saved connection intact. The image supports both transports directly. Both use the same local Library and job API; provider lifecycle stays
-outside the browser UI. See the skill references for compatibility limits.
+`server/loras.ts` stores content-addressed local masters and a private fal upload
+receipt. Selectors pin ID, hash revision, strength, and image/FL/Ref variant.
+Catalog mode availability filters selectors and is checked at submission and
+dispatch. `server/frames.ts` extracts individual PNGs from saved videos locally;
+the shared media preview exposes this as Pick Frame.
+Known H3 Kohya names are converted without changing matrix bytes; both source
+and converted hashes are retained. The application has no automatic acceleration
+adapter. Imports remain untested
+until actual endpoint compatibility is established.
 
-## Local application
+The database contains current fal jobs, local media, chat approvals, frame
+sequences, and notes. Schema 7 removes global dispatcher state and safely migrates held requests from schema 6. It removes
+historical GPU identity and lifecycle columns; older schemas require a separate
+fresh data directory. Configuration and LoRA masters live outside SQLite.
 
-A Node CLI starts/reuses one background server; authenticated loopback control
-handles status/stop without trusting a saved PID alone. The agent starts the app on demand. No desktop wrapper, bundled Node runtime or local Docker requirement.
-Public hosting, router settings and external authentication remain owner-managed.
-The app defaults to loopback; a configured private LAN address enables phone use.
+The browser has three workflows: Text to image, Text to video, and Ref to video.
+Video resolution is fixed at 768P. Generation readiness depends only on a fal
+key; there is no infrastructure status panel or capability handshake.
+Chat code loads on demand. Hashed frontend assets use long-lived caching and
+precompressed gzip/Brotli files; HTML revalidates on navigation.
 
-Current commands/tests are in [DEVELOPMENT](DEVELOPMENT.md), API details in
-[API-CONTRACT](API-CONTRACT.md), and decisions/evidence in
-[validation](VALIDATION.md). Avoid duplicating those specifications here.
+The React shell in `web/app.tsx` owns navigation, sidebar layout, and the shared
+studio snapshot. Generate and Library own their page state. Generate stays
+mounted across navigation to preserve pending uploads, drafts, and completion
+notifications; Library only fetches while open. Their hooks separately manage
+draft reduction and persistence, submission, estimates, and paginated media.
+Drafts use the same typed request structure as Chat, with migration from the
+earlier stored format. Pending submission keys survive workflow changes, and
+polls cannot overwrite newer locally accepted job records.
+
+`PromptField`, `RequestSettings`, and `CostPreview` are shared by Generate and
+Chat review. `ApprovalCard` owns the quote used for both its dotted footer and
+the approval payload. Changing billable settings immediately invalidates the
+displayed quote; a stale response cannot enable submission. Sidebar positioning
+lives in its own eagerly loaded stylesheet, independent of Admin loading.
+
+Admin and pricing are small local services. `credential-store.ts` keeps secrets
+in the user config directory and exposes only configured flags. Admin groups a
+LoRA's workflow-specific files into one catalog entry. Civitai's version metadata
+identifies the supported model family; users explicitly map files to workflows,
+without filename inference. `lora-imports.ts` persists grouped acquisition jobs,
+validates origins and checksums, and activates all selected files together after
+their private uploads succeed. Failed imports preserve the previous catalog and
+can resume completed transfers. Admin shows only an acceptance toast; Activity
+owns stage progress, per-file download progress, errors, and retry. Catalog
+revision changes refresh both Admin and generation selectors.
+`pricing.ts` fetches current fal
+rates with the inference key and binds an expiring quote to billable settings.
+Generate and Chat approval both require this quote. `fal-errors.ts` normalizes
+safe user-facing recovery instructions; funds/auth/rate failures hold unsent outputs. Only explicit continuation of that request releases them. Global pause/resume state and APIs have been removed.
+The browser never receives keys or local adapter paths.
+
+Library and the reference gallery list extracted frames as individual images. Legacy sequence records are supported only for safe recovery and individual deletion; no separate Library category or sequence picker is exposed.

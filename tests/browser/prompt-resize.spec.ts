@@ -8,7 +8,7 @@ for(const mobile of [false,true])test(`prompt resize handles across editors (${m
  await fs.mkdir('.local/prompt-resize',{recursive:true});
  const refs=[{id:'image',asset_id:'image',kind:'image',role:'reference',framing:'fit'}];
  let workflow='reference-to-video';
- function chat(){return {id:'resize',title:'Resize',mode:'sfw',workflow,version:0,epoch:0,activity:'idle',reasoning:true,assets:[],asset_manifest:[],jobs:[],messages:[],groups:[{id:'g',state:'reviewing',cards:[{id:'c',workflow,revisions:[{number:1,request:{workflow,mode:'sfw',prompt:'Keep the soft lighting and use a slow camera movement. '.repeat(15),count:1,seed:'random',references:workflow==='reference-to-video'?refs:[],output:{aspect:'16:9',size:'native',duration_seconds:5}},decision:'undecided',job_ids:[],notes:{}}]}]}]};}
+ function chat(){return {id:'resize',title:'Resize',mode:'sfw',workflow,version:0,epoch:0,activity:'idle',reasoning:true,assets:[],asset_manifest:[],jobs:[],messages:[],groups:[{id:'g',state:'reviewing',cards:[{id:'c',workflow,revisions:[{number:1,request:{workflow,mode:'sfw',prompt:'Keep the soft lighting and use a slow camera movement. '.repeat(15),count:1,seed:'random',references:workflow==='reference-to-video'?refs:[],output:{aspect:'16:9',size:'768p',duration_seconds:5}},decision:'undecided',job_ids:[],notes:{}}]}]}]};}
  await page.route('**/api/v1/chat-config',r=>r.fulfill({json:{configured:true}}));
  await page.route('**/api/v1/chats**',r=>r.fulfill({json:new URL(r.request().url()).pathname==='/api/v1/chats'?{items:[]}:chat()}));
  async function resize(editor:ReturnType<typeof page.locator>,name:string,chatEditor=false){

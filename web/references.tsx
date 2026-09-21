@@ -27,7 +27,6 @@ export type Reference = {
   end: number;
   role: string;
 };
-type Group = "edit" | "video";
 let nextReferenceId = 0;
 async function inspect(file: File | LibraryAsset): Promise<Reference> {
   const saved = "id" in file;
@@ -138,44 +137,34 @@ export function useReferences(deferUploads=false) {
   const {spicy}=useSpicy();
   const mode=spicy?'nsfw':'sfw';
   const [notes,setNotes]=useState<string[]>([]);
-  const [groups, setGroups] = useState<Record<Group, Reference[]>>({
-    edit: [],
-    video: [],
-  });
-  const latest = useRef(groups);
-  const modeGroups=useRef<Record<string,Record<Group,Reference[]>>>({});
+  const [items, setItems] = useState<Reference[]>([]);
+  const latest = useRef(items);
+  const modeGroups=useRef<Record<string,Reference[]>>({});
   const previousMode=useRef(mode);
-  latest.current = groups;
-  const epochs = useRef({ edit: 0, video: 0 });
-  const [errors, setErrors] = useState<Record<Group, string[]>>({
-    edit: [],
-    video: [],
-  });
+  latest.current = items;
+  const epoch = useRef(0);
+  const [errors, setErrors] = useState<string[]>([]);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
   useEffect(
     () => () => {
-      for (const list of Object.values(latest.current))
-        for (const item of list) URL.revokeObjectURL(item.url);
-      for(const saved of Object.values(modeGroups.current))for(const list of Object.values(saved))for(const item of list)URL.revokeObjectURL(item.url);
+      for (const item of latest.current) URL.revokeObjectURL(item.url);
+      for(const saved of Object.values(modeGroups.current))for(const item of saved)URL.revokeObjectURL(item.url);
     },
     [],
   );
-  function change(group: Group, list: Reference[]) {
-    latest.current = { ...latest.current, [group]: list };
-    setGroups(latest.current);
+  function change(list: Reference[]) { latest.current = list; setItems(list); }
+  function reset() {
+    epoch.current++;
+    for (const item of latest.current) URL.revokeObjectURL(item.url);
+    change([]);
+    setErrors([]);
   }
-  function reset(group: Group) {
-    epochs.current[group]++;
-    for (const item of latest.current[group]) URL.revokeObjectURL(item.url);
-    change(group, []);
-    setErrors((previous) => ({ ...previous, [group]: [] }));
-  }
-  async function add(group: Group, files: (File | LibraryAsset)[]) {
+  async function add(files: (File | LibraryAsset)[]) {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
-    const epoch = epochs.current[group];
+    const started = epoch.current;
     const messages: string[] = [];
     const missingNotes:string[]=[];
     try {
@@ -187,17 +176,13 @@ export function useReferences(deferUploads=false) {
           messages.push((error as Error).message);
           continue;
         }
-        if (epochs.current[group] !== epoch) {
+        if (epoch.current !== started) {
           URL.revokeObjectURL(item.url);
           break;
         }
-        const rest = latest.current[group];
+        const rest = latest.current;
         let reason = "";
-        if (group === "edit" && (item.kind !== "image" || rest.length >= 2))
-          reason =
-            "Image editing accepts a source image and an optional subject image.";
         if (
-          group === "video" &&
           (rest.length >= 12 ||
             rest.filter((entry) => entry.kind === item.kind).length >=
               (item.kind === "image" ? 9 : 3))
@@ -205,7 +190,6 @@ export function useReferences(deferUploads=false) {
           reason =
             "Reference video supports up to 9 images, 3 videos and 3 audio files, with 12 references combined.";
         if (
-          group === "video" &&
           item.duration !== undefined &&
           item.duration < 2
         )
@@ -215,28 +199,21 @@ export function useReferences(deferUploads=false) {
           URL.revokeObjectURL(item.url);
           continue;
         }
-        item.role =
-          group === "edit"
-            ? rest.some((entry) => entry.role === "source")
-              ? "subject"
-              : "source"
-            : item.kind === "image" && !rest.length
-              ? "first_frame"
-              : "reference";
-        if(deferUploads&&item.file){change(group,[...latest.current[group],item]);missingNotes.push(item.id);continue;}
+        item.role = "reference";
+        if(deferUploads&&item.file){change([...latest.current,item]);missingNotes.push(item.id);continue;}
         try {
           const uploaded=await uploadReferences([item],mode,()=>{});
           item.asset_id=uploaded[0]!.asset_id;
           const response=await fetch('/api/v1/notes/'+item.asset_id);
           if(!response.ok)throw Error('Could not load asset note.');
           const saved=await response.json();
-          if(epochs.current[group]!==epoch){URL.revokeObjectURL(item.url);break;}
+          if(epoch.current!==started){URL.revokeObjectURL(item.url);break;}
           if(!saved.note&&!saved.inherited)missingNotes.push(item.asset_id!);
-          change(group, [...latest.current[group], item]);
+          change([...latest.current, item]);
         } catch(error){messages.push((error as Error).message);URL.revokeObjectURL(item.url);}
       }
-      if (epochs.current[group] === epoch) {
-        setErrors((previous) => ({ ...previous, [group]: messages }));
+      if (epoch.current === started) {
+        setErrors(messages);
         if(missingNotes.length)setNotes(missingNotes);
       }
     } finally {
@@ -244,18 +221,16 @@ export function useReferences(deferUploads=false) {
       setBusy(false);
     }
   }
-  function remove(group: Group, id: string) {
-    const item = latest.current[group].find((entry) => entry.id === id);
+  function remove(id: string) {
+    const item = latest.current.find((entry) => entry.id === id);
     if (item) URL.revokeObjectURL(item.url);
     change(
-      group,
-      latest.current[group].filter((entry) => entry.id !== id),
+      latest.current.filter((entry) => entry.id !== id),
     );
   }
-  function update(group: Group, id: string, values: Partial<Reference>) {
+  function update(id: string, values: Partial<Reference>) {
     change(
-      group,
-      latest.current[group].map((entry) =>
+      latest.current.map((entry) =>
         entry.id === id ? { ...entry, ...values } : entry,
       ),
     );
@@ -263,13 +238,13 @@ export function useReferences(deferUploads=false) {
   useEffect(()=>{
     if(previousMode.current===mode)return;
     modeGroups.current[previousMode.current]=latest.current;previousMode.current=mode;
-    epochs.current.edit++;epochs.current.video++;
-    latest.current=modeGroups.current[mode]??{edit:[],video:[]};setGroups(latest.current);
-    setNotes([]);setErrors({edit:[],video:[]});
+    epoch.current++;
+    latest.current=modeGroups.current[mode]??[];setItems(latest.current);
+    setNotes([]);setErrors([]);
   },[mode]);
-  return { groups, errors, busy, add, remove, update, reset, replace:(group:Group,list:Reference[])=>{reset(group);change(group,list);}, notes, dismissNotes:()=>setNotes([]) };
+  return { items, errors, busy, add, remove, update, reset, replace:(list:Reference[])=>{reset();change(list);}, notes, dismissNotes:()=>setNotes([]) };
 }
-export function referenceIssues(items: Reference[], group: Group) {
+export function referenceIssues(items: Reference[]) {
   const issues: string[] = [];
   for (const item of items)
     if (
@@ -291,8 +266,7 @@ export function referenceIssues(items: Reference[], group: Group) {
       issues.push(
         `Choose at most 15 seconds of ${kind} across the selected clips.`,
       );
-  const roles =
-    group === "edit" ? ["source", "subject"] : ["first_frame", "last_frame"];
+  const roles = ["first_frame", "last_frame"];
   for (const role of roles)
     if (items.filter((item) => item.role === role).length > 1)
       issues.push(`Choose only one ${role.replaceAll("_", " ")} image.`);
@@ -308,6 +282,11 @@ export function referenceIssues(items: Reference[], group: Group) {
     issues.push(
       "Choose at most 15 seconds of audio including video soundtracks.",
     );
+  if (items.some(item => item.role === 'reference') && items.some(item => item.role !== 'reference'))
+    issues.push('Use either reference inputs or first/last frame guides; they cannot be combined.');
+  const soundtracks = items.filter(item => item.kind === 'video' && item.include_audio).length;
+  if (items.length + soundtracks > 12 || items.filter(item => item.kind === 'audio').length + soundtracks > 3)
+    issues.push('Choose at most 12 files and 3 audio clips, including video soundtracks.');
   return issues;
 }
 export function referenceLabels(items:Reference[]){return inputLabels(items.map(item=>({...item,asset_id:item.id})));}
@@ -321,25 +300,21 @@ export function referencePromptIssue(prompt: string, items: Reference[]) {
     : "";
 }
 export function ReferenceInputs({
-  group,
   state,
-  seconds = 5,
   onInsert,
 }: {
-  group: Group;
   state: ReturnType<typeof useReferences>;
-  seconds?: number;
   onInsert?: (label: string) => void;
 }) {
   const input = useRef<HTMLInputElement>(null);
   const [gallery, setGallery] = useState(false);
   const [selected, setSelected] = useState<string | null>(null);
-  const items = state.groups[group];
+  const items = state.items;
   const labels = referenceLabels(items);
   const [dragging, setDragging] = useState(false);
-  const issues = referenceIssues(items, group);
+  const issues = referenceIssues(items);
   const active = items.find((item) => item.id === selected);
-  const errors = [...state.errors[group], ...issues];
+  const errors = [...state.errors, ...issues];
   const controls = active && (
     <>
       {active.kind === "image" && (
@@ -349,15 +324,10 @@ export function ReferenceInputs({
             aria-label={`Role for ${active.name}`}
             value={active.role}
             onChange={(event) =>
-              state.update(group, active.id, { role: event.target.value })
+              state.update( active.id, { role: event.target.value })
             }
           >
-            {(group === "edit"
-              ? [
-                  ["source", "Source scene"],
-                  ["subject", "Subject identity"],
-                ]
-              : [
+            {([
                   ["reference", "Reference"],
                   ["first_frame", "First frame"],
                   ["last_frame", "Last frame"],
@@ -383,7 +353,7 @@ export function ReferenceInputs({
               step="any"
               value={active.start}
               onChange={(event) =>
-                state.update(group, active.id, {
+                state.update( active.id, {
                   start: Number(event.target.value),
                 })
               }
@@ -399,7 +369,7 @@ export function ReferenceInputs({
               step="any"
               value={active.end}
               onChange={(event) =>
-                state.update(group, active.id, {
+                state.update( active.id, {
                   end: Number(event.target.value),
                 })
               }
@@ -413,7 +383,7 @@ export function ReferenceInputs({
             type="checkbox"
             checked={Boolean(active.include_audio)}
             onChange={(event) =>
-              state.update(group, active.id, {
+              state.update( active.id, {
                 include_audio: event.target.checked,
               })
             }
@@ -421,33 +391,13 @@ export function ReferenceInputs({
           Use video audio as a reference
         </label>
       )}
-      {active.kind === "video" && (
-        <span>
-          Used range: {active.start.toFixed(2)}–
-          {(
-            active.start +
-            (17 *
-              Math.floor(
-                (Math.min(
-                  Math.floor((active.end - active.start) * 24),
-                  17 * Math.ceil((seconds * 24 - 5) / 17) + 5,
-                ) -
-                  5) /
-                  17,
-              ) +
-              5) /
-              24
-          ).toFixed(2)}{" "}
-          seconds
-        </span>
-      )}
       {active.kind === "image" && active.role !== "reference" && (
         <label className="viewer-role">
           Framing
           <select
             value={active.framing ?? "fit"}
             onChange={(event) =>
-              state.update(group, active.id, {
+              state.update( active.id, {
                 framing: event.target.value as "fit" | "fill",
               })
             }
@@ -469,19 +419,19 @@ export function ReferenceInputs({
   return (
     <section
       className="references"
-      aria-label={group === "edit" ? "Image inputs" : "Video references"}
+      aria-label="Video references"
     >
       <input
         ref={input}
         aria-label="Choose reference files"
         className="file-picker"
         type="file"
-        accept={group === "edit" ? "image/*" : "image/*,video/*,audio/*"}
+        accept="image/*,video/*,audio/*"
         multiple
         onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
           event.target.value = "";
-          void state.add(group, files);
+          void state.add( files);
         }}
       />
       <div
@@ -494,12 +444,12 @@ export function ReferenceInputs({
         onDrop={(event) => {
           event.preventDefault();
           setDragging(false);
-          void state.add(group, Array.from(event.dataTransfer.files));
+          void state.add( Array.from(event.dataTransfer.files));
         }}
       >
         <div className="reference-bar">
           <div className="reference-label">
-            <span>{group === "edit" ? "Input Images" : "References"}</span>
+            <span>References</span>
             <details className="reference-help">
               <summary aria-label="Asset limits">
                 <Glyph name="info" />
@@ -509,11 +459,9 @@ export function ReferenceInputs({
                   {items.length} {items.length === 1 ? "file" : "files"}{" "}
                   selected
                 </span>
-                <strong>max: {group === "edit" ? 2 : 12}</strong>
+                <strong>max: 12</strong>
                 <span>
-                  {group === "edit"
-                    ? "One source image and an optional subject image."
-                    : "Up to 9 images, 3 videos and 3 audio files; 12 files combined."}
+                  Up to 9 images, 3 videos and 3 audio clips; 12 files combined, including video soundtracks. Use references or first/last frame guides.
                 </span>
               </div>
             </details>
@@ -573,9 +521,7 @@ export function ReferenceInputs({
             >
               {state.busy
                 ? "Reading files…"
-                : group === "edit"
-                  ? "Drop images here or browse"
-                  : "Drop images, video or audio here or browse"}
+                : "Drop images, video or audio here or browse"}
             </button>
           )}
         </div>
@@ -587,7 +533,7 @@ export function ReferenceInputs({
           ))}
         </ul>
       )}
-      {group === "video" && items.some((item) => item.role === "reference") && (
+      {items.some((item) => item.role === "reference") && (
         <div
           className="reference-labels"
           aria-label="Insert reference in prompt"
@@ -608,11 +554,10 @@ export function ReferenceInputs({
       )}
       {gallery && (
         <GalleryPicker
-          group={group}
           existing={items}
           onClose={() => setGallery(false)}
           onSelect={async (assets) => {
-            await state.add(group, assets);
+            await state.add( assets);
             setGallery(false);
           }}
         />
@@ -623,7 +568,7 @@ export function ReferenceInputs({
           media={active}
           onClose={() => setSelected(null)}
           onDelete={() => {
-            state.remove(group, active.id);
+            state.remove( active.id);
             setSelected(null);
           }}
           controls={controls} note={active.asset_id&&<AssetNote id={active.asset_id}/>}

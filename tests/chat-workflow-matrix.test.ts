@@ -4,8 +4,8 @@ import {chatReferenceLabels,preserveChatLabels,validateChatReferences} from '../
 import {settingsOnlyMessage} from '../server/chat/context.js';
 import type {InputReference} from '../server/media.js';
 
-const image:ImageRequest={workflow:'text-to-image',capabilities_revision:'test',mode:'sfw',prompt:'A fox resting in a forest',seed:'42',count:1,output:{aspect:'16:9',size:'1mp'}};
-const video:ImageRequest={...image,workflow:'text-to-video',output:{aspect:'16:9',size:'native',duration_seconds:5},audio:{output:'generated'}};
+const image:ImageRequest={workflow:'text-to-image',mode:'sfw',prompt:'A fox resting in a forest',seed:'42',count:1,output:{aspect:'16:9',size:'1mp'}};
+const video:ImageRequest={...image,workflow:'text-to-video',output:{aspect:'16:9',size:'768p',duration_seconds:5},audio:{output:'generated'}};
 const picture=(id:string,role:InputReference['role']='reference'):InputReference=>({id,asset_id:id,kind:'image',role,framing:'fit'});
 const clip=(id:string,kind:'video'|'audio',include_audio=false):InputReference=>({id,asset_id:id,kind,role:'reference',range:{start_seconds:0,duration_seconds:3},...(kind==='video'?{include_audio}: {})});
 const reference=(references:InputReference[],prompt='A fox walks forward'):ImageRequest=>({...video,workflow:'reference-to-video',references,prompt});
@@ -20,9 +20,7 @@ describe('workflow and reference combinations',()=>{
     ['video reference',reference([clip('motion','video')],'Follow <Video 1>')],
     ['audio reference',reference([clip('sound','audio')],'Follow <Audio 1>')],
     ['video soundtrack',reference([clip('motion','video',true)],'Follow <Video 1> and <Audio 1>')],
-    ['opening guide and video',reference([picture('first','first_frame'),clip('motion','video')],'The opening frame follows <Video 1>')],
     ['image video and audio',reference([picture('subject'),clip('motion','video',true),clip('sound','audio')],'<Picture 1> follows <Video 1>, with <Audio 1> and <Audio 2>')],
-    ['closing guide and general image',reference([picture('last','last_frame'),picture('subject')],'<Picture 1> reaches the closing frame')],
   ];
   it.each(cases)('accepts %s without an agent repair loop',(_name,request)=>{
     const parsed=imageRequest(request);expect(()=>validateChatReferences(parsed)).not.toThrow();
@@ -31,10 +29,7 @@ describe('workflow and reference combinations',()=>{
   it.each(['sfw','nsfw'] as const)('retains %s settings across all workflows',mode=>{
     for(const [,request] of cases){const parsed=imageRequest({...request,mode,note:'Forest study'});expect(parsed.mode).toBe(mode);expect(parsed.note).toBe('Forest study');}
   });
-  it.each(['fast','high'] as const)('supports %s quality with both video workflows',quality=>{
-    for(const request of [video,reference([picture('first','first_frame')])])expect(imageRequest({...request,quality}).quality).toBe(quality);
-  });
-  it('rejects high quality with a non-native size',()=>expect(()=>imageRequest({...video,quality:'high',output:{...video.output,size:'720p'}})).toThrow('native'));
+  it('rejects unsupported video resolution',()=>expect(()=>imageRequest({...video,output:{...video.output,size:'720p'}})).toThrow('768p'));
   it('does not silently accept images on text-only workflows',()=>{
     expect(()=>imageRequest({...video,references:[picture('subject')]})).toThrow();
     expect(()=>imageRequest({...image,references:[picture('subject')]})).toThrow();

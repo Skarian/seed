@@ -11,5 +11,5 @@
 
 /* Keep every scrolled line outside the grip's horizontal hit area. Bottom
    padding alone does not protect text while the editor is scrolled. */
-:is(.chat-composer,.prompt-mentions,.prompt-editor,.review-request) .resizable-prompt>:is(.inline-composer,textarea){padding-right:44px}
-@media(max-width:650px),(pointer:coarse){:is(.chat-composer,.prompt-mentions,.prompt-editor,.review-request) .resizable-prompt>:is(.inline-composer,textarea){padding-right:56px}}
+:is(.chat-composer,.prompt-field,.prompt-editor,.review-request) .resizable-prompt>:is(.inline-composer,textarea){padding-right:44px}
+@media(max-width:650px),(pointer:coarse){:is(.chat-composer,.prompt-field,.prompt-editor,.review-request) .resizable-prompt>:is(.inline-composer,textarea){padding-right:56px}}

@@ -1,0 +1,64 @@
+.job-chat-wrap > .job-request-card.request-card-surface {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 14px;
+  width: max-content;
+  min-width: min(440px, 100%);
+  max-width: 100%;
+}
+.request-card-body {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px 28px;
+  padding: 16px;
+  border: 1px solid #414b37;
+  border-radius: 14px;
+  background: #20271d;
+}
+.has-footer > .request-card-body {
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+}
+.request-card-surface > .cost-preview {
+  padding: 10px 16px;
+  border-radius: 0 0 14px 14px;
+}
+.request-card-body > .job-controls {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+}
+.request-card-body .request-card-title strong {
+  font-size: 14px;
+}
+.request-card-body .job-controls > .job-button,
+.request-card-body .job-controls > .job-review-button {
+  font-size: 13px;
+  line-height: 20px;
+  padding: 8px 14px;
+  min-height: 36px;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .job-chat-wrap:has(> .request-card-surface) {
+    width: 100%;
+  }
+  .job-chat-wrap > .job-request-card.request-card-surface {
+    width: 100%;
+    min-width: 0;
+  }
+  .request-card-body {
+    padding: 14px;
+    gap: 12px;
+  }
+  .request-card-body > .job-controls {
+    margin-left: auto;
+  }
+  .request-card-surface > .cost-preview {
+    padding: 10px 14px;
+  }
+}

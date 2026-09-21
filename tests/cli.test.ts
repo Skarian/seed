@@ -13,14 +13,11 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
   const probe = createServer(); await new Promise<void>(resolve => probe.listen(0, '127.0.0.1', resolve));
   const port = (probe.address() as import('node:net').AddressInfo).port;
   await new Promise<void>(resolve => probe.close(() => resolve()));
-  const env: NodeJS.ProcessEnv = { ...process.env, STUDIO_DEV_ROOT: root, RUNPOD_API_KEY: 'fixture-runpod-key', HF_TOKEN: 'fixture-hf-token', APPDATA: path.join(root, 'fake Windows profile') };
-  const hook=path.join(root,'model-fixture.mjs');
-  writeFileSync(hook, `import {registerHooks} from 'node:module'; registerHooks({resolve(s,c,next){if(s==='./model-cache.js'&&c.parentURL?.endsWith('/cli.js')) return {url:'data:text/javascript,export async function prepareModels() {}',shortCircuit:true};return next(s,c);}});`);
-  env.NODE_OPTIONS=`--import=${pathToFileURL(hook).href}`;
+  const env: NodeJS.ProcessEnv = { ...process.env, STUDIO_DEV_ROOT: root, FAL_KEY: 'fixture-fal-key', APPDATA: path.join(root, 'fake Windows profile') };
   delete env.STUDIO_PORT; delete env.SEED_MANAGED;
   const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
   try {
-    await run('setup', '--provider', 'runpod', '--port', String(port));
+    await run('setup', '--port', String(port));
     const original = path.join(root, 'data/media/originals/keep.txt'); writeFileSync(original, 'unique media');
     const starts = await Promise.all([run('start'), run('start')]);
     expect(starts[0].stdout).toContain(`http://127.0.0.1:${port}`);
@@ -37,41 +34,3 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
     expect(readFileSync(original, 'utf8')).toBe('unique media');
   } finally { await run('stop'); }
 }, 45000);
-
-
-
-test('fresh Vast setup needs no RunPod key and remembers provider on rerun', async () => {
-  mkdirSync('.local/tests', { recursive: true });
-  const root = mkdtempSync(path.resolve('.local/tests/cli-vast-'));
-  const env: NodeJS.ProcessEnv = { ...process.env, STUDIO_DEV_ROOT: root, VAST_API_KEY: 'fixture-vast', HF_TOKEN: 'fixture-hf', APPDATA: path.join(root, 'profile') };
-  const hook=path.join(root,'model-fixture.mjs');
-  writeFileSync(hook, `import {registerHooks} from 'node:module'; registerHooks({resolve(s,c,next){if(s==='./model-cache.js'&&c.parentURL?.endsWith('/cli.js')) return {url:'data:text/javascript,export async function prepareModels() {}',shortCircuit:true};return next(s,c);}});`);
-  env.NODE_OPTIONS=`--import=${pathToFileURL(hook).href}`;
-  delete env.RUNPOD_API_KEY;
-  const run = (...args: string[]) => exec(process.execPath, ['dist/server/cli.js', ...args], { env, timeout: 15000 });
-  const first = await run('setup', '--provider', 'vast');
-  expect(first.stdout).toContain('Vast and Hugging Face configured');
-  expect(first.stdout).not.toContain('fixture-vast');
-  expect((await run('setup')).stdout).toContain('Vast and Hugging Face configured');
-  expect(JSON.parse(readFileSync(path.join(root, 'config/credentials.json'), 'utf8')).runpodApiKey).toBeUndefined();
-  await expect(run('setup', '--provider', 'unknown')).rejects.toThrow();
-});
-
-// The fixture records whether setup actually attempts local preparation.
-test('setup persists opt-in cache and skips downloads when disabled', async () => {
-  mkdirSync('.local/tests', {recursive:true});
-  const root=mkdtempSync(path.resolve('.local/tests/cache-choice-'));
-  const marker=path.join(root,'prepared');
-  const hook=path.join(root,'hook.mjs');
-  const fixture=`import {writeFileSync} from 'node:fs'; export async function prepareModels(){writeFileSync(${JSON.stringify(marker)},'yes');}`;
-  writeFileSync(hook,`import {registerHooks} from 'node:module';registerHooks({resolve(s,c,next){if(s==='./model-cache.js'&&c.parentURL?.endsWith('/cli.js'))return {url:${JSON.stringify('data:text/javascript,'+encodeURIComponent(fixture))},shortCircuit:true};return next(s,c);}});`);
-  const env={...process.env,STUDIO_DEV_ROOT:root,VAST_API_KEY:'fixture-vast',HF_TOKEN:'fixture-hf',APPDATA:path.join(root,'profile'),NODE_OPTIONS:`--import=${pathToFileURL(hook).href}`};
-  const run=(...args:string[])=>exec(process.execPath,['dist/server/cli.js','setup','--provider','vast',...args],{env,timeout:15000});
-  await run('--no-cache-models');
-  expect(existsSync(marker)).toBe(false);
-  expect(JSON.parse(readFileSync(path.join(root,'config/settings.json'),'utf8')).localModelCache).toBe(false);
-  await run('--cache-models');
-  expect(existsSync(marker)).toBe(true);
-  expect(JSON.parse(readFileSync(path.join(root,'config/settings.json'),'utf8')).localModelCache).toBe(true);
-  await expect(run('--cache-models','--no-cache-models')).rejects.toThrow();
-});

@@ -1,28 +1,36 @@
 import { Sequences } from './sequences.js';
+import { pickFrame } from './frames.js';
+import {registerAdmin} from './admin.js';
+import {LoraImports} from './lora-imports.js';
+import {Pricing} from './pricing.js';
+import {imageRequest} from './workflows.js';
+import {FalError} from './fal-errors.js';
 import { registerNotes } from './notes.js';
 import { Chats } from './chat/service.js';
 import { registerChats } from './chat/http.js';
 import { chatCredential } from './chat/credentials.js';
 import { Previews } from './previews.js';
 import Fastify from 'fastify';
-import { WorkerConnection } from './worker.js';
+import { Fal, type FalTransport } from './fal.js';
+import { falCredential } from './credentials.js';
 import fastifyStatic from '@fastify/static';
 import { randomUUID } from 'node:crypto';
 import { existsSync, createReadStream, statSync, realpathSync, unlinkSync } from 'node:fs';
 import { Jobs } from './jobs.js';
-import { VIDEO_PROFILE_REVISION } from './video.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listAssets, openDatabase } from './db.js';
 import { prepareStorage, type StudioPaths } from './storage.js';
 import type { StudioSnapshot } from '../shared/studio.js';
 
-export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; localTestWorkerOrigin?: string }) {
+export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; fal?: FalTransport; providerFetch?:typeof fetch; chatFetch?:typeof fetch }) {
   prepareStorage(options.paths);
   const db = openDatabase(options.paths.data);
-  const worker = new WorkerConnection(options.paths, options.localTestWorkerOrigin);
-  const jobs = new Jobs(db, options.paths, worker);
-  const chats = new Chats(db, options.paths, jobs);
+  const fal = options.fal ?? new Fal(()=>falCredential(options.paths));
+  const jobs = new Jobs(db, options.paths, fal);
+  const pricing=new Pricing(options.paths,jobs.loras,options.providerFetch);
+  const imports=new LoraImports(options.paths,jobs.loras,fal,options.providerFetch);
+  const chats = new Chats(db, options.paths, jobs,options.chatFetch,pricing);
   const sequences = new Sequences(db, options.paths.data, options.paths.cache, jobs);
   const previews = new Previews(options.paths.data, options.paths.cache);
   sequences.recover();
@@ -57,45 +65,28 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   });
   await jobs.media.register(app);
   registerNotes(app, db);
+  registerAdmin(app,options.paths,jobs,imports,pricing,options.providerFetch);
   registerChats(app,chats,()=>Boolean(chatCredential(options.paths)));
   app.addHook('onReady', async () => { jobs.start(); });
-  app.addHook('preClose', async () => { await chats.close(); await jobs.close(); });
+  app.addHook('preClose', async () => { await imports.close();await chats.close(); await jobs.close(); });
   app.addHook('onClose', async () => { await jobs.media.close(); db.close(); });
   app.get('/api/v1/health', async () => ({ application: 'seed', version: '0.1.0', instance_id: instanceId }));
+  app.post('/api/v1/estimates',async(request,reply)=>{try{return await pricing.estimate(request.body);}catch(error){return reply.code(409).send({error:error instanceof FalError?error.issue:{code:'estimate_unavailable',message:(error as Error).message,retryable:true}});}});
   app.get('/api/v1/studio', async (): Promise<StudioSnapshot> => {
-    const remote = await worker.status();
-    const state = db.prepare('SELECT paused FROM dispatcher_state WHERE id = 1').get() as { paused: number };
+    const importJobs=imports.list('nsfw');
     return {
-      worker: { state: remote?.state ?? 'disconnected', observed_at: remote ? new Date().toISOString() : null, stale: !remote, connected: worker.connected, ...(remote ? { preparation: remote.preparation } : {}) },
-      queue: { paused: state.paused === 1, waiting: jobs.all().filter(j => j.state === 'queued').length, active: jobs.all().filter(j => !['queued', 'completed', 'cancelled', 'failed'].includes(j.state) && !j.uncertainty_acknowledged).length },
-      outputs: { pending: jobs.all().filter(j => ['copying', 'copy_pending'].includes(j.state)).length },
-      safe_to_terminate: jobs.checkedAt && Date.now() - jobs.checkedAt < 5000 ? jobs.safe : null,
-      checked_at: jobs.checkedAt ? new Date(jobs.checkedAt).toISOString() : null,
-      reasons: [jobs.reason],
-      implementation: { pairing: true, generation: true },
+      loras_revision: jobs.loras.revision(),
+      provider: { configured: fal.configured, name: 'fal' },
+      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + jobs.all().filter(j => j.state === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + jobs.all().filter(j => ['uploading','submitting','running','copying','cancel_requested'].includes(j.state)&&!j.recovery_blocked).length, needs_attention: importJobs.filter(j=>j.state==='failed').length + jobs.all().filter(j=>j.recovery_blocked||j.state==='blocked'||j.state==='needs_attention'&&!j.uncertainty_acknowledged).length },
+      outputs: { pending: jobs.all().filter(j => j.state === 'copying').length },
     };
   });
-  app.put('/api/v1/connection', { schema: { body: { type: 'object', required: ['connection_code'], additionalProperties: false, properties: { connection_code: { type: 'string', minLength: 20, maxLength: 4096 } } } } }, async (request, reply) => {
-    db.prepare('UPDATE dispatcher_state SET paused = 1 WHERE id = 1').run();
-    try { return await jobs.serialize(async () => { jobs.invalidate(); await worker.pair((request.body as { connection_code: string }).connection_code.trim()); return { connected: true }; }); }
-    catch (error) { return fail(reply, 400, 'connection_failed', (error as Error).message, request.id); }
+  app.get('/api/v1/loras', {schema:{querystring:{type:'object',additionalProperties:false,properties:{mode:{enum:['sfw','nsfw']}}}}}, async request => ({ items: jobs.loras.list((request.query as {mode?:'sfw'|'nsfw'}).mode ?? 'sfw') }));
+  app.patch('/api/v1/loras/:id', {schema:{body:{type:'object',additionalProperties:false,required:['availability'],properties:{availability:{enum:['all','spicy']}}}}}, async (request,reply) => {
+    try {jobs.loras.setAvailability((request.params as {id:string}).id,(request.body as {availability:string}).availability);return {saved:true};}
+    catch(error){return fail(reply,409,'lora_update_failed',(error as Error).message,request.id);}
   });
-  app.post('/api/v1/connection/reconnect', { schema: { body: { type: 'object', additionalProperties: false, maxProperties: 0 } } }, async (request, reply) => {
-    try { return await jobs.serialize(async () => { await worker.reconnect(); jobs.invalidate(); return { connected: true }; }); }
-    catch (error) { return fail(reply, 409, 'reconnect_failed', (error as Error).message, request.id); }
-  });
-  app.delete('/api/v1/connection', async (request, reply) => {
-    db.prepare('UPDATE dispatcher_state SET paused = 1 WHERE id = 1').run();
-    try { return await jobs.serialize(async () => { jobs.invalidate(); worker.forget(); return { connected: false }; }); }
-    catch (error) { return fail(reply, 409, 'connection_busy', (error as Error).message, request.id); }
-  });
-  for (const [action, paused] of [['pause', 1], ['resume', 0]] as const) {
-    app.post(`/api/v1/queue/${action}`, { schema: { body: { type: 'object', additionalProperties: false, maxProperties: 0 } } }, async (request, reply) => {
-      try { return await jobs.serialize(async () => { if (!paused) { await jobs.inspectCapabilities(); jobs.resumeRecovery(); } jobs.pause(Boolean(paused)); return { paused: Boolean(paused) }; }); }
-      catch { return fail(reply, 409, 'worker_unavailable', 'Connect a ready worker before resuming.', request.id); }
-    });
-  }
-  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},kind:{enum:['image','video','audio','sequence']},mode:{enum:['sfw','nsfw']}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw';kind?:string}; const items = listAssets(db, query.cursor ?? '', 51, query.mode, query.kind); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},kind:{enum:['image','video','audio']},mode:{enum:['sfw','nsfw']}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw';kind?:string}; const items = listAssets(db, query.cursor ?? '', 51, query.mode, query.kind); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/sequences/:id', async (request,reply)=> {
     try {return sequences.get((request.params as any).id) ?? fail(reply,404,'not_found','Sequence not found.',request.id);}
     catch(e){return fail(reply,409,'sequence_busy',(e as Error).message,request.id);}
@@ -131,14 +122,27 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try {const file=await previews.get(id,asset.relative_path,(request.query as any).size==='1280'?1280:384);return reply.type('image/webp').send(createReadStream(file));}
     catch{return fail(reply,409,'preview_failed','Could not load preview.',request.id);}
   });
+  app.post('/api/v1/assets/:id/frames', {schema:{body:{type:'object',additionalProperties:false,required:['time_seconds'],properties:{time_seconds:{type:'number',minimum:0}}}}}, async (request,reply)=>jobs.serialize(async()=>{
+    try {return await pickFrame(db,options.paths,(request.params as {id:string}).id,(request.body as {time_seconds:number}).time_seconds);}
+    catch(error){return fail(reply,409,'frame_save_failed',(error as Error).message,request.id);}
+  }));
   app.delete('/api/v1/assets/:id', async (request, reply) => jobs.serialize(async () => {
     const id = (request.params as { id: string }).id;
     const asset = db.prepare('SELECT relative_path, metadata_json FROM assets WHERE id=?').get(id) as { relative_path: string; metadata_json: string } | undefined;
     if (!asset) return reply.code(204).send();
-    if(db.prepare('SELECT 1 FROM sequence_frames WHERE asset_id=?').get(id)) return fail(reply,409,'sequence_member','Use Keep only in the image sequence to remove frames.',request.id);
+    const membership=db.prepare('SELECT sequence_id FROM sequence_frames WHERE asset_id=?').get(id) as {sequence_id:string}|undefined;
+    if(membership){
+      try{
+        const sequence=sequences.get(membership.sequence_id)!;
+        if(sequence.cleanup_pending)throw Error('This image is still being removed. Try again shortly.');
+        const keep=sequence.frames.filter(frame=>frame.id!==id).map(frame=>frame.id);
+        sequences.prune(sequence.id,keep,sequence.revision,!keep.length);
+        return reply.code(204).send();
+      }catch(error){return fail(reply,409,'delete_failed',(error as Error).message,request.id);}
+    }
     if(jobs.all().some(job=>!['completed','failed','cancelled'].includes(job.state) && job.request.references?.some(ref=>ref.asset_id===id))) return fail(reply,409,'asset_busy','A queued job still needs this file.',request.id);
     const owners = jobs.all().filter(job => job.outputs.includes(id));
-    if (owners.some(job => job.state !== 'completed' || job.cleanup_state !== 'complete')) return fail(reply, 409, 'asset_busy', 'This file is still being saved. Try again shortly.', request.id);
+    if (owners.some(job => job.state !== 'completed')) return fail(reply, 409, 'asset_busy', 'This file is still being saved. Try again shortly.', request.id);
     const root = realpathSync(options.paths.data) + path.sep;
     const file = path.resolve(options.paths.data, asset.relative_path);
     if (!file.startsWith(path.resolve(options.paths.data) + path.sep) || (existsSync(file) && !realpathSync(file).startsWith(root))) return fail(reply, 409, 'invalid_asset', 'Cannot delete this file location.', request.id);
@@ -150,24 +154,8 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     })();
     return reply.code(204).send();
   }));
-  app.get('/api/v1/capabilities', async () => {
-    const video = jobs.capabilities?.video;
-    const qualities = [
-      ...(video?.ready && video.quality?.fast !== false ? ['fast'] : []),
-      ...(video?.ready && video.quality?.high === true && video.profile_revision === VIDEO_PROFILE_REVISION && video.native_export === true ? ['high'] : []),
-    ];
-    return { revision: jobs.capabilities?.revision ?? null, workflows: {
-      'text-to-image': { enabled: Boolean(jobs.capabilities), modes: jobs.capabilities?.nsfw ? ['sfw', 'nsfw'] : ['sfw'], count_max: 16 },
-      ...Object.fromEntries(['text-to-video','reference-to-video'].map(id => [id, {
-        enabled:Boolean(video?.ready), modes:video?.nsfw.fl && video?.nsfw.ref ? ['sfw','nsfw'] : ['sfw'], count_max:16,
-        qualities, native_export:video?.native_export === true,
-        export_formats:video?.image_export?['video','images']:['video'],
-        duration_seconds:video?.duration_step===1?{min:5,max:15,step:1}:{values:[5,10,15]},
-      }]))
-    }};
-  });
   app.post('/api/v1/jobs', async (request, reply) => {
-    try { const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''))); return reply.code(202).send(result); }
+    try { const estimate=pricing.accept(request.headers['x-seed-estimate'],imageRequest(request.body));const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''),estimate)); return reply.code(202).send(result); }
     catch (error) { return fail(reply, 409, 'submission_failed', (error as Error).message, request.id); }
   });
   app.get('/api/v1/jobs', async request => { const query=request.query as {cursor?:string;mode?:string};if(query.mode){const items=jobs.all().filter(j=>j.request.mode===query.mode).reverse();return {items,next_cursor:null};}const cursor = String(query.cursor ?? ''); const items = jobs.list(51, cursor); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
@@ -179,8 +167,9 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try{return await jobs.serialize(async()=>{
       const original=jobs.get((request.params as {id:string}).id);if(!original)throw Error('Job not found.');
       const body=request.body as {request:unknown};
-      const staged=await jobs.prepareSubmission(body.request,String(request.headers['idempotency-key']??''),{...original.source,job_id:original.id});
-      const result=db.transaction(staged.commit)();jobs.pause(false);return result;
+      const estimate=pricing.accept(request.headers['x-seed-estimate'],imageRequest(body.request));
+      const staged=await jobs.prepareSubmission(body.request,String(request.headers['idempotency-key']??''),{...original.source,job_id:original.id},estimate);
+      return db.transaction(staged.commit)();
     });}catch(e){return fail(reply,409,'repeat_failed',(e as Error).message,request.id);}
   });
   app.post('/api/v1/jobs/:id/cancel', async (request, reply) => {
@@ -189,6 +178,12 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try { return await jobs.serialize(() => jobs.cancel(id)); }
     catch (error) { return fail(reply, 409, 'cancel_failed', (error as Error).message, request.id); }
   });
+  for(const action of ['continue','retry-save'] as const){
+    app.post('/api/v1/jobs/:id/'+action,{schema:{body:{type:'object',additionalProperties:false,maxProperties:0}}},async(request,reply)=>{
+      try{return await jobs.serialize(async()=>action==='continue'?jobs.continueRequest((request.params as {id:string}).id):jobs.retrySave((request.params as {id:string}).id));}
+      catch(error){return fail(reply,409,'recovery_failed',(error as Error).message,request.id);}
+    });
+  }
   app.post('/api/v1/jobs/:id/acknowledge', async (request, reply) => {
     try { return await jobs.serialize(async () => jobs.acknowledge((request.params as { id: string }).id)); }
     catch (error) { return fail(reply, 409, 'acknowledge_failed', (error as Error).message, request.id); }
@@ -215,11 +210,13 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
 
   const webRoot = options.webRoot ?? fileURLToPath(new URL('../web', import.meta.url));
   if (existsSync(path.join(webRoot, 'index.html'))) {
-    await app.register(fastifyStatic, { root: webRoot, dotfiles: 'deny', index: 'index.html' });
+    await app.register(fastifyStatic, { root: webRoot, dotfiles: 'deny', index: ['index.html'], preCompressed: true, cacheControl: false, setHeaders(response,file) {
+      response.header('Cache-Control',path.relative(webRoot,file).startsWith('assets'+path.sep)?'public, max-age=31536000, immutable':'no-cache');
+    } });
     app.get('/library', async (_request, reply) => reply.sendFile('index.html'));
     app.get('/chat', async (_request, reply) => reply.sendFile('index.html'));
+    app.get('/admin', async (_request, reply) => reply.sendFile('index.html'));
   }
   app.setNotFoundHandler((request, reply) => fail(reply, 404, 'not_found', 'This page or operation is not available.', request.id));
   return app;
 }
-

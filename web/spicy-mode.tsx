@@ -1,9 +1,9 @@
 import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
-import { toast, useToaster, resolveValue } from 'react-hot-toast/headless';
+import { useToaster, resolveValue } from 'react-hot-toast/headless';
 import type { LibraryAsset } from '../shared/studio.js';
 
 export function presentAsset(asset: LibraryAsset): LibraryAsset {
-  return { ...asset, name: asset.name.replace(/^(Image|Video) · (SFW|NSFW)$/, (_, kind, mode) => `${kind} · ${mode === 'NSFW' ? 'Spicy' : 'Standard'}`) };
+  return { ...asset, name: asset.name.replace(/^(Image|Video) · (SFW|NSFW|Standard|Spicy)$/, '$1') };
 }
 
 const SpicyContext = createContext({ spicy: false, setSpicy: (_value: boolean) => {} });
@@ -16,7 +16,6 @@ export function SpicyProvider({ children }: { children: React.ReactNode }) {
   function setSpicy(value: boolean) {
     update(value);
     try { sessionStorage.setItem('seed.spicy', String(value)); } catch { /* Keep working in memory. */ }
-    toast(value ? 'Spicy mode on' : 'Spicy mode off', { id: 'spicy-mode', icon: '🌶️', className: value ? 'is-spicy' : 'is-standard' });
   }
   return <SpicyContext.Provider value={{ spicy, setSpicy }}>
     {children}
@@ -65,6 +64,6 @@ export function SpicyBrand({ children, onNavigate, expanded }: { children: React
       onClick={() => { if (!held.current) onNavigate(); }}>
       {children}
     </button>
-    {spicy && <button className="spicy-off" type="button" aria-label="Turn off Spicy mode" title="Turn off Spicy mode" onClick={() => setSpicy(false)}>🌶️</button>}
+    {spicy && <button className="spicy-off" type="button" aria-label="Return to Seed" title="Return to Seed" onClick={() => setSpicy(false)}>🌶️</button>}
   </div>;
 }

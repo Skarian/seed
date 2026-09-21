@@ -3,14 +3,14 @@ import { randomUUID } from 'node:crypto';
 import path from 'node:path';
 import password from '@inquirer/password';
 import type { StudioPaths } from '../storage.js';
+import {credential} from '../credential-store.js';
 
 function saved(paths:StudioPaths): Record<string,unknown> {
   try {const value=JSON.parse(readFileSync(path.join(paths.config,'credentials.json'),'utf8'));if(!value||typeof value!=='object'||Array.isArray(value))throw Error();return value;}
   catch(e){if((e as NodeJS.ErrnoException).code==='ENOENT')return {};throw Error('Cannot read Seed credentials. Repair credentials.json before configuring Chat.');}
 }
 export function chatCredential(paths:StudioPaths, env:NodeJS.ProcessEnv=process.env) {
-  const value=env.OPENROUTER_API_KEY ?? saved(paths).openrouterApiKey;
-  return typeof value==='string'?value.trim():'';
+  return credential(paths,'openrouterApiKey',env);
 }
 export async function setupChatCredential(paths:StudioPaths, interactive:boolean, prompt = ()=>password({message:'OpenRouter API key for Chat (optional; Enter to skip):',mask:true})) {
   const values=saved(paths);

@@ -1,0 +1,51 @@
+.import-activity-files {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+}
+.import-activity-files > div {
+  padding: 12px;
+  background: #191f16;
+  border: 1px solid #343f2d;
+  border-radius: 8px;
+}
+.import-file-heading {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 14px;
+  margin-bottom: 6px;
+}
+.import-file-heading strong {
+  font-size: 12px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.import-file-heading span {
+  font-size: 11px;
+  color: #b7c7a6;
+  flex-shrink: 0;
+}
+.import-activity progress {
+  display: block;
+  width: 100%;
+  height: 5px;
+  margin: 12px 0 8px;
+  accent-color: #c3d797;
+}
+.import-activity .job-list-heading h3 small {
+  font-size: 11px;
+  color: #a8b99a;
+  font-weight: 400;
+}
+@media (max-width: 500px) {
+  .import-file-heading {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+  .import-activity .job-list-heading {
+    align-items: flex-start;
+  }
+}

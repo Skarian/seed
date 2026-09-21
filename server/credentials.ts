@@ -4,15 +4,10 @@ import { parseEnv } from 'node:util';
 import { randomUUID } from 'node:crypto';
 import password from '@inquirer/password';
 import type { StudioPaths } from './storage.js';
-export type GpuProvider = 'vast' | 'runpod';
-const providers = [
-  { field: 'vastApiKey', env: 'VAST_API_KEY', label: 'Vast API key', required: true },
-  { field: 'runpodApiKey', env: 'RUNPOD_API_KEY', label: 'RunPod API key', required: true },
-  { field: 'huggingFaceToken', env: 'HF_TOKEN', label: 'Hugging Face token (base models and other HF assets)', required: true },
-  { field: 'civitaiApiToken', env: 'CIVITAI_API_TOKEN', label: 'Civitai API token (optional; Enter to skip)', required: false },
-] as const;
+import {credential} from './credential-store.js';
+const providers = [{ field: 'falKey', env: 'FAL_KEY', label: 'fal API key', required: true }] as const;
 export async function ensureCredentials(paths: StudioPaths, options: {
-  interactive: boolean; provider?: GpuProvider; env?: NodeJS.ProcessEnv; cwd?: string;
+  interactive: boolean; env?: NodeJS.ProcessEnv; cwd?: string;
   prompt?: (label: string, required: boolean) => Promise<string>;
 }) {
   const file = path.join(paths.config, 'credentials.json');
@@ -26,8 +21,6 @@ export async function ensureCredentials(paths: StudioPaths, options: {
   const env = options.env ?? process.env;
   let dotenv: Record<string, string | undefined> | undefined;
   for (const provider of providers) {
-    const selected = options.provider ?? 'runpod';
-    if ((provider.field === 'vastApiKey' && selected !== 'vast') || (provider.field === 'runpodApiKey' && selected !== 'runpod')) continue;
     let key = env[provider.env]?.trim() || (typeof saved[provider.field] === 'string' ? (saved[provider.field] as string).trim() : '');
     if (!key) {
       if (!dotenv) {
@@ -56,8 +49,12 @@ export async function ensureCredentials(paths: StudioPaths, options: {
       } catch { rmSync(temporary, { force: true }); throw new Error('Could not save credentials in the seed config directory.'); }
     }
   }
-  return { file, civitaiConfigured: Boolean(saved.civitaiApiToken) };
+  return { file, configured: Boolean(saved.falKey) };
 }
 export function webServerEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(env).filter(([name]) => !providers.some(provider => provider.env === name.toUpperCase()) && !/^(TAILSCALE_|TS_)/i.test(name)));
+  return Object.fromEntries(Object.entries(env).filter(([name]) => ['FAL_KEY','OPENROUTER_API_KEY','CIVITAI_API_KEY'].includes(name.toUpperCase()) || !/_(KEY|TOKEN|SECRET|PASSWORD)$/i.test(name)));
+}
+
+export function falCredential(paths: StudioPaths): string | undefined {
+  return credential(paths,'falKey')||undefined;
 }

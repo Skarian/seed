@@ -4,13 +4,13 @@ test('input mentions insert at the caret, preserve slots, preview and block miss
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
  const references:any[]=[{id:'image',asset_id:'image',kind:'image',role:'reference',framing:'fit'},{id:'video',asset_id:'video',kind:'video',role:'reference',include_audio:true,range:{start_seconds:0,duration_seconds:3}},{id:'audio',asset_id:'audio',kind:'audio',role:'reference',range:{start_seconds:0,duration_seconds:3}}];
  const assets=references.map(r=>({id:r.asset_id,kind:r.kind,name:r.kind==='image'?'Forest.png':r.kind==='video'?'Camera movement.mp4':'Ambience.wav',note:'',metadata:{duration:5,width:480,height:270}}));
- const request={workflow:'reference-to-video',mode:'sfw',prompt:'Before after',count:1,seed:'random',output:{aspect:'16:9',size:'native',duration_seconds:5},references};
+ const request={workflow:'reference-to-video',mode:'sfw',prompt:'Before after',count:1,seed:'random',output:{aspect:'16:9',size:'768p',duration_seconds:5},references};
  let chat:any={id:'mentions',title:'Input mentions',mode:'sfw',workflow:'reference-to-video',version:0,epoch:0,activity:'idle',reasoning:true,assets:[],asset_manifest:assets,jobs:[],messages:[],groups:[{id:'g',state:'reviewing',cards:[{id:'c',workflow:'reference-to-video',revisions:[{number:1,request,decision:'undecided',job_ids:[],notes:{}}]}]}]};
  let posted:any;
  await page.route('**/api/v1/chat-config',r=>r.fulfill({json:{configured:true}}));
  await page.route('**/api/v1/chats**',r=>{const req=r.request(),path=new URL(req.url()).pathname;if(path.endsWith('/messages')&&req.method()==='POST'){posted=req.postDataJSON();chat={...chat,messages:[{id:'m',role:'user',text:posted.text,assets:posted.assets}],version:1};}return r.fulfill({json:path==='/api/v1/chats'?{items:[]}:chat});});
  await page.route('**/api/v1/assets/*',r=>r.fulfill({json:assets.find(a=>r.request().url().endsWith(a.id))??{}}));
- await page.route('**/api/v1/assets/*/content',async r=>r.request().url().includes('/video/')?r.fulfill({contentType:'video/mp4',body:await fs.readFile('tests/fixtures/request-preview.mp4')}):r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270"><rect width="480" height="270" fill="#49604b"/><circle cx="360" cy="60" r="35" fill="#ead080"/></svg>'}));
+ await page.route('**/api/v1/assets/*/content',async r=>r.request().url().includes('/video/')?r.fulfill({contentType:'video/mp4',body:await fs.readFile('.local/browser-preview.mp4')}):r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270"><rect width="480" height="270" fill="#49604b"/><circle cx="360" cy="60" r="35" fill="#ead080"/></svg>'}));
  let savedNote='',failNote=true;
  await page.route('**/api/v1/notes/*',r=>{if(r.request().method()==='PUT'){if(failNote)return r.fulfill({status:409,json:{error:{message:'Please try again'}}});savedNote=r.request().postDataJSON().note;}return r.fulfill({json:{note:savedNote,revision:1}});});
  await page.setViewportSize({width:1200,height:950});await page.goto('/chat?chat=mentions');
@@ -36,7 +36,7 @@ test('input mentions insert at the caret, preserve slots, preview and block miss
 
 test('Generate inserts references mid-prompt and renders the same picker',async({page})=>{
  const reference={id:'image',asset_id:'image',kind:'image',role:'reference',framing:'fit'};
- const request={workflow:'reference-to-video',prompt:'Before after',mode:'sfw',seed:'random',count:1,references:[reference],output:{aspect:'16:9',size:'native',duration_seconds:5}};
+ const request={workflow:'reference-to-video',prompt:'Before after',mode:'sfw',seed:'random',count:1,references:[reference],output:{aspect:'16:9',size:'768p',duration_seconds:5}};
  await page.route('**/api/v1/jobs/original',r=>r.fulfill({json:{id:'original',request,seed:'42'}}));
  await page.route('**/api/v1/assets/image',r=>r.fulfill({json:{name:'Forest.png',kind:'image',mime_type:'image/png'}}));
  await page.route('**/api/v1/assets/image/content',r=>r.fulfill({contentType:'image/svg+xml',body:'<svg xmlns="http://www.w3.org/2000/svg" width="480" height="270"><rect width="480" height="270" fill="#49604b"/><circle cx="360" cy="60" r="35" fill="#ead080"/></svg>'}));

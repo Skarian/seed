@@ -6,22 +6,25 @@ import {resolvePaths,prepareStorage} from '../server/storage.js';
 import {Jobs} from '../server/jobs.js';
 import {Chats} from '../server/chat/service.js';
 import {initializeChatPrompts,chatPromptSnapshot} from '../server/chat/prompts.js';
-import type {WorkerConnection} from '../server/worker.js';
+import {Pricing} from '../server/pricing.js';
+import {priceInput} from '../shared/pricing.js';
+import {fakeFal} from './fake-fal.js';
 import {preserveChatLabels,validateChatReferences} from '../server/chat/references.js';
 import {compactConversation,settingsOnlyMessage} from '../server/chat/context.js';
 
 const request={prompt:'A quiet landscape',seed:'random',count:1,output:{aspect:'16:9',size:'1mp'}};
 function sse(chunk:unknown){return new Response('data: '+JSON.stringify(chunk)+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});}
 function flatRequest(r:any){const {output,count,audio,references,...rest}=r;return {...rest,...(count!==undefined?{batch_size:count}:{}),...(output?{aspect_ratio:output.aspect,size:output.size,...(output.duration_seconds!==undefined?{duration_seconds:output.duration_seconds}:{})}:{}),...(audio?{audio_output:audio.output}:{})};}
-async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDatabase>;paths:ReturnType<typeof resolvePaths>;queue:unknown[];requests:any[];titleRequests:any[];cap:any})=>Promise<void>){
+async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDatabase>;paths:ReturnType<typeof resolvePaths>;queue:unknown[];requests:any[];titleRequests:any[];pricing?:Pricing})=>Promise<void>,withPricing=false){
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/chat-')),paths=resolvePaths(root);prepareStorage(paths);
-  writeFileSync(path.join(paths.config,'credentials.json'),JSON.stringify({openrouterApiKey:'fake'}));
+  writeFileSync(path.join(paths.config,'credentials.json'),JSON.stringify({openrouterApiKey:'fake',falKey:'fake'}));
   const db=openDatabase(paths.data),queue:unknown[]=[],requests:any[]=[],titleRequests:any[]=[];
-  const cap={revision:'v1',ready:true,workspace_id:'test',engine_session_id:'engine',nsfw:null};
-  const worker={identity:{workspace_id:'test'},json:async()=>cap} as unknown as WorkerConnection;
-  const jobs=new Jobs(db,paths,worker);
-  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();if(ops instanceof Error)throw ops;return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
-  try{await run({chats,jobs,db,paths,queue,requests,titleRequests,cap});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
+
+  const fal=fakeFal();
+  const jobs=new Jobs(db,paths,fal);
+  const pricing=withPricing?new Pricing(paths,jobs.loras,async url=>Response.json({prices:[{endpoint_id:new URL(String(url)).searchParams.get('endpoint_id'),unit_price:.01,unit:'megapixels',currency:'USD'}]})):undefined;
+  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();if(ops instanceof Error)throw ops;return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});},pricing);
+  try{await run({chats,jobs,db,paths,queue,requests,titleRequests,pricing});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
 }
 async function idle(chats:Chats,id:string){for(let i=0;i<200;i++){const value=chats.view(id);if(value.activity==='idle')return value;await new Promise(r=>setTimeout(r,5));}throw Error('Agent did not settle.');}
 
@@ -98,7 +101,7 @@ it('restoring an old revision keeps prior copies and requires new approval',asyn
 }));
 
 it('late job saves cannot erase a chat cancellation fence',async()=>fixture(async({jobs})=>{
-  const result=await jobs.submit({...request,workflow:'text-to-image',mode:'sfw',capabilities_revision:'v1'},'fixture-submission-123');
+  const result=await jobs.submit({...request,workflow:'text-to-image',mode:'sfw',},'fixture-submission-123');
   const stale=jobs.get(result.jobs[0]!.id)!;jobs.stopJobs([stale.id]);stale.error='Late transfer response';jobs.save(stale);
   expect(jobs.get(stale.id)!.state).toBe('cancelled');
 }));
@@ -127,7 +130,7 @@ it('compacts older dialogue while retaining recent turns and the original histor
 
 it('surfaces rejected tool calls even when the model falsely claims success',async()=>fixture(async({chats,jobs,queue,requests})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
-  queue.push([{operation:'create',request:{...request,seed:'puppy_snapshot_01',output:{aspect:'16:9',size:'native'}}}]);
+  queue.push([{operation:'create',request:{...request,seed:'puppy_snapshot_01',output:{aspect:'16:9',size:'768p'}}}]);
   chats.send(c.id,{version:c.version,text:'A candid puppy photo',assets:[]});c=await idle(chats,c.id);
   expect(c.groups).toHaveLength(0);expect(jobs.all()).toHaveLength(0);
   expect(c.error).toBeNull();expect(c.messages.at(-1)?.transcript?.state).toBe('failed');expect(c.messages.at(-1)?.transcript?.steps.some(s=>s.kind==='tool'&&s.state==='failed')).toBe(true);
@@ -183,7 +186,7 @@ it('retries only the selected output as an unsubmitted chat review',async()=>fix
 }));
 
 it('branches Generate into a new chat and Chat back into its original conversation',async()=>fixture(async({chats,jobs,queue})=>{
- const submitted=await jobs.submit({...request,workflow:'text-to-image',mode:'sfw',capabilities_revision:'v1'},'branch-generated-123');
+ const submitted=await jobs.submit({...request,workflow:'text-to-image',mode:'sfw',},'branch-generated-123');
  const job=submitted.jobs[0]!;const created=chats.branch([job.id],false);
  expect(created.groups[0]!.cards[0]!.revisions[0]).toMatchObject({decision:'undecided',job_ids:[],request:{count:1,seed:job.seed}});
  expect(created.workflow).toBe('text-to-image');expect(jobs.all()).toHaveLength(1);
@@ -243,7 +246,7 @@ it('keeps a saved proposal reviewable when the model response times out',async()
 it('explains reference labels and ids instead of leaving the model to guess',async()=>fixture(async({chats,queue})=>{
  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'reference-to-video'});
  // The fixture emits prepare_image, so exercise request validation directly without a paid provider call.
- expect(()=> (chats as any).request((chats as any).get(c.id),'reference-to-video',{...request,prompt:'Use <Picture 1>',output:{aspect:'16:9',size:'native',duration_seconds:5},references:[{id:'image1',asset_id:'i',kind:'image',role:'first_frame'},{id:'video1',asset_id:'v',kind:'video',role:'reference',range:{start_seconds:0,duration_seconds:3}}]})).toThrow('input mapping');
+ expect(()=> (chats as any).request((chats as any).get(c.id),'reference-to-video',{...request,prompt:'Use <Picture 1>',output:{aspect:'16:9',size:'768p',duration_seconds:5},references:[{id:'image1',asset_id:'i',kind:'image',role:'first_frame'},{id:'video1',asset_id:'v',kind:'video',role:'reference',range:{start_seconds:0,duration_seconds:3}}]})).toThrow('input mapping');
 }));
 
 it('edits prompts with a full replacement while preserving other settings',async()=>fixture(async({chats,queue})=>{
@@ -273,3 +276,14 @@ it('records rejected and successful attempts separately with exact arguments and
  expect(c.messages.filter(m=>m.role==='assistant')).toHaveLength(1);expect(c.messages.some(m=>m.text.includes('A request tool failed'))).toBe(false);expect(c.error).toBeNull();
  const stored=JSON.parse((db.prepare('select body_json from chats where id=?').get(c.id) as any).body_json);expect(stored.messages.at(-1).transcript).toEqual(turn);
 }));
+
+it('Chat supplies owner LoRA guidance and requires a matching estimate before approval',async()=>fixture(async({chats,jobs,queue,requests,paths,pricing})=>{
+  writeFileSync(path.join(paths.config,'loras.json'),JSON.stringify([{id:'watercolor',revision:'v1',name:'Watercolor',route:'image',availability:'all',description:'Soft landscapes. Use 0.8 to preserve detail.',default_scale:.8,trigger_words:['watercolor']},{id:'hidden',revision:'v2',name:'Private adapter',route:'image',availability:'spicy'}]));
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request:{...request,loras:[{id:'watercolor',revision:'v1',scale:.8}]}}]);chats.send(chat.id,{version:chat.version,text:'A watercolor landscape',assets:[]});chat=await idle(chats,chat.id);
+  const context=JSON.stringify(requests[0]);expect(context).toContain('Soft landscapes. Use 0.8');expect(context).toContain('default_scale');expect(context).not.toContain('Private adapter');
+  expect(chat.error).toBeNull();const card=chat.groups[0]!.cards[0]!,proposal=card.revisions[0]!.request;expect(proposal.loras).toEqual([{id:'watercolor',revision:'v1',scale:.8}]);
+  await expect(chats.decide(chat.id,card.id,1,'approved')).rejects.toThrow('cost preview');expect(jobs.all()).toHaveLength(0);
+  const quote=await pricing!.estimate(priceInput(proposal));await chats.decide(chat.id,card.id,1,'approved',quote.id);
+  expect(jobs.all()[0]).toMatchObject({estimate:{id:quote.id,total:.0087890625},request:{loras:proposal.loras}});
+},true));

@@ -1,0 +1,35 @@
+.request-settings {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 22px;
+  margin: 24px 0;
+}
+.request-setting {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  color: #b8c1ae;
+}
+.request-settings .seed-controls {
+  grid-template-columns: minmax(0, 1fr);
+  gap: 8px;
+}
+.request-setting select,
+.request-settings .seed-controls input,
+.request-settings .seed-controls select {
+  box-sizing: border-box;
+  width: 100%;
+  height: 42px;
+  min-width: 0;
+  background: #141c13;
+  color: #e4eedc;
+  border: 1px solid #46513e;
+  border-radius: 9px;
+  padding: 8px 10px;
+  font: inherit;
+}
+.request-settings .lora-picker {
+  margin: 0;
+}

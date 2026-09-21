@@ -7,7 +7,7 @@ import {prepareStorage} from '../server/storage.js';
 import path from 'node:path';
 import {createApp} from '../server/http.js';
 import {resolvePaths} from '../server/storage.js';
-import {imageRequest,graphFor} from '../server/workflows.js';
+import {imageRequest} from '../server/workflows.js';
 import {videoRoute} from '../server/video.js';
 it('resumes a real tus upload and makes a verified original available',async()=>{
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/media-'));
@@ -44,18 +44,14 @@ it('prepares oriented phone photos without stretching and expires abandoned rese
     await media.scan();expect(media.get('old').metadata.state).toBe('error');
   }finally{await media.close();db.close();rmSync(root,{recursive:true,force:true});}
 });
-it('routes anchors through FL and mixed references through Ref, matching content and ending frame',()=>{
-  const request=imageRequest({workflow:'reference-to-video',capabilities_revision:'test',prompt:'A scene',mode:'nsfw',output:{aspect:'16:9',size:'720p',duration_seconds:5},references:[{id:'first',asset_id:'asset',kind:'image',role:'last_frame'}]});
+it('routes anchors through FL and rejects mixing them with general references',()=>{
+  const request=imageRequest({workflow:'reference-to-video',prompt:'A scene',mode:'nsfw',output:{aspect:'16:9',size:'768p',duration_seconds:5},references:[{id:'first',asset_id:'asset',kind:'image',role:'last_frame'}]});
   expect(videoRoute(request)).toBe('fl');
-  const preset={filename:'test.safetensors',sha256:'a'.repeat(64),strength_model:1,revision:'test'};
-  const graph=graphFor(request,'job','42',preset,[{...request.references![0]!,file:'a.png',filename:'a.png',sha256:'b'.repeat(64)}]);
-  expect(graph['7']!.inputs.model).toEqual(['18',0]);expect(graph['10']!.inputs.model).toEqual(['18',0]);
-  expect(Object.values(graph).find(n=>n.class_type==='MiniMaxH3AddGuide')!.inputs.frame_idx).toBe(119);
-  expect(graph['11']!.inputs.latent_image).toEqual(['6',1]);
   request.references!.push({id:'ref',asset_id:'second',kind:'image',role:'reference'});expect(videoRoute(request)).toBe('ref');
   expect(()=>imageRequest({...request,prompt:'Use <Picture 2>'})).toThrow('reference mention');
   expect(()=>imageRequest({...request,prompt:'Use [removed reference]'})).toThrow('reference mention');
-  expect(imageRequest({...request,prompt:'Use <Picture 1>'}).prompt).toBe('Use <Picture 1>');
+  expect(()=>imageRequest({...request,prompt:'Use <Picture 1>'})).toThrow('either reference');
+  expect(imageRequest({...request,references:request.references!.slice(1),prompt:'Use <Picture 1>'}).prompt).toBe('Use <Picture 1>');
 });
 
 it('prepares a saved generation that has no upload state metadata',async()=>{

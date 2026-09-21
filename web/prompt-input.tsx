@@ -1,4 +1,0 @@
-import React,{forwardRef} from 'react';
-import {InlineComposer,type ComposerHandle} from './inline-composer.js';
-import type {InputMention} from './input-mentions.js';
-export const PromptInput=forwardRef<ComposerHandle,{id:string;value:string;onChange:(value:string)=>void;mentions:InputMention[];disabled?:boolean;placeholder?:string}>(function PromptInput({id,value,onChange,mentions,disabled,placeholder='Describe what you want to create…'},ref){return <div className="prompt-mentions"><InlineComposer ref={ref} id={id} label="Prompt" value={value} mentions={mentions} placeholder={placeholder} disabled={disabled} expanded={false} multiline onChange={onChange} onSelect={()=>{}} onKeyDown={()=>{}} onPasteFiles={()=>{}}/><small className="mention-help">Type @ to reference an input</small></div>;});

@@ -1,4 +1,6 @@
 import {bindChatMentions,agentMentionContext} from './mentions.js';
+import type {Pricing} from '../pricing.js';
+import {loraRoute} from '../fal-request.js';
 import type {MentionBinding} from '../../shared/chat-mentions.js';
 import {createReadInputTool} from './read-input.js';
 import {requestToolSchemas,prepareToolRequest,requestToolRules,requestToolResultError,toolInputLabels,toolPromptBindings,toolPromptReferencePattern,type ToolAsset} from './request-tools.js';
@@ -22,9 +24,9 @@ import { compactConversation, settingsOnlyMessage, type ConversationSummary } fr
 function agentRequest(request:ImageRequest,assets:ToolAsset[]=[]){
   const bindings=new Map([...toolPromptBindings(request.references??[])].map(([id,label])=>[label,'[['+id+']]']));
   const prompt=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?request.prompt.replace(toolPromptReferencePattern,label=>bindings.get(label)??label):request.prompt;
-  return {prompt,batch_size:request.count,seed:request.seed,aspect_ratio:request.output.aspect,size:request.output.size,
+  return {prompt,batch_size:request.count,seed:request.seed,aspect_ratio:request.output.aspect,size:request.output.size,loras:request.loras??[],
     ...(request.note?{note:request.note}:{}),...(request.mode==='nsfw'?{mode:request.mode}:{}),
-    ...(request.workflow!=='text-to-image'?{quality:request.quality,duration_seconds:request.output.duration_seconds,output_format:request.output.format,audio_output:request.audio?.output}:{}),
+    ...(request.workflow!=='text-to-image'?{duration_seconds:request.output.duration_seconds,audio_output:request.audio?.output}:{}),
     ...(request.references?{inputs:request.references.map(ref=>({id:ref.id,asset:assets.find(a=>a.asset_id===ref.asset_id)?.handle??ref.asset_id,role:ref.role,
       ...(ref.framing?{framing:ref.framing}:{}),...(ref.range??{}),...(ref.kind==='video'?{include_audio:Boolean(ref.include_audio)}:{})}))}:{})};
 }
@@ -42,7 +44,7 @@ export class Chats {
   private preparing=new Set<string>();
   private titles=new Map<string,{agent:Agent;task:Promise<void>}>();
   constructor(private db:Database.Database,private paths:StudioPaths,private jobs:Jobs,
-    private transport?:typeof fetch) {
+    private transport?:typeof fetch,private pricing?:Pricing) {
     for(const row of db.prepare('SELECT body_json FROM chats').all() as {body_json:string}[]) {
       const chat=JSON.parse(row.body_json) as StoredChat;
       for(const card of chat.groups.flatMap(g=>g.cards))for(const revision of card.revisions)for(const id of revision.job_ids){const job=jobs.get(id);if(job&&!job.source){job.source={chat_id:chat.id,card_id:card.id,revision:revision.number};db.prepare('UPDATE jobs SET snapshot_json=? WHERE id=?').run(JSON.stringify(job),id);}}
@@ -65,7 +67,7 @@ export class Chats {
   private event(chat:StoredChat,text:string){chat.messages.push({id:randomUUID(),role:'event',text,assets:[],created_at:now()});}
   private jobIds(chat:ChatView){return [...new Set(chat.groups.flatMap(g=>g.cards.flatMap(c=>c.revisions.flatMap(r=>r.job_ids))))];}
   private activeJobs(chat:ChatView){return this.jobIds(chat).map(id=>this.jobs.get(id)).filter(job=>job&&!terminal.includes(job.state));}
-  private generating(chat:ChatView){return this.activeJobs(chat).some(job=>job!.state!=='needs_attention'&&!this.db.prepare('SELECT id FROM job_cancel_intents WHERE id=?').get(job!.id));}
+  private generating(chat:ChatView){return this.activeJobs(chat).some(job=>!['needs_attention','blocked'].includes(job!.state)&&!job!.recovery_blocked&&!this.db.prepare('SELECT id FROM job_cancel_intents WHERE id=?').get(job!.id));}
   private busy(chat:ChatView){return this.tasks.has(chat.id)||this.preparing.has(chat.id)||this.generating(chat);}
   private checkVersion(chat:ChatView,version:number){if(chat.version!==version)throw Error('Chat changed in another tab. Refresh and send again.');}
   view(id:string){const chat=this.get(id);const {runs,...view}=chat;
@@ -82,7 +84,7 @@ export class Chats {
     if(values.reasoning!==undefined)chat.reasoning=values.reasoning;
     chat.version++;this.save(chat);return this.view(id);
   }
-  delete(id:string){const chat=this.get(id);if(this.busy(chat))throw Error('Stop generation before deleting this chat, then try again.');if(this.activeJobs(chat).length)throw Error('Remote cancellation or output saving is still pending. Reconnect the worker and try deletion after it settles.');this.titles.get(id)?.agent.abort();this.db.prepare('DELETE FROM chats WHERE id=?').run(id);}
+  delete(id:string){const chat=this.get(id);if(this.busy(chat))throw Error('Stop generation before deleting this chat, then try again.');if(this.activeJobs(chat).length)throw Error('Remote cancellation or output saving is still pending. Check fal connectivity and try deletion after it settles.');this.titles.get(id)?.agent.abort();this.db.prepare('DELETE FROM chats WHERE id=?').run(id);}
   stop(id:string){this.titles.get(id)?.agent.abort();const chat=this.get(id);chat.epoch++;chat.version++;chat.activity='idle';
     for(const run of chat.runs)if(run.state==='running')run.state='stopped';for(const message of chat.messages)if(message.transcript?.state==='running')finishTurn(message.transcript,'stopped');
     for(const group of chat.groups)if(group.state!=='released')group.state='stopped';
@@ -94,7 +96,7 @@ export class Chats {
     for(const id of ids){
       const asset=this.jobs.media.get(id);if(!asset||(asset.metadata.state??'ready')!=='ready')throw Error('An attached asset is missing or still uploading.');
       const row=this.db.prepare(`SELECT COALESCE(json_extract(metadata_json,'$.mode'),(SELECT json_extract(snapshot_json,'$.request.mode') FROM jobs WHERE jobs.id=json_extract(assets.metadata_json,'$.job_id')),'sfw') mode FROM assets WHERE id=?`).get(id) as {mode:string};
-      if(!(allowExisting&&chat.assets.includes(id))&&row.mode!==chat.mode)throw Error('Choose assets from this chat’s mode.');
+      if(!(allowExisting&&chat.assets.includes(id))&&row.mode!==chat.mode)throw Error('Choose assets available in this chat.');
     }
   }
   private contextAssets(chat:StoredChat){return chat.assets.map(id=>{const asset=this.jobs.media.get(id);const own=this.db.prepare('SELECT note FROM asset_notes WHERE id=?').get(id) as {note:string}|undefined;
@@ -103,11 +105,12 @@ export class Chats {
   private request(chat:StoredChat,workflow:ChatWorkflow,raw:unknown,previous?:ImageRequest):ImageRequest{
     const value=raw as Record<string,unknown>;
     if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Provide request settings.');
-    if(chat.mode==='sfw'&&Object.hasOwn(value,'mode'))throw Error('Standard requests cannot supply a mode field.');
+    if(chat.mode==='sfw'&&Object.hasOwn(value,'mode'))throw Error('This request cannot supply a mode field.');
     let request:ImageRequest;
-    request=imageRequest({...value,workflow,mode:chat.mode==='sfw'?'sfw':value.mode??'nsfw',capabilities_revision:this.jobs.capabilities?.revision??'offline'});
+    request=imageRequest({...value,workflow,mode:chat.mode==='sfw'?'sfw':value.mode??'nsfw'});
     if(previous){request=preserveChatLabels(previous,request);if(value.note===undefined&&previous.note)request.note=previous.note;}
     validateChatReferences(request);
+    this.jobs.loras.resolve(request.loras,loraRoute(request),request.mode);
     for(const ref of request.references??[])if(!chat.assets.includes(ref.asset_id))throw Error('Reference must be provided in this conversation.');
     this.assertAssets(chat,[...new Set((request.references??[]).map(r=>r.asset_id))]);return request;
   }
@@ -117,7 +120,7 @@ export class Chats {
   }
   private workflowTools(id:string,epoch:number,workflow:ChatWorkflow,runId:string,assets:ToolAsset[],target?:string):AgentTool[] {
     const initial=this.get(id),snapshots=new Map(initial.groups.flatMap(g=>g.cards).map(c=>[c.id,latest(c).number]));
-    const schemas=requestToolSchemas(workflow,initial.mode);
+    const schemas=requestToolSchemas(workflow,initial.mode,this.jobs.loras.list(initial.mode).some(l=>workflow==='text-to-image'?l.route==='image':workflow==='text-to-video'?l.route==='fl':l.route!=='image'));
     const referenceMode=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct';
     return (['create','edit'] as const).map(operation=>({
       name:operation+'_request',label:operation==='create'?'Create request':'Edit request',
@@ -134,10 +137,11 @@ export class Chats {
           const card=editId?group?.cards.find(c=>c.id===editId):undefined;
           if(editId&&!card)throw Error('Request not found. Use a request_id listed in current review. A failed create has no request_id.');
           if(card&&snapshots.get(card.id)!==latest(card).number)throw Error('Request changed after this agent started. Read the current request before editing; no changes were saved.');
-          const request=prepareToolRequest({workflow,mode:current.mode,capabilitiesRevision:this.jobs.capabilities?.revision??'offline',assets,previous:card?latest(card).request:undefined,referenceMode},value);
+          const request=prepareToolRequest({workflow,mode:current.mode,assets,previous:card?latest(card).request:undefined,referenceMode},value);
           for(const ref of request.references??[])if(!current.assets.includes(ref.asset_id))throw Error('Input is not attached to this chat.');
           this.assertAssets(current,[...new Set((request.references??[]).map(r=>r.asset_id))]);
           validateChatReferences(request);
+          this.jobs.loras.resolve(request.loras,loraRoute(request),request.mode);
           if(!group){group={id:randomUUID(),after_message_id:[...current.messages].reverse().find(m=>m.role==='user')?.id??null,workflow,state:'assembling',cards:[]};current.groups.push(group);}
           let saved:ChatCard;
           if(card){
@@ -223,7 +227,8 @@ export class Chats {
       const previousText=(previousAttempt?.result as any)?.content?.filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('\n');
       if(previousText){try{previousResult=JSON.parse(previousText);}catch{previousResult={message:previousText.slice(0,3000),truncated:previousText.length>3000};}}
       const last_attempt=previousAttempt&&previousAttempt.state!=='succeeded'?{tool:previousAttempt.name,input:previousAttempt.input,saved:false,result:previousResult}:undefined;
-      const context=JSON.stringify({last_attempt,earlier_conversation_summary:compact.summary?.text,conversation:compact.recent,assets:manifest,available_inputs:availableInputs,images_in_order:imageIds,visual_evidence_in_order:visual.evidence,video_evidence_note:"Video images are sampled frames, not a full video. Audio has not been supplied. Do not claim to hear audio.",unavailable_images:unavailableImages,unavailable_inputs:visual.unavailable_inputs,request_context:chat.groups.flatMap(g=>g.cards.filter(c=>contextCardIds.includes(c.id)).map(c=>({id:c.id,state:g.state,...latest(c),request:agentRequest(latest(c).request,toolAssets),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))}))),review:group?.cards.map(c=>({id:c.id,revision:latest(c).number,decision:latest(c).decision})),feedback_card:target,capabilities:this.jobs.capabilities});
+      const available_loras=this.jobs.loras.list(chat.mode).filter(l=>chat.workflow==='text-to-image'?l.route==='image':chat.workflow==='text-to-video'?l.route==='fl':chat.workflow==='reference-to-video'?l.route!=='image':false).map(l=>({id:l.id,revision:l.revision,name:l.name,version:l.version,description:l.description??'',trigger_words:l.trigger_words??[],default_scale:l.default_scale,min_scale:l.min_scale,max_scale:l.max_scale,compatible_with:l.route==='image'?'Krea images':l.route==='fl'?'Text to video and first/last-frame guides':'General image/video/audio references'}));
+      const context=JSON.stringify({available_loras,last_attempt,earlier_conversation_summary:compact.summary?.text,conversation:compact.recent,assets:manifest,available_inputs:availableInputs,images_in_order:imageIds,visual_evidence_in_order:visual.evidence,video_evidence_note:"Video images are sampled frames, not a full video. Audio has not been supplied. Do not claim to hear audio.",unavailable_images:unavailableImages,unavailable_inputs:visual.unavailable_inputs,request_context:chat.groups.flatMap(g=>g.cards.filter(c=>contextCardIds.includes(c.id)).map(c=>({id:c.id,state:g.state,...latest(c),request:agentRequest(latest(c).request,toolAssets),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))}))),review:group?.cards.map(c=>({id:c.id,revision:latest(c).number,decision:latest(c).decision})),feedback_card:target});
       if(context.length>400000)throw Error('Current requests and attachments exceed the context budget. Start another chat with fewer assets.');
       const tools=chat.workflow?this.workflowTools(id,epoch,chat.workflow,runId,toolAssets,target):[];
       if(chat.workflow==='reference-to-video'&&toolAssets.some(a=>a.kind==='video'))tools.push(createReadInputTool({data:this.paths.data,assets:toolAssets,getAsset:assetId=>this.jobs.media.get(assetId)}));
@@ -260,13 +265,13 @@ export class Chats {
     }catch(error){const current=this.get(id);current.runs.find(r=>r.id===runId)!.state='failed';if(current.epoch===epoch){const message=current.messages.find(m=>m.id===runId);if(message?.transcript){finishTurn(message.transcript,'failed');message.transcript.error=(error as Error).message;}current.error=(error as Error).message;current.activity='idle';const pending=openGroup(current);if(pending?.cards.length){pending.state='reviewing';for(const card of pending.cards)if(card.timeline_start&&card.timeline_start>latest(card).number)card.timeline_start=latest(card).number;}}this.save(current);}
   }
   revise(id:string,cardId:string,number:number,raw:unknown){const chat=this.get(id);if(this.tasks.has(id)||this.preparing.has(id))throw Error('Wait for the request to finish preparing.');const group=openGroup(chat),card=group?.cards.find(c=>c.id===cardId);if(!card||latest(card).number!==number)throw Error('Request changed or already started.');card.revisions.push(this.revision(chat,this.request(chat,card.workflow,raw,latest(card).request),number+1,latest(card).source_job_id));chat.version++;this.save(chat);return this.view(id);}
-  async decide(id:string,cardId:string,number:number,decision:'approved'|'denied'){
+  async decide(id:string,cardId:string,number:number,decision:'approved'|'denied',estimateId?:string){
     const chat=this.get(id);if(this.tasks.has(id)||this.preparing.has(id))throw Error('Wait for this chat to finish.');const group=openGroup(chat),card=group?.cards.find(c=>c.id===cardId);
     if(!group||group.state!=='reviewing'||!card||latest(card).number!==number)throw Error('Review the current completed proposal.');
     if(decision==='approved'&&!latest(card).approved_snapshot){
-      const cap=await this.jobs.inspectCapabilities();const current=this.get(id);
+      if(this.pricing)latest(card).estimate=this.pricing.accept(estimateId,latest(card).request);
+      this.jobs.ensureConfigured();const current=this.get(id);
       if(current.version!==chat.version||current.epoch!==chat.epoch||this.tasks.has(id)||this.preparing.has(id))throw Error('Chat changed during approval. Review again.');
-      latest(card).request.capabilities_revision=cap.revision;
       latest(card).notes=this.revision(chat,latest(card).request,number).notes;
       latest(card).request.resolved_seeds=seeds(latest(card).request);latest(card).approved_snapshot=true;
     }
@@ -281,12 +286,12 @@ export class Chats {
 
       const approved=group.cards.filter(c=>latest(c).decision==='approved');
       const staged:Array<Awaited<ReturnType<Jobs['prepareSubmission']>>>=[];
-      for(const card of approved){this.assertAssets(chat,[...new Set((latest(card).request.references??[]).map(r=>r.asset_id))]);staged.push(await this.jobs.prepareSubmission(latest(card).request,`${group.id}-${card.id}-${latest(card).number}`,{chat_id:id,card_id:card.id,revision:latest(card).number,...(latest(card).source_job_id?{job_id:latest(card).source_job_id}:{})}));}
+      for(const card of approved){this.assertAssets(chat,[...new Set((latest(card).request.references??[]).map(r=>r.asset_id))]);staged.push(await this.jobs.prepareSubmission(latest(card).request,`${group.id}-${card.id}-${latest(card).number}`,{chat_id:id,card_id:card.id,revision:latest(card).number,...(latest(card).source_job_id?{job_id:latest(card).source_job_id}:{})},latest(card).estimate));}
       const current=this.get(id);if(current.epoch!==chat.epoch||current.version!==chat.version)throw Error('Review changed during preparation. No jobs were submitted.');
-      if(approved.length){const cap=await this.jobs.inspectCapabilities();if(approved.some(c=>latest(c).request.capabilities_revision!==cap.revision))throw Error('Worker changed. Review requests again.');}
-      // Recheck after the final asynchronous capability request.
+      if(approved.length)this.jobs.ensureConfigured();
+      // Recheck approval after asynchronous media preparation.
       const final=this.get(id);if(final.epoch!==chat.epoch||final.version!==chat.version)throw Error('Review was stopped or changed.');
-      this.db.transaction(()=>{for(let i=0;i<staged.length;i++)latest(approved[i]!).job_ids=staged[i]!.commit().jobs.map(j=>j.id);group.state='released';this.save(chat);if(approved.length)this.jobs.pause(false);})();
+      this.db.transaction(()=>{for(let i=0;i<staged.length;i++)latest(approved[i]!).job_ids=staged[i]!.commit().jobs.map(j=>j.id);group.state='released';this.save(chat);})();
     });}catch(error){const chat=this.get(id);chat.error=(error as Error).message;this.save(chat);}finally{this.preparing.delete(id);}
   }
   branch(jobIds:string[],fresh:boolean,draft=false){
@@ -322,7 +327,6 @@ export class Chats {
   }
   async close(){for(const title of this.titles.values())title.agent.abort();await Promise.allSettled([...this.titles.values()].map(t=>t.task));for(const [id] of this.agents)this.stop(id);await Promise.allSettled([...this.tasks.values()]);}
 }
-
 
 
 

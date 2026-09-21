@@ -1,29 +1,15 @@
-# Releases and infrastructure
+# Release and infrastructure
 
-One local Seed package ships the CLI, server, browser build and operational code.
-The GitHub skill is instructions only. npm publication is deferred; build an archive
-with `npm pack` and install it outside the checkout for acceptance testing.
-`seed version` identifies the installed package, Node and pinned worker image.
-Updates happen only when requested, with the local app stopped and user data kept.
-No update daemon, Terraform or UI acquisition service.
+Seed ships a Node package containing the local server, shared code, web assets,
+and editable chat prompt templates. Build with npm run verify, then npm pack.
+Use scripts/test-package.mjs through npm run test:package to check an archive.
 
-`shared/worker-release.ts` pins the immutable GHCR worker image. Both providers use
-that pin; existing workers keep their image. Pairing checks protocol compatibility.
-Build candidates with `docker build -t seed-worker:candidate -f worker/Dockerfile worker`.
-The GitHub workflow can publish candidates. Validate startup and change the pin
-only after evidence supports it. The public image contains no user credentials.
+Generation runs on fal's model APIs. There is no worker image release or provider
+provisioning step. Never include credentials, models, local media or private
+upload receipts in the package. Only local adapter masters and user media need
+local disk; base-model weights remain fal's responsibility.
 
-Models are downloaded directly on rented compute. Optional local caching downloads
-at setup and provides fallback. Models and private presets are not package/image
-payloads. HF/Civitai tokens travel transiently via SSH stdin; provider keys stay
-local. Pairing/Jupyter secrets are runtime inputs.
-
-RunPod creates a globally placed pod with disposable disk; optional datacenter
-constraints remain explicit. Vast selects a particular verified host, prioritizing
-reliability and network speed. Preserve native provider prices/capacity/diagnostics.
-Unknown metrics remain unknown. Resolve uncertain creation before trying again.
-Delete a failed newly created rental after bounded recovery; established sessions
-require safe output saving before teardown. Existing network volumes are untouched.
-
-Checks and platform gaps: [validation](VALIDATION.md). Build/install instructions:
-[development](DEVELOPMENT.md). User workflows: [skill](../skills/seed/SKILL.md).
+Do not silently replace a running installed app with a worktree test build.
+Preserve its existing data/config paths. STUDIO_DEV_ROOT selects an isolated
+worktree instance. Keep measured provider behavior separate from guarantees:
+precision, caching, quantization and internal scheduling are not app-controlled.

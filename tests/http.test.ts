@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createApp } from '../server/http.js';
 import { resolvePaths } from '../server/storage.js';
 import sharp from 'sharp';
+import {gunzipSync} from 'node:zlib';
 
 let app: Awaited<ReturnType<typeof createApp>>;
 let root: string;
@@ -16,7 +17,25 @@ beforeEach(async () => {
 afterEach(async () => { await app.close(); await new Promise(resolve => setTimeout(resolve, 30)); rmSync(root, { recursive: true, force: true }); });
 
 describe('local studio boundary', () => {
-  it('serves real frame previews, groups Library results and retains selected originals', async () => {
+  it('serves the compressed entry page and caches hashed scripts', async () => {
+    const response=await app.inject({url:'/',headers:{host,'accept-encoding':'gzip'}});
+    expect(response.statusCode).toBe(200);expect(response.headers['content-encoding']).toBe('gzip');expect(response.headers['cache-control']).toBe('no-cache');
+    const html=gunzipSync(response.rawPayload).toString(),script=html.match(/src="(\/assets\/[^\"]+\.js)"/)?.[1];
+    expect(script).toBeTruthy();const asset=await app.inject({url:script!,headers:{host,'accept-encoding':'gzip'}});
+    expect(asset.statusCode).toBe(200);expect(asset.headers['content-encoding']).toBe('gzip');expect(asset.headers['cache-control']).toContain('immutable');
+  });
+  it('filters Spicy-only catalog entries and persists availability without exposing private files', async () => {
+    const file=path.join(resolvePaths(root).config,'loras.json');
+    writeFileSync(file,JSON.stringify([{id:'adapter',name:'Private adapter',revision:'sha',route:'image',availability:'spicy',file:'private-file',upload:{url:'private-url',expires_at:'2099-01-01'}}]));
+    const standard=()=>app.inject({url:'/api/v1/loras',headers:{host}});
+    expect((await standard()).json().items).toEqual([]);
+    const spicy=(await app.inject({url:'/api/v1/loras?mode=nsfw',headers:{host}})).json();
+    expect(spicy.items).toHaveLength(1);expect(spicy.items[0]).not.toHaveProperty('file');expect(spicy.items[0]).not.toHaveProperty('upload');
+    expect((await app.inject({method:'PATCH',url:'/api/v1/loras/adapter',headers:{host},payload:{availability:'all'}})).statusCode).toBe(403);
+    expect((await app.inject({method:'PATCH',url:'/api/v1/loras/adapter',headers:{host,origin:`http://${host}`},payload:{availability:'all'}})).statusCode).toBe(200);
+    expect((await standard()).json().items[0]).toMatchObject({availability:'all'});
+  });
+  it('lists frames as images and deletes each through the ordinary asset endpoint', async () => {
     const paths=resolvePaths(root), db=openDatabase(paths.data), headers={host,origin:`http://${host}`};
     const bytes=await sharp({create:{width:1344,height:768,channels:3,background:'#345678'}}).png().toBuffer();
     db.prepare('INSERT INTO sequences(id,mode,created_at) VALUES (?,?,?)').run('sequence','sfw',new Date().toISOString());
@@ -25,19 +44,15 @@ describe('local studio boundary', () => {
       db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('frame'+i,'image','Frame',`media/outputs/frame${i}.png`,JSON.stringify({width:1344,height:768}),new Date().toISOString());
       db.prepare('INSERT INTO sequence_frames VALUES (?,?,?)').run('sequence','frame'+i,i);
     }
-    expect((await app.inject({url:'/api/v1/assets',headers:{host}})).json().items).toHaveLength(1);
+    expect((await app.inject({url:'/api/v1/assets?kind=image',headers:{host}})).json().items).toHaveLength(3);
     const preview=await app.inject({url:'/api/v1/assets/frame0/preview',headers:{host}});
     expect(preview.statusCode).toBe(200);expect((await sharp(preview.rawPayload).metadata()).width).toBe(384);
     expect((await app.inject({url:'/api/v1/assets/frame0/content',headers:{host}})).rawPayload).toEqual(bytes);
-    const sheet=await app.inject({url:'/api/v1/sequences/sequence/preview/0?revision=0',headers:{host}});
-    expect(sheet.statusCode).toBe(200);
-    expect(await sharp(sheet.rawPayload).metadata()).toMatchObject({width:1920,height:183,format:'webp'});
-    expect((await app.inject({method:'DELETE',url:'/api/v1/assets/frame0',headers})).statusCode).toBe(409);
-    const kept=await app.inject({method:'POST',url:'/api/v1/sequences/sequence/keep-only',headers,payload:{asset_ids:['frame1'],revision:0}});
-    expect(kept.statusCode).toBe(200);expect(kept.json().frames.map((f:any)=>f.id)).toEqual(['frame1']);
-    expect((await app.inject({url:'/api/v1/sequences/sequence/preview/0?revision=0',headers:{host}})).statusCode).toBe(409);
+    expect((await app.inject({method:'DELETE',url:'/api/v1/assets/frame0',headers})).statusCode).toBe(204);
     expect((await app.inject({url:'/api/v1/assets/frame0/content',headers:{host}})).statusCode).toBe(404);
-    expect((await app.inject({method:'DELETE',url:'/api/v1/sequences/sequence',headers})).statusCode).toBe(204);
+    expect((await app.inject({url:'/api/v1/assets/frame1/content',headers:{host}})).rawPayload).toEqual(bytes);
+    expect((await app.inject({url:'/api/v1/assets?kind=image',headers:{host}})).json().items).toHaveLength(2);
+    for(const id of ['frame1','frame2'])expect((await app.inject({method:'DELETE',url:'/api/v1/assets/'+id,headers})).statusCode).toBe(204);
     expect((await app.inject({url:'/api/v1/assets',headers:{host}})).json().items).toHaveLength(0);
     db.close();
   });
@@ -59,10 +74,10 @@ describe('local studio boundary', () => {
     expect(existsSync(outside)).toBe(true);
     db.close();
   });
-  it('reports disconnected and unknown safety, never provider-off or ready', async () => {
+  it('reports fal configuration without GPU lifecycle fields', async () => {
     const result = await app.inject({ url: '/api/v1/studio', headers: { host } });
     expect(result.statusCode).toBe(200);
-    expect(result.json()).toMatchObject({ worker: { state: 'disconnected', stale: true }, safe_to_terminate: null, checked_at: null, queue: { paused: true }, implementation: { generation: true } });
+    expect(result.json()).toMatchObject({ provider: {name:'fal',configured:false}, activity: {active:0,waiting:0,needs_attention:0} });
     expect(result.headers['cache-control']).toBe('no-store');
   });
   it('rejects rebinding hosts, hostile origins and cross-site reads', async () => {
@@ -72,17 +87,16 @@ describe('local studio boundary', () => {
       expect(result.headers['access-control-allow-origin']).toBeUndefined();
     }
   });
-  it('requires same origin for mutations and never resumes disconnected work', async () => {
-    const missing = await app.inject({ method: 'POST', url: '/api/v1/queue/pause', payload: {}, headers: { host } });
+  it('requires same origin for recovery and removes global queue controls', async () => {
+    const missing = await app.inject({ method: 'POST', url: '/api/v1/jobs/missing/continue', payload: {}, headers: { host } });
     expect(missing.statusCode).toBe(403);
     const headers = { host, origin: `http://${host}` };
-    const paused = await app.inject({ method: 'POST', url: '/api/v1/queue/pause', payload: {}, headers });
-    expect(paused.json()).toEqual({ paused: true });
-    const unexpected = await app.inject({ method: 'POST', url: '/api/v1/queue/pause', payload: { unexpected: true }, headers });
+    for(const action of ['pause','resume'])expect((await app.inject({method:'POST',url:'/api/v1/queue/'+action,payload:{},headers})).statusCode).toBe(404);
+    const unexpected = await app.inject({ method: 'POST', url: '/api/v1/jobs/missing/continue', payload: { unexpected: true }, headers });
     expect(unexpected.statusCode).toBe(400);
-    const resume = await app.inject({ method: 'POST', url: '/api/v1/queue/resume', payload: {}, headers });
+    const resume = await app.inject({ method: 'POST', url: '/api/v1/jobs/missing/continue', payload: {}, headers });
     expect(resume.statusCode).toBe(409);
-    expect(resume.json().error.code).toBe('worker_unavailable');
+    expect(resume.json().error.code).toBe('recovery_failed');
   });
   it('does not serve private config or disguise unknown APIs as HTML', async () => {
     for (const url of ['/api/v1/connection', '/server/db.ts']) {

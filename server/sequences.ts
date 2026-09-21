@@ -23,7 +23,7 @@ export class Sequences {
   private check(ids: string[]) {
     for (const job of this.jobs.all()) {
       if (!['completed','failed','cancelled'].includes(job.state) && job.request.references?.some(r=>ids.includes(r.asset_id))) throw Error('A queued job still needs a selected file. Wait for it to finish.');
-      if (job.outputs.some(id=>ids.includes(id)) && (job.state!=='completed' || job.cleanup_state!=='complete')) throw Error('These frames are still being saved. Try again shortly.');
+      if (job.outputs.some(id=>ids.includes(id)) && (job.state!=='completed')) throw Error('These frames are still being saved. Try again shortly.');
     }
     for (const id of ids) {
       const row=this.db.prepare('SELECT relative_path FROM assets WHERE id=?').get(id) as any;

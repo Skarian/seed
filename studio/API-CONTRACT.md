@@ -1,97 +1,76 @@
 # Local API
 
-The running implementation is in server/http.ts, server/media.ts and the shared
-request types. Routes below use `/api/v1`. Browser requests never contain provider
-keys, arbitrary model paths or executable graphs. Host/Origin checks protect local
-mutations; public hosting needs an owner-managed authenticated boundary.
+All routes are under /api/v1, require the configured Host, and reject cross-site
+requests. Mutations require an exact same-origin Origin header. Credentials and
+private config files are never served. Media uploads retain the TUS API.
 
-| Route | Behavior |
-|---|---|
-| GET /health | Local app identity; not GPU readiness |
-| GET /studio | Worker observation, queue, pending outputs and fresh termination safety |
-| GET /capabilities | Current revision and enabled image/video workflows/modes |
-| PUT /connection | Exchange `{connection_code}`; keep credential server-side |
-| DELETE /connection | Forget pairing and pause dispatch; does not stop billing |
-| POST /queue/pause, /queue/resume | Control local dispatch, not compute |
-| /uploads and /uploads/{id} | Resumable tus creation, HEAD/PATCH/DELETE |
-| GET /assets | Cursor-paginated Library inventory |
-| GET /assets/{id} | Upload/preparation metadata |
-| GET /assets/{id}/content | Saved content with Range support |
-| GET /assets/{id}/preview?size=384 or 1280 | Disposable cached WebP preview; original content remains unchanged |
-| GET /sequences/{id}/preview/{page}?revision=N | Cached 24-frame scrub sheet; stale revisions rejected |
-| GET /sequences/{id} | Ordered original frame IDs, indices/timestamps, dimensions and revision |
-| POST /sequences/{id}/keep-only | Confirmed pruning with `{asset_ids, revision}`; nonempty subset, stale-write protection |
-| POST /sequences/{id}/retry-cleanup | Finish a previously confirmed, persisted cleanup intent |
-| DELETE /sequences/{id} | Confirmed whole-sequence deletion; respects queued reference ownership |
-| DELETE /assets/{id} | Confirmed UI deletion; retains job history; can refuse pending cleanup |
-| POST /jobs | Idempotent durable batch submission; returns 202 or submission error |
-| GET /jobs, /jobs/{id} | Paginated history or one job snapshot, including metrics |
-| POST /jobs/{id}/cancel | Request cancellation |
-| POST /jobs/{id}/acknowledge | Explicit acknowledgment of an uncertain outcome; no automatic rerun |
+- GET /studio: provider.name = fal, provider.configured, activity/output counts.
+  There is no worker connection or teardown state.
+- GET /loras?mode=sfw|nsfw: mode-filtered catalog metadata, names, versions, hash
+  revisions, variant, compatibility and upload availability. Defaults to sfw;
+  omits local paths and private upload URLs.
+- PATCH /loras/:id: set availability to `all` or `spicy`. Standard submissions
+  and queued dispatches reject Spicy-only adapters.
+- POST /assets/:id/frames: `{time_seconds}` extracts a full-resolution PNG from
+  a saved video, preserving its mode and note. Returns the new Library asset.
+- POST /jobs: validated request plus Idempotency-Key and X-Seed-Estimate; returns durable local jobs.
+  loras is an optional array of {id, revision, scale}, at most three distinct IDs.
+  Each adapter must match the image, FL or Ref route.
+- GET /jobs and /jobs/:id: job history, provider receipt, timing, saved outputs.
+- POST /jobs/:id/cancel: durable local cancellation intent. fal may still complete.
+- POST /jobs/:id/acknowledge: acknowledge an uncertain result after inspecting fal.
+- POST /jobs/:id/continue: release only the unsent outputs in this request after resolving the reported problem.
+- POST /jobs/:id/retry-save: retry saving an existing fal result without generating again.
+- No global pause/resume controls. Uncertain submissions require acknowledgment; provider rejections hold unsent outputs until explicitly continued.
 
-## Submission
+Requests specify workflow, prompt, mode, output, seed, count, references, audio,
+and optional LoRAs. Images use size `1mp`; videos use `768p` with a whole-second
+duration from 5 to 15. Videos are always saved as videos; frames are picked later.
+General reference inputs cannot be combined with first/last frame guides.
 
-Send `Idempotency-Key` and the current `capabilities_revision`. Supported workflow
-IDs: `text-to-image`, `text-to-video`, `reference-to-video`. Identity editing is
-not implemented. Send prompt, mode (`sfw` or configured `nsfw`), output, optional
-seed/count and video references/audio where applicable. Unknown fields fail.
-Exact request validation lives in server/workflows.ts and server/video.ts.
+Media, notes, sequence, repeat/branch and chat routes remain local. There is no
+capabilities, pairing, GPU status, or worker API. Requests carry no capability
+revision, quality tier, model preset, graph, or worker identity. The database is
+fresh; retired provider records are not migrated or replayed.
 
-Output: image `1mp`; new video requests use `native`, whole seconds from 5 through
-15, portrait 9:16 or landscape 16:9. Native means the generated 768x1344 or
-1344x768 canvas is preserved in the saved output. Legacy `720p` requests remain
-accepted with their original export semantics. Video-only `quality: "fast" | "high"`
-is optional; omission retains Fast behavior. HQ requires native output. The UI
-starts with HQ off and sends both quality and native output explicitly.
-Video capabilities expose `qualities` and `native_export`; incompatible workers
-cannot silently downgrade the selected profile. Video audio is generated or
-silent. Supplied final soundtrack replacement and arbitrary sampler controls
-are not implemented.
+## Admin, pricing, and provider errors
 
-Count defaults to 1, maximum 16; jobs execute sequentially. Fixed seed strings may
-span 0–9007199254740991, including the batch increment. Random seeds currently use
-48 random bits and are distinct within a batch. Fixed child seeds increment from
-the starting seed; overflow is rejected. Same idempotency key/body returns the
-original submission, while a changed body conflicts.
+- GET /admin: credential configured flags and application storage paths only.
+- PATCH /admin/credentials/:field: `{value: string | null}` saves/removes one of
+  falKey, openrouterApiKey, civitaiKey. No billing/Admin credential. Removing a
+  saved credential suppresses environment fallback. Changing fal keys invalidates
+  upload receipts and estimates; changes during uploads/submission are rejected.
+- POST /admin/credentials/:field/check: read-only provider authentication check.
+- GET /admin/loras?mode=sfw|nsfw: grouped catalog including disabled entries;
+  each LoRA contains its workflow-specific files. No import progress is included.
+- POST /admin/loras/inspect: `{url}` returns Civitai versions, files and reported
+  model family support. File names do not imply workflow compatibility.
+- POST /admin/loras/import: accepts version_id, mode, name, description,
+  default_scale, trigger_words and files: `[{file_id, route}]`. Returns 202 after
+  validating the import plan. Routes are image for Krea 2, fl/ref for H3; each
+  route maps to at most one file. All selected files activate together.
+- PATCH /admin/loras/:group_id: accepts guidance, enabled and files:
+  `[{id, route}]`. Returns 202 for a background catalog update, reusing local
+  files and valid upload receipts. Existing file IDs remain stable when unchanged.
+- GET /lora-imports?mode=sfw|nsfw: safe Activity records with stage, per-file
+  status, byte progress and error. No local paths or private URLs are exposed.
+- POST /lora-imports/:id/retry: returns 202 and resumes a failed import without
+  repeating completed file transfers.
+- POST /estimates accepts shared PriceInput: workflow, mode, aspect, size, count,
+  optional duration, LoRA selections, and references (kind, role, video duration).
+  Returns USD per_item/total, count, endpoint, units, breakdown, id and expires_at.
+  Quotes expire after ten minutes and are invalid after server restart or key
+  replacement. Pricing inputs must match at submission. Same-priced prompt or
+  seed edits do not invalidate an estimate. Source rates cache for one minute.
+- Chat card /decision accepts estimate_id for approval. The accepted estimate is
+  saved on the approved revision and resulting jobs. Repeats need new approval.
+- Jobs expose provider_issue with a safe code, message, action, optional recovery
+  URL, HTTP status, provider_type and retry_after_seconds. Raw provider input and
+  arbitrary provider messages are never copied into this object.
 
-References use saved asset IDs, stable reference IDs, kinds, roles and clip ranges.
-The server validates readiness and resolves FL/Ref routing, derivatives and native
-prompt labels. Never silently substitute an asset when labels become invalid.
-Freeze settings, resolved seed, graph, preset and prepared inputs in each job.
-HQ jobs also freeze `video_profile: "h3-high-v1"`; its authorized effective Spicy
-strength is 0.8 and does not rewrite the verified preset. The worker validates
-that profile against its submitted graph. Existing frozen jobs are not migrated.
-
-## Durability and sessions
-
-H3 requests accept `output.format: "video" | "images"` (omission means video)
-and integer `duration_seconds` from 5 through 15 when the worker advertises
-support. Old workers retain 5/10/15 and video only. Image export keeps native
-1344x768 or 768x1344 PNGs, exactly seconds*24 frames, without MP4 compression.
-The existing `size: "720p"` request selects the same H3 sampling canvas; PNG
-dimensions are returned per frame rather than inferred from this video label.
-
-Library inventory includes `kind: "sequence"`, `cover_id` and `frame_count`.
-Its members remain image assets but are excluded from top-level pagination.
-Use individual frame IDs for downloads and references, never the sequence ID.
-Pruning preserves original frame indices and ordering. A `cleanup_pending`
-sequence offers retry of its already-confirmed operation. Retained originals
-and job history survive pruning; removed frame IDs are removed from job outputs.
-
-
-One dispatcher submits one Comfy prompt at a time. Worker/session IDs distinguish
-restarts from continued execution. Session checks guard submission/cancellation.
-Uncertain execution blocks further dispatch until reconciled or acknowledged;
-never regenerate automatically to repair an interrupted output transfer.
-
-Completed worker manifests identify output files. Transfer, verify and durably
-save on the PC before acknowledging cleanup. Retry transfer/receipt independently
-of generation. Disposable disk deletion loses unsaved worker outputs.
-
-`safe_to_terminate` is true only with a fresh affirmative observation and no active
-work or unsaved outputs. It may be null while refreshing or disconnected. Pause
-then wait for the asynchronous safety observation; an immediate read can be stale.
-Provider CLI deletion independently confirms that billing resources disappeared.
-
-See [asset handling](ASSET-PREPARATION.md), [worker](POD-BOOTSTRAP.md),
-[workflow integration](COMFYUI-CHANGES.md) and [job metrics](JOB-MEASUREMENTS.md).
+Pricing and estimate APIs use the regular fal key:
+https://fal.ai/docs/platform-apis/v1/models/pricing
+https://fal.ai/docs/platform-apis/v1/models/pricing/estimate
+Error mapping follows model request errors and infrastructure errors:
+https://fal.ai/docs/documentation/model-apis/errors
+https://fal.ai/docs/documentation/model-apis/request-errors
