@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures.js';
 test('Markdown formats during streaming and survives completion safely',async({page})=>{
  await page.addInitScript(()=>{(window as any).EventSource=class {onmessage:any;constructor(){(window as any).chatStream=this;}close(){}};});
  const chat:any={id:'markdown',title:'Markdown test',mode:'sfw',workflow:null,version:0,activity:'thinking',reasoning:true,messages:[],groups:[],assets:[],jobs:[],accounting:[]};

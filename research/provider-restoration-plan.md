@@ -1,5 +1,18 @@
 # Restore rented GPU execution while preserving the current studio
 
+Superseded by [the September 22 worker-pool buildout plan](worker-pool-buildout-plan.md).
+The owner now wants the existing ComfyUI recipes restored into separate Image and
+Video workers, Qwen Image 2.1 packaged with Image, and a sidebar GPU popup with
+Vast/RunPod acquisition. Performance tuning is deferred and this build's QA must
+not provision real compute. Costs now belong to rentals, with no per-generation
+pricing. New workers download LoRAs directly from Civitai. Both finish-and-quit
+and immediate cancellation/termination are required, and closing the UI leaves
+the background server running. Earlier BF16, cost-preview and UI recommendations
+below are historical.
+Workers remain rented until the user explicitly quits them; no automatic idle or
+empty-queue release. Launches include all enabled compatible LoRAs, with explicit
+Retry preparation or Continue without that LoRA for an adapter download failure.
+
 Reviewed September 20, 2026. This is a proposal, not an implementation or spending
 authorization. No providers were provisioned during this review.
 

@@ -57,7 +57,6 @@ export function videoRequest(value:any):ImageRequest {
     for(const kind of ['video','audio'])if(valid.filter((r:any)=>r.kind===kind).reduce((n:number,r:any)=>n+duration(r),0)>15)add('references',`Choose at most 15 seconds of ${kind} across all input clips.`);
     if(valid.filter((r:any)=>r.kind==='audio'||(r.kind==='video'&&r.include_audio===true)).reduce((n:number,r:any)=>n+duration(r),0)>15)add('references','Choose at most 15 seconds of audio including video soundtracks.','Shorten input clips or turn off unneeded video soundtracks.');
     const general=valid.some((r:any)=>r.role==='reference');
-    if(general&&valid.some((r:any)=>r.role!=='reference'))add('references','Use either reference inputs or first/last frame guides; they cannot be combined.');
     const soundtracks=valid.filter((r:any)=>r.kind==='video'&&r.include_audio).length;
     if(valid.length+soundtracks>12||valid.filter((r:any)=>r.kind==='audio').length+soundtracks>3)add('references','Choose at most 12 files and 3 audio clips, including video soundtracks.');
     const labels:Record<string,number>={Picture:valid.filter((r:any)=>r.kind==='image'&&r.role===(general?'reference':'first_frame')).length,Video:valid.filter((r:any)=>r.kind==='video').length,Audio:valid.filter((r:any)=>r.kind==='audio'||(r.kind==='video'&&r.include_audio===true)).length};

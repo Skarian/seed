@@ -1,18 +1,18 @@
 import { useCallback, useEffect, useReducer, useState } from 'react';
 import type { WorkflowId } from '../../shared/studio.js';
-import type { ImageRequest } from '../../server/workflows.js';
+import type { ImageRequest } from '../../shared/generation.js';
 import {
   generationDraftReducer,
   restoreGenerationDrafts,
   type GenerationDraft,
 } from '../generation-draft.js';
 
-const storageKey = 'seed.drafts.fal.v2';
+const storageKey = 'seed.drafts.v3';
 function load() {
   try {
     return restoreGenerationDrafts(
       JSON.parse(
-        localStorage.getItem(storageKey) ?? localStorage.getItem('seed.drafts.fal.v1') ?? '{}',
+        localStorage.getItem(storageKey) ?? localStorage.getItem('seed.drafts.fal.v2') ?? localStorage.getItem('seed.drafts.fal.v1') ?? '{}',
       ),
     );
   } catch {
@@ -44,6 +44,7 @@ export function useGenerationDrafts(workflow: WorkflowId, mode: 'sfw' | 'nsfw') 
   return {
     request: { ...draft.request, mode },
     sourceJob: draft.sourceJob,
+    editHasPrompt: Boolean(drafts['image-to-image'].request.prompt.trim()),
     change,
     replace,
     reset,

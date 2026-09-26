@@ -9,8 +9,8 @@ import { createServer } from 'node:net';
 const archive=path.resolve(process.argv[2] ?? '');
 if(!archive.endsWith('.tgz'))throw Error('Usage: node scripts/test-package.mjs PACKAGE.tgz');
 const root=await mkdtemp(path.join(os.tmpdir(),'seed-package-'));
-const env={...process.env,STUDIO_DEV_ROOT:path.join(root,'data'),APPDATA:path.join(root,'profile'),FAL_KEY:'fixture-test-key'};
-for(const key of Object.keys(env))if(key!=='FAL_KEY'&&(/_(KEY|TOKEN|SECRET|PASSWORD)$/i.test(key)||['NODE_OPTIONS','SEED_MANAGED'].includes(key)))delete env[key];
+const env={...process.env,STUDIO_DEV_ROOT:path.join(root,'data'),APPDATA:path.join(root,'profile')};
+for(const key of Object.keys(env))if(/_(KEY|TOKEN|SECRET|PASSWORD)$/i.test(key)||/^(TAILSCALE_|TS_)/i.test(key)||['NODE_OPTIONS','SEED_MANAGED'].includes(key))delete env[key];
 const npm=process.env.npm_execpath;
 if(!npm)throw Error('Run via npm run test:package -- PACKAGE.tgz.');
 const run=(args)=>new Promise((resolve,reject)=>{
@@ -27,8 +27,14 @@ try {
  assert.match(await readFile(guide,'utf8'),/creative assistant/);
  await writeFile(guide,'Owner customized instructions');
  const marker=path.join(env.STUDIO_DEV_ROOT,'data','media','originals','preserved.txt');await writeFile(marker,'preserve me');
- assert.equal(JSON.parse(await run([cli,'version'])).generation_provider,'fal');
- await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);await run([cli,'stop']);
+ assert.equal(JSON.parse(await run([cli,'version'])).generation_provider,'worker-pool');
+ await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);
+ const origin=`http://127.0.0.1:${port}`;
+ const admin=await fetch(origin+'/api/v1/admin',{headers:{Origin:origin}}).then(r=>r.json());
+ assert.ok(Object.values(admin.credentials).every(value=>value.configured===false));
+ // Persist a non-networked key through Admin, not a CLI prompt or environment.
+ const save=await fetch(origin+'/api/v1/admin/credentials/openrouterApiKey',{method:'PATCH',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({value:'fixture-package-preserved'})});
+ assert.equal(save.status,200);await run([cli,'stop']);
  const credentials=await readFile(path.join(env.STUDIO_DEV_ROOT,'config','credentials.json'),'utf8');
  await run([npm,'install','--prefix',root,archive,'--no-audit','--no-fund']);
  assert.equal(await readFile(marker,'utf8'),'preserve me');
@@ -60,5 +66,5 @@ try {
  assert.equal(await readFile(marker,'utf8'),'preserve me');
  assert.equal(await readFile(path.join(env.STUDIO_DEV_ROOT,'config','credentials.json'),'utf8'),credentials);
  await run([cli,'start']);assert.match(await run([cli,'status']),/Running/);
- console.log(JSON.stringify({passed:true,platform:process.platform,node:process.version,root,checks:['install','setup','fal-configuration','start-stop','idle-reinstall','synthetic-version-upgrade','failed-start-rollback','credential-and-media-preservation','restart']}));
+ console.log(JSON.stringify({passed:true,platform:process.platform,node:process.version,root,checks:['install','keyless-setup','admin-credentials','start-stop','idle-reinstall','synthetic-version-upgrade','failed-start-rollback','credential-and-media-preservation','restart']}));
 } finally {await run([cli,'stop']);}

@@ -11,6 +11,8 @@ import { workflowLabels } from './workflow-labels.js';
 import { JobsView } from './job-ui.js';
 import { Generate } from './generate.js';
 import { Library } from './library.js';
+import { WorkerPoolProvider, useWorkerPool } from './hooks/use-worker-pool.js';
+import { WorkerPoolStatus, WorkerPoolDialog } from './worker-pool.js';
 const Admin = lazy(() => import('./admin.js').then((module) => ({ default: module.Admin })));
 const Chat = lazy(() => import('./chat.js').then((module) => ({ default: module.Chat })));
 
@@ -24,6 +26,10 @@ function SeedMark() {
 }
 
 export function App() {
+  return <WorkerPoolProvider><AppContent /></WorkerPoolProvider>;
+}
+function AppContent() {
+  const pool = useWorkerPool();
   const layout = useAppLayout(),
     navigation = useNavigation(),
     studio = useStudio();
@@ -31,13 +37,20 @@ export function App() {
     mode = spicy ? 'nsfw' : 'sfw';
   const [workflow, setWorkflow] = useState<WorkflowId>('text-to-image');
   const [filter, setFilter] = useState<LibraryFilter>('all');
+  const [favoritesOnly,setFavoritesOnly]=useState(false),[collectionIds,setCollectionIds]=useState({sfw:'',nsfw:''});
   const [sidebarTarget, setSidebarTarget] = useState<HTMLDivElement | null>(null);
   const [activityOpen, setActivityOpen] = useState(false);
+  const [returnToWorkers, setReturnToWorkers] = useState(false);
+  const [chatMounted, setChatMounted] = useState(navigation.page === 'chat');
   const page = navigation.page;
+  useEffect(()=>{const open=()=>{setActivityOpen(false);setWorkflow('image-to-image');navigation.navigate('generate');if(!layout.wide)layout.setOpen(false);};window.addEventListener('seed:edit-image',open);return()=>window.removeEventListener('seed:edit-image',open);},[navigation.navigate,layout.wide]);
+  useEffect(() => { if (page === 'chat') setChatMounted(true); }, [page]);
+  useEffect(() => { const open=(event:Event)=>{navigation.navigate('admin');if((event as CustomEvent).detail?.section==='loras')history.replaceState(null,'','/admin?section=loras');};window.addEventListener('seed:admin-open',open);return()=>window.removeEventListener('seed:admin-open',open); }, [navigation.navigate]);
   useEffect(() => {
     const close = () => setActivityOpen(false);
     window.addEventListener('seed:branch-ready', close);
-    return () => window.removeEventListener('seed:branch-ready', close);
+    window.addEventListener('seed:workers-opened', close);
+    return () => { window.removeEventListener('seed:branch-ready', close); window.removeEventListener('seed:workers-opened', close); };
   }, []);
   useEffect(() => setActivityOpen(false), [mode]);
   function navigate(next: WorkspacePage) {
@@ -62,6 +75,7 @@ export function App() {
           >
             ☰
           </button>
+          {page === 'generate' && <span className="mobile-workflow-title">{workflowLabels[workflow]}</span>}
         </header>
       )}
       <Sidebar
@@ -82,12 +96,14 @@ export function App() {
           </BrandSwitcher>
         }
         footer={
+          <><WorkerPoolStatus />
           <button
             aria-current={page === 'admin' ? 'page' : undefined}
             onClick={() => navigate('admin')}
           >
             Admin
           </button>
+          </>
         }
       >
         <div className="header-status">
@@ -166,7 +182,9 @@ export function App() {
         )}
       </Sidebar>
       {activityOpen && <JobsView mode={mode} onClose={() => setActivityOpen(false)} />}
+      <WorkerPoolDialog onCredentials={() => { pool.close(); setReturnToWorkers(true); navigate('admin'); }} />
       <main>
+        {page === 'admin' && returnToWorkers && <div className="pool-resume"><span>Your worker selection is saved.</span><button onClick={() => { setReturnToWorkers(false); pool.open(pool.dialog.workerClass); }}>Return to workers ↗</button></div>}
         <Generate
           active={page === 'generate'}
           workflow={workflow}
@@ -181,10 +199,11 @@ export function App() {
         />
         {page === 'library' && (
           <Library
-            key={mode + ':' + filter}
+            key={mode}
             mode={mode}
             filter={filter}
             onDeleted={studio.removeAsset}
+            favoritesOnly={favoritesOnly} onFavoritesChange={setFavoritesOnly} collectionId={collectionIds[mode]} onCollectionChange={id=>setCollectionIds(current=>({...current,[mode]:id}))}
           />
         )}
         {page === 'admin' && (
@@ -198,7 +217,8 @@ export function App() {
             <Admin />
           </Suspense>
         )}
-        {page === 'chat' && (
+        {(page === 'chat' || chatMounted) && (
+          <div hidden={page !== 'chat'} className="retained-chat-page">
           <Suspense
             fallback={
               <p className="initial-loading" role="status">
@@ -207,12 +227,13 @@ export function App() {
             }
           >
             <Chat
-              sidebarTarget={sidebarTarget}
+              sidebarTarget={page === 'chat' ? sidebarTarget : null}
               onChooseChat={() => {
                 if (!layout.wide) layout.setOpen(false);
               }}
             />
           </Suspense>
+          </div>
         )}
         <footer>seed</footer>
       </main>

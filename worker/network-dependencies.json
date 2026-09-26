@@ -1,0 +1,6 @@
+{
+  "tusd": {
+    "version": "v2.10.0",
+    "image": "tusproject/tusd@sha256:9610f0f8edf4cceeb26f1b3ac9fa4bb4803d61a878e222c1573cda63c9e23374"
+  }
+}

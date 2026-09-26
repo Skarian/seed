@@ -1,0 +1,199 @@
+{
+  "run_id": "2026-09-26T02:48:57.982Z",
+  "reviewed_individually": true,
+  "correction": "Inset log content to align with the worker card; changed download byte totals to readable units. Reviewed the final captures after rebuilding.",
+  "records": [
+    {
+      "id": 601,
+      "device": "desktop",
+      "file": "desktop/601.png",
+      "sha256": "8f09b94902f8901ad2b903682465f57e9a41d6d4b230bd62040824ea76f7d6b4",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 602,
+      "device": "desktop",
+      "file": "desktop/602.png",
+      "sha256": "8df47d44b44ed7937d4fca212891b3023810d6d47892335806100fb0fbebeffe",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 603,
+      "device": "desktop",
+      "file": "desktop/603.png",
+      "sha256": "e0341dfe98a478035bd47b42eeb1ea66325b25dddce929b43bede46f686f909a",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 604,
+      "device": "desktop",
+      "file": "desktop/604.png",
+      "sha256": "04ef7e52dd36f78e0d70bc164bdf0a875858fa668b9f7654574b800679a5d5cc",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 605,
+      "device": "desktop",
+      "file": "desktop/605.png",
+      "sha256": "59311baebf70c8ca65315126abdf8511239328c21639f1c69b64e83b0fb49fb8",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 606,
+      "device": "desktop",
+      "file": "desktop/606.png",
+      "sha256": "c9140ab961fab96523a6ad42f97946ff3bd06b9f6274f91b20614a8a28e5d093",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 607,
+      "device": "desktop",
+      "file": "desktop/607.png",
+      "sha256": "10d1904288b97983c86b084cfa36bde70635fe0cb60ef4ebd9e371c893f06e21",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 608,
+      "device": "desktop",
+      "file": "desktop/608.png",
+      "sha256": "fbc2792c81ec1eaa8a81d8e59358624e4edbe91e088f415fca1947c8841d33a4",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 609,
+      "device": "desktop",
+      "file": "desktop/609.png",
+      "sha256": "01e206e1a4afef3752bbdd3b4aa10c404ce6af4fdf088874f7ac796fe1f9dfc2",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 610,
+      "device": "desktop",
+      "file": "desktop/610.png",
+      "sha256": "e8cd3bb1951efc451b55aac1916b44dccaaec211caf13ccf6e0d3f2ce3eef96c",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 611,
+      "device": "desktop",
+      "file": "desktop/611.png",
+      "sha256": "7d4f18922af2d19c6d2ca720be3dc581f8aacd32c360c538116387174e11f4bc",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 612,
+      "device": "desktop",
+      "file": "desktop/612.png",
+      "sha256": "32a78a49472b55579c2662bffa38842c13d83e6e509db0688e8b2c81070fff65",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 601,
+      "device": "mobile",
+      "file": "mobile/601.png",
+      "sha256": "f269f87b116dec1e2f929902c5a551b401ef50b1fa4109576843dbb003dccb71",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 602,
+      "device": "mobile",
+      "file": "mobile/602.png",
+      "sha256": "0807c87cfe0efd7fc7e6323c872bc22f2a0c6b1b852b7bcdc1405805bdd8aeff",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 603,
+      "device": "mobile",
+      "file": "mobile/603.png",
+      "sha256": "669a76877eccd517b812f31921bad37e8205653c5343999362563615a6ab326d",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 604,
+      "device": "mobile",
+      "file": "mobile/604.png",
+      "sha256": "33fa7562715c38ccfdb65d1be5e7ee2f177d8754007f624c0482a6fa173e5c51",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 605,
+      "device": "mobile",
+      "file": "mobile/605.png",
+      "sha256": "3c6d8ece0b8daca51a8e197eecaea4fc231f47aa9cb15241cedbe43858ae0b47",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 606,
+      "device": "mobile",
+      "file": "mobile/606.png",
+      "sha256": "8fb3f69c41b2497811bd22c26460ffa0a1a3f6499e047b94d030a6f514cef10b",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 607,
+      "device": "mobile",
+      "file": "mobile/607.png",
+      "sha256": "d00d85c4fe7d023a016163aa93bd58f260c03c10c510385b4753249072d3ba6c",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 608,
+      "device": "mobile",
+      "file": "mobile/608.png",
+      "sha256": "96957db43b8f9ab6183bf710100fa28d5324c436c8796258ac553b1ea0eded9e",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 609,
+      "device": "mobile",
+      "file": "mobile/609.png",
+      "sha256": "004b9434339bd31be138c94f556e140dc8acc22b63d19fafa00fc38aa34d005f",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 610,
+      "device": "mobile",
+      "file": "mobile/610.png",
+      "sha256": "ae884aa4baf20843c7a4c3556fc5e9bc23dd6da9f7461f6bc5add8e8efd32618",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 611,
+      "device": "mobile",
+      "file": "mobile/611.png",
+      "sha256": "9d0a85a278a8bf5a8976a945ce784ebe7c5c63ffbeeca3092e245baa701c7498",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    },
+    {
+      "id": 612,
+      "device": "mobile",
+      "file": "mobile/612.png",
+      "sha256": "db780040ff74bd7907750e0b16effdd6b38df2f6bb3f6efb1d041a30e2fdf199",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, spacing, status, timestamps and controls."
+    }
+  ]
+}

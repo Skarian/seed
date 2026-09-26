@@ -1,0 +1,3493 @@
+{
+  "images": {
+    "image": {
+      "size_bytes": 34604931066,
+      "platform": "linux/amd64",
+      "published": true,
+      "local_tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-diagnostics.3-d156c864f777",
+      "local_image_id": "sha256:d156c864f777f720cdaea355195fd66a2c48548b786692c3e43460f998c28ab5",
+      "source_verification": {
+        "verified_source_files": 31,
+        "role": "image",
+        "files": [
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+            "sha256": "8fc568bd14d3fc46ad30c68ad352331b7300e253512c9bc08b44b5a9baf7e037",
+            "source": "worker/comfy_seed/__init__.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+            "sha256": "37a39180b4e0579e07b5698f479dcadbf71bd370ed61ada07b7660c74ecf50d8",
+            "source": "worker/comfy_seed/adapters.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/image.py",
+            "sha256": "6d5aca284a95944bcd2c0349cf0aa500bfa7d4a1fbf9baeddae5b65ce0b9e5d8",
+            "source": "worker/comfy_seed/image.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+            "sha256": "54a4cb0f8bac809ea4ec5f9d360f861c84c7b744040a9b0f03670198f753a2e4",
+            "source": "worker/comfy_seed/jobs.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+            "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+            "source": "worker/spool.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+            "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+            "source": "worker/comfy_seed/telemetry.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+            "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+            "source": "worker/comfy_seed/video.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/__init__.py",
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+            "source": "worker/__init__.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/app.py",
+            "sha256": "c06ee32ac9861731bd30fbb06d53d0365f96b0815277ea350f97e7932d2e9192",
+            "source": "worker/app.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/bake_qwen.py",
+            "sha256": "092916692c3a128babf3030f0c8f6dcc55fd15184710859a0006c654420d27d8",
+            "source": "worker/bake_qwen.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/download_process.py",
+            "sha256": "8b2bb29c69f58b8e79e4b8647a77561f84f1d7612942758b0c7a0be77f1abd77",
+            "source": "worker/download_process.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/download_progress.py",
+            "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876",
+            "source": "worker/download_progress.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/entrypoint.py",
+            "sha256": "e12aa68185cca88843cf108aac7b364cb8112870dbbf4c13a22a46175ef0cdcd",
+            "source": "worker/entrypoint.py",
+            "unchanged_from_pinned_base": false
+          },
+          {
+            "packaged": "/opt/seed/worker/inputs.py",
+            "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+            "source": "worker/inputs.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/jobs.py",
+            "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+            "source": "worker/jobs.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/model_files.py",
+            "sha256": "90c2e54058408714052ec625e3ffaa00391abb6e1aca659649cef0bdc0d20d19",
+            "source": "worker/model_files.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/models-image.json",
+            "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+            "source": "worker/models-image.json",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/owned_process.py",
+            "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+            "source": "worker/owned_process.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/preparation.py",
+            "sha256": "5f7dc3da6b22045918b8f1c46edb0671ea0327f849d7cd866e4e82500f23be9c",
+            "source": "worker/preparation.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/prepare.py",
+            "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+            "source": "worker/prepare.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/processes.py",
+            "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+            "source": "worker/processes.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/profile.py",
+            "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+            "source": "worker/profile.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/qwen-model.json",
+            "sha256": "79555cc5ca753c144b2c7e7773a9cf0fee9977dfa9f4abb8652f230da716905f",
+            "source": "worker/qwen-model.json",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/requirements.txt",
+            "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+            "source": "worker/requirements.txt",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/run.py",
+            "sha256": "88c6aa9d688079fa52c1042b25299e072ea6c6554a5f3ca07263c8e512b95f90",
+            "source": "worker/run.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/spool.py",
+            "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+            "source": "worker/spool.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/static/index.html",
+            "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+            "source": "worker/static/index.html",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/static/page.css",
+            "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+            "source": "worker/static/page.css",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/static/page.js",
+            "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+            "source": "worker/static/page.js",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/uploads.py",
+            "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+            "source": "worker/uploads.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "source": "worker/diagnostics.py",
+            "packaged": "/opt/seed/worker/diagnostics.py",
+            "unchanged_from_pinned_base": true,
+            "sha256": "70d1de8c0c3d3b4b23fb91030c9ffb815c968849d3e2b33f3ff64f795c858575"
+          }
+        ]
+      },
+      "startup_auth_smoke": {
+        "role": "image",
+        "protocol": 2,
+        "startup_auth_pairing": true,
+        "wrong_manifest_rejected": true,
+        "base_models": 3,
+        "network": "none",
+        "gpu_inference": false
+      },
+      "publication": {
+        "role": "image",
+        "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-diagnostics.3-d156c864f777",
+        "image": "ghcr.io/skarian/seed-worker-image@sha256:8edf7a9eb0567e4cd935cb7f3602029bc8d69525c340da671ec8bd0ffc8508cb",
+        "config_digest": "sha256:d156c864f777f720cdaea355195fd66a2c48548b786692c3e43460f998c28ab5",
+        "published_at": "2026-09-23T22:05:04.593Z",
+        "anonymous_pull_verified": true,
+        "layer_count": 52,
+        "compressed_bytes": 24497393648
+      },
+      "qwen": {
+        "repository": "Comfy-Org/Qwen-Image-2.1",
+        "revision": "9a44dbdb47cefd046be9c0a13476192f34c8db8e",
+        "verified_files": 3,
+        "bytes": 17283091112
+      },
+      "native_check": {
+        "native_graph_validation": true,
+        "nodes": [
+          "TextEncodeQwenImage21",
+          "QwenImage21Cache",
+          "SeedLoadEditImage"
+        ],
+        "rgba_preserved": true,
+        "gpu_used": false
+      },
+      "ssh_smoke": {
+        "ssh_real_handshake": true,
+        "provider_key_replacement_tolerated": true,
+        "provider_public_key_override_tolerated": true,
+        "unrelated_key_rejected": true,
+        "network": "none"
+      }
+    },
+    "video": {
+      "size_bytes": 16907516983,
+      "platform": "linux/amd64",
+      "published": true,
+      "local_tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-diagnostics.1-44c5f0addae6",
+      "startup_auth_smoke": {
+        "role": "video",
+        "protocol": 2,
+        "startup_auth_pairing": true,
+        "wrong_manifest_rejected": true,
+        "base_models": 5,
+        "network": "none",
+        "gpu_inference": false
+      },
+      "source_verification": {
+        "verified_source_files": 28,
+        "role": "video",
+        "files": [
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+            "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+            "source": "worker/comfy_seed/__init__.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+            "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+            "source": "worker/comfy_seed/adapters.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+            "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+            "source": "worker/comfy_seed/jobs.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+            "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+            "source": "worker/spool.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+            "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+            "source": "worker/comfy_seed/telemetry.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+            "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+            "source": "worker/comfy_seed/video.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/__init__.py",
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+            "source": "worker/__init__.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/app.py",
+            "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+            "source": "worker/app.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/download_process.py",
+            "sha256": "8b2bb29c69f58b8e79e4b8647a77561f84f1d7612942758b0c7a0be77f1abd77",
+            "source": "worker/download_process.py",
+            "unchanged_from_pinned_base": false
+          },
+          {
+            "packaged": "/opt/seed/worker/entrypoint.py",
+            "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+            "source": "worker/entrypoint.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/inputs.py",
+            "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+            "source": "worker/inputs.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/jobs.py",
+            "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+            "source": "worker/jobs.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/model_files.py",
+            "sha256": "90c2e54058408714052ec625e3ffaa00391abb6e1aca659649cef0bdc0d20d19",
+            "source": "worker/model_files.py",
+            "unchanged_from_pinned_base": false
+          },
+          {
+            "packaged": "/opt/seed/worker/models-video.json",
+            "sha256": "da587d090b4913a4e323b66a9acef2ac9a71f088891ea4801dd399fbe8cdc2e9",
+            "source": "worker/models-video.json",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/owned_process.py",
+            "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+            "source": "worker/owned_process.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/preparation.py",
+            "sha256": "5f7dc3da6b22045918b8f1c46edb0671ea0327f849d7cd866e4e82500f23be9c",
+            "source": "worker/preparation.py",
+            "unchanged_from_pinned_base": false
+          },
+          {
+            "packaged": "/opt/seed/worker/prepare.py",
+            "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+            "source": "worker/prepare.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/processes.py",
+            "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+            "source": "worker/processes.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/profile.py",
+            "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+            "source": "worker/profile.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/requirements.txt",
+            "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+            "source": "worker/requirements.txt",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/run.py",
+            "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+            "source": "worker/run.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/spool.py",
+            "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+            "source": "worker/spool.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/static/index.html",
+            "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+            "source": "worker/static/index.html",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/static/page.css",
+            "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+            "source": "worker/static/page.css",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/static/page.js",
+            "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+            "source": "worker/static/page.js",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "packaged": "/opt/seed/worker/uploads.py",
+            "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+            "source": "worker/uploads.py",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "source": "worker/download_progress.py",
+            "packaged": "/opt/seed/worker/download_progress.py",
+            "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876",
+            "unchanged_from_pinned_base": true
+          },
+          {
+            "source": "worker/diagnostics.py",
+            "packaged": "/opt/seed/worker/diagnostics.py",
+            "unchanged_from_pinned_base": false,
+            "sha256": "70d1de8c0c3d3b4b23fb91030c9ffb815c968849d3e2b33f3ff64f795c858575"
+          }
+        ]
+      },
+      "local_image_id": "sha256:44c5f0addae63b51a35ae93534704427de7fda4d72c2f4b83215ae6252a22e13",
+      "entrypoint": [
+        "/opt/nvidia/nvidia_entrypoint.sh"
+      ],
+      "command": [
+        "/opt/venv/bin/python",
+        "-m",
+        "worker.entrypoint"
+      ],
+      "publication": {
+        "role": "video",
+        "tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-diagnostics.1-44c5f0addae6",
+        "image": "ghcr.io/skarian/seed-worker-video@sha256:1f6d058442ed9bb866514b2f07511fbc52388d84aae00dc8a9ce9d2375135b61",
+        "config_digest": "sha256:44c5f0addae63b51a35ae93534704427de7fda4d72c2f4b83215ae6252a22e13",
+        "published_at": "2026-09-23T20:55:46.364Z",
+        "anonymous_pull_verified": true,
+        "layer_count": 47,
+        "compressed_bytes": 9079656407
+      }
+    }
+  },
+  "checked_at_utc": "2026-09-23T01:36:12.2537281Z",
+  "validation": {
+    "cpu_checks_only": true,
+    "qwen_network_access_during_final_verification": false,
+    "provider_rentals": 0,
+    "linux_worker_tests": {
+      "passed": 90,
+      "failed": 0,
+      "command": "docker run --rm --network none --mount type=bind,source=<repository>/worker,target=/opt/tests/worker,readonly seed-worker-tests:pool-local"
+    },
+    "base_model_transfer_tests": {
+      "coverage": "Pinned sources, cache/resume, integrity, scoped authentication, tus receipts and cancellation; no actual model downloads.",
+      "passed": 9
+    },
+    "published_images": 2,
+    "actual_graph_contracts": {
+      "coverage": "Image, FL2VA and Ref2VA with zero, one and three selected adapters; reference nodes 40+.",
+      "passed": 9
+    },
+    "qwen_pipeline_import": "QwenImage21Pipeline",
+    "gpu_inference_qualified": false,
+    "qwen_offline_assets": {
+      "repository": "Qwen/Qwen-Image-2.1",
+      "revision": "790c92633540aa0cb11d9abf19eb46d861714758",
+      "verified_files": 25,
+      "bytes": 33131609424
+    }
+  },
+  "limitations": [
+    "CUDA inference, LoRA output quality, provider connectivity and throughput have not been tested on a rented GPU.",
+    "Qwen image editing is implemented, packaged and validated offline; RTX 5090 inference, quality, latency and model switching on GPU remain unqualified."
+  ],
+  "schema_version": 1,
+  "source": {
+    "branch": "codex/fal-only",
+    "working_tree_changes_included": true,
+    "head": "746061bfc19f59a548908414efe1a1f0327b9631"
+  },
+  "assembly": {
+    "dockerfile_sha256": "34d1276ca27c5df90085e5a15aba3eca256824fa13dacb0e76bb16ed79d30cab",
+    "asset_cache_id": "sha256:8a0822f28dde3f0fc85a1d35168f7aec78e3f0e359de496fbdf14ea49312d3a7",
+    "method": "Recovered public pinned assets were verified, committed as a local input cache, then consumed by the checked-in Dockerfile Image target. This was not a fresh all-download final build.",
+    "commands": [
+      "docker commit seed-qwen-recovery-d555 seed-qwen-assets:pool-recovered",
+      "docker build --platform linux/amd64 --progress plain --build-context qwen-assets=docker-image://seed-qwen-assets:pool-recovered --target image --tag seed-worker-image:pool-local --file worker/Dockerfile worker",
+      "docker build --platform linux/amd64 --progress plain --target video --tag seed-worker-video:pool-local --file worker/Dockerfile worker"
+    ],
+    "asset_cache_image": "seed-qwen-assets:pool-recovered",
+    "dockerfile": "worker/Dockerfile",
+    "recovery_container_removed": true,
+    "private_credentials_copied": false,
+    "unrelated_containers_untouched": true,
+    "named_asset_context_confirmed_in_build_log": true,
+    "daemon_restart_performed": false,
+    "original_dockerfile_sha256": "714210973b5fdfff23f0f74bea749b1eca99e20b50c3ea1c4a1b285e6824e200",
+    "publication_repackaging": "Image role rebuilt from the same verified asset cache; each pinned model shard is copied into a separate layer below GHCR limits. All model hashes, worker source, startup and SSH transport checks passed again. Video image is unchanged."
+  },
+  "publication_verified_at": "2026-09-23T03:59:37.801Z",
+  "previous_releases": [
+    {
+      "replaced_at": "2026-09-23T04:29:04.208Z",
+      "images": {
+        "image": {
+          "size_bytes": 50220346574,
+          "platform": "linux/amd64",
+          "published": true,
+          "local_tag": "seed-worker-image:pool-local",
+          "startup_auth_smoke": {
+            "role": "image",
+            "protocol": 2,
+            "startup_auth_pairing": true,
+            "wrong_manifest_rejected": true,
+            "base_models": 3,
+            "network": "none",
+            "gpu_inference": false
+          },
+          "source_verification": {
+            "verified_source_files": 29,
+            "role": "image",
+            "files": [
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+                "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+                "source": "worker/comfy_seed/__init__.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+                "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+                "source": "worker/comfy_seed/adapters.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+                "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+                "source": "worker/comfy_seed/jobs.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+                "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+                "source": "worker/comfy_seed/telemetry.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+                "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+                "source": "worker/comfy_seed/video.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/__init__.py",
+                "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+                "source": "worker/__init__.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/app.py",
+                "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+                "source": "worker/app.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/bake_qwen.py",
+                "sha256": "7fcc53a93caed4bbbe24737a79b1d8d404bf38690be4c5245ccda6cc27ebca6c",
+                "source": "worker/bake_qwen.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/download_process.py",
+                "sha256": "e472e23bef03e61fed1a5064371c60dc4481e5321d96dd0f32a745fcd0e813a1",
+                "source": "worker/download_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/entrypoint.py",
+                "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+                "source": "worker/entrypoint.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/inputs.py",
+                "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+                "source": "worker/inputs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/jobs.py",
+                "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+                "source": "worker/jobs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/model_files.py",
+                "sha256": "bc1d3bd415b2c3de00bcf3d04362e1bac30a658898f3467a140b3d106cf1505d",
+                "source": "worker/model_files.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/models-image.json",
+                "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+                "source": "worker/models-image.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/owned_process.py",
+                "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+                "source": "worker/owned_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/preparation.py",
+                "sha256": "159a10b4308ce09efb24e32955f49404b3324d51bab459c3200acf957c7903db",
+                "source": "worker/preparation.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/prepare.py",
+                "sha256": "5098447b32ae911de6b2aa59cf3ad1870dd0aa6c4e37bea78d3e52ebd44a5873",
+                "source": "worker/prepare.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/processes.py",
+                "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+                "source": "worker/processes.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/profile.py",
+                "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+                "source": "worker/profile.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/qwen-model.json",
+                "sha256": "748a4a1e38c74efcb1db8258ab9bf578f312667532bc0dc28897af58e98ab9b1",
+                "source": "worker/qwen-model.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements-qwen.txt",
+                "sha256": "9d90645f0fd5a533f677368e7e4638e27fb6f91757027b2f79eb8c829a25c681",
+                "source": "worker/requirements-qwen.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements.txt",
+                "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+                "source": "worker/requirements.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/run.py",
+                "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+                "source": "worker/run.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/index.html",
+                "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+                "source": "worker/static/index.html"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.css",
+                "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+                "source": "worker/static/page.css"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.js",
+                "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+                "source": "worker/static/page.js"
+              },
+              {
+                "packaged": "/opt/seed/worker/uploads.py",
+                "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+                "source": "worker/uploads.py"
+              }
+            ]
+          },
+          "local_image_id": "sha256:208770d44ab2a7cfc23557e9a02d5e23e55be0f8163cdb8cf9369c50e27fde70",
+          "entrypoint": [
+            "/opt/nvidia/nvidia_entrypoint.sh"
+          ],
+          "command": [
+            "/opt/venv/bin/python",
+            "-m",
+            "worker.entrypoint"
+          ],
+          "original_build_image_id": "sha256:ecec7d4984f0453e374417a58fe0c76d1e768edf8f9b02aa113ef199310423b8",
+          "repackaging": {
+            "verified_at": "2026-09-23T03:45:58.979Z",
+            "previous_local_image_id": "sha256:ecec7d4984f0453e374417a58fe0c76d1e768edf8f9b02aa113ef199310423b8",
+            "local_image_id": "sha256:208770d44ab2a7cfc23557e9a02d5e23e55be0f8163cdb8cf9369c50e27fde70",
+            "max_uncompressed_layer_bytes": 9968332504,
+            "identical_source_files": 29,
+            "qwen_offline_assets": {
+              "repository": "Qwen/Qwen-Image-2.1",
+              "revision": "790c92633540aa0cb11d9abf19eb46d861714758",
+              "verified_files": 25,
+              "bytes": 33131609424
+            },
+            "startup_auth_smoke": {
+              "role": "image",
+              "protocol": 2,
+              "startup_auth_pairing": true,
+              "wrong_manifest_rejected": true,
+              "base_models": 3,
+              "network": "none",
+              "gpu_inference": false
+            },
+            "transport_log": ".local/worker-publication-transport.log",
+            "gpu_inference": false
+          },
+          "publication": {
+            "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-pool.1-208770d44ab2",
+            "image": "ghcr.io/skarian/seed-worker-image@sha256:0be79b6245e06dfe661a2fdc14fb33d8f826dfbef3a3b43a4545522ef98a1edf",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-image",
+            "published_at": "2026-09-23T03:58:29.354Z",
+            "anonymous_pull_verified_at": "2026-09-23T03:59:36.813Z",
+            "tested_image_identity_verified": true,
+            "config_digest": "sha256:208770d44ab2a7cfc23557e9a02d5e23e55be0f8163cdb8cf9369c50e27fde70",
+            "platform": "linux/amd64",
+            "layer_count": 59,
+            "compressed_bytes": 35339606422
+          }
+        },
+        "video": {
+          "size_bytes": 16907480062,
+          "platform": "linux/amd64",
+          "published": true,
+          "local_tag": "seed-worker-video:pool-local",
+          "startup_auth_smoke": {
+            "role": "video",
+            "protocol": 2,
+            "startup_auth_pairing": true,
+            "wrong_manifest_rejected": true,
+            "base_models": 5,
+            "network": "none",
+            "gpu_inference": false
+          },
+          "source_verification": {
+            "verified_source_files": 26,
+            "role": "video",
+            "files": [
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+                "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+                "source": "worker/comfy_seed/__init__.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+                "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+                "source": "worker/comfy_seed/adapters.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+                "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+                "source": "worker/comfy_seed/jobs.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+                "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+                "source": "worker/comfy_seed/telemetry.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+                "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+                "source": "worker/comfy_seed/video.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/__init__.py",
+                "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+                "source": "worker/__init__.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/app.py",
+                "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+                "source": "worker/app.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/download_process.py",
+                "sha256": "e472e23bef03e61fed1a5064371c60dc4481e5321d96dd0f32a745fcd0e813a1",
+                "source": "worker/download_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/entrypoint.py",
+                "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+                "source": "worker/entrypoint.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/inputs.py",
+                "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+                "source": "worker/inputs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/jobs.py",
+                "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+                "source": "worker/jobs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/model_files.py",
+                "sha256": "bc1d3bd415b2c3de00bcf3d04362e1bac30a658898f3467a140b3d106cf1505d",
+                "source": "worker/model_files.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/models-video.json",
+                "sha256": "da587d090b4913a4e323b66a9acef2ac9a71f088891ea4801dd399fbe8cdc2e9",
+                "source": "worker/models-video.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/owned_process.py",
+                "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+                "source": "worker/owned_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/preparation.py",
+                "sha256": "159a10b4308ce09efb24e32955f49404b3324d51bab459c3200acf957c7903db",
+                "source": "worker/preparation.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/prepare.py",
+                "sha256": "5098447b32ae911de6b2aa59cf3ad1870dd0aa6c4e37bea78d3e52ebd44a5873",
+                "source": "worker/prepare.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/processes.py",
+                "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+                "source": "worker/processes.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/profile.py",
+                "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+                "source": "worker/profile.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements.txt",
+                "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+                "source": "worker/requirements.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/run.py",
+                "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+                "source": "worker/run.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/index.html",
+                "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+                "source": "worker/static/index.html"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.css",
+                "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+                "source": "worker/static/page.css"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.js",
+                "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+                "source": "worker/static/page.js"
+              },
+              {
+                "packaged": "/opt/seed/worker/uploads.py",
+                "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+                "source": "worker/uploads.py"
+              }
+            ]
+          },
+          "local_image_id": "sha256:7bf54d23d330141beee374f429e5165a77d629a99f4e8104a0690af35beff7ee",
+          "entrypoint": [
+            "/opt/nvidia/nvidia_entrypoint.sh"
+          ],
+          "command": [
+            "/opt/venv/bin/python",
+            "-m",
+            "worker.entrypoint"
+          ],
+          "publication": {
+            "tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-pool.1-7bf54d23d330",
+            "image": "ghcr.io/skarian/seed-worker-video@sha256:ebd851ffdd8fabd59a116457a57e2360f7a2c08c3006d5c61b3e056e72e36a3d",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-video",
+            "published_at": "2026-09-23T03:31:12.976Z",
+            "anonymous_pull_verified_at": "2026-09-23T03:35:28.631Z",
+            "tested_image_identity_verified": true,
+            "config_digest": "sha256:7bf54d23d330141beee374f429e5165a77d629a99f4e8104a0690af35beff7ee",
+            "platform": "linux/amd64",
+            "layer_count": 46,
+            "compressed_bytes": 9079645672
+          }
+        }
+      },
+      "publication": {
+        "verified_at": "2026-09-23T03:59:37.801Z",
+        "provider_rentals": 0,
+        "gpu_inference_qualified": false,
+        "roles": {
+          "image": {
+            "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-pool.1-208770d44ab2",
+            "image": "ghcr.io/skarian/seed-worker-image@sha256:0be79b6245e06dfe661a2fdc14fb33d8f826dfbef3a3b43a4545522ef98a1edf",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-image",
+            "published_at": "2026-09-23T03:58:29.354Z",
+            "anonymous_pull_verified_at": "2026-09-23T03:59:36.813Z",
+            "tested_image_identity_verified": true,
+            "config_digest": "sha256:208770d44ab2a7cfc23557e9a02d5e23e55be0f8163cdb8cf9369c50e27fde70",
+            "platform": "linux/amd64",
+            "layer_count": 59,
+            "compressed_bytes": 35339606422
+          },
+          "video": {
+            "tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-pool.1-7bf54d23d330",
+            "image": "ghcr.io/skarian/seed-worker-video@sha256:ebd851ffdd8fabd59a116457a57e2360f7a2c08c3006d5c61b3e056e72e36a3d",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-video",
+            "published_at": "2026-09-23T03:31:12.976Z",
+            "anonymous_pull_verified_at": "2026-09-23T03:35:28.631Z",
+            "tested_image_identity_verified": true,
+            "config_digest": "sha256:7bf54d23d330141beee374f429e5165a77d629a99f4e8104a0690af35beff7ee",
+            "platform": "linux/amd64",
+            "layer_count": 46,
+            "compressed_bytes": 9079645672
+          }
+        },
+        "live_availability_check": {
+          "checked_at": "2026-09-23T03:59:40.017Z",
+          "roles": [
+            {
+              "role": "image",
+              "elapsed_ms": 1209,
+              "offers": 67,
+              "providers": {
+                "vast": 50,
+                "runpod": 17
+              },
+              "issues": [],
+              "searched_at": "2026-09-23T03:59:40.013Z"
+            },
+            {
+              "role": "video",
+              "elapsed_ms": 1004,
+              "offers": 2,
+              "providers": {
+                "vast": 0,
+                "runpod": 2
+              },
+              "issues": [],
+              "searched_at": "2026-09-23T03:59:39.831Z"
+            }
+          ],
+          "active_workers": 0,
+          "worker_hourly": 0,
+          "estimated_spend": 0,
+          "provider_rentals_created_by_check": 0
+        }
+      }
+    },
+    {
+      "replaced_at": "2026-09-23T05:32:52.699Z",
+      "images": {
+        "image": {
+          "size_bytes": 50220347246,
+          "platform": "linux/amd64",
+          "published": true,
+          "local_tag": "seed-worker-image:pool-smoke",
+          "startup_auth_smoke": {
+            "role": "image",
+            "protocol": 2,
+            "startup_auth_pairing": true,
+            "wrong_manifest_rejected": true,
+            "base_models": 3,
+            "network": "none",
+            "gpu_inference": false
+          },
+          "source_verification": {
+            "verified_source_files": 29,
+            "role": "image",
+            "files": [
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+                "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+                "source": "worker/comfy_seed/__init__.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+                "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+                "source": "worker/comfy_seed/adapters.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+                "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+                "source": "worker/comfy_seed/jobs.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+                "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+                "source": "worker/comfy_seed/telemetry.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+                "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+                "source": "worker/comfy_seed/video.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/__init__.py",
+                "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+                "source": "worker/__init__.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/app.py",
+                "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+                "source": "worker/app.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/bake_qwen.py",
+                "sha256": "7fcc53a93caed4bbbe24737a79b1d8d404bf38690be4c5245ccda6cc27ebca6c",
+                "source": "worker/bake_qwen.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/download_process.py",
+                "sha256": "e472e23bef03e61fed1a5064371c60dc4481e5321d96dd0f32a745fcd0e813a1",
+                "source": "worker/download_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/entrypoint.py",
+                "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+                "source": "worker/entrypoint.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/inputs.py",
+                "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+                "source": "worker/inputs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/jobs.py",
+                "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+                "source": "worker/jobs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/model_files.py",
+                "sha256": "bc1d3bd415b2c3de00bcf3d04362e1bac30a658898f3467a140b3d106cf1505d",
+                "source": "worker/model_files.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/models-image.json",
+                "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+                "source": "worker/models-image.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/owned_process.py",
+                "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+                "source": "worker/owned_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/preparation.py",
+                "sha256": "adf4af4980711f79e34fdbf022c0c6d52295465a47ac1e8b3bcd76e05d531cb9",
+                "source": "worker/preparation.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/prepare.py",
+                "sha256": "c4378400200526fcf928821cf439815918b856e86cea503ab71a5298e0c25f0d",
+                "source": "worker/prepare.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/processes.py",
+                "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+                "source": "worker/processes.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/profile.py",
+                "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+                "source": "worker/profile.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/qwen-model.json",
+                "sha256": "748a4a1e38c74efcb1db8258ab9bf578f312667532bc0dc28897af58e98ab9b1",
+                "source": "worker/qwen-model.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements-qwen.txt",
+                "sha256": "9d90645f0fd5a533f677368e7e4638e27fb6f91757027b2f79eb8c829a25c681",
+                "source": "worker/requirements-qwen.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements.txt",
+                "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+                "source": "worker/requirements.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/run.py",
+                "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+                "source": "worker/run.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/index.html",
+                "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+                "source": "worker/static/index.html"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.css",
+                "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+                "source": "worker/static/page.css"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.js",
+                "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+                "source": "worker/static/page.js"
+              },
+              {
+                "packaged": "/opt/seed/worker/uploads.py",
+                "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+                "source": "worker/uploads.py"
+              }
+            ]
+          },
+          "local_image_id": "sha256:ecb34691fc56f6dcec78c955097aa0ca0612232894aa55711c3eb49d25eff0ce",
+          "entrypoint": [
+            "/opt/nvidia/nvidia_entrypoint.sh"
+          ],
+          "command": [
+            "/opt/venv/bin/python",
+            "-m",
+            "worker.entrypoint"
+          ],
+          "original_build_image_id": "sha256:ecec7d4984f0453e374417a58fe0c76d1e768edf8f9b02aa113ef199310423b8",
+          "repackaging": {
+            "verified_at": "2026-09-23T03:45:58.979Z",
+            "previous_local_image_id": "sha256:ecec7d4984f0453e374417a58fe0c76d1e768edf8f9b02aa113ef199310423b8",
+            "local_image_id": "sha256:208770d44ab2a7cfc23557e9a02d5e23e55be0f8163cdb8cf9369c50e27fde70",
+            "max_uncompressed_layer_bytes": 9968332504,
+            "identical_source_files": 29,
+            "qwen_offline_assets": {
+              "repository": "Qwen/Qwen-Image-2.1",
+              "revision": "790c92633540aa0cb11d9abf19eb46d861714758",
+              "verified_files": 25,
+              "bytes": 33131609424
+            },
+            "startup_auth_smoke": {
+              "role": "image",
+              "protocol": 2,
+              "startup_auth_pairing": true,
+              "wrong_manifest_rejected": true,
+              "base_models": 3,
+              "network": "none",
+              "gpu_inference": false
+            },
+            "transport_log": ".local/worker-publication-transport.log",
+            "gpu_inference": false
+          },
+          "publication": {
+            "role": "image",
+            "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-pool.2-ecb34691fc56",
+            "image": "ghcr.io/skarian/seed-worker-image@sha256:40f5f844449083d3f8ad85bba4424132ce757803106262bfc584caa0312b0953",
+            "config_digest": "sha256:ecb34691fc56f6dcec78c955097aa0ca0612232894aa55711c3eb49d25eff0ce",
+            "published_at": "2026-09-23T04:28:26.098Z",
+            "anonymous_pull_verified": true,
+            "layer_count": 59,
+            "compressed_bytes": 35339606630,
+            "anonymous_pull_verified_at": "2026-09-23T04:28:26.098Z",
+            "tested_image_identity_verified": true,
+            "platform": "linux/amd64",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-image"
+          }
+        },
+        "video": {
+          "size_bytes": 16907480734,
+          "platform": "linux/amd64",
+          "published": true,
+          "local_tag": "seed-worker-video:pool-smoke",
+          "startup_auth_smoke": {
+            "role": "video",
+            "protocol": 2,
+            "startup_auth_pairing": true,
+            "wrong_manifest_rejected": true,
+            "base_models": 5,
+            "network": "none",
+            "gpu_inference": false
+          },
+          "source_verification": {
+            "verified_source_files": 26,
+            "role": "video",
+            "files": [
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+                "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+                "source": "worker/comfy_seed/__init__.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+                "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+                "source": "worker/comfy_seed/adapters.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+                "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+                "source": "worker/comfy_seed/jobs.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+                "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+                "source": "worker/comfy_seed/telemetry.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+                "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+                "source": "worker/comfy_seed/video.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/__init__.py",
+                "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+                "source": "worker/__init__.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/app.py",
+                "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+                "source": "worker/app.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/download_process.py",
+                "sha256": "e472e23bef03e61fed1a5064371c60dc4481e5321d96dd0f32a745fcd0e813a1",
+                "source": "worker/download_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/entrypoint.py",
+                "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+                "source": "worker/entrypoint.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/inputs.py",
+                "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+                "source": "worker/inputs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/jobs.py",
+                "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+                "source": "worker/jobs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/model_files.py",
+                "sha256": "bc1d3bd415b2c3de00bcf3d04362e1bac30a658898f3467a140b3d106cf1505d",
+                "source": "worker/model_files.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/models-video.json",
+                "sha256": "da587d090b4913a4e323b66a9acef2ac9a71f088891ea4801dd399fbe8cdc2e9",
+                "source": "worker/models-video.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/owned_process.py",
+                "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+                "source": "worker/owned_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/preparation.py",
+                "sha256": "adf4af4980711f79e34fdbf022c0c6d52295465a47ac1e8b3bcd76e05d531cb9",
+                "source": "worker/preparation.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/prepare.py",
+                "sha256": "c4378400200526fcf928821cf439815918b856e86cea503ab71a5298e0c25f0d",
+                "source": "worker/prepare.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/processes.py",
+                "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+                "source": "worker/processes.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/profile.py",
+                "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+                "source": "worker/profile.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements.txt",
+                "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+                "source": "worker/requirements.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/run.py",
+                "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+                "source": "worker/run.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/index.html",
+                "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+                "source": "worker/static/index.html"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.css",
+                "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+                "source": "worker/static/page.css"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.js",
+                "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+                "source": "worker/static/page.js"
+              },
+              {
+                "packaged": "/opt/seed/worker/uploads.py",
+                "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+                "source": "worker/uploads.py"
+              }
+            ]
+          },
+          "local_image_id": "sha256:9c6087c44b4541f61605889003a4187fea9ccea2ceda0e2f0eaa1ae8ad20d94a",
+          "entrypoint": [
+            "/opt/nvidia/nvidia_entrypoint.sh"
+          ],
+          "command": [
+            "/opt/venv/bin/python",
+            "-m",
+            "worker.entrypoint"
+          ],
+          "publication": {
+            "role": "video",
+            "tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-pool.2-9c6087c44b45",
+            "image": "ghcr.io/skarian/seed-worker-video@sha256:39b9519637452c2de73484291ca6d17d88b48426f64fdc30b6c3de418c993b96",
+            "config_digest": "sha256:9c6087c44b4541f61605889003a4187fea9ccea2ceda0e2f0eaa1ae8ad20d94a",
+            "published_at": "2026-09-23T04:28:27.458Z",
+            "anonymous_pull_verified": true,
+            "layer_count": 46,
+            "compressed_bytes": 9079645871,
+            "anonymous_pull_verified_at": "2026-09-23T04:28:27.458Z",
+            "tested_image_identity_verified": true,
+            "platform": "linux/amd64",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-video"
+          }
+        }
+      },
+      "publication": {
+        "verified_at": "2026-09-23T04:29:04.210Z",
+        "provider_rentals": 1,
+        "gpu_inference_qualified": false,
+        "roles": {
+          "image": {
+            "role": "image",
+            "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-pool.2-ecb34691fc56",
+            "image": "ghcr.io/skarian/seed-worker-image@sha256:40f5f844449083d3f8ad85bba4424132ce757803106262bfc584caa0312b0953",
+            "config_digest": "sha256:ecb34691fc56f6dcec78c955097aa0ca0612232894aa55711c3eb49d25eff0ce",
+            "published_at": "2026-09-23T04:28:26.098Z",
+            "anonymous_pull_verified": true,
+            "layer_count": 59,
+            "compressed_bytes": 35339606630,
+            "anonymous_pull_verified_at": "2026-09-23T04:28:26.098Z",
+            "tested_image_identity_verified": true,
+            "platform": "linux/amd64",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-image"
+          },
+          "video": {
+            "role": "video",
+            "tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-pool.2-9c6087c44b45",
+            "image": "ghcr.io/skarian/seed-worker-video@sha256:39b9519637452c2de73484291ca6d17d88b48426f64fdc30b6c3de418c993b96",
+            "config_digest": "sha256:9c6087c44b4541f61605889003a4187fea9ccea2ceda0e2f0eaa1ae8ad20d94a",
+            "published_at": "2026-09-23T04:28:27.458Z",
+            "anonymous_pull_verified": true,
+            "layer_count": 46,
+            "compressed_bytes": 9079645871,
+            "anonymous_pull_verified_at": "2026-09-23T04:28:27.458Z",
+            "tested_image_identity_verified": true,
+            "platform": "linux/amd64",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-video"
+          }
+        },
+        "live_availability_check": {
+          "checked_at": "2026-09-23T03:59:40.017Z",
+          "roles": [
+            {
+              "role": "image",
+              "elapsed_ms": 1209,
+              "offers": 67,
+              "providers": {
+                "vast": 50,
+                "runpod": 17
+              },
+              "issues": [],
+              "searched_at": "2026-09-23T03:59:40.013Z"
+            },
+            {
+              "role": "video",
+              "elapsed_ms": 1004,
+              "offers": 2,
+              "providers": {
+                "vast": 0,
+                "runpod": 2
+              },
+              "issues": [],
+              "searched_at": "2026-09-23T03:59:39.831Z"
+            }
+          ],
+          "active_workers": 0,
+          "worker_hourly": 0,
+          "estimated_spend": 0,
+          "provider_rentals_created_by_check": 0
+        },
+        "real_gpu_smoke": {
+          "verified_at": "2026-09-23T04:54:56.216Z",
+          "report": "research/worker-pool-gpu-smoke-2026-09-23.md",
+          "provider": "runpod",
+          "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+          "provider_rentals": 1,
+          "provider_id": "63svf1l27r1u9c",
+          "launched_image": "ghcr.io/skarian/seed-worker-video@sha256:ebd851ffdd8fabd59a116457a57e2360f7a2c08c3006d5c61b3e056e72e36a3d",
+          "live_patch": "Public Hugging Face download helper: token or False. Inference code unchanged.",
+          "current_release_clean_gpu_launch_tested": false,
+          "image_worker_gpu_tested": false,
+          "lora_gpu_tested": false,
+          "budget_usd": 5,
+          "estimated_total_usd": 1.4732518148919753,
+          "hourly_usd": 2.1151388888888887,
+          "allocated_at": "2026-09-23T04:10:02.179Z",
+          "released_at": "2026-09-23T04:51:49.677Z",
+          "provider_absence_verified_at": "2026-09-23T04:52:54.715Z",
+          "finish_jobs_and_quit_verified": true,
+          "in_flight_reconnect_verified": true,
+          "billing_status": "Provider record not yet posted; elapsed-time estimate.",
+          "tests": {
+            "application": 265,
+            "linux_worker": 83,
+            "container_transport": 11
+          },
+          "cases": [
+            {
+              "name": "text",
+              "job_id": "29664e2c-b099-4dfc-840f-34d8fb482149",
+              "asset_id": "29664e2c-b099-4dfc-840f-34d8fb482149-0",
+              "workflow": "text-to-video",
+              "duration_seconds": 5,
+              "engine_seconds": 144.001,
+              "submission_to_saved_seconds": 145.187,
+              "interval_worker_cost_usd": 0.08530296385030864,
+              "acknowledged": true,
+              "media_qa": {
+                "name": "text",
+                "decoded_without_errors": true,
+                "duration": 5,
+                "volume": {
+                  "mean_volume": -40.1,
+                  "max_volume": -15.4
+                },
+                "frames": 3
+              }
+            },
+            {
+              "name": "reference",
+              "job_id": "f78c7e26-5fc7-4349-bb0f-a5441e1e97af",
+              "asset_id": "f78c7e26-5fc7-4349-bb0f-a5441e1e97af-0",
+              "workflow": "reference-to-video",
+              "duration_seconds": 5,
+              "engine_seconds": 177.192,
+              "submission_to_saved_seconds": 177.804,
+              "interval_worker_cost_usd": 0.10446670972222222,
+              "acknowledged": true,
+              "media_qa": {
+                "name": "reference",
+                "decoded_without_errors": true,
+                "duration": 5,
+                "volume": {
+                  "mean_volume": -24.2,
+                  "max_volume": -0.4
+                },
+                "frames": 3
+              }
+            },
+            {
+              "name": "long",
+              "job_id": "95b58763-9d97-496d-a990-ad56bed8960c",
+              "asset_id": "95b58763-9d97-496d-a990-ad56bed8960c-0",
+              "workflow": "text-to-video",
+              "duration_seconds": 15,
+              "engine_seconds": 593.885,
+              "submission_to_saved_seconds": 594.998,
+              "interval_worker_cost_usd": 0.34958428016975307,
+              "acknowledged": true,
+              "media_qa": {
+                "name": "long",
+                "decoded_without_errors": true,
+                "duration": 15,
+                "volume": {
+                  "mean_volume": -36.7,
+                  "max_volume": -7.6
+                },
+                "frames": 3
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "replaced_at": "2026-09-23T12:02:40.058Z",
+      "images": {
+        "image": {
+          "size_bytes": 50220347246,
+          "platform": "linux/amd64",
+          "published": true,
+          "local_tag": "seed-worker-image:pool-smoke",
+          "startup_auth_smoke": {
+            "role": "image",
+            "protocol": 2,
+            "startup_auth_pairing": true,
+            "wrong_manifest_rejected": true,
+            "base_models": 3,
+            "network": "none",
+            "gpu_inference": false
+          },
+          "source_verification": {
+            "verified_source_files": 29,
+            "role": "image",
+            "files": [
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+                "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+                "source": "worker/comfy_seed/__init__.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+                "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+                "source": "worker/comfy_seed/adapters.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+                "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+                "source": "worker/comfy_seed/jobs.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+                "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+                "source": "worker/comfy_seed/telemetry.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+                "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+                "source": "worker/comfy_seed/video.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/__init__.py",
+                "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+                "source": "worker/__init__.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/app.py",
+                "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+                "source": "worker/app.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/bake_qwen.py",
+                "sha256": "7fcc53a93caed4bbbe24737a79b1d8d404bf38690be4c5245ccda6cc27ebca6c",
+                "source": "worker/bake_qwen.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/download_process.py",
+                "sha256": "e472e23bef03e61fed1a5064371c60dc4481e5321d96dd0f32a745fcd0e813a1",
+                "source": "worker/download_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/entrypoint.py",
+                "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+                "source": "worker/entrypoint.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/inputs.py",
+                "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+                "source": "worker/inputs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/jobs.py",
+                "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+                "source": "worker/jobs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/model_files.py",
+                "sha256": "bc1d3bd415b2c3de00bcf3d04362e1bac30a658898f3467a140b3d106cf1505d",
+                "source": "worker/model_files.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/models-image.json",
+                "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+                "source": "worker/models-image.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/owned_process.py",
+                "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+                "source": "worker/owned_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/preparation.py",
+                "sha256": "adf4af4980711f79e34fdbf022c0c6d52295465a47ac1e8b3bcd76e05d531cb9",
+                "source": "worker/preparation.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/prepare.py",
+                "sha256": "c4378400200526fcf928821cf439815918b856e86cea503ab71a5298e0c25f0d",
+                "source": "worker/prepare.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/processes.py",
+                "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+                "source": "worker/processes.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/profile.py",
+                "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+                "source": "worker/profile.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/qwen-model.json",
+                "sha256": "748a4a1e38c74efcb1db8258ab9bf578f312667532bc0dc28897af58e98ab9b1",
+                "source": "worker/qwen-model.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements-qwen.txt",
+                "sha256": "9d90645f0fd5a533f677368e7e4638e27fb6f91757027b2f79eb8c829a25c681",
+                "source": "worker/requirements-qwen.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements.txt",
+                "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+                "source": "worker/requirements.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/run.py",
+                "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+                "source": "worker/run.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/index.html",
+                "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+                "source": "worker/static/index.html"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.css",
+                "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+                "source": "worker/static/page.css"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.js",
+                "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+                "source": "worker/static/page.js"
+              },
+              {
+                "packaged": "/opt/seed/worker/uploads.py",
+                "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+                "source": "worker/uploads.py"
+              }
+            ]
+          },
+          "local_image_id": "sha256:ecb34691fc56f6dcec78c955097aa0ca0612232894aa55711c3eb49d25eff0ce",
+          "entrypoint": [
+            "/opt/nvidia/nvidia_entrypoint.sh"
+          ],
+          "command": [
+            "/opt/venv/bin/python",
+            "-m",
+            "worker.entrypoint"
+          ],
+          "original_build_image_id": "sha256:ecec7d4984f0453e374417a58fe0c76d1e768edf8f9b02aa113ef199310423b8",
+          "repackaging": {
+            "verified_at": "2026-09-23T03:45:58.979Z",
+            "previous_local_image_id": "sha256:ecec7d4984f0453e374417a58fe0c76d1e768edf8f9b02aa113ef199310423b8",
+            "local_image_id": "sha256:208770d44ab2a7cfc23557e9a02d5e23e55be0f8163cdb8cf9369c50e27fde70",
+            "max_uncompressed_layer_bytes": 9968332504,
+            "identical_source_files": 29,
+            "qwen_offline_assets": {
+              "repository": "Qwen/Qwen-Image-2.1",
+              "revision": "790c92633540aa0cb11d9abf19eb46d861714758",
+              "verified_files": 25,
+              "bytes": 33131609424
+            },
+            "startup_auth_smoke": {
+              "role": "image",
+              "protocol": 2,
+              "startup_auth_pairing": true,
+              "wrong_manifest_rejected": true,
+              "base_models": 3,
+              "network": "none",
+              "gpu_inference": false
+            },
+            "transport_log": ".local/worker-publication-transport.log",
+            "gpu_inference": false
+          },
+          "publication": {
+            "role": "image",
+            "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-pool.2-ecb34691fc56",
+            "image": "ghcr.io/skarian/seed-worker-image@sha256:40f5f844449083d3f8ad85bba4424132ce757803106262bfc584caa0312b0953",
+            "config_digest": "sha256:ecb34691fc56f6dcec78c955097aa0ca0612232894aa55711c3eb49d25eff0ce",
+            "published_at": "2026-09-23T04:28:26.098Z",
+            "anonymous_pull_verified": true,
+            "layer_count": 59,
+            "compressed_bytes": 35339606630,
+            "anonymous_pull_verified_at": "2026-09-23T04:28:26.098Z",
+            "tested_image_identity_verified": true,
+            "platform": "linux/amd64",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-image"
+          }
+        },
+        "video": {
+          "size_bytes": 16907484210,
+          "platform": "linux/amd64",
+          "published": true,
+          "local_tag": "seed-worker-video:pool-acquisition",
+          "startup_auth_smoke": {
+            "role": "video",
+            "protocol": 2,
+            "startup_auth_pairing": true,
+            "wrong_manifest_rejected": true,
+            "base_models": 5,
+            "network": "none",
+            "gpu_inference": false
+          },
+          "source_verification": {
+            "verified_source_files": 27,
+            "role": "video",
+            "files": [
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+                "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+                "source": "worker/comfy_seed/__init__.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+                "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+                "source": "worker/comfy_seed/adapters.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+                "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+                "source": "worker/comfy_seed/jobs.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+                "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+                "source": "worker/comfy_seed/telemetry.py"
+              },
+              {
+                "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+                "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+                "source": "worker/comfy_seed/video.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/__init__.py",
+                "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+                "source": "worker/__init__.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/app.py",
+                "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+                "source": "worker/app.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/download_process.py",
+                "sha256": "db51f1f2dbc3e5ccdeed223d6d402f1fb8459e1a4449a079f0b9ba62327d2210",
+                "source": "worker/download_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/entrypoint.py",
+                "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+                "source": "worker/entrypoint.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/inputs.py",
+                "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+                "source": "worker/inputs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/jobs.py",
+                "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+                "source": "worker/jobs.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/model_files.py",
+                "sha256": "458e72b6590dc19cb11042c493eab8e8975dbc89e33a0489a50e34eeb8c50c8a",
+                "source": "worker/model_files.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/models-video.json",
+                "sha256": "da587d090b4913a4e323b66a9acef2ac9a71f088891ea4801dd399fbe8cdc2e9",
+                "source": "worker/models-video.json"
+              },
+              {
+                "packaged": "/opt/seed/worker/owned_process.py",
+                "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+                "source": "worker/owned_process.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/preparation.py",
+                "sha256": "21c71d7dbfb01f16565f804cc12d7b0e3b2c76461c9a9abb6ce38ed7c8aa02ca",
+                "source": "worker/preparation.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/prepare.py",
+                "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+                "source": "worker/prepare.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/processes.py",
+                "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+                "source": "worker/processes.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/profile.py",
+                "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+                "source": "worker/profile.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/requirements.txt",
+                "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+                "source": "worker/requirements.txt"
+              },
+              {
+                "packaged": "/opt/seed/worker/run.py",
+                "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+                "source": "worker/run.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/spool.py",
+                "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+                "source": "worker/spool.py"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/index.html",
+                "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+                "source": "worker/static/index.html"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.css",
+                "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+                "source": "worker/static/page.css"
+              },
+              {
+                "packaged": "/opt/seed/worker/static/page.js",
+                "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+                "source": "worker/static/page.js"
+              },
+              {
+                "packaged": "/opt/seed/worker/uploads.py",
+                "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+                "source": "worker/uploads.py"
+              },
+              {
+                "source": "worker/download_progress.py",
+                "packaged": "/opt/seed/worker/download_progress.py",
+                "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876"
+              }
+            ]
+          },
+          "local_image_id": "sha256:8fd0080dc26e0c79023bfbad128fd1921113619e13180342cd820caf9d9f5f9b",
+          "entrypoint": [
+            "/opt/nvidia/nvidia_entrypoint.sh"
+          ],
+          "command": [
+            "/opt/venv/bin/python",
+            "-m",
+            "worker.entrypoint"
+          ],
+          "publication": {
+            "role": "video",
+            "tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-pool.3-8fd0080dc26e",
+            "image": "ghcr.io/skarian/seed-worker-video@sha256:4bcf501766cafe5d3582630134131906b7768e7be532b6eb8aac30b8b5869f5d",
+            "config_digest": "sha256:8fd0080dc26e0c79023bfbad128fd1921113619e13180342cd820caf9d9f5f9b",
+            "published_at": "2026-09-23T05:11:58.424Z",
+            "anonymous_pull_verified": true,
+            "layer_count": 46,
+            "compressed_bytes": 9079646967,
+            "anonymous_pull_verified_at": "2026-09-23T05:11:58.424Z",
+            "tested_image_identity_verified": true,
+            "platform": "linux/amd64",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-video"
+          }
+        }
+      },
+      "publication": {
+        "verified_at": "2026-09-23T05:32:52.702Z",
+        "provider_rentals": 1,
+        "gpu_inference_qualified": false,
+        "roles": {
+          "image": {
+            "role": "image",
+            "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-pool.2-ecb34691fc56",
+            "image": "ghcr.io/skarian/seed-worker-image@sha256:40f5f844449083d3f8ad85bba4424132ce757803106262bfc584caa0312b0953",
+            "config_digest": "sha256:ecb34691fc56f6dcec78c955097aa0ca0612232894aa55711c3eb49d25eff0ce",
+            "published_at": "2026-09-23T04:28:26.098Z",
+            "anonymous_pull_verified": true,
+            "layer_count": 59,
+            "compressed_bytes": 35339606630,
+            "anonymous_pull_verified_at": "2026-09-23T04:28:26.098Z",
+            "tested_image_identity_verified": true,
+            "platform": "linux/amd64",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-image"
+          },
+          "video": {
+            "role": "video",
+            "tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-pool.3-8fd0080dc26e",
+            "image": "ghcr.io/skarian/seed-worker-video@sha256:4bcf501766cafe5d3582630134131906b7768e7be532b6eb8aac30b8b5869f5d",
+            "config_digest": "sha256:8fd0080dc26e0c79023bfbad128fd1921113619e13180342cd820caf9d9f5f9b",
+            "published_at": "2026-09-23T05:11:58.424Z",
+            "anonymous_pull_verified": true,
+            "layer_count": 46,
+            "compressed_bytes": 9079646967,
+            "anonymous_pull_verified_at": "2026-09-23T05:11:58.424Z",
+            "tested_image_identity_verified": true,
+            "platform": "linux/amd64",
+            "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-video"
+          }
+        },
+        "live_availability_check": {
+          "checked_at": "2026-09-23T03:59:40.017Z",
+          "roles": [
+            {
+              "role": "image",
+              "elapsed_ms": 1209,
+              "offers": 67,
+              "providers": {
+                "vast": 50,
+                "runpod": 17
+              },
+              "issues": [],
+              "searched_at": "2026-09-23T03:59:40.013Z"
+            },
+            {
+              "role": "video",
+              "elapsed_ms": 1004,
+              "offers": 2,
+              "providers": {
+                "vast": 0,
+                "runpod": 2
+              },
+              "issues": [],
+              "searched_at": "2026-09-23T03:59:39.831Z"
+            }
+          ],
+          "active_workers": 0,
+          "worker_hourly": 0,
+          "estimated_spend": 0,
+          "provider_rentals_created_by_check": 0
+        },
+        "real_gpu_smoke": {
+          "verified_at": "2026-09-23T04:54:56.216Z",
+          "report": "research/worker-pool-gpu-smoke-2026-09-23.md",
+          "provider": "runpod",
+          "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+          "provider_rentals": 1,
+          "provider_id": "63svf1l27r1u9c",
+          "launched_image": "ghcr.io/skarian/seed-worker-video@sha256:ebd851ffdd8fabd59a116457a57e2360f7a2c08c3006d5c61b3e056e72e36a3d",
+          "live_patch": "Public Hugging Face download helper: token or False. Inference code unchanged.",
+          "current_release_clean_gpu_launch_tested": false,
+          "image_worker_gpu_tested": false,
+          "lora_gpu_tested": false,
+          "budget_usd": 5,
+          "estimated_total_usd": 1.4732518148919753,
+          "hourly_usd": 2.1151388888888887,
+          "allocated_at": "2026-09-23T04:10:02.179Z",
+          "released_at": "2026-09-23T04:51:49.677Z",
+          "provider_absence_verified_at": "2026-09-23T04:52:54.715Z",
+          "finish_jobs_and_quit_verified": true,
+          "in_flight_reconnect_verified": true,
+          "billing_status": "Provider record not yet posted; elapsed-time estimate.",
+          "tests": {
+            "application": 265,
+            "linux_worker": 83,
+            "container_transport": 11
+          },
+          "cases": [
+            {
+              "name": "text",
+              "job_id": "29664e2c-b099-4dfc-840f-34d8fb482149",
+              "asset_id": "29664e2c-b099-4dfc-840f-34d8fb482149-0",
+              "workflow": "text-to-video",
+              "duration_seconds": 5,
+              "engine_seconds": 144.001,
+              "submission_to_saved_seconds": 145.187,
+              "interval_worker_cost_usd": 0.08530296385030864,
+              "acknowledged": true,
+              "media_qa": {
+                "name": "text",
+                "decoded_without_errors": true,
+                "duration": 5,
+                "volume": {
+                  "mean_volume": -40.1,
+                  "max_volume": -15.4
+                },
+                "frames": 3
+              }
+            },
+            {
+              "name": "reference",
+              "job_id": "f78c7e26-5fc7-4349-bb0f-a5441e1e97af",
+              "asset_id": "f78c7e26-5fc7-4349-bb0f-a5441e1e97af-0",
+              "workflow": "reference-to-video",
+              "duration_seconds": 5,
+              "engine_seconds": 177.192,
+              "submission_to_saved_seconds": 177.804,
+              "interval_worker_cost_usd": 0.10446670972222222,
+              "acknowledged": true,
+              "media_qa": {
+                "name": "reference",
+                "decoded_without_errors": true,
+                "duration": 5,
+                "volume": {
+                  "mean_volume": -24.2,
+                  "max_volume": -0.4
+                },
+                "frames": 3
+              }
+            },
+            {
+              "name": "long",
+              "job_id": "95b58763-9d97-496d-a990-ad56bed8960c",
+              "asset_id": "95b58763-9d97-496d-a990-ad56bed8960c-0",
+              "workflow": "text-to-video",
+              "duration_seconds": 15,
+              "engine_seconds": 593.885,
+              "submission_to_saved_seconds": 594.998,
+              "interval_worker_cost_usd": 0.34958428016975307,
+              "acknowledged": true,
+              "media_qa": {
+                "name": "long",
+                "decoded_without_errors": true,
+                "duration": 15,
+                "volume": {
+                  "mean_volume": -36.7,
+                  "max_volume": -7.6
+                },
+                "frames": 3
+              }
+            }
+          ]
+        }
+      }
+    },
+    {
+      "superseded_at": "2026-09-23T13:09:40.758Z",
+      "role": "image",
+      "image": {
+        "size_bytes": 50220379062,
+        "platform": "linux/amd64",
+        "published": true,
+        "local_tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-pool.3-e6f3cfd215fd",
+        "startup_auth_smoke": {
+          "role": "image",
+          "protocol": 2,
+          "startup_auth_pairing": true,
+          "wrong_manifest_rejected": true,
+          "base_models": 3,
+          "network": "none",
+          "gpu_inference": false
+        },
+        "source_verification": {
+          "verified_source_files": 30,
+          "role": "image",
+          "files": [
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+              "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+              "source": "worker/comfy_seed/__init__.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+              "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+              "source": "worker/comfy_seed/adapters.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+              "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+              "source": "worker/comfy_seed/jobs.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+              "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+              "source": "worker/comfy_seed/telemetry.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+              "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+              "source": "worker/comfy_seed/video.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/__init__.py",
+              "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+              "source": "worker/__init__.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/app.py",
+              "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+              "source": "worker/app.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/bake_qwen.py",
+              "sha256": "7fcc53a93caed4bbbe24737a79b1d8d404bf38690be4c5245ccda6cc27ebca6c",
+              "source": "worker/bake_qwen.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/download_process.py",
+              "sha256": "db51f1f2dbc3e5ccdeed223d6d402f1fb8459e1a4449a079f0b9ba62327d2210",
+              "source": "worker/download_process.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/entrypoint.py",
+              "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+              "source": "worker/entrypoint.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/inputs.py",
+              "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+              "source": "worker/inputs.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/jobs.py",
+              "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+              "source": "worker/jobs.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/model_files.py",
+              "sha256": "458e72b6590dc19cb11042c493eab8e8975dbc89e33a0489a50e34eeb8c50c8a",
+              "source": "worker/model_files.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/models-image.json",
+              "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+              "source": "worker/models-image.json"
+            },
+            {
+              "packaged": "/opt/seed/worker/owned_process.py",
+              "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+              "source": "worker/owned_process.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/preparation.py",
+              "sha256": "21c71d7dbfb01f16565f804cc12d7b0e3b2c76461c9a9abb6ce38ed7c8aa02ca",
+              "source": "worker/preparation.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/prepare.py",
+              "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+              "source": "worker/prepare.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/processes.py",
+              "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+              "source": "worker/processes.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/profile.py",
+              "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+              "source": "worker/profile.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/qwen-model.json",
+              "sha256": "748a4a1e38c74efcb1db8258ab9bf578f312667532bc0dc28897af58e98ab9b1",
+              "source": "worker/qwen-model.json"
+            },
+            {
+              "packaged": "/opt/seed/worker/requirements-qwen.txt",
+              "sha256": "9d90645f0fd5a533f677368e7e4638e27fb6f91757027b2f79eb8c829a25c681",
+              "source": "worker/requirements-qwen.txt"
+            },
+            {
+              "packaged": "/opt/seed/worker/requirements.txt",
+              "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+              "source": "worker/requirements.txt"
+            },
+            {
+              "packaged": "/opt/seed/worker/run.py",
+              "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+              "source": "worker/run.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/index.html",
+              "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+              "source": "worker/static/index.html"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.css",
+              "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+              "source": "worker/static/page.css"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.js",
+              "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+              "source": "worker/static/page.js"
+            },
+            {
+              "packaged": "/opt/seed/worker/uploads.py",
+              "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+              "source": "worker/uploads.py"
+            },
+            {
+              "source": "worker/download_progress.py",
+              "packaged": "/opt/seed/worker/download_progress.py",
+              "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876"
+            }
+          ]
+        },
+        "local_image_id": "sha256:e6f3cfd215fdb2cf80e8726f309f6051769d270bb3d8b4a23d0ce4641340e442",
+        "entrypoint": [
+          "/opt/nvidia/nvidia_entrypoint.sh"
+        ],
+        "command": [
+          "/opt/venv/bin/python",
+          "-m",
+          "worker.entrypoint"
+        ],
+        "original_build_image_id": "sha256:ecec7d4984f0453e374417a58fe0c76d1e768edf8f9b02aa113ef199310423b8",
+        "repackaging": {
+          "verified_at": "2026-09-23T03:45:58.979Z",
+          "previous_local_image_id": "sha256:ecec7d4984f0453e374417a58fe0c76d1e768edf8f9b02aa113ef199310423b8",
+          "local_image_id": "sha256:208770d44ab2a7cfc23557e9a02d5e23e55be0f8163cdb8cf9369c50e27fde70",
+          "max_uncompressed_layer_bytes": 9968332504,
+          "identical_source_files": 29,
+          "qwen_offline_assets": {
+            "repository": "Qwen/Qwen-Image-2.1",
+            "revision": "790c92633540aa0cb11d9abf19eb46d861714758",
+            "verified_files": 25,
+            "bytes": 33131609424
+          },
+          "startup_auth_smoke": {
+            "role": "image",
+            "protocol": 2,
+            "startup_auth_pairing": true,
+            "wrong_manifest_rejected": true,
+            "base_models": 3,
+            "network": "none",
+            "gpu_inference": false
+          },
+          "transport_log": ".local/worker-publication-transport.log",
+          "gpu_inference": false
+        },
+        "publication": {
+          "role": "image",
+          "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-pool.3-e6f3cfd215fd",
+          "image": "ghcr.io/skarian/seed-worker-image@sha256:aeda5b387bffd635761d8a2de521ed98a0869807ced7ece688877c66eeafb426",
+          "config_digest": "sha256:e6f3cfd215fdb2cf80e8726f309f6051769d270bb3d8b4a23d0ce4641340e442",
+          "published_at": "2026-09-23T12:02:29.252Z",
+          "anonymous_pull_verified": true,
+          "layer_count": 60,
+          "compressed_bytes": 35339615901,
+          "anonymous_pull_verified_at": "2026-09-23T12:02:29.252Z",
+          "tested_image_identity_verified": true,
+          "platform": "linux/amd64",
+          "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-image"
+        }
+      }
+    },
+    {
+      "superseded_at": "2026-09-23T20:55:42.556Z",
+      "role": "image",
+      "image": {
+        "size_bytes": 34604896380,
+        "platform": "linux/amd64",
+        "published": true,
+        "local_tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-qwen.1-19fb0d16dbf3",
+        "local_image_id": "sha256:19fb0d16dbf3da3439b6f6f8d345fdcadd83244d977c7a172ca29afd53c3863c",
+        "source_verification": {
+          "verified_source_files": 30,
+          "role": "image",
+          "files": [
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+              "sha256": "8fc568bd14d3fc46ad30c68ad352331b7300e253512c9bc08b44b5a9baf7e037",
+              "source": "worker/comfy_seed/__init__.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+              "sha256": "37a39180b4e0579e07b5698f479dcadbf71bd370ed61ada07b7660c74ecf50d8",
+              "source": "worker/comfy_seed/adapters.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/image.py",
+              "sha256": "6d5aca284a95944bcd2c0349cf0aa500bfa7d4a1fbf9baeddae5b65ce0b9e5d8",
+              "source": "worker/comfy_seed/image.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+              "sha256": "54a4cb0f8bac809ea4ec5f9d360f861c84c7b744040a9b0f03670198f753a2e4",
+              "source": "worker/comfy_seed/jobs.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+              "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+              "source": "worker/comfy_seed/telemetry.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+              "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+              "source": "worker/comfy_seed/video.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/__init__.py",
+              "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+              "source": "worker/__init__.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/app.py",
+              "sha256": "c06ee32ac9861731bd30fbb06d53d0365f96b0815277ea350f97e7932d2e9192",
+              "source": "worker/app.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/bake_qwen.py",
+              "sha256": "092916692c3a128babf3030f0c8f6dcc55fd15184710859a0006c654420d27d8",
+              "source": "worker/bake_qwen.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/download_process.py",
+              "sha256": "db51f1f2dbc3e5ccdeed223d6d402f1fb8459e1a4449a079f0b9ba62327d2210",
+              "source": "worker/download_process.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/download_progress.py",
+              "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876",
+              "source": "worker/download_progress.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/entrypoint.py",
+              "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+              "source": "worker/entrypoint.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/inputs.py",
+              "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+              "source": "worker/inputs.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/jobs.py",
+              "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+              "source": "worker/jobs.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/model_files.py",
+              "sha256": "458e72b6590dc19cb11042c493eab8e8975dbc89e33a0489a50e34eeb8c50c8a",
+              "source": "worker/model_files.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/models-image.json",
+              "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+              "source": "worker/models-image.json"
+            },
+            {
+              "packaged": "/opt/seed/worker/owned_process.py",
+              "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+              "source": "worker/owned_process.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/preparation.py",
+              "sha256": "21c71d7dbfb01f16565f804cc12d7b0e3b2c76461c9a9abb6ce38ed7c8aa02ca",
+              "source": "worker/preparation.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/prepare.py",
+              "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+              "source": "worker/prepare.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/processes.py",
+              "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+              "source": "worker/processes.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/profile.py",
+              "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+              "source": "worker/profile.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/qwen-model.json",
+              "sha256": "79555cc5ca753c144b2c7e7773a9cf0fee9977dfa9f4abb8652f230da716905f",
+              "source": "worker/qwen-model.json"
+            },
+            {
+              "packaged": "/opt/seed/worker/requirements.txt",
+              "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+              "source": "worker/requirements.txt"
+            },
+            {
+              "packaged": "/opt/seed/worker/run.py",
+              "sha256": "88c6aa9d688079fa52c1042b25299e072ea6c6554a5f3ca07263c8e512b95f90",
+              "source": "worker/run.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/index.html",
+              "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+              "source": "worker/static/index.html"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.css",
+              "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+              "source": "worker/static/page.css"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.js",
+              "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+              "source": "worker/static/page.js"
+            },
+            {
+              "packaged": "/opt/seed/worker/uploads.py",
+              "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+              "source": "worker/uploads.py"
+            }
+          ]
+        },
+        "startup_auth_smoke": {
+          "role": "image",
+          "protocol": 2,
+          "startup_auth_pairing": true,
+          "wrong_manifest_rejected": true,
+          "base_models": 3,
+          "network": "none",
+          "gpu_inference": false
+        },
+        "publication": {
+          "role": "image",
+          "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-qwen.1-19fb0d16dbf3",
+          "image": "ghcr.io/skarian/seed-worker-image@sha256:1477fc24167c9662b7a9907bf61052da13fa16f4e688a01b86aeb992d8d7433b",
+          "config_digest": "sha256:19fb0d16dbf3da3439b6f6f8d345fdcadd83244d977c7a172ca29afd53c3863c",
+          "published_at": "2026-09-23T13:09:40.758Z",
+          "anonymous_pull_verified": true,
+          "layer_count": 50,
+          "compressed_bytes": 24497383073
+        },
+        "qwen": {
+          "repository": "Comfy-Org/Qwen-Image-2.1",
+          "revision": "9a44dbdb47cefd046be9c0a13476192f34c8db8e",
+          "verified_files": 3,
+          "bytes": 17283091112
+        },
+        "native_check": {
+          "native_graph_validation": true,
+          "nodes": [
+            "TextEncodeQwenImage21",
+            "QwenImage21Cache",
+            "SeedLoadEditImage"
+          ],
+          "rgba_preserved": true,
+          "gpu_used": false
+        }
+      }
+    },
+    {
+      "superseded_at": "2026-09-23T20:55:46.364Z",
+      "role": "video",
+      "image": {
+        "size_bytes": 16907484210,
+        "platform": "linux/amd64",
+        "published": true,
+        "local_tag": "seed-worker-video:pool-acquisition",
+        "startup_auth_smoke": {
+          "role": "video",
+          "protocol": 2,
+          "startup_auth_pairing": true,
+          "wrong_manifest_rejected": true,
+          "base_models": 5,
+          "network": "none",
+          "gpu_inference": false
+        },
+        "source_verification": {
+          "verified_source_files": 27,
+          "role": "video",
+          "files": [
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+              "sha256": "994bf15fbc1416099994c926ede423bfd0f7461c0e5827df63c24a6a1e8adc94",
+              "source": "worker/comfy_seed/__init__.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+              "sha256": "98defe8cc91eb6a1e4f1cfc32f269075c85f9943a25e147db7a110d7e715ad10",
+              "source": "worker/comfy_seed/adapters.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+              "sha256": "4a2cf7d3ec781ee8e9bcc0c3d0ccaa1d5b0906a27a48ba4cd046bbc4923978c3",
+              "source": "worker/comfy_seed/jobs.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+              "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+              "source": "worker/comfy_seed/telemetry.py"
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+              "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+              "source": "worker/comfy_seed/video.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/__init__.py",
+              "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+              "source": "worker/__init__.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/app.py",
+              "sha256": "0e33b33a585d596fc9d5997611511afad70e1b904ac76cb3411d970743878fb2",
+              "source": "worker/app.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/download_process.py",
+              "sha256": "db51f1f2dbc3e5ccdeed223d6d402f1fb8459e1a4449a079f0b9ba62327d2210",
+              "source": "worker/download_process.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/entrypoint.py",
+              "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+              "source": "worker/entrypoint.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/inputs.py",
+              "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+              "source": "worker/inputs.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/jobs.py",
+              "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+              "source": "worker/jobs.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/model_files.py",
+              "sha256": "458e72b6590dc19cb11042c493eab8e8975dbc89e33a0489a50e34eeb8c50c8a",
+              "source": "worker/model_files.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/models-video.json",
+              "sha256": "da587d090b4913a4e323b66a9acef2ac9a71f088891ea4801dd399fbe8cdc2e9",
+              "source": "worker/models-video.json"
+            },
+            {
+              "packaged": "/opt/seed/worker/owned_process.py",
+              "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+              "source": "worker/owned_process.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/preparation.py",
+              "sha256": "21c71d7dbfb01f16565f804cc12d7b0e3b2c76461c9a9abb6ce38ed7c8aa02ca",
+              "source": "worker/preparation.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/prepare.py",
+              "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+              "source": "worker/prepare.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/processes.py",
+              "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+              "source": "worker/processes.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/profile.py",
+              "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+              "source": "worker/profile.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/requirements.txt",
+              "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+              "source": "worker/requirements.txt"
+            },
+            {
+              "packaged": "/opt/seed/worker/run.py",
+              "sha256": "65c1961058e9123805381d4381478b4dd0f6d75e8e406362b5161a3f2eedc9cc",
+              "source": "worker/run.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/index.html",
+              "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+              "source": "worker/static/index.html"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.css",
+              "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+              "source": "worker/static/page.css"
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.js",
+              "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+              "source": "worker/static/page.js"
+            },
+            {
+              "packaged": "/opt/seed/worker/uploads.py",
+              "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+              "source": "worker/uploads.py"
+            },
+            {
+              "source": "worker/download_progress.py",
+              "packaged": "/opt/seed/worker/download_progress.py",
+              "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876"
+            }
+          ]
+        },
+        "local_image_id": "sha256:8fd0080dc26e0c79023bfbad128fd1921113619e13180342cd820caf9d9f5f9b",
+        "entrypoint": [
+          "/opt/nvidia/nvidia_entrypoint.sh"
+        ],
+        "command": [
+          "/opt/venv/bin/python",
+          "-m",
+          "worker.entrypoint"
+        ],
+        "publication": {
+          "role": "video",
+          "tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-pool.3-8fd0080dc26e",
+          "image": "ghcr.io/skarian/seed-worker-video@sha256:4bcf501766cafe5d3582630134131906b7768e7be532b6eb8aac30b8b5869f5d",
+          "config_digest": "sha256:8fd0080dc26e0c79023bfbad128fd1921113619e13180342cd820caf9d9f5f9b",
+          "published_at": "2026-09-23T05:11:58.424Z",
+          "anonymous_pull_verified": true,
+          "layer_count": 46,
+          "compressed_bytes": 9079646967,
+          "anonymous_pull_verified_at": "2026-09-23T05:11:58.424Z",
+          "tested_image_identity_verified": true,
+          "platform": "linux/amd64",
+          "package_url": "https://github.com/Skarian/seed/pkgs/container/seed-worker-video"
+        }
+      }
+    },
+    {
+      "superseded_at": "2026-09-23T21:59:47.302Z",
+      "role": "image",
+      "image": {
+        "size_bytes": 34604929153,
+        "platform": "linux/amd64",
+        "published": true,
+        "local_tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-diagnostics.1-7f80083f9636",
+        "local_image_id": "sha256:7f80083f9636c734a8411bdfd5f918e016c61f585e18e95f48061bfda9b06fbe",
+        "source_verification": {
+          "verified_source_files": 31,
+          "role": "image",
+          "files": [
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+              "sha256": "8fc568bd14d3fc46ad30c68ad352331b7300e253512c9bc08b44b5a9baf7e037",
+              "source": "worker/comfy_seed/__init__.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+              "sha256": "37a39180b4e0579e07b5698f479dcadbf71bd370ed61ada07b7660c74ecf50d8",
+              "source": "worker/comfy_seed/adapters.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/image.py",
+              "sha256": "6d5aca284a95944bcd2c0349cf0aa500bfa7d4a1fbf9baeddae5b65ce0b9e5d8",
+              "source": "worker/comfy_seed/image.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+              "sha256": "54a4cb0f8bac809ea4ec5f9d360f861c84c7b744040a9b0f03670198f753a2e4",
+              "source": "worker/comfy_seed/jobs.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+              "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+              "source": "worker/comfy_seed/telemetry.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+              "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+              "source": "worker/comfy_seed/video.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/__init__.py",
+              "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+              "source": "worker/__init__.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/app.py",
+              "sha256": "c06ee32ac9861731bd30fbb06d53d0365f96b0815277ea350f97e7932d2e9192",
+              "source": "worker/app.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/bake_qwen.py",
+              "sha256": "092916692c3a128babf3030f0c8f6dcc55fd15184710859a0006c654420d27d8",
+              "source": "worker/bake_qwen.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/download_process.py",
+              "sha256": "8b2bb29c69f58b8e79e4b8647a77561f84f1d7612942758b0c7a0be77f1abd77",
+              "source": "worker/download_process.py",
+              "unchanged_from_pinned_base": false
+            },
+            {
+              "packaged": "/opt/seed/worker/download_progress.py",
+              "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876",
+              "source": "worker/download_progress.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/entrypoint.py",
+              "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+              "source": "worker/entrypoint.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/inputs.py",
+              "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+              "source": "worker/inputs.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/jobs.py",
+              "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+              "source": "worker/jobs.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/model_files.py",
+              "sha256": "90c2e54058408714052ec625e3ffaa00391abb6e1aca659649cef0bdc0d20d19",
+              "source": "worker/model_files.py",
+              "unchanged_from_pinned_base": false
+            },
+            {
+              "packaged": "/opt/seed/worker/models-image.json",
+              "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+              "source": "worker/models-image.json",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/owned_process.py",
+              "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+              "source": "worker/owned_process.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/preparation.py",
+              "sha256": "5f7dc3da6b22045918b8f1c46edb0671ea0327f849d7cd866e4e82500f23be9c",
+              "source": "worker/preparation.py",
+              "unchanged_from_pinned_base": false
+            },
+            {
+              "packaged": "/opt/seed/worker/prepare.py",
+              "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+              "source": "worker/prepare.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/processes.py",
+              "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+              "source": "worker/processes.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/profile.py",
+              "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+              "source": "worker/profile.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/qwen-model.json",
+              "sha256": "79555cc5ca753c144b2c7e7773a9cf0fee9977dfa9f4abb8652f230da716905f",
+              "source": "worker/qwen-model.json",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/requirements.txt",
+              "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+              "source": "worker/requirements.txt",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/run.py",
+              "sha256": "88c6aa9d688079fa52c1042b25299e072ea6c6554a5f3ca07263c8e512b95f90",
+              "source": "worker/run.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/static/index.html",
+              "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+              "source": "worker/static/index.html",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.css",
+              "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+              "source": "worker/static/page.css",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.js",
+              "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+              "source": "worker/static/page.js",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/uploads.py",
+              "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+              "source": "worker/uploads.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "source": "worker/diagnostics.py",
+              "packaged": "/opt/seed/worker/diagnostics.py",
+              "unchanged_from_pinned_base": false,
+              "sha256": "70d1de8c0c3d3b4b23fb91030c9ffb815c968849d3e2b33f3ff64f795c858575"
+            }
+          ]
+        },
+        "startup_auth_smoke": {
+          "role": "image",
+          "protocol": 2,
+          "startup_auth_pairing": true,
+          "wrong_manifest_rejected": true,
+          "base_models": 3,
+          "network": "none",
+          "gpu_inference": false
+        },
+        "publication": {
+          "role": "image",
+          "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-diagnostics.1-7f80083f9636",
+          "image": "ghcr.io/skarian/seed-worker-image@sha256:4cc37358eab5e955dc29c4b3c1adebd50d11ffe6b02c050093a5f134f15e7c63",
+          "config_digest": "sha256:7f80083f9636c734a8411bdfd5f918e016c61f585e18e95f48061bfda9b06fbe",
+          "published_at": "2026-09-23T20:55:42.556Z",
+          "anonymous_pull_verified": true,
+          "layer_count": 51,
+          "compressed_bytes": 24497392503
+        },
+        "qwen": {
+          "repository": "Comfy-Org/Qwen-Image-2.1",
+          "revision": "9a44dbdb47cefd046be9c0a13476192f34c8db8e",
+          "verified_files": 3,
+          "bytes": 17283091112
+        },
+        "native_check": {
+          "native_graph_validation": true,
+          "nodes": [
+            "TextEncodeQwenImage21",
+            "QwenImage21Cache",
+            "SeedLoadEditImage"
+          ],
+          "rgba_preserved": true,
+          "gpu_used": false
+        }
+      }
+    },
+    {
+      "superseded_at": "2026-09-23T22:05:04.593Z",
+      "role": "image",
+      "image": {
+        "size_bytes": 34604930689,
+        "platform": "linux/amd64",
+        "published": true,
+        "local_tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-diagnostics.2-7fc61b5531d9",
+        "local_image_id": "sha256:7fc61b5531d9d85d84cdb1fcd69e2c7a4b37bc3da1d47e881d9da83b188541ee",
+        "source_verification": {
+          "verified_source_files": 31,
+          "role": "image",
+          "files": [
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+              "sha256": "8fc568bd14d3fc46ad30c68ad352331b7300e253512c9bc08b44b5a9baf7e037",
+              "source": "worker/comfy_seed/__init__.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+              "sha256": "37a39180b4e0579e07b5698f479dcadbf71bd370ed61ada07b7660c74ecf50d8",
+              "source": "worker/comfy_seed/adapters.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/image.py",
+              "sha256": "6d5aca284a95944bcd2c0349cf0aa500bfa7d4a1fbf9baeddae5b65ce0b9e5d8",
+              "source": "worker/comfy_seed/image.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+              "sha256": "54a4cb0f8bac809ea4ec5f9d360f861c84c7b744040a9b0f03670198f753a2e4",
+              "source": "worker/comfy_seed/jobs.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+              "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+              "source": "worker/comfy_seed/telemetry.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+              "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+              "source": "worker/comfy_seed/video.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/__init__.py",
+              "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+              "source": "worker/__init__.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/app.py",
+              "sha256": "c06ee32ac9861731bd30fbb06d53d0365f96b0815277ea350f97e7932d2e9192",
+              "source": "worker/app.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/bake_qwen.py",
+              "sha256": "092916692c3a128babf3030f0c8f6dcc55fd15184710859a0006c654420d27d8",
+              "source": "worker/bake_qwen.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/download_process.py",
+              "sha256": "8b2bb29c69f58b8e79e4b8647a77561f84f1d7612942758b0c7a0be77f1abd77",
+              "source": "worker/download_process.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/download_progress.py",
+              "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876",
+              "source": "worker/download_progress.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/entrypoint.py",
+              "sha256": "52b97aeb146de85110cd0eca47a7466910a88e73fec9f198e1802c2d30c8dc3b",
+              "source": "worker/entrypoint.py",
+              "unchanged_from_pinned_base": false
+            },
+            {
+              "packaged": "/opt/seed/worker/inputs.py",
+              "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+              "source": "worker/inputs.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/jobs.py",
+              "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+              "source": "worker/jobs.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/model_files.py",
+              "sha256": "90c2e54058408714052ec625e3ffaa00391abb6e1aca659649cef0bdc0d20d19",
+              "source": "worker/model_files.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/models-image.json",
+              "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+              "source": "worker/models-image.json",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/owned_process.py",
+              "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+              "source": "worker/owned_process.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/preparation.py",
+              "sha256": "5f7dc3da6b22045918b8f1c46edb0671ea0327f849d7cd866e4e82500f23be9c",
+              "source": "worker/preparation.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/prepare.py",
+              "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+              "source": "worker/prepare.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/processes.py",
+              "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+              "source": "worker/processes.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/profile.py",
+              "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+              "source": "worker/profile.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/qwen-model.json",
+              "sha256": "79555cc5ca753c144b2c7e7773a9cf0fee9977dfa9f4abb8652f230da716905f",
+              "source": "worker/qwen-model.json",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/requirements.txt",
+              "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+              "source": "worker/requirements.txt",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/run.py",
+              "sha256": "88c6aa9d688079fa52c1042b25299e072ea6c6554a5f3ca07263c8e512b95f90",
+              "source": "worker/run.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/spool.py",
+              "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+              "source": "worker/spool.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/static/index.html",
+              "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+              "source": "worker/static/index.html",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.css",
+              "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+              "source": "worker/static/page.css",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/static/page.js",
+              "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+              "source": "worker/static/page.js",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "packaged": "/opt/seed/worker/uploads.py",
+              "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+              "source": "worker/uploads.py",
+              "unchanged_from_pinned_base": true
+            },
+            {
+              "source": "worker/diagnostics.py",
+              "packaged": "/opt/seed/worker/diagnostics.py",
+              "unchanged_from_pinned_base": true,
+              "sha256": "70d1de8c0c3d3b4b23fb91030c9ffb815c968849d3e2b33f3ff64f795c858575"
+            }
+          ]
+        },
+        "startup_auth_smoke": {
+          "role": "image",
+          "protocol": 2,
+          "startup_auth_pairing": true,
+          "wrong_manifest_rejected": true,
+          "base_models": 3,
+          "network": "none",
+          "gpu_inference": false
+        },
+        "publication": {
+          "role": "image",
+          "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-diagnostics.2-7fc61b5531d9",
+          "image": "ghcr.io/skarian/seed-worker-image@sha256:459467fbfd8e8d07e3e0f3f5f9903bb69f60562a82ba5342bcbcda5171f259f8",
+          "config_digest": "sha256:7fc61b5531d9d85d84cdb1fcd69e2c7a4b37bc3da1d47e881d9da83b188541ee",
+          "published_at": "2026-09-23T21:59:47.302Z",
+          "anonymous_pull_verified": true,
+          "layer_count": 52,
+          "compressed_bytes": 24497393481
+        },
+        "qwen": {
+          "repository": "Comfy-Org/Qwen-Image-2.1",
+          "revision": "9a44dbdb47cefd046be9c0a13476192f34c8db8e",
+          "verified_files": 3,
+          "bytes": 17283091112
+        },
+        "native_check": {
+          "native_graph_validation": true,
+          "nodes": [
+            "TextEncodeQwenImage21",
+            "QwenImage21Cache",
+            "SeedLoadEditImage"
+          ],
+          "rgba_preserved": true,
+          "gpu_used": false
+        },
+        "ssh_smoke": {
+          "ssh_real_handshake": true,
+          "provider_key_replacement_tolerated": true,
+          "unrelated_key_rejected": true,
+          "network": "none"
+        }
+      }
+    }
+  ],
+  "smoke_fixes": {
+    "at": "2026-09-23T04:29:04.210Z",
+    "description": "Exact Civitai file-ID manifests, explicit anonymous Hugging Face access, and cleared retry errors.",
+    "verification": ".local/gpu-smoke/candidate-verification.json"
+  },
+  "real_gpu_smoke": {
+    "verified_at": "2026-09-23T04:54:56.216Z",
+    "report": "research/worker-pool-gpu-smoke-2026-09-23.md",
+    "provider": "runpod",
+    "gpu": "NVIDIA RTX PRO 6000 Blackwell Server Edition",
+    "provider_rentals": 1,
+    "provider_id": "63svf1l27r1u9c",
+    "launched_image": "ghcr.io/skarian/seed-worker-video@sha256:ebd851ffdd8fabd59a116457a57e2360f7a2c08c3006d5c61b3e056e72e36a3d",
+    "live_patch": "Public Hugging Face download helper: token or False. Inference code unchanged.",
+    "current_release_clean_gpu_launch_tested": false,
+    "image_worker_gpu_tested": false,
+    "lora_gpu_tested": false,
+    "budget_usd": 5,
+    "estimated_total_usd": 1.4732518148919753,
+    "hourly_usd": 2.1151388888888887,
+    "allocated_at": "2026-09-23T04:10:02.179Z",
+    "released_at": "2026-09-23T04:51:49.677Z",
+    "provider_absence_verified_at": "2026-09-23T04:52:54.715Z",
+    "finish_jobs_and_quit_verified": true,
+    "in_flight_reconnect_verified": true,
+    "billing_status": "Provider record not yet posted; elapsed-time estimate.",
+    "tests": {
+      "application": 265,
+      "linux_worker": 83,
+      "container_transport": 11
+    },
+    "cases": [
+      {
+        "name": "text",
+        "job_id": "29664e2c-b099-4dfc-840f-34d8fb482149",
+        "asset_id": "29664e2c-b099-4dfc-840f-34d8fb482149-0",
+        "workflow": "text-to-video",
+        "duration_seconds": 5,
+        "engine_seconds": 144.001,
+        "submission_to_saved_seconds": 145.187,
+        "interval_worker_cost_usd": 0.08530296385030864,
+        "acknowledged": true,
+        "media_qa": {
+          "name": "text",
+          "decoded_without_errors": true,
+          "duration": 5,
+          "volume": {
+            "mean_volume": -40.1,
+            "max_volume": -15.4
+          },
+          "frames": 3
+        }
+      },
+      {
+        "name": "reference",
+        "job_id": "f78c7e26-5fc7-4349-bb0f-a5441e1e97af",
+        "asset_id": "f78c7e26-5fc7-4349-bb0f-a5441e1e97af-0",
+        "workflow": "reference-to-video",
+        "duration_seconds": 5,
+        "engine_seconds": 177.192,
+        "submission_to_saved_seconds": 177.804,
+        "interval_worker_cost_usd": 0.10446670972222222,
+        "acknowledged": true,
+        "media_qa": {
+          "name": "reference",
+          "decoded_without_errors": true,
+          "duration": 5,
+          "volume": {
+            "mean_volume": -24.2,
+            "max_volume": -0.4
+          },
+          "frames": 3
+        }
+      },
+      {
+        "name": "long",
+        "job_id": "95b58763-9d97-496d-a990-ad56bed8960c",
+        "asset_id": "95b58763-9d97-496d-a990-ad56bed8960c-0",
+        "workflow": "text-to-video",
+        "duration_seconds": 15,
+        "engine_seconds": 593.885,
+        "submission_to_saved_seconds": 594.998,
+        "interval_worker_cost_usd": 0.34958428016975307,
+        "acknowledged": true,
+        "media_qa": {
+          "name": "long",
+          "decoded_without_errors": true,
+          "duration": 15,
+          "volume": {
+            "mean_volume": -36.7,
+            "max_volume": -7.6
+          },
+          "frames": 3
+        }
+      }
+    ]
+  },
+  "acquisition_progress": {
+    "at": "2026-09-23T12:02:40.060Z",
+    "description": "Streaming model progress, download speed and ETA, verification and startup stages.",
+    "verification": ".local/acquisition-qa/candidate-verification.json"
+  },
+  "qwen_image_edit_release": {
+    "published_at": "2026-09-23T13:09:40.758Z",
+    "publication": {
+      "role": "image",
+      "tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-qwen.1-19fb0d16dbf3",
+      "image": "ghcr.io/skarian/seed-worker-image@sha256:1477fc24167c9662b7a9907bf61052da13fa16f4e688a01b86aeb992d8d7433b",
+      "config_digest": "sha256:19fb0d16dbf3da3439b6f6f8d345fdcadd83244d977c7a172ca29afd53c3863c",
+      "published_at": "2026-09-23T13:09:40.758Z",
+      "anonymous_pull_verified": true,
+      "layer_count": 50,
+      "compressed_bytes": 24497383073
+    },
+    "verification": {
+      "id": "sha256:19fb0d16dbf3da3439b6f6f8d345fdcadd83244d977c7a172ca29afd53c3863c",
+      "size": 34604896380,
+      "source_verification": {
+        "verified_source_files": 30,
+        "role": "image",
+        "files": [
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/__init__.py",
+            "sha256": "8fc568bd14d3fc46ad30c68ad352331b7300e253512c9bc08b44b5a9baf7e037",
+            "source": "worker/comfy_seed/__init__.py"
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/adapters.py",
+            "sha256": "37a39180b4e0579e07b5698f479dcadbf71bd370ed61ada07b7660c74ecf50d8",
+            "source": "worker/comfy_seed/adapters.py"
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/image.py",
+            "sha256": "6d5aca284a95944bcd2c0349cf0aa500bfa7d4a1fbf9baeddae5b65ce0b9e5d8",
+            "source": "worker/comfy_seed/image.py"
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/jobs.py",
+            "sha256": "54a4cb0f8bac809ea4ec5f9d360f861c84c7b744040a9b0f03670198f753a2e4",
+            "source": "worker/comfy_seed/jobs.py"
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/spool.py",
+            "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+            "source": "worker/spool.py"
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/telemetry.py",
+            "sha256": "34d1cd3088761720af6a6d736ab6a36ffd6b413cc5fc8e7f03d9e8ce75e1246a",
+            "source": "worker/comfy_seed/telemetry.py"
+          },
+          {
+            "packaged": "/ComfyUI/custom_nodes/comfy_seed/video.py",
+            "sha256": "a951ba5fd9dd53e9c7bc98ac58fc29cc131e57f69753c1a9cb3ca93fbc021b8f",
+            "source": "worker/comfy_seed/video.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/__init__.py",
+            "sha256": "01ba4719c80b6fe911b091a7c05124b64eeece964e09c058ef8f9805daca546b",
+            "source": "worker/__init__.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/app.py",
+            "sha256": "c06ee32ac9861731bd30fbb06d53d0365f96b0815277ea350f97e7932d2e9192",
+            "source": "worker/app.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/bake_qwen.py",
+            "sha256": "092916692c3a128babf3030f0c8f6dcc55fd15184710859a0006c654420d27d8",
+            "source": "worker/bake_qwen.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/download_process.py",
+            "sha256": "db51f1f2dbc3e5ccdeed223d6d402f1fb8459e1a4449a079f0b9ba62327d2210",
+            "source": "worker/download_process.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/download_progress.py",
+            "sha256": "9c5de699cd4e66d8e7a99c0af6440f8bd1f402c038f5ac60fda7118c10bd5876",
+            "source": "worker/download_progress.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/entrypoint.py",
+            "sha256": "5a9757453456eb953a1bc471c0736ec14c133a7ad9b55481a3245812987cfcdf",
+            "source": "worker/entrypoint.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/inputs.py",
+            "sha256": "3a7a687be01a3adb6eb9c02fa8544f8217901cbb4908c2dd1ec6e1884b2ad2c8",
+            "source": "worker/inputs.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/jobs.py",
+            "sha256": "7a5429733ad325a180e7075b7ce1d3a51576a75de0f8eb4910dc01ebb6a4ecc0",
+            "source": "worker/jobs.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/model_files.py",
+            "sha256": "458e72b6590dc19cb11042c493eab8e8975dbc89e33a0489a50e34eeb8c50c8a",
+            "source": "worker/model_files.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/models-image.json",
+            "sha256": "de6aafb37a7d87ea2b1fe0b816e7f09a4b4d49b8bc1fea95033b2ab80d284f85",
+            "source": "worker/models-image.json"
+          },
+          {
+            "packaged": "/opt/seed/worker/owned_process.py",
+            "sha256": "a18ff7a3c7fd6cdb265c652f435327f50b68d4074994e61f5417b22e5261dcb4",
+            "source": "worker/owned_process.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/preparation.py",
+            "sha256": "21c71d7dbfb01f16565f804cc12d7b0e3b2c76461c9a9abb6ce38ed7c8aa02ca",
+            "source": "worker/preparation.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/prepare.py",
+            "sha256": "5d61b750dcf12926aa939ffd1f8f62fe98fcbcb08238678929d7eae5a3d9dfa6",
+            "source": "worker/prepare.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/processes.py",
+            "sha256": "71f5ec717c1726ab9bcb590c328049ebf725b6fe79fb987bb15577de9b986590",
+            "source": "worker/processes.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/profile.py",
+            "sha256": "d4985e2e08fd2b5bfcc68dff84aec4a69b7cc1fe63457dceec276a0b80cdaaac",
+            "source": "worker/profile.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/qwen-model.json",
+            "sha256": "79555cc5ca753c144b2c7e7773a9cf0fee9977dfa9f4abb8652f230da716905f",
+            "source": "worker/qwen-model.json"
+          },
+          {
+            "packaged": "/opt/seed/worker/requirements.txt",
+            "sha256": "a14259ef23959477d1156dd6163bad31fede3ec4dca834715c857f829c1f28f2",
+            "source": "worker/requirements.txt"
+          },
+          {
+            "packaged": "/opt/seed/worker/run.py",
+            "sha256": "88c6aa9d688079fa52c1042b25299e072ea6c6554a5f3ca07263c8e512b95f90",
+            "source": "worker/run.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/spool.py",
+            "sha256": "8a289334541ef61ec9720e940839ce7a05c4c5d4f147f3648b0b354ac41824b9",
+            "source": "worker/spool.py"
+          },
+          {
+            "packaged": "/opt/seed/worker/static/index.html",
+            "sha256": "ae46fd10af4b755370c71cf2e94701a314ec29843b7dd46fdff2ddd4b9dfb5c1",
+            "source": "worker/static/index.html"
+          },
+          {
+            "packaged": "/opt/seed/worker/static/page.css",
+            "sha256": "662bb5e1526035311b93da1af6a7e4a2aaff35676fc0461497945907bc8c696a",
+            "source": "worker/static/page.css"
+          },
+          {
+            "packaged": "/opt/seed/worker/static/page.js",
+            "sha256": "4761033ed59272281031109bca87088d2842bb7fa845fa8764b0f5cd66e4e8e3",
+            "source": "worker/static/page.js"
+          },
+          {
+            "packaged": "/opt/seed/worker/uploads.py",
+            "sha256": "ddca11003a09766b03b4471ba567e91730c5ad48404bed413f0c258c39d78846",
+            "source": "worker/uploads.py"
+          }
+        ]
+      },
+      "smoke": {
+        "role": "image",
+        "protocol": 2,
+        "startup_auth_pairing": true,
+        "wrong_manifest_rejected": true,
+        "base_models": 3,
+        "network": "none",
+        "gpu_inference": false
+      },
+      "assets": {
+        "repository": "Comfy-Org/Qwen-Image-2.1",
+        "revision": "9a44dbdb47cefd046be9c0a13476192f34c8db8e",
+        "verified_files": 3,
+        "bytes": 17283091112
+      },
+      "native_check": {
+        "native_graph_validation": true,
+        "nodes": [
+          "TextEncodeQwenImage21",
+          "QwenImage21Cache",
+          "SeedLoadEditImage"
+        ],
+        "rgba_preserved": true,
+        "gpu_used": false
+      }
+    },
+    "report": "research/qwen-image-edit-implementation.md",
+    "gpu_inference_qualified": false,
+    "provider_rentals": 0,
+    "paid_gpu_test": "deferred by user",
+    "validation_summary": {
+      "application_tests": 280,
+      "worker_tests": 87,
+      "container_transport_checks": 12,
+      "browser_atlas_cases": 34,
+      "browser_regressions": 15,
+      "visual_captures_individually_reviewed": 36,
+      "typecheck": "passed",
+      "build": "passed",
+      "native_comfy_cpu_graph": "passed",
+      "gpu_inference_qualified": false,
+      "paid_gpu_test": "deferred by user",
+      "visual_review": "research/qwen-image-edit-visual-review.json"
+    }
+  },
+  "diagnostics_release": {
+    "verification": ".local/acquisition-qualification/candidate-verification.json",
+    "linux_tests_passed": 90,
+    "paid_qualification": "Image and Video both generated successfully; see attempt scorecard for failures and incomplete launches.",
+    "notes": "Only download diagnostics changed; model/runtime layers are retained from pinned base images.",
+    "report": "research/acquisition-qualification-2026-09-23.md"
+  },
+  "ssh_release": {
+    "verification": ".local/acquisition-qualification/ssh-verification.json",
+    "paid_qualification": "passed on fresh Vast Image rental",
+    "notes": "Isolated Seed SSH authorized key file; SSH daemon errors go to provider container logs. Other image layers unchanged.",
+    "worker_id": "79cdc39b-833a-4305-a426-1c01271822a5",
+    "report": "research/acquisition-qualification-2026-09-23.md"
+  }
+}

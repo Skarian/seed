@@ -1,0 +1,151 @@
+{
+  "run_id": "2026-09-26T05:11:48.937Z",
+  "reviewed_at": "2026-09-26T05:19:52.169Z",
+  "method": "Each of the eighteen final screenshots opened individually at full resolution; not reviewed from mosaics. Additional computer-use verification used an isolated server and generated fixture media.",
+  "records": [
+    {
+      "id": "801",
+      "device": "desktop",
+      "file": "desktop/801.png",
+      "sha256": "93a77b8c0c71e8a8c479c009a5e5ad49e5e91286036d5b77c660db0a4ca0a21c",
+      "disposition": "pass",
+      "review": "Separate favorite/collection actions fit all media tiles; audio has enough room. Mobile remains a single scrollable column."
+    },
+    {
+      "id": "802",
+      "device": "desktop",
+      "file": "desktop/802.png",
+      "sha256": "f3c911dd1a8ad58dc7eb44044d26d5ed7dc10223502bb0d58faaabb0d7f7f889",
+      "disposition": "pass",
+      "review": "Combined filters are active. A single desktop result retains normal card width; mobile controls fill their rows."
+    },
+    {
+      "id": "803",
+      "device": "desktop",
+      "file": "desktop/803.png",
+      "sha256": "820d2338c1a4bf88d985795fd537486d9740328f74eaa3c04f98fed4faa00487",
+      "disposition": "pass",
+      "review": "Two saved memberships are visibly checked. Long names wrap without crowding controls."
+    },
+    {
+      "id": "804",
+      "device": "desktop",
+      "file": "desktop/804.png",
+      "sha256": "dd1d2f444d9ce9a1d20679e2e89668e56da7bbd75bd57d33993961a5ca9b70f0",
+      "disposition": "pass",
+      "review": "Names, counts and rename/delete actions fit. Mobile places actions beneath each name."
+    },
+    {
+      "id": "805",
+      "device": "desktop",
+      "file": "desktop/805.png",
+      "sha256": "dd656e2fc9d08115316b8eb282961a39299f6bd2e6eebdc2b1a3ecfb7fb8726e",
+      "disposition": "pass",
+      "review": "Filled favorite and collection action are legible. Mobile keeps icon controls together and Edit image on the next row."
+    },
+    {
+      "id": "806",
+      "device": "desktop",
+      "file": "desktop/806.png",
+      "sha256": "3274adf6147d89db13001e9d66c8e35d3503a403703dd6b036dc0ecd63330206",
+      "disposition": "pass",
+      "review": "Favorite/collection and Pick Frame controls fit. Native Chromium video buffering spinner is visible in this capture; media readiness and separate playback regressions pass. This capture verifies toolbar layout, not playback completion."
+    },
+    {
+      "id": "807",
+      "device": "desktop",
+      "file": "desktop/807.png",
+      "sha256": "aa2646be5a1a9930d48b92db18018f7e49e032d33fe5ce86992b53fd4d9d9b13",
+      "disposition": "pass",
+      "review": "Audio toolbar fits, controls remain accessible. The half-second test tone displays a rounded 0:00 duration."
+    },
+    {
+      "id": "808",
+      "device": "desktop",
+      "file": "desktop/808.png",
+      "sha256": "74e2bb886a78f8cc39768c0febdf4f97c435c67b669edab9871363f1b9a067ee",
+      "disposition": "pass",
+      "review": "Failed save leaves membership unchanged and presents readable inline error without clipping."
+    },
+    {
+      "id": "809",
+      "device": "desktop",
+      "file": "desktop/809.png",
+      "sha256": "54cf8eb955f9240c3588e88cf228879e046fbda298b5e0e29114e0e62ef6d949",
+      "disposition": "pass",
+      "review": "Gallery combines Favorites and Collection. Two selections remain in the count while one matching item is visible; mobile filter rows and footer fit."
+    },
+    {
+      "id": "801",
+      "device": "mobile",
+      "file": "mobile/801.png",
+      "sha256": "c673b36d85f0c73b5ec1022756ce96c368c103a528d8202082de73856c235759",
+      "disposition": "pass",
+      "review": "Separate favorite/collection actions fit all media tiles; audio has enough room. Mobile remains a single scrollable column."
+    },
+    {
+      "id": "802",
+      "device": "mobile",
+      "file": "mobile/802.png",
+      "sha256": "f52eba70f0ba81b6e35d20d18f6d731af0ba9c1cbbdfb94ab90da9893e915c7f",
+      "disposition": "pass",
+      "review": "Combined filters are active. A single desktop result retains normal card width; mobile controls fill their rows."
+    },
+    {
+      "id": "803",
+      "device": "mobile",
+      "file": "mobile/803.png",
+      "sha256": "36dbfaee814fbf3909fa24f540b56c178242c34ec90a8ba46cef7c2a5893c8a1",
+      "disposition": "pass",
+      "review": "Two saved memberships are visibly checked. Long names wrap without crowding controls."
+    },
+    {
+      "id": "804",
+      "device": "mobile",
+      "file": "mobile/804.png",
+      "sha256": "5008c2cbca4d7388d0f800bfdda04722ae9407542c2b3dba9e4ac020731ae7d3",
+      "disposition": "pass",
+      "review": "Names, counts and rename/delete actions fit. Mobile places actions beneath each name."
+    },
+    {
+      "id": "805",
+      "device": "mobile",
+      "file": "mobile/805.png",
+      "sha256": "f60cc07b44c75d763179bd6015a5f7ef8b151dc5ae010d87884e67d020359449",
+      "disposition": "pass",
+      "review": "Filled favorite and collection action are legible. Mobile keeps icon controls together and Edit image on the next row."
+    },
+    {
+      "id": "806",
+      "device": "mobile",
+      "file": "mobile/806.png",
+      "sha256": "6ba400b4132bcf8e13a7096ae1217d1c9744ab894f5d77de9b0fb05336cc8a6c",
+      "disposition": "pass",
+      "review": "Favorite/collection and Pick Frame controls fit. Native Chromium video buffering spinner is visible in this capture; media readiness and separate playback regressions pass. This capture verifies toolbar layout, not playback completion."
+    },
+    {
+      "id": "807",
+      "device": "mobile",
+      "file": "mobile/807.png",
+      "sha256": "3505a8afd60de49592bcfb327d660c621e1e81b695fe81a95f43dc7a7554bcad",
+      "disposition": "pass",
+      "review": "Audio toolbar fits, controls remain accessible. The half-second test tone displays a rounded 0:00 duration."
+    },
+    {
+      "id": "808",
+      "device": "mobile",
+      "file": "mobile/808.png",
+      "sha256": "d621a3d8f9a9ff2f8c23b1c8974fdc1d24666f03487a0d33d1489a453af9327c",
+      "disposition": "pass",
+      "review": "Failed save leaves membership unchanged and presents readable inline error without clipping."
+    },
+    {
+      "id": "809",
+      "device": "mobile",
+      "file": "mobile/809.png",
+      "sha256": "6f85ecd0077a7663807a619491595591709ca512b8e6f3b80389cd88069f277d",
+      "disposition": "pass",
+      "review": "Gallery combines Favorites and Collection. Two selections remain in the count while one matching item is visible; mobile filter rows and footer fit."
+    }
+  ]
+}

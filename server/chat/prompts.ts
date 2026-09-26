@@ -6,6 +6,7 @@ import type { StudioPaths } from '../storage.js';
 
 export const chatWorkflows = {
   'text-to-image': {label:'Create image', command:'/create-image', tool:'prepare_image', guide:'06-text-to-image.md'},
+  'image-to-image': {label:'Image to image', command:'/image-to-image', tool:'prepare_edit', guide:'image-to-image.md'},
   'text-to-video': {label:'Create video', command:'/create-video', tool:'prepare_video', guide:'create-a-video.md'},
   'reference-to-video': {label:'Animate image', command:'/animate-image', tool:'animate_image', guide:'animate-an-image.md'},
 } as const;

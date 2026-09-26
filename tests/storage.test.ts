@@ -25,9 +25,9 @@ describe('persistent local storage', () => {
     const reopened = openDatabase(paths.data);
     try {
       expect(readFileSync(file, 'utf8')).toBe('unique original');
-      expect(listAssets(reopened)).toEqual([{ id: 'asset-1', kind: 'image', mode: 'sfw', name: 'My original', created_at: '2026-09-09T00:00:00Z' }]);
+      expect(listAssets(reopened)).toEqual([{ id: 'asset-1', kind: 'image', mode: 'sfw', name: 'My original', created_at: '2026-09-09T00:00:00Z', favorite:false }]);
       expect(reopened.prepare("SELECT name FROM sqlite_master WHERE name='dispatcher_state'").get()).toBeUndefined();
-      expect(reopened.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 1 });
+      expect(reopened.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 4 });
       expect(reopened.pragma('synchronous', { simple: true })).toBe(2);
     } finally { reopened.close(); }
   });
@@ -48,7 +48,7 @@ describe('persistent local storage', () => {
 
 it('migrates the old pause state without submitting held work or removing saved media',()=>{
   const paths=fixture(),db=openDatabase(paths.data);
-  db.exec("DELETE FROM schema_migrations; INSERT INTO schema_migrations VALUES (6, 'before'); CREATE TABLE dispatcher_state (id INTEGER PRIMARY KEY, paused INTEGER); INSERT INTO dispatcher_state VALUES (1,1);");
+  db.exec("DROP TABLE job_attempts; DROP TABLE pool_workers; DROP TABLE pool_launches; DROP TABLE pool_offers; DELETE FROM schema_migrations; INSERT INTO schema_migrations VALUES (6, 'before'); CREATE TABLE dispatcher_state (id INTEGER PRIMARY KEY, paused INTEGER); INSERT INTO dispatcher_state VALUES (1,1);");
   const job={id:'held',state:'queued',request:{prompt:'keep this request'},outputs:[]};
   db.prepare('INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?)').run('held','text-to-image','queued',JSON.stringify(job),'before','before','submission',0);
   db.prepare('INSERT INTO assets(id,kind,name,relative_path,created_at) VALUES (?,?,?,?,?)').run('saved','image','Saved image','media/output.png','before');db.close();
@@ -57,6 +57,6 @@ it('migrates the old pause state without submitting held work or removing saved 
     expect(JSON.parse((migrated.prepare('SELECT snapshot_json FROM jobs').get() as any).snapshot_json)).toMatchObject({state:'blocked',request:job.request});
     expect(listAssets(migrated)).toHaveLength(1);
     expect(migrated.prepare("SELECT name FROM sqlite_master WHERE name='dispatcher_state'").get()).toBeUndefined();
-    expect(migrated.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({version:7});
+    expect(migrated.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({version:10});
   }finally{migrated.close();}
 });

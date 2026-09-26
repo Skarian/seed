@@ -8,12 +8,12 @@ import {resolvePaths,prepareStorage} from '../server/storage.js';
 import {Jobs} from '../server/jobs.js';
 import {Chats} from '../server/chat/service.js';
 import {registerChats} from '../server/chat/http.js';
-import {fakeFal} from './fake-fal.js';
+import {fakePool} from './fake-pool.js';
 
 it('accepts UI mention bindings over HTTP, retains history and resolves source tokens in the real provider context',async()=>{
  mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/mention-context-')),paths=resolvePaths(root);prepareStorage(paths);
  writeFileSync(path.join(paths.config,'credentials.json'),JSON.stringify({openrouterApiKey:'fake'}));
- const db=openDatabase(paths.data),jobs=new Jobs(db,paths,fakeFal());
+ const db=openDatabase(paths.data),jobs=new Jobs(db,paths,fakePool(db,paths).pool);
  let provider:any;
  const chats=new Chats(db,paths,jobs,async(_url,init)=>{provider=JSON.parse(String(init?.body));return new Response('data: '+JSON.stringify({choices:[{index:0,delta:{content:'References understood.'},finish_reason:'stop'}]})+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});});
  const app=Fastify();registerChats(app,chats,()=>true);

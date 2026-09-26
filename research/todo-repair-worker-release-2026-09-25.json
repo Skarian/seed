@@ -1,0 +1,20 @@
+{
+  "date": "2026-09-25",
+  "change": "Announce initial download status without priming rate history; first SDK byte callback establishes resumed prefix baseline.",
+  "source": "worker/download_process.py",
+  "source_sha256": "797500a1b24d542fb1d400b72b06efed599a2299db04e593d2566731c21df701",
+  "image": {
+    "base": "ghcr.io/skarian/seed-worker-image@sha256:8edf7a9eb0567e4cd935cb7f3602029bc8d69525c340da671ec8bd0ffc8508cb",
+    "release": "ghcr.io/skarian/seed-worker-image@sha256:524dd90bb05e893b6cc53fe80852503ec19283463c2cdb08b3288fa3afe22aab",
+    "local_image_id": "sha256:90c051cf8982e2496b4c528d09b344c235efa28849167c0168c6700389d00cb9"
+  },
+  "video": {
+    "base": "ghcr.io/skarian/seed-worker-video@sha256:36d20d1bc596cc1f18cbc7dc5e724aa05725940f3d377539c85522dd75308bd5",
+    "release": "ghcr.io/skarian/seed-worker-video@sha256:d321e774f6c1dfdbaa168a39527bb054e13d77f75878a97f8643e109c93b6a21",
+    "local_image_id": "sha256:58eeddf9858d120517e1a8fc6f563053a2d46b1844f4d4cc9796d71d50f4bacf"
+  },
+  "build": "Linux amd64 patch layer on each current pinned release, copying only download_process.py; normal worker/Dockerfile also includes corrected source for full rebuilds.",
+  "verification": ["Published digests independently checked against registry", "Both roles: protocol 2 identity and model manifest", "Both roles: actual prepare callback 400 cached bytes then 600 at 2s = 100 bytes/s", "Both roles: tqdm HTTP and Xet byte accounting"],
+  "test_environment": "Offline CPU-only containers with network disabled, no GPUs",
+  "live_rentals_changed": false
+}

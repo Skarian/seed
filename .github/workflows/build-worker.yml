@@ -1,0 +1,87 @@
+name: Build worker role candidates
+on:
+  workflow_dispatch:
+    inputs:
+      publish:
+        description: Publish verified candidates to GHCR (does not deploy workers)
+        type: boolean
+        default: false
+      runner:
+        description: Linux x64 runner label with Docker and at least 100 GB free
+        type: string
+        default: ubuntu-24.04
+permissions:
+  contents: read
+  packages: write
+concurrency:
+  group: seed-worker-pool-candidates
+  cancel-in-progress: false
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 120
+    strategy:
+      fail-fast: false
+      matrix:
+        role: [image, video]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Check build disk
+        run: |
+          available=$(df -PB1 . | awk 'NR==2 {print $4}')
+          test "$available" -ge 100000000000 || { echo 'Choose a builder with at least 100 GB free for image layers and export; no files are deleted automatically.'; exit 1; }
+      - name: Build role candidate
+        env:
+          ROLE: ${{ matrix.role }}
+        run: docker build --platform linux/amd64 --target "$ROLE" --build-arg "SOURCE_REVISION=$GITHUB_SHA" --tag "ghcr.io/skarian/seed-worker-$ROLE:pool-$GITHUB_SHA" --file worker/Dockerfile worker
+      - name: Verify CPU identity and pinned assets
+        env:
+          ROLE: ${{ matrix.role }}
+        run: |
+          image="ghcr.io/skarian/seed-worker-$ROLE:pool-$GITHUB_SHA"
+          docker run --rm --network none --entrypoint /opt/venv/bin/python "$image" -c "from worker.profile import identity,role_models; value=identity(); assert value['protocol_version']==2; assert value['worker_class']=='$ROLE'; assert role_models(); print(value)"
+          if [ "$ROLE" = image ]; then docker run --rm --network none --entrypoint /opt/venv/bin/python "$image" -m worker.bake_qwen --verify-only; fi
+      - name: Check registry layer sizes
+        env:
+          ROLE: ${{ matrix.role }}
+        run: |
+          python - <<'PY'
+          import os, subprocess
+          image = f"ghcr.io/skarian/seed-worker-{os.environ['ROLE']}:pool-{os.environ['GITHUB_SHA']}"
+          sizes = [int(value) for value in subprocess.check_output(
+              ['docker', 'history', '--human=false', '--format', '{{.Size}}', image], text=True).splitlines()]
+          assert max(sizes) < 10_000_000_000, 'Split model files into layers below the GHCR 10 GB limit.'
+          print(f'Maximum uncompressed layer: {max(sizes):,} bytes')
+          PY
+      - name: Authenticate to GHCR
+        if: inputs.publish
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Write release evidence
+        env:
+          ROLE: ${{ matrix.role }}
+          PUBLISH: ${{ inputs.publish }}
+        run: |
+          image="ghcr.io/skarian/seed-worker-$ROLE:pool-$GITHUB_SHA"
+          mkdir -p build-artifacts
+          if [ "$PUBLISH" = true ]; then docker push "$image"; fi
+          docker image inspect "$image" > "build-artifacts/$ROLE-image-inspect.json"
+          python - <<'PY'
+          import json,os,pathlib
+          role=os.environ['ROLE']; directory=pathlib.Path('build-artifacts')
+          record=json.loads((directory/(role+'-image-inspect.json')).read_text())[0]
+          release=json.loads(pathlib.Path('worker/releases.json').read_text())[role]
+          refs=record.get('RepoDigests') or []
+          release.update(image=refs[0] if os.environ['PUBLISH']=='true' and refs else None,
+                         status='published' if os.environ['PUBLISH']=='true' and refs else 'built-locally',
+                         source_revision=os.environ['GITHUB_SHA'],local_image_id=record['Id'])
+          (directory/(role+'-release.json')).write_text(json.dumps({role:release},indent=2)+'\n')
+          PY
+      - uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: worker-${{ matrix.role }}-release
+          path: build-artifacts/
+      - name: Remove registry session
+        if: always() && inputs.publish
+        run: docker logout ghcr.io || true

@@ -1,0 +1,33 @@
+{
+  "campaign": "2026-09-23T20-17-05.928Z",
+  "method": "Screenshots inspected individually at their original capture size before building the gallery. This is a live-journey sample, not an exhaustive permutation matrix.",
+  "captures": [
+    {"file":"001-desktop-acquiring.png","title":"Desktop acquisition — stale scroll position","device":"desktop","reviewed":true,"result":"issue fixed","note":"Worker heading began above the viewport. Reset dialog and content scroll when launch succeeds; verified in 008."},
+    {"file":"002-desktop-acquisition-top.png","title":"Desktop acquisition — header and costs","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"003-mobile-acquisition.png","title":"Mobile acquisition and individual controls","device":"mobile","reviewed":true,"result":"pass"},
+    {"file":"004-mobile-shutdown-controls.png","title":"Mobile shutdown actions remain reachable","device":"mobile","reviewed":true,"result":"pass"},
+    {"file":"005-runpod-generated-image.png","title":"RunPod Krea output — blue mug","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"006-runpod-finishing.png","title":"Graceful release completed with saved output","device":"desktop","reviewed":true,"result":"pass","note":"Screenshot caught the released state; the preceding accessibility snapshot recorded Finishing."},
+    {"file":"007-runpod-qwen-edit.png","title":"RunPod Qwen output — yellow mug","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"008-vast-acquisition-scroll-fix.png","title":"Fresh acquisition confirms scroll reset","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"009-queued-before-ready.png","title":"Request queued while worker prepares","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"010-mobile-two-workers-preparing.png","title":"Mobile — two workers preparing","device":"mobile","reviewed":true,"result":"pass"},
+    {"file":"011-mobile-video-download-progress.png","title":"Mobile — real model download progress","device":"mobile","reviewed":true,"result":"pass"},
+    {"file":"012-runpod-video-preview.png","title":"RunPod video preview — first frame","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"013-runpod-video-playback.png","title":"RunPod video — playback reached end","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"014-vast-video-finishing.png","title":"Vast video — finish current job then quit","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"015-chat-real-approval.png","title":"Chat — real image approval card","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"016-chat-output-preview.png","title":"Chat — saved teapot in shared preview","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"017-new-image-qwen-preview.png","title":"New image container — Qwen turquoise edit","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"018-second-vast-video-preview.png","title":"Second Vast video — saved playable output","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"019-running-video-cancelled.png","title":"Immediate shutdown — generation cancelled","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"020-three-reference-video.png","title":"Reference video — puppy and both mugs","device":"desktop","reviewed":true,"result":"pass"},
+    {"file":"021-mobile-remaining-startup.png","title":"Mobile — remaining startup costs and controls","device":"mobile","reviewed":true,"result":"pass"},
+    {"file":"022-mobile-real-ssh-failure.png","title":"Mobile — real SSH failure and recovery controls","device":"mobile","reviewed":true,"result":"pass","note":"Needs attention preserves the authentication error. Reconnect and both shutdown options are reachable."},
+    {"file":"023-vast-slow-model-download.png","title":"Desktop — live slow-download estimate","device":"desktop","reviewed":true,"result":"pass","note":"Actual model download count, rate, ETA and rental cost are visible; the rate subsequently increased."},
+    {"file":"024-fixed-vast-krea-preview.png","title":"Fresh corrected Vast worker — Krea result","device":"desktop","reviewed":true,"result":"pass","note":"Actual purple teapot and cactus are saved and visible in the shared preview."},
+    {"file":"025-fixed-vast-qwen-preview.png","title":"Fresh corrected Vast worker — Qwen edit","device":"desktop","reviewed":true,"result":"pass","note":"Teapot changed to orange while shape, cactus and composition are preserved."},
+    {"file":"026-activity-edit-handoff-fixed.png","title":"Activity to image editor — overlay fix","device":"desktop","reviewed":true,"result":"issue fixed","note":"Edit image previously left Activity covering the editor. It now closes Activity and shows the selected source after draft confirmation."},
+    {"file":"027-mobile-final-cleanup.png","title":"Mobile — empty pool after verified cleanup","device":"mobile","reviewed":true,"result":"pass","note":"Zero rentals, hourly rate and active-worker spend; provider and volume inventories independently confirmed empty."}
+  ]
+}

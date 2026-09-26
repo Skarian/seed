@@ -1,60 +1,12 @@
-import { readFileSync, writeFileSync, renameSync, rmSync } from 'node:fs';
 import path from 'node:path';
-import { parseEnv } from 'node:util';
-import { randomUUID } from 'node:crypto';
-import password from '@inquirer/password';
-import type { StudioPaths } from './storage.js';
-import {credential} from './credential-store.js';
-const providers = [{ field: 'falKey', env: 'FAL_KEY', label: 'fal API key', required: true }] as const;
-export async function ensureCredentials(paths: StudioPaths, options: {
-  interactive: boolean; env?: NodeJS.ProcessEnv; cwd?: string;
-  prompt?: (label: string, required: boolean) => Promise<string>;
-}) {
-  const file = path.join(paths.config, 'credentials.json');
-  let saved: Record<string, unknown> = {};
-  try {
-    saved = JSON.parse(readFileSync(file, 'utf8'));
-    if (!saved || typeof saved !== 'object' || Array.isArray(saved)) throw new Error();
-  } catch (error) {
-    if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Cannot read seed credentials.json; repair it before running setup.');
-  }
-  const env = options.env ?? process.env;
-  let dotenv: Record<string, string | undefined> | undefined;
-  for (const provider of providers) {
-    let key = env[provider.env]?.trim() || (typeof saved[provider.field] === 'string' ? (saved[provider.field] as string).trim() : '');
-    if (!key) {
-      if (!dotenv) {
-        try { dotenv = parseEnv(readFileSync(path.join(options.cwd ?? process.cwd(), '.env'), 'utf8')); }
-        catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw new Error('Cannot read the local .env file. Check access before running setup.'); dotenv = {}; }
-      }
-      key = dotenv?.[provider.env]?.trim() ?? '';
-    }
-    if (!key) {
-      if (!options.interactive) {
-        if (!provider.required) continue;
-        throw new Error(`${provider.label} is missing. Run seed setup in an interactive terminal, or set ${provider.env} in your environment or local .env.`);
-      }
-      try {
-        key = (await (options.prompt ? options.prompt(provider.label, provider.required) : password({ message: `${provider.label}:`, mask: true, validate: value => (!provider.required || Boolean(value.trim())) && !/\s/.test(value.trim()) ? true : 'Enter a token without whitespace.' }))).trim();
-      } catch { throw new Error('Setup cancelled. Credentials entered earlier remain saved.'); }
-    }
-    if (!key && !provider.required) continue;
-    if (!key || /\s/.test(key)) throw new Error(`Enter ${provider.label} without whitespace.`);
-    if (key !== saved[provider.field]) {
-      const temporary = `${file}.${randomUUID()}.tmp`;
-      try {
-        saved[provider.field] = key;
-        writeFileSync(temporary, JSON.stringify(saved, null, 2), { mode: 0o600, flag: 'wx' });
-        renameSync(temporary, file);
-      } catch { rmSync(temporary, { force: true }); throw new Error('Could not save credentials in the seed config directory.'); }
-    }
-  }
-  return { file, configured: Boolean(saved.falKey) };
+import type {StudioPaths} from './storage.js';
+import {credentialFields,credentialStatus,storedCredentials} from './credential-store.js';
+// Setup is deliberately keyless. Admin owns credential entry and replacement.
+export async function ensureCredentials(paths:StudioPaths,_options?:unknown) {
+  storedCredentials(paths);
+  return {file:path.join(paths.config,'credentials.json'),credentials:credentialStatus(paths)};
 }
-export function webServerEnvironment(env: NodeJS.ProcessEnv): NodeJS.ProcessEnv {
-  return Object.fromEntries(Object.entries(env).filter(([name]) => ['FAL_KEY','OPENROUTER_API_KEY','CIVITAI_API_KEY'].includes(name.toUpperCase()) || !/_(KEY|TOKEN|SECRET|PASSWORD)$/i.test(name)));
-}
-
-export function falCredential(paths: StudioPaths): string | undefined {
-  return credential(paths,'falKey')||undefined;
+export function webServerEnvironment(env:NodeJS.ProcessEnv):NodeJS.ProcessEnv {
+  const allowed=new Set([...Object.values(credentialFields),'CIVITAI_API_TOKEN']);
+  return Object.fromEntries(Object.entries(env).filter(([name])=>allowed.has(name.toUpperCase())||!(/_(KEY|TOKEN|SECRET|PASSWORD)$/i.test(name)||/^(TAILSCALE_|TS_)/i.test(name))));
 }

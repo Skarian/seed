@@ -1,5 +1,6 @@
+import { usesInputs } from '../../shared/workflows.js';
 import { useRef, useState } from 'react';
-import type { ImageRequest } from '../../server/workflows.js';
+import type { ImageRequest } from '../../shared/generation.js';
 import type { JobRecord } from '../../shared/jobs.js';
 import type { Reference } from '../references.js';
 import { uploadReferences } from '../uploads.js';
@@ -11,7 +12,6 @@ type SubmissionState =
 type Input = {
   request: ImageRequest;
   references: Reference[];
-  estimateId: string;
   sourceJob?: string;
 };
 
@@ -19,7 +19,7 @@ export function useGenerationSubmission(scope: string) {
   const [state, setState] = useState<SubmissionState>({ status: 'idle' });
   const busy = useRef(false);
   const pending = useRef(new Map<string, string>());
-  async function submit({ request, references, estimateId, sourceJob }: Input) {
+  async function submit({ request, references, sourceJob }: Input) {
     if (busy.current) return;
     busy.current = true;
     const requestScope = request.mode + ':' + request.workflow;
@@ -27,12 +27,13 @@ export function useGenerationSubmission(scope: string) {
     try {
       setState({ status: 'uploading', scope: requestScope });
       const uploaded =
-        request.workflow === 'reference-to-video'
+        usesInputs(request.workflow)
           ? await uploadReferences(references, request.mode, (progress) =>
               setState({ status: 'uploading', scope: requestScope, progress }),
             )
           : undefined;
-      const body = JSON.stringify({ ...request, ...(uploaded ? { references: uploaded } : {}) });
+      const inputs=request.workflow==='image-to-image'?uploaded?.map(({id,asset_id,kind,role})=>({id,asset_id,kind,role})):uploaded;
+      const body = JSON.stringify({ ...request, ...(inputs ? { references: inputs } : {}) });
       const url = sourceJob
         ? '/api/v1/jobs/' + encodeURIComponent(sourceJob) + '/repeat'
         : '/api/v1/jobs';
@@ -50,7 +51,6 @@ export function useGenerationSubmission(scope: string) {
         headers: {
           'Content-Type': 'application/json',
           'Idempotency-Key': pending.current.get(identity)!,
-          'X-Seed-Estimate': estimateId,
         },
         body: sourceJob ? JSON.stringify({ request: JSON.parse(body) }) : body,
       });

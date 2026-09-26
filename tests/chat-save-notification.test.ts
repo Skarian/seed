@@ -5,12 +5,12 @@ import {openDatabase} from '../server/db.js';
 import {resolvePaths,prepareStorage} from '../server/storage.js';
 import {Jobs} from '../server/jobs.js';
 import {Chats} from '../server/chat/service.js';
-import {fakeFal} from './fake-fal.js';
+import {fakePool} from './fake-pool.js';
 
 it('a failed stream observer cannot turn a committed request into a failed tool save',async()=>{
  mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/save-notify-')),paths=resolvePaths(root);prepareStorage(paths);
- const db=openDatabase(paths.data),fal=fakeFal();
- const jobs=new Jobs(db,paths,fal),chats=new Chats(db,paths,jobs);
+ const db=openDatabase(paths.data),pool=fakePool(db,paths).pool;
+ const jobs=new Jobs(db,paths,pool),chats=new Chats(db,paths,jobs);
  try{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image',title:'Save fixture'});
   const internal=chats as any,current=internal.get(chat.id);

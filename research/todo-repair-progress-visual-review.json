@@ -1,0 +1,44 @@
+{
+  "reviewed_at": "2026-09-25",
+  "final_capture_run_id": "2026-09-25T22:31:45.619Z",
+  "recheck": "Corrected desktop/mobile 523 and 527 top and bottom screenshots reopened individually after final capture; both findings resolved.",
+  "method": "Each listed screenshot opened individually at full available resolution; no mosaic used for inspection.",
+  "source": ".local/todo-repair-atlas",
+  "privacy": "Isolated fixture workers and model metadata only. No real requests, media, credentials or provider resources inspected.",
+  "deduplicated_findings": [
+    {
+      "id": "unknown-rate-copy",
+      "cases": ["desktop/523", "mobile/523"],
+      "finding": "The missing-telemetry row correctly says Rate unavailable, but its old hint incorrectly promises Measuring download speed.",
+      "resolution": "Corrected the absent-rate hint to Transfer speed is not reported; browser and unit assertions added.",
+      "status": "corrected_and_visually_verified"
+    },
+    {
+      "id": "failure-fixture-warmup",
+      "cases": ["desktop/527", "mobile/527"],
+      "finding": "First-tick fixture warmup overwrote a failed single-model file with downloading and fresh report metadata.",
+      "resolution": "Excluded base_failure and lora_failure from first-tick warmup; failed files now keep needs_source without invented transfer reports.",
+      "status": "corrected_and_visually_verified"
+    }
+  ],
+  "images": [
+    {"file":"desktop/521.png","disposition":"pass","notes":"Fresh rate, byte total, last report and ETA read separately; no overlapping content."},
+    {"file":"desktop/522.png","disposition":"pass","notes":"Rate unavailable and 45-second report age remain visible; stale ETA omitted."},
+    {"file":"desktop/523.png","disposition":"pass","finding":"unknown-rate-copy","notes":"Corrected capture: absent timestamp omitted and hint accurately says Transfer speed is not reported."},
+    {"file":"desktop/523-bottom.png","disposition":"pass","notes":"Corrected hint and all shutdown controls remain legible at the bottom scroll position."},
+    {"file":"desktop/524.png","disposition":"pass","notes":"Verification clearly separated from transfer rate; full downloaded bytes do not mark engine complete."},
+    {"file":"desktop/525.png","disposition":"pass","notes":"Completed model step and current engine step visible; no download bar or stale rate."},
+    {"file":"desktop/526.png","disposition":"pass","notes":"Zero-byte initial transfer clearly says Measuring rate; no ETA fabricated."},
+    {"file":"desktop/527.png","disposition":"pass","finding":"failure-fixture-warmup","notes":"Corrected capture: no fabricated partial download or fresh-transfer timestamp; pause and attention states remain coherent."},
+    {"file":"desktop/527-bottom.png","disposition":"pass","notes":"Retrying button and shutdown actions are legible and contained; explicit pending state visible."},
+    {"file":"mobile/521.png","disposition":"pass","notes":"Transfer metrics share one readable row; freshness and ETA wrap inside card."},
+    {"file":"mobile/522.png","disposition":"pass","notes":"Stale rate and report age fit; explanatory hint wraps without overlap."},
+    {"file":"mobile/523.png","disposition":"pass","finding":"unknown-rate-copy","notes":"Corrected capture: Transfer speed is not reported wraps cleanly; unavailable rate does not imply zero traffic."},
+    {"file":"mobile/523-bottom.png","disposition":"pass","notes":"Corrected hint and per-worker/bulk shutdown controls remain readable and reachable."},
+    {"file":"mobile/524.png","disposition":"pass","notes":"Checking title, 100-percent downloaded bytes and stage indicator fit narrow card."},
+    {"file":"mobile/525.png","disposition":"pass","notes":"Engine stage and runtime hint wrap cleanly; per-worker shutdown actions remain visible."},
+    {"file":"mobile/526.png","disposition":"pass","notes":"Initial Measuring rate row and direct-download hint fit with no horizontal clipping."},
+    {"file":"mobile/527.png","disposition":"pass","finding":"failure-fixture-warmup","notes":"Corrected capture: no fabricated download progress; attention card and recovery explanation wrap correctly."},
+    {"file":"mobile/527-bottom.png","disposition":"pass","notes":"Pending retry and shutdown actions fit mobile rows; bottom bulk actions remain reachable through scrolling."}
+  ]
+}

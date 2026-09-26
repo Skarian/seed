@@ -406,11 +406,6 @@
   border-top: 1px solid #394330;
   background: #1f271b;
 }
-.review-request footer > .cost-preview {
-  border-width: 1px 0 0;
-  border-radius: 0;
-  padding: 11px 20px;
-}
 .seed-modal.review-request footer button {
   min-width: 0;
 }

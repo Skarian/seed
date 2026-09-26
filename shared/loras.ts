@@ -1,5 +1,13 @@
 export type LoraFamily = 'krea2' | 'h3';
 export type LoraRoute = 'image' | 'fl' | 'ref';
+export type LoraSource = {
+  provider: 'civitai'; model_id: number; version_id: number; file_id: number;
+  url: string; sha256: string; size_bytes: number;
+};
+export type LoraSourceManifest = {
+  id: string; name: string; revision: string; route: LoraRoute; path: string;
+  url: string; sha256: string; size_bytes: number; source: LoraSource;
+};
 export const loraWorkflowLabels: Record<LoraRoute, string> = {
   image: 'Images',
   fl: 'Text / frame-guided video',
@@ -37,8 +45,8 @@ export type LoraGroup = LoraGuidance & {
     id: string;
     name: string;
     route: LoraRoute;
-    uploaded: boolean;
     compatibility: 'untested' | 'verified';
+    source_status: 'ready' | 'needs_source';
   }>;
 };
 export type ImportState =

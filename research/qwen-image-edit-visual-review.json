@@ -1,0 +1,361 @@
+{
+  "reviewed_at": "2026-09-23T13:36:34.155Z",
+  "method": "Individual full-resolution inspection, fixes deduplicated and affected states recaptured; mosaics generated afterward.",
+  "scope": "Real app with synthetic providers and inference. No GPU output quality claim.",
+  "counts": {
+    "primary": 34,
+    "additional": 2
+  },
+  "records": [
+    {
+      "id": "101",
+      "device": "desktop",
+      "title": "Editor empty",
+      "file": "desktop/101-editor-empty.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Shared empty form, image-only inputs and disabled action clear.",
+      "additional_captures": []
+    },
+    {
+      "id": "102",
+      "device": "desktop",
+      "title": "Source and fixed seed",
+      "file": "desktop/102-source-and-fixed-seed.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Quantity and fixed seed use full-width controls; ready action is distinct.",
+      "additional_captures": []
+    },
+    {
+      "id": "103",
+      "device": "desktop",
+      "title": "Source and style reference",
+      "file": "desktop/103-source-and-style-reference.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Source/reference badges and mentions readable; final mobile header recapture clean.",
+      "additional_captures": []
+    },
+    {
+      "id": "104",
+      "device": "desktop",
+      "title": "Change source",
+      "file": "desktop/104-change-source.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Source role switching and reference labels readable.",
+      "additional_captures": []
+    },
+    {
+      "id": "105",
+      "device": "desktop",
+      "title": "Waiting for compatible worker",
+      "file": "desktop/105-waiting-for-compatible-worker.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Compatible-worker reason, worker action and cancel readable.",
+      "additional_captures": []
+    },
+    {
+      "id": "106",
+      "device": "desktop",
+      "title": "Older Image worker",
+      "file": "desktop/106-older-image-worker.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Older-worker restriction explains how to proceed.",
+      "additional_captures": []
+    },
+    {
+      "id": "107",
+      "device": "desktop",
+      "title": "Loading image editor",
+      "file": "desktop/107-loading-image-editor.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Loading activity and cancel accessible.",
+      "additional_captures": []
+    },
+    {
+      "id": "108",
+      "device": "desktop",
+      "title": "Editing and cancellation",
+      "file": "desktop/108-editing-and-cancellation.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Cancellation reaches a clear terminal state.",
+      "additional_captures": []
+    },
+    {
+      "id": "109",
+      "device": "desktop",
+      "title": "Failed edit",
+      "file": "desktop/109-failed-edit.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Failure has accurate heading, details and retry; mobile toast no longer covers header.",
+      "additional_captures": []
+    },
+    {
+      "id": "110",
+      "device": "desktop",
+      "title": "Completed edit",
+      "file": "desktop/110-completed-edit.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "PNG preview and Edit image action visible on both sizes.",
+      "additional_captures": []
+    },
+    {
+      "id": "111",
+      "device": "desktop",
+      "title": "Isolated persisted drafts",
+      "file": "desktop/111-isolated-persisted-drafts.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Workflow drafts remain isolated across switching/reload.",
+      "additional_captures": []
+    },
+    {
+      "id": "112",
+      "device": "desktop",
+      "title": "Replace existing edit draft",
+      "file": "desktop/112-replace-existing-edit-draft.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Replacement confirmation is readable and actions separated.",
+      "additional_captures": []
+    },
+    {
+      "id": "113",
+      "device": "desktop",
+      "title": "Image editing approval",
+      "file": "desktop/113-image-editing-approval.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Chat approval card and source thumbnail fit both sizes.",
+      "additional_captures": []
+    },
+    {
+      "id": "114",
+      "device": "desktop",
+      "title": "Review editing inputs",
+      "file": "desktop/114-review-editing-inputs.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Inputs, quantity, seed and approval accessible; overflow settings captures also inspected.",
+      "additional_captures": [
+        {
+          "position": "Remaining settings",
+          "file": "desktop/114-review-editing-inputs-settings.png"
+        }
+      ]
+    },
+    {
+      "id": "115",
+      "device": "desktop",
+      "title": "Approved edit",
+      "file": "desktop/115-approved-edit.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Approved Chat result preview and request card fit both sizes.",
+      "additional_captures": []
+    },
+    {
+      "id": "116",
+      "device": "desktop",
+      "title": "Invalid source file",
+      "file": "desktop/116-invalid-source-file.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Invalid-file guidance suggests image formats only.",
+      "additional_captures": []
+    },
+    {
+      "id": "117",
+      "device": "desktop",
+      "title": "Apply saved image as source",
+      "file": "desktop/117-apply-saved-image-as-source.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Existing image fills the source slot and requires a new instruction.",
+      "additional_captures": []
+    },
+    {
+      "id": "101",
+      "device": "mobile",
+      "title": "Editor empty",
+      "file": "mobile/101-editor-empty.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Shared empty form, image-only inputs and disabled action clear.",
+      "additional_captures": []
+    },
+    {
+      "id": "102",
+      "device": "mobile",
+      "title": "Source and fixed seed",
+      "file": "mobile/102-source-and-fixed-seed.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Quantity and fixed seed use full-width controls; ready action is distinct.",
+      "additional_captures": []
+    },
+    {
+      "id": "103",
+      "device": "mobile",
+      "title": "Source and style reference",
+      "file": "mobile/103-source-and-style-reference.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Source/reference badges and mentions readable; final mobile header recapture clean.",
+      "additional_captures": []
+    },
+    {
+      "id": "104",
+      "device": "mobile",
+      "title": "Change source",
+      "file": "mobile/104-change-source.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Source role switching and reference labels readable.",
+      "additional_captures": []
+    },
+    {
+      "id": "105",
+      "device": "mobile",
+      "title": "Waiting for compatible worker",
+      "file": "mobile/105-waiting-for-compatible-worker.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Compatible-worker reason, worker action and cancel readable.",
+      "additional_captures": []
+    },
+    {
+      "id": "106",
+      "device": "mobile",
+      "title": "Older Image worker",
+      "file": "mobile/106-older-image-worker.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Older-worker restriction explains how to proceed.",
+      "additional_captures": []
+    },
+    {
+      "id": "107",
+      "device": "mobile",
+      "title": "Loading image editor",
+      "file": "mobile/107-loading-image-editor.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Loading activity and cancel accessible.",
+      "additional_captures": []
+    },
+    {
+      "id": "108",
+      "device": "mobile",
+      "title": "Editing and cancellation",
+      "file": "mobile/108-editing-and-cancellation.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Cancellation reaches a clear terminal state.",
+      "additional_captures": []
+    },
+    {
+      "id": "109",
+      "device": "mobile",
+      "title": "Failed edit",
+      "file": "mobile/109-failed-edit.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Failure has accurate heading, details and retry; mobile toast no longer covers header.",
+      "additional_captures": []
+    },
+    {
+      "id": "110",
+      "device": "mobile",
+      "title": "Completed edit",
+      "file": "mobile/110-completed-edit.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "PNG preview and Edit image action visible on both sizes.",
+      "additional_captures": []
+    },
+    {
+      "id": "111",
+      "device": "mobile",
+      "title": "Isolated persisted drafts",
+      "file": "mobile/111-isolated-persisted-drafts.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Workflow drafts remain isolated across switching/reload.",
+      "additional_captures": []
+    },
+    {
+      "id": "112",
+      "device": "mobile",
+      "title": "Replace existing edit draft",
+      "file": "mobile/112-replace-existing-edit-draft.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Replacement confirmation is readable and actions separated.",
+      "additional_captures": []
+    },
+    {
+      "id": "113",
+      "device": "mobile",
+      "title": "Image editing approval",
+      "file": "mobile/113-image-editing-approval.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Chat approval card and source thumbnail fit both sizes.",
+      "additional_captures": []
+    },
+    {
+      "id": "114",
+      "device": "mobile",
+      "title": "Review editing inputs",
+      "file": "mobile/114-review-editing-inputs.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Inputs, quantity, seed and approval accessible; overflow settings captures also inspected.",
+      "additional_captures": [
+        {
+          "position": "Remaining settings",
+          "file": "mobile/114-review-editing-inputs-settings.png"
+        }
+      ]
+    },
+    {
+      "id": "115",
+      "device": "mobile",
+      "title": "Approved edit",
+      "file": "mobile/115-approved-edit.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Approved Chat result preview and request card fit both sizes.",
+      "additional_captures": []
+    },
+    {
+      "id": "116",
+      "device": "mobile",
+      "title": "Invalid source file",
+      "file": "mobile/116-invalid-source-file.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Invalid-file guidance suggests image formats only.",
+      "additional_captures": []
+    },
+    {
+      "id": "117",
+      "device": "mobile",
+      "title": "Apply saved image as source",
+      "file": "mobile/117-apply-saved-image-as-source.png",
+      "assertions": "passed",
+      "visual_review": "reviewed",
+      "notes": "Existing image fills the source slot and requires a new instruction.",
+      "additional_captures": []
+    }
+  ]
+}

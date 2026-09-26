@@ -1,0 +1,23 @@
+{
+  "provenance": {
+    "observed_at": "2026-09-23T21:12:42.693Z",
+    "source": "Seed live acquisition qualification, 2026-09-23; allowlisted fields from retained provider exchange",
+    "redactions": "Only listed protocol fields retained. Credentials, keys, host identity, addresses and unrelated provider metadata excluded; rental/offer identifiers and names anonymized."
+  },
+  "status": 200,
+  "response": {
+    "gpus": [
+      {
+        "id": "NVIDIA RTX PRO 4500 Blackwell",
+        "memory": 32,
+        "secure": true,
+        "availability": "LOW",
+        "price": {
+          "community": 0.34,
+          "secure": 0.72,
+          "serverless": 1.15
+        }
+      }
+    ]
+  }
+}

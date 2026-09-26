@@ -6,6 +6,7 @@ import {
   type LoraRoute,
 } from '../shared/loras.js';
 import './lora-file-mappings.css';
+import { formatBytes } from './format.js';
 export type FileMapping = Record<string, LoraRoute | ''>;
 type FileRow = { id: string | number; name: string; size_bytes?: number; supported?: boolean };
 export function LoraFileMappings({
@@ -33,7 +34,7 @@ export function LoraFileMappings({
             <strong>{file.name}</strong>
             <small>
               {file.size_bytes !== undefined
-                ? `${(file.size_bytes / 1024 ** 2).toLocaleString(undefined, { maximumFractionDigits: 1 })} MB`
+                ? formatBytes(file.size_bytes)
                 : ''}
               {file.supported === false ? ' · Unsupported file type' : ''}
             </small>

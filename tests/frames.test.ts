@@ -6,11 +6,10 @@ import {createApp} from '../server/http.js';
 import {openDatabase} from '../server/db.js';
 import {resolvePaths} from '../server/storage.js';
 import {probe,transcode} from '../server/media.js';
-import {fakeFal} from './fake-fal.js';
 
 it('picks original-resolution frames, preserves Spicy mode and notes, and safely deduplicates saves',async()=>{
-  mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/frames-')),paths=resolvePaths(root),fal=fakeFal();
-  const app=await createApp({paths,port:4311,fal,webRoot:path.resolve('dist/web')}),db=openDatabase(paths.data);
+  mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/frames-')),paths=resolvePaths(root);
+  const app=await createApp({paths,port:4311,webRoot:path.resolve('dist/web')}),db=openDatabase(paths.data);
   const headers={host:'127.0.0.1:4311',origin:'http://127.0.0.1:4311'},file=path.join(paths.data,'media/originals/source.mp4');
   try{
     await transcode(['-f','lavfi','-i','color=c=red:s=320x180:r=24:d=1','-f','lavfi','-i','color=c=blue:s=320x180:r=24:d=1','-filter_complex','[0:v][1:v]concat=n=2:v=1:a=0','-c:v','libx264','-pix_fmt','yuv420p',file]);
@@ -26,7 +25,7 @@ it('picks original-resolution frames, preserves Spicy mode and notes, and safely
     expect((await save(.5)).json().id).toBe(red.json().id);expect(db.prepare('SELECT COUNT(*) AS n FROM assets').get()).toEqual({n:3});
     expect((await app.inject({url:'/api/v1/assets?mode=sfw',headers:{host:headers.host}})).json().items).toEqual([]);
     expect(db.prepare('SELECT note FROM asset_notes WHERE id=?').get(red.json().id)).toEqual({note:'Original note'});
-    expect(existsSync(file)).toBe(true);expect(fal.submit).not.toHaveBeenCalled();
+    expect(existsSync(file)).toBe(true);expect(db.prepare('SELECT COUNT(*) AS n FROM jobs').get()).toEqual({n:0});
     writeFileSync(path.join(paths.data,'../outside.txt'),'private');
     db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('outside','video','Outside','../outside.txt','{}',new Date().toISOString());
     expect((await app.inject({method:'POST',url:'/api/v1/assets/outside/frames',headers,payload:{time_seconds:0}})).statusCode).toBe(409);

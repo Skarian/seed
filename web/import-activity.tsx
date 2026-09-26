@@ -6,7 +6,7 @@ const labels: Record<ImportState, string> = {
   queued: 'Waiting',
   downloading: 'Downloading',
   validating: 'Validating',
-  uploading: 'Uploading to fal',
+  uploading: 'Finalizing',
   ready: 'Ready',
   failed: 'Needs attention',
 };

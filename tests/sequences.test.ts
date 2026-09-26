@@ -16,7 +16,7 @@ function fixture(run:(f:any)=>void) {
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/sequences-'));
   const paths=resolvePaths(root);prepareStorage(paths);const db=openDatabase(paths.data);
   let jobs:any[]=[];
-  const service=()=>new Sequences(db,paths.data,paths.cache,{all:()=>jobs,save:()=>{}} as unknown as Jobs);
+  const service=()=>new Sequences(db,paths.data,paths.cache,{all:()=>jobs,isInFlight:()=>false,save:()=>{}} as unknown as Jobs);
   db.prepare('INSERT INTO sequences(id,mode,created_at) VALUES (?,?,?)').run('seq','nsfw','2026-09-12T00:00:00Z');
   for(let i=0;i<4;i++){
     writeFileSync(path.join(paths.data,`media/outputs/f${i}.png`),'frame'+i);

@@ -1,0 +1,331 @@
+{
+  "run_id": "2026-09-26T01:27:45.216Z",
+  "reviewed_at": "2026-09-26T01:39:24.478Z",
+  "method": "53 selected full-size captures inspected separately, one image per review. All 38 added transition cases plus 4 medium-title stage captures and 11 prior-layout checks. Mosaics were not used for acceptance.",
+  "findings": [
+    {
+      "issue": "Initial change enlarged mobile reference approval cards to 137px.",
+      "resolution": "Share the mobile heading edit alignment without adding the touch target height above input metadata; compact-height checks now pass."
+    }
+  ],
+  "captures": [
+    {
+      "file": "desktop/201.png",
+      "sha256": "bbf139f9dc76a8e91137fb2385d06980d57def0a0198bb4bb1550b296f77f2c9",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/202.png",
+      "sha256": "634fdf11750f6bfa8a341f131a3f06be313d188a34a3f8e102b1e2fafa0bb385",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/209.png",
+      "sha256": "640e48fda5e414b27e6c7edf1bb1bbd9c0c5edb8ad82197d11a397c641765d73",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/225.png",
+      "sha256": "8fca07ab53e51c0ef592b27d0bf5079222da8f37ab958a3077eea49386a139cd",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/238.png",
+      "sha256": "99bfab4d4c81c55c00efa9fd690f87c33aba6a5bea08ea31658fae4de4c69aa4",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/244.png",
+      "sha256": "6023d0a6586b115667ffc5aebe14bcd896b97b0b0854c9de3c5a1a4e2fc6e34e",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/245.png",
+      "sha256": "a612bff2fc1380158038e4d8f83d0c4aa3986bc0ed78077a671a43e190b119c9",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/246.png",
+      "sha256": "4bc15a170609b8dda472ac3f4a8e170fce83d64cf0e6253fae2385772976fc22",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/247.png",
+      "sha256": "80f3cba2cd553d7dae3a9d00e31bf7219028d1ac6fd42ab09b34203fe8a40b4b",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/248.png",
+      "sha256": "471debb36d1db12559119b4b25a1d9a14bb04344673feb8bb7c0d1c2d63f90a8",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/249.png",
+      "sha256": "279b1e09c8246fe32b934bbb9dc32b9dd8ac803d0570040b714980a245b681be",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/250.png",
+      "sha256": "c8bf7d493c2c99f3f07edcc42ffec5b31056f30aaee69fdc294a1a30284c2537",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/251.png",
+      "sha256": "6e7556c0dcf4294017f5528f1ad14a194a39ad1c1191f484a68368fbed68e3a4",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/252.png",
+      "sha256": "740784544b11b1f80196391ce0dff21a2d28cf507cccf4b7dbee6f49c8addbdb",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/253.png",
+      "sha256": "9ef4ac0fbf33f339a388eacbee2760aaa22abc8e812d2b2d63e84bd960710b25",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/254.png",
+      "sha256": "e4d82bcaa986688c96a09a649b4032917ffefb77e19d2299ae7a818049a5f79f",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/255.png",
+      "sha256": "376b30da2c095f9077be7573bb8c408b69f544b8bd3cc9e4b6a4608e37faf87a",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/256.png",
+      "sha256": "a135a7a12835f2582ab14c445169121b4044729f4dfde842fe07c66ecf4a85ba",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/257.png",
+      "sha256": "1c38a786c3ab42de3fbc556bb56e5f14f083e74d64f6a2773a2a3cb7921b32e1",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/258.png",
+      "sha256": "0b03014a9d929a47f5ef4f8eae3f0df37c8a131fe5daffb0c5158dc6adc15bc1",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/259.png",
+      "sha256": "94a05846467b7bc6ac4872f12944b83682bd16eb2554611ee0d9eebd6506395c",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/260.png",
+      "sha256": "86626daeddb0abd237626158302ba8db3f98a3e647fb2c2448a4ed77de46b186",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/261.png",
+      "sha256": "06b6f58d96051b8c9746b0ba6a58fc931db7b78ce023b4be6a509a0e3d4b55f7",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/262.png",
+      "sha256": "9ae781ba4ac42521ca17b3c83ee641c550a2586559f89d28a8b4609280dece40",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/246-approval.png",
+      "sha256": "952205355cf0ab1fd7305d9c52c5d67ad725613a7bd54bbc34f0872f29f1821e",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "desktop/246-queued.png",
+      "sha256": "80ddb630ac5eeff433c2ebc3b147e581421589cc5e9c1766951011c76f027585",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/201.png",
+      "sha256": "1f7b8b53c542fb64019da15c17de8432106a91052ca842adbeed58ef5b6807d4",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/202.png",
+      "sha256": "b3a47e59b6bb80aa5c1801e68d4d88ae440f32e0438394af6db0d558cde647ff",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/204.png",
+      "sha256": "f17fe5e45ec3432c28e29dab2ac6b4900df9395f64c298cf2c7b0c8c16ea4815",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/206.png",
+      "sha256": "66e0f1b52fbfb8f0219e8ea36c46c3ac7b16bea8f6787d48211136bd1018e87b",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/209.png",
+      "sha256": "918f01d0de8d89a7583945a539e0ef276a948041afa35bbdab5c4dd12a5f9cae",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/238.png",
+      "sha256": "093c637efd0d8810dd15d1a222f8e6774536a648dea13bdc1c2ae7e5d16f1549",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/244.png",
+      "sha256": "f35611c75f9e4d71050aeac91a3fb92eb589b92f04947b6817881b231ad45ea4",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/245.png",
+      "sha256": "b5a2320491b0041c242fb62d7869ad7a81e50f29e4ac4b1e6533882b6c4a6134",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/246.png",
+      "sha256": "f3a4c408bb841a25002f9369395cef645d0b4b0c405cb4340aa5b77f32b4900b",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/247.png",
+      "sha256": "f269bb71f79fc1f12ef7d8c77e3d60e36bd24079b51deb2014659de283384570",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/248.png",
+      "sha256": "9530445afa83ac55400ff63f0381108701f2fa14e1a7765f0e9fd41fe83fc0ed",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/249.png",
+      "sha256": "453f919ac463f0e1743194f6847bc98bc39557ee67fb09d5af8570ff247fde25",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/250.png",
+      "sha256": "9c55dfd2a11f9a209837e06c1fc583ed3c90505195884a3572e54948f95fa9bc",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/251.png",
+      "sha256": "ea711a02e575885d8c8ca42d1c1df090ad5a701cf7083c025a64756371f90bf5",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/252.png",
+      "sha256": "8d69ddcc13cd03ecfd7c5ee9d6a5e91ca78f68b5eb8a8bf6e3b14ad61dae19e1",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/253.png",
+      "sha256": "143e632590014b5d445c44a8fc20eb1a560b4694a904ba34d4a18f25c636e8c9",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/254.png",
+      "sha256": "6591a1537bada9bd8f40d068bbda04734d33a4221e92b04edc561c928b80aec3",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/255.png",
+      "sha256": "8b45dadeb9e789c5f508a3f44878af5fd0592f2dd31268053f41dddce0db9804",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/256.png",
+      "sha256": "f4124d06aae30adc59e39ae24529761b9c2553e124c5649157160ce6cc2b9ec0",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/257.png",
+      "sha256": "57c9a88a5316b62a74fa939da891663f99fb23e06e64acd21fa553c315dcbe94",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/258.png",
+      "sha256": "11861ee66d53a3fb3b877eed88c8a1c571b4a4ea7cff4424056a2560ab3cf1ca",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/259.png",
+      "sha256": "ddc599b921ef6803cfaa1c2d5b97f3505c63bb2ba22080b76e04fbca74902ddc",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/260.png",
+      "sha256": "0b9c472cd1b22fff1a21fbb14fe64d71992a354cc02fba06d90235912e3074d4",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/261.png",
+      "sha256": "76e4aa7d0d46cac0e1ee2e9c874b6f027360b836ee4051d3a729e29803c4a9e6",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/262.png",
+      "sha256": "4219d804f8103744f62be7b983208389f1971cd480915bc7b0179f92b86f3e44",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/246-approval.png",
+      "sha256": "9377758194b6f4bf744f2cde2256e87f8a6f12d4a5ee3d9540a857203e55c46c",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    },
+    {
+      "file": "mobile/246-queued.png",
+      "sha256": "d490f3d11f00660a2d4985a07c6c53393c1ce188afd1601ebbf7b4121c686774",
+      "status": "reviewed",
+      "finding": "Compact shared header and actions; adapter wrapping contained; no detached active action row or clipping."
+    }
+  ]
+}

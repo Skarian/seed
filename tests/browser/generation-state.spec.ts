@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/studio', (route) =>
@@ -13,7 +13,7 @@ test.beforeEach(async ({ page }) => {
   await page.route('**/api/v1/loras*', (route) => route.fulfill({ json: { items: [] } }));
 });
 
-test('workflow drafts survive navigation and reload while pricing follows the active request', async ({
+test('workflow drafts survive navigation and reload without waiting for prices', async ({
   page,
 }) => {
   const prices: { count: number; workflow: string }[] = [];
@@ -33,8 +33,8 @@ test('workflow drafts survive navigation and reload while pricing follows the ac
   await page.getByLabel('Prompt', { exact: true }).fill('An image draft');
   await expect(page.getByRole('button', { name: /^Create image/ })).toBeEnabled();
   await page.getByLabel('Quantity', { exact: true }).selectOption('4');
-  await expect(page.getByRole('button', { name: /^Create 4 images/ })).toBeDisabled();
-  await expect(page.locator('.cost-preview')).toHaveText('Cost Estimate: $0.04');
+  await expect(page.getByRole('button', { name: /^Create 4 images/ })).toBeEnabled();
+  await expect(page.locator('.cost-preview')).toHaveCount(0);
   await page.getByRole('button', { name: 'Text to video', exact: true }).click();
   await page.getByLabel('Prompt', { exact: true }).fill('A video draft');
   await page.getByLabel('Length', { exact: true }).selectOption('10');
@@ -56,13 +56,13 @@ test('workflow drafts survive navigation and reload while pricing follows the ac
   await page.route('**/api/v1/jobs', (route) => route.fulfill({ status: 202, json: { jobs: [] } }));
   await page.getByRole('button', { name: /^Create 4 images/ }).click();
   const request = await sent;
-  expect(request.headers()['x-seed-estimate']).toBe('quote-text-to-image-4');
+  expect(request.headers()['x-seed-estimate']).toBeUndefined();
   expect(request.postDataJSON()).toMatchObject({
     prompt: 'An image draft',
     count: 4,
     workflow: 'text-to-image',
   });
-  expect(prices.some((price) => price.workflow === 'text-to-video')).toBe(true);
+  expect(prices).toHaveLength(0);
 });
 
 test('a transport failure retries the same submission after workflow navigation', async ({

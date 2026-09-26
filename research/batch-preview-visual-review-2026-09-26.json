@@ -1,0 +1,66 @@
+{
+  "run_id": "2026-09-26T05:37:11.234Z",
+  "method": "All ten final screenshots opened individually at full resolution, plus computer-use verification against a separate isolated real server.",
+  "records": [
+    {
+      "file": "desktop/901.png",
+      "sha256": "a7ce0a67ecd44b65359e389f0ca036e923be5ce5af3974369cefd5c43dfbd0e6",
+      "disposition": "pass",
+      "review": "First result: counter, disabled Previous, active Next. Desktop completion toast remains unobtrusive."
+    },
+    {
+      "file": "desktop/902.png",
+      "sha256": "1837eb9d45fcdfdaef46154f6e6f455ad1b903701200a578adfc87d7e3d4c5db",
+      "disposition": "pass",
+      "review": "Middle portrait: both side arrows fit, favorite state belongs to selected output."
+    },
+    {
+      "file": "desktop/903.png",
+      "sha256": "5d930bac20199a24bd0dcd68ca0a8194e7f33507567b1ccf1db2e95568c5c634",
+      "disposition": "pass",
+      "review": "Video: side arrows clear the native scrubber and toolbar. The generated green fixture has a brief native buffering indicator."
+    },
+    {
+      "file": "desktop/904.png",
+      "sha256": "3734d493a4cd3269d9373616057ff69119ed1aa5b7e3df7a4ceaba0958f22f5d",
+      "disposition": "pass",
+      "review": "Missing output: clear error, Retry and navigation remain reachable on desktop/mobile."
+    },
+    {
+      "file": "desktop/905.png",
+      "sha256": "12d77b05a01b0638abfcd9db147820aa47df04c4828b78e3a884e1fe8a564272",
+      "disposition": "pass",
+      "review": "Single output: batch controls absent; existing preview toolbar preserved."
+    },
+    {
+      "file": "mobile/901.png",
+      "sha256": "8fd1e485a086b5d15f6212ed10d6cf5da7094bd160440e258b6386558485369c",
+      "disposition": "pass",
+      "review": "First result: counter, disabled Previous, active Next. Desktop completion toast remains unobtrusive."
+    },
+    {
+      "file": "mobile/902.png",
+      "sha256": "19e847709ad18159f68c27412679f2217d31b4ba28a80b50843afcd2c411ea75",
+      "disposition": "pass",
+      "review": "Middle portrait: both side arrows fit, favorite state belongs to selected output."
+    },
+    {
+      "file": "mobile/903.png",
+      "sha256": "db1fc3a66f76fd5da8c7d00f1cf80b730852cedac6839937f677b09c5de23a33",
+      "disposition": "pass",
+      "review": "Video: side arrows clear the native scrubber and toolbar. The generated green fixture has a brief native buffering indicator."
+    },
+    {
+      "file": "mobile/904.png",
+      "sha256": "f8c55e01d9840622b2033ad0e85adc1ea7ee1fd3bd65e00b0d3962536ba1a6ba",
+      "disposition": "pass",
+      "review": "Missing output: clear error, Retry and navigation remain reachable on desktop/mobile."
+    },
+    {
+      "file": "mobile/905.png",
+      "sha256": "deb2cc679cc53d5725fe2235cf3b971e731666ac7d60f684c9f6f722196b3675",
+      "disposition": "pass",
+      "review": "Single output: batch controls absent; existing preview toolbar preserved."
+    }
+  ]
+}

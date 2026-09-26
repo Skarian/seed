@@ -1,4 +1,5 @@
 import {inputLabels} from '../shared/reference-labels.js';
+import {clientId} from './identity.js';
 import {AssetThumbnail} from './asset-thumbnail.js';
 import {Modal} from './modal.js';
 import React, { useEffect, useRef, useState } from "react";
@@ -27,7 +28,6 @@ export type Reference = {
   end: number;
   role: string;
 };
-let nextReferenceId = 0;
 async function inspect(file: File | LibraryAsset): Promise<Reference> {
   const saved = "id" in file;
   let type: string;
@@ -87,7 +87,7 @@ async function inspect(file: File | LibraryAsset): Promise<Reference> {
       element.onerror = () =>
         finish(
           new Error(
-            "This browser cannot preview this file. Try JPEG/PNG, MP4 or WAV/MP3.",
+            kind==='image' ? "This browser cannot preview this file. Try a valid JPEG, PNG or WebP image." : "This browser cannot preview this file. Try MP4 or WAV/MP3.",
           ),
         );
       if (element instanceof HTMLImageElement)
@@ -118,7 +118,7 @@ async function inspect(file: File | LibraryAsset): Promise<Reference> {
     });
     return {
       ...(saved ? { asset_id: file.id } : { file }),
-      id: `reference-${++nextReferenceId}`,
+      id: `reference-${clientId()}`,
       name: file.name,
       url,
       kind,
@@ -133,11 +133,14 @@ async function inspect(file: File | LibraryAsset): Promise<Reference> {
     throw new Error(`${file.name}: ${(error as Error).message}`);
   }
 }
-export function useReferences(deferUploads=false) {
+export function useReferences(deferUploads=false, workflow='reference-to-video') {
   const {spicy}=useSpicy();
   const mode=spicy?'nsfw':'sfw';
+  const editingImage=workflow==='image-to-image';
+  const storage=(scope:string)=>`seed.inputs.${workflow}.${scope}`;
+  const restore=(scope:string):Reference[]=>{if(deferUploads)return [];try {return JSON.parse(localStorage.getItem(storage(scope))??'[]').filter((r:Reference)=>typeof r.asset_id==='string').map((r:Reference)=>({...r,url:'/api/v1/assets/'+r.asset_id+'/content'}));}catch{return [];}};
   const [notes,setNotes]=useState<string[]>([]);
-  const [items, setItems] = useState<Reference[]>([]);
+  const [items, setItems] = useState<Reference[]>(()=>restore(mode));
   const latest = useRef(items);
   const modeGroups=useRef<Record<string,Reference[]>>({});
   const previousMode=useRef(mode);
@@ -153,14 +156,20 @@ export function useReferences(deferUploads=false) {
     },
     [],
   );
-  function change(list: Reference[]) { latest.current = list; setItems(list); }
+  function change(list: Reference[]) {
+    if(editingImage&&list.length&&!list.some(r=>r.role==='source'))list=list.map((r,i)=>({...r,role:i===0?'source':'reference'}));
+    if(editingImage)list=[...list.filter(r=>r.role==='source'),...list.filter(r=>r.role!=='source')];
+    latest.current = list; setItems(list);
+    if(!deferUploads)try {localStorage.setItem(storage(mode),JSON.stringify(list.filter(r=>r.asset_id).map(({file,url,...r})=>r)));}catch{setErrors(['Input selections could not be saved for next time.']);}
+  }
   function reset() {
     epoch.current++;
     for (const item of latest.current) URL.revokeObjectURL(item.url);
     change([]);
     setErrors([]);
+    setNotes([]);
   }
-  async function add(files: (File | LibraryAsset)[]) {
+  async function add(files: (File | LibraryAsset)[], options={askForNotes:true}) {
     if (pending.current) return;
     pending.current = true;
     setBusy(true);
@@ -182,8 +191,9 @@ export function useReferences(deferUploads=false) {
         }
         const rest = latest.current;
         let reason = "";
+        if(editingImage&&(item.kind!=='image'||rest.length>=10))reason='Choose a source image and up to 9 reference images.';
         if (
-          (rest.length >= 12 ||
+          !editingImage && (rest.length >= 12 ||
             rest.filter((entry) => entry.kind === item.kind).length >=
               (item.kind === "image" ? 9 : 3))
         )
@@ -199,7 +209,7 @@ export function useReferences(deferUploads=false) {
           URL.revokeObjectURL(item.url);
           continue;
         }
-        item.role = "reference";
+        item.role = editingImage&&!rest.length ? 'source' : 'reference';
         if(deferUploads&&item.file){change([...latest.current,item]);missingNotes.push(item.id);continue;}
         try {
           const uploaded=await uploadReferences([item],mode,()=>{});
@@ -214,7 +224,7 @@ export function useReferences(deferUploads=false) {
       }
       if (epoch.current === started) {
         setErrors(messages);
-        if(missingNotes.length)setNotes(missingNotes);
+        if(missingNotes.length&&options.askForNotes)setNotes(missingNotes);
       }
     } finally {
       pending.current = false;
@@ -231,7 +241,7 @@ export function useReferences(deferUploads=false) {
   function update(id: string, values: Partial<Reference>) {
     change(
       latest.current.map((entry) =>
-        entry.id === id ? { ...entry, ...values } : entry,
+        entry.id === id ? { ...entry, ...values } : editingImage&&values.role==='source'?{...entry,role:'reference'}:entry,
       ),
     );
   }
@@ -239,10 +249,10 @@ export function useReferences(deferUploads=false) {
     if(previousMode.current===mode)return;
     modeGroups.current[previousMode.current]=latest.current;previousMode.current=mode;
     epoch.current++;
-    latest.current=modeGroups.current[mode]??[];setItems(latest.current);
+    latest.current=modeGroups.current[mode]??restore(mode);setItems(latest.current);
     setNotes([]);setErrors([]);
   },[mode]);
-  return { items, errors, busy, add, remove, update, reset, replace:(list:Reference[])=>{reset();change(list);}, notes, dismissNotes:()=>setNotes([]) };
+  return { items, errors, busy, editingImage, add, remove, update, reset, replace:(list:Reference[])=>{reset();change(list);}, notes, dismissNotes:()=>setNotes([]) };
 }
 export function referenceIssues(items: Reference[]) {
   const issues: string[] = [];
@@ -282,8 +292,6 @@ export function referenceIssues(items: Reference[]) {
     issues.push(
       "Choose at most 15 seconds of audio including video soundtracks.",
     );
-  if (items.some(item => item.role === 'reference') && items.some(item => item.role !== 'reference'))
-    issues.push('Use either reference inputs or first/last frame guides; they cannot be combined.');
   const soundtracks = items.filter(item => item.kind === 'video' && item.include_audio).length;
   if (items.length + soundtracks > 12 || items.filter(item => item.kind === 'audio').length + soundtracks > 3)
     issues.push('Choose at most 12 files and 3 audio clips, including video soundtracks.');
@@ -293,7 +301,7 @@ export function referenceLabels(items:Reference[]){return inputLabels(items.map(
 export function referencePromptIssue(prompt: string, items: Reference[]) {
   const labels = new Set(referenceLabels(items).values());
   return prompt.includes("[removed reference]") ||
-    [...prompt.matchAll(/<(?:Picture|Video|Audio) [1-9][0-9]*>/g)].some(
+    [...prompt.matchAll(/<(?:Picture|Video|Audio) [1-9][0-9]*>|<image[1-9][0-9]*>/g)].some(
       (match) => !labels.has(match[0]),
     )
     ? "Edit the prompt to replace or remove its missing reference."
@@ -327,7 +335,7 @@ export function ReferenceInputs({
               state.update( active.id, { role: event.target.value })
             }
           >
-            {([
+            {(state.editingImage ? [['source','Source image'],['reference','Reference']] : [
                   ["reference", "Reference"],
                   ["first_frame", "First frame"],
                   ["last_frame", "Last frame"],
@@ -391,7 +399,7 @@ export function ReferenceInputs({
           Use video audio as a reference
         </label>
       )}
-      {active.kind === "image" && active.role !== "reference" && (
+      {!state.editingImage && active.kind === "image" && active.role !== "reference" && (
         <label className="viewer-role">
           Framing
           <select
@@ -419,14 +427,14 @@ export function ReferenceInputs({
   return (
     <section
       className="references"
-      aria-label="Video references"
+      aria-label={state.editingImage?'Images for editing':'Video references'}
     >
       <input
         ref={input}
         aria-label="Choose reference files"
         className="file-picker"
         type="file"
-        accept="image/*,video/*,audio/*"
+        accept={state.editingImage?'image/*':'image/*,video/*,audio/*'}
         multiple
         onChange={(event) => {
           const files = Array.from(event.target.files ?? []);
@@ -449,7 +457,7 @@ export function ReferenceInputs({
       >
         <div className="reference-bar">
           <div className="reference-label">
-            <span>References</span>
+            <span>{state.editingImage?'Source & references':'References'}</span>
             <details className="reference-help">
               <summary aria-label="Asset limits">
                 <Glyph name="info" />
@@ -459,9 +467,9 @@ export function ReferenceInputs({
                   {items.length} {items.length === 1 ? "file" : "files"}{" "}
                   selected
                 </span>
-                <strong>max: 12</strong>
+                <strong>max: {state.editingImage?10:12}</strong>
                 <span>
-                  Up to 9 images, 3 videos and 3 audio clips; 12 files combined, including video soundtracks. Use references or first/last frame guides.
+                  {state.editingImage?'Choose the image to edit first, then up to 9 optional references.':'Up to 9 images, 3 videos and 3 audio clips; 12 files combined, including video soundtracks. Use references or first/last frame guides.'}
                 </span>
               </div>
             </details>
@@ -496,7 +504,7 @@ export function ReferenceInputs({
                   onClick={() => setSelected(item.id)}
                 >
                   {item.kind === "image" ? (
-                    <img src={item.url} alt="" />
+                    <><img src={item.url} alt="" />{state.editingImage&&<span className="reference-role-badge">{item.role==='source'?'Source':labels.get(item.id)}</span>}</>
                   ) : item.kind === "video" ? (
                     <>
                       <video src={item.url} muted preload="metadata" />
@@ -521,7 +529,7 @@ export function ReferenceInputs({
             >
               {state.busy
                 ? "Reading files…"
-                : "Drop images, video or audio here or browse"}
+                : state.editingImage ? 'Drop your source image here or browse' : "Drop images, video or audio here or browse"}
             </button>
           )}
         </div>
@@ -533,13 +541,13 @@ export function ReferenceInputs({
           ))}
         </ul>
       )}
-      {items.some((item) => item.role === "reference") && (
+      {items.some((item) => item.role === "reference" || item.role==='source') && (
         <div
           className="reference-labels"
           aria-label="Insert reference in prompt"
         >
           {items
-            .filter((item) => item.role === "reference")
+            .filter((item) => item.role === "reference" || item.role==='source')
             .map((item) => (
               <button
                 type="button"
@@ -554,6 +562,7 @@ export function ReferenceInputs({
       )}
       {gallery && (
         <GalleryPicker
+          imagesOnly={state.editingImage}
           existing={items}
           onClose={() => setGallery(false)}
           onSelect={async (assets) => {

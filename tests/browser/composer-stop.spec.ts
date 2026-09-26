@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures.js';
 for(const activity of ['thinking','generating'])test(`composer has one action while ${activity}`,async({page})=>{
  const chat={id:'stop-test',title:'Test',mode:'sfw',workflow:null,version:0,epoch:0,reasoning:true,activity,messages:[],groups:[],jobs:[],assets:[]};let stops=0;
  await page.route('**/api/v1/chat-config',r=>r.fulfill({json:{configured:true}}));

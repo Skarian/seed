@@ -1,14 +1,16 @@
+import { isVideoWorkflow } from '../shared/workflows.js';
 import React, { useEffect, useRef, useState } from 'react';
 import type { WorkflowId, StudioSnapshot } from '../shared/studio.js';
 import type { JobRecord } from '../shared/jobs.js';
 import { inputLabels, promptBindings, remapReferences } from '../shared/reference-labels.js';
-import { loraRoute } from '../server/fal-request.js';
+import { loraRoute, usesInputs } from '../shared/workflows.js';
+import {RequestDialog} from './request-dialog.js';
+import {emptyGeneration} from './generation-draft.js';
 import { useGenerationDrafts } from './hooks/use-generation-drafts.js';
 import { useGenerationSubmission } from './hooks/use-generation-submission.js';
 import { useBranchedGeneration } from './hooks/use-branched-generation.js';
-import { useEstimate } from './hooks/use-estimate.js';
 import { GenerateFeedback, useGenerationFeedback } from './generate-feedback.js';
-import { CostPreview } from './cost-preview.js';
+import { useWorkerPool } from './hooks/use-worker-pool.js';
 import { PromptField } from './prompt-field.js';
 import { RequestSettings } from './request-settings.js';
 import {
@@ -36,6 +38,7 @@ type Props = {
 };
 const placeholders: Record<WorkflowId, string> = {
   'text-to-image': 'Describe your image…',
+  'image-to-image': 'Describe what to change and what to keep…',
   'text-to-video': 'Describe the scene, movement and sound…',
   'reference-to-video': 'Describe the scene using your references…',
 };
@@ -55,13 +58,25 @@ export function Generate({
 }: Props) {
   const draft = useGenerationDrafts(workflow, mode),
     request = draft.request;
-  const references = useReferences();
+  const videoReferences = useReferences(false,'reference-to-video');
+  const editReferences = useReferences(false,'image-to-image');
+  const references = workflow==='image-to-image'?editReferences:videoReferences;
+  const [pendingEdit,setPendingEdit]=useState<{id:string;name:string}|null>(null);
+  const [editError,setEditError]=useState('');
   const promptInput = useRef<ComposerHandle>(null);
   const [inputPreview, setInputPreview] = useState<PreviewMedia | null>(null);
   const [outputPreview, setOutputPreview] = useState<JobRecord | null>(null);
   const [detail, setDetail] = useState<string | null>(null);
-  const branchError = useBranchedGeneration(mode, draft.replace, references, onWorkflowChange);
+  const branchError = useBranchedGeneration(mode, draft.replace, videoReferences, onWorkflowChange,editReferences);
+  async function startEdit(asset:{id:string;name:string}) {
+    setPendingEdit(null);setEditError('');
+    draft.replace('image-to-image',emptyGeneration('image-to-image'));
+    editReferences.reset();
+    await editReferences.add([{...asset,kind:'image',created_at:''}],{askForNotes:false});
+  }
+  useEffect(()=>{const open=(event:Event)=>{const asset=(event as CustomEvent).detail;if(!asset?.id)return;if(editReferences.items.length||draft.editHasPrompt)setPendingEdit(asset);else void startEdit(asset).catch(e=>setEditError(e.message));};window.addEventListener('seed:edit-image',open);return()=>window.removeEventListener('seed:edit-image',open);});
   const submission = useGenerationSubmission(mode + ':' + workflow);
+  const pool = useWorkerPool();
   const feedback = useGenerationFeedback(jobs, workflow, mode);
   const priorInputs = useRef<{
     workflow: WorkflowId;
@@ -106,58 +121,35 @@ export function Generate({
     setInputPreview(null);
     setOutputPreview(null);
     setDetail(null);
-  }, [mode, active]);
+  }, [mode, active, workflow]);
 
-  const video = workflow !== 'text-to-image';
+  const video = isVideoWorkflow(workflow);
   const seedValid =
     request.seed === 'random' ||
     (/^(0|[1-9][0-9]{0,15})$/.test(request.seed) &&
       BigInt(request.seed) + BigInt(request.count - 1) <= 9007199254740991n);
   const missingReference =
-    workflow === 'reference-to-video' ? referencePromptIssue(request.prompt, references.items) : '';
-  const notConfigured = !studio?.provider.configured;
-  const cost = useEstimate(
-    {
-      workflow,
-      mode,
-      aspect: request.output.aspect,
-      size: request.output.size,
-      count: request.count,
-      ...(video ? { duration: request.output.duration_seconds } : {}),
-      loras: request.loras ?? [],
-      references:
-        workflow === 'reference-to-video'
-          ? references.items.map((ref) => ({
-              kind: ref.kind,
-              role: ref.role,
-              ...(ref.kind === 'video' ? { duration: ref.end - ref.start } : {}),
-            }))
-          : [],
-    },
-    active && !notConfigured,
-  );
+    usesInputs(workflow) ? referencePromptIssue(request.prompt, references.items) : '';
   const canGenerate = Boolean(
-    cost.estimate &&
-      !notConfigured &&
-      request.prompt.trim() &&
+    request.prompt.trim() &&
       seedValid &&
       !missingReference &&
-      (workflow !== 'reference-to-video' ||
-        (references.items.length && referenceIssues(references.items).length === 0)),
+      (!usesInputs(workflow) ||
+        (references.items.length && !references.busy && referenceIssues(references.items).length === 0)),
   );
 
   async function generate() {
-    if (!canGenerate || !cost.estimate) return;
+    if (!canGenerate) return;
     const records = await submission.submit({
       request,
       references: references.items,
-      estimateId: cost.estimate.id,
       sourceJob: draft.sourceJob,
     });
-    if (records) {
+    if (records?.length) {
       onSubmitted(records);
       feedback.submitted(records, workflow, mode);
-    } else cost.refresh();
+      if (!pool.hasCapacity(video ? 'video' : 'image',request.loras,workflow)) pool.open(video ? 'video' : 'image');
+    }
   }
   if (!active) return null;
   const selected = jobs.find((job) => job.id === detail);
@@ -171,7 +163,7 @@ export function Generate({
           title="Reset this workflow"
           onClick={() => {
             draft.reset();
-            if (workflow === 'reference-to-video') references.reset();
+            if (usesInputs(workflow)) references.reset();
           }}
         >
           <svg
@@ -191,13 +183,13 @@ export function Generate({
         id="prompt"
         value={request.prompt}
         onChange={(prompt) => draft.change({ prompt })}
-        mentions={workflow === 'reference-to-video' ? mentions : undefined}
+        mentions={usesInputs(workflow) ? mentions : undefined}
         placeholder={placeholders[workflow]}
       />
       {draft.storageError && (
         <p role="alert">Draft could not be saved. Keep a copy before closing.</p>
       )}
-      {workflow === 'reference-to-video' && (
+      {usesInputs(workflow) && (
         <ReferenceInputs
           state={references}
           onInsert={(label) => promptInput.current?.insert(label + ' ')}
@@ -205,7 +197,7 @@ export function Generate({
       )}
       <RequestSettings
         request={request}
-        route={loraRoute({ workflow, references: references.items })}
+        route={workflow==='image-to-image'?undefined:loraRoute({ workflow, references: references.items })}
         onChange={draft.change}
       />
       {!seedValid && (
@@ -222,15 +214,14 @@ export function Generate({
           onChange={(event) => draft.change({ note: event.target.value })}
         />
       </label>
-      {notConfigured && (
-        <p role="status">Add your fal key in Admin → Credentials to enable generation.</p>
-      )}
       {error && <p role="alert">{error}</p>}
       {missingReference && <p role="alert">{missingReference}</p>}
       {branchError?.mode === mode && branchError.workflow === workflow && (
         <p role="alert">{branchError.message}</p>
       )}
       {submission.error && <p role="alert">{submission.error}</p>}
+      {editError&&<p role="alert">{editError}</p>}
+      {pendingEdit&&<RequestDialog title="Replace your editing draft?" label="Replace editing draft" close={()=>setPendingEdit(null)}><p>Your current editing instruction and images will be replaced with {pendingEdit.name}.</p><div className="request-actions"><button onClick={()=>setPendingEdit(null)}>Keep draft</button><button className="primary-action" onClick={()=>void startEdit(pendingEdit)}>Replace draft</button></div></RequestDialog>}
       {feedback.jobs
         .filter((job) => job.provider_issue)
         .slice(0, 1)
@@ -246,8 +237,6 @@ export function Generate({
         >
           {submission.busy ? (
             'Submitting…'
-          ) : notConfigured ? (
-            'Configure fal to generate'
           ) : (
             <>
               Create{' '}
@@ -260,7 +249,6 @@ export function Generate({
             </>
           )}
         </button>
-        <CostPreview cost={cost} />
       </div>
       {submission.progress && <p role="status">{submission.progress}</p>}
       <GenerateFeedback
@@ -276,7 +264,7 @@ export function Generate({
           onClose={() => setInputPreview(null)}
         />
       )}
-      {outputPreview && <JobMedia job={outputPreview} onClose={() => setOutputPreview(null)} />}
+      {outputPreview && <JobMedia job={outputPreview} jobs={jobs} onClose={() => setOutputPreview(null)} />}
       {selected && (
         <JobDetails
           initial={selected.id}

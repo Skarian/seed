@@ -6,7 +6,7 @@ import {openDatabase} from '../server/db.js';
 import {resolvePaths,prepareStorage} from '../server/storage.js';
 import {Jobs} from '../server/jobs.js';
 import {Chats} from '../server/chat/service.js';
-import {fakeFal} from './fake-fal.js';
+import {fakePool} from './fake-pool.js';
 
 function sse(delta:unknown,tool=false){return new Response('data: '+JSON.stringify({choices:[{index:0,delta,finish_reason:tool?'tool_calls':'stop'}]})+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});}
 async function idle(chats:Chats,id:string){for(let i=0;i<300;i++){const chat=chats.view(id);if(chat.activity==='idle')return chat;await new Promise(resolve=>setTimeout(resolve,10));}throw Error('Chat did not settle');}
@@ -20,8 +20,8 @@ it('a follow-up after rejected create restores real images and the failed attemp
  mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/retry-context-')),paths=resolvePaths(root);prepareStorage(paths);
  writeFileSync(path.join(paths.config,'credentials.json'),JSON.stringify({openrouterApiKey:'fake'}));
  const db=openDatabase(paths.data);
- const fal=fakeFal();
- const jobs=new Jobs(db,paths,fal),requests:any[]=[];
+ const pool=fakePool(db,paths).pool;
+ const jobs=new Jobs(db,paths,pool),requests:any[]=[];
  const invalid={prompt:'The person in [[input1]] waves.',size:'720p',inputs:[{asset:'input1'}]};
  const chats=new Chats(db,paths,jobs,async(_url,init)=>{
   const body=JSON.parse(String(init?.body));requests.push(body);

@@ -5,10 +5,21 @@ import path from 'node:path';
 
 export class Previews {
   private pending = new Map<string,Promise<string>>();
+  private blocked = new Set<string>();
   private chain: Promise<unknown> = Promise.resolve();
   constructor(private data: string, private cache: string) {}
+  async withDeletion<T>(assetIds:string[],sequenceIds:string[],operation:()=>T|Promise<T>):Promise<T>{
+    const prefixes=[...assetIds.map(id=>id+'-'),...sequenceIds.map(id=>'sequence-'+id+'-')];
+    // Fence admission before waiting: another size/page must not join behind the drain.
+    for(const prefix of prefixes)this.blocked.add(prefix);
+    try{
+      await Promise.allSettled([...this.pending].filter(([key])=>prefixes.some(prefix=>key.startsWith(prefix))).map(([,task])=>task));
+      return await operation();
+    }finally{for(const prefix of prefixes)this.blocked.delete(prefix);}
+  }
   sheet(id: string, revision: number, page: number, frames: Array<{relative_path:string}>, width: number, height: number) {
     const key=`sequence-${id}-${revision}-${page}`, existing=this.pending.get(key);
+    if(this.blocked.has('sequence-'+id+'-'))return Promise.reject(Error('This image is being deleted.'));
     if(existing) return existing;
     if(this.pending.size>=32) return Promise.reject(Error('Preview queue is busy.'));
     const operation=this.chain.then(async()=>{
@@ -35,6 +46,7 @@ export class Previews {
   }
   get(id: string, relative: string, size: 384 | 1280) {
     const key=id+'-'+size, existing=this.pending.get(key);
+    if(this.blocked.has(id+'-'))return Promise.reject(Error('This image is being deleted.'));
     if(existing) return existing;
     if(this.pending.size>=32) return Promise.reject(Error('Preview queue is busy.'));
     const operation=this.chain.then(async()=> {

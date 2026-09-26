@@ -1,9 +1,11 @@
+import { usesInputs } from '../shared/workflows.js';
 import { PromptField } from './prompt-field.js';
 import { RequestSettings } from './request-settings.js';
 import type { ComposerHandle } from './inline-composer.js';
 import { inputLabels, promptBindings, remapReferences } from '../shared/reference-labels.js';
 import React, { useRef } from 'react';
-import type { ImageRequest } from '../server/workflows.js';
+import type { ImageRequest } from '../shared/generation.js';
+import {patchGeneration} from '../shared/generation.js';
 import type { PreviewRequestInput } from './request-preview.js';
 import { RequestInputs } from './request-inputs.js';
 export type RequestAsset = {
@@ -58,13 +60,12 @@ export function RequestFields({
         ) || Number(a.id.endsWith(':audio')) - Number(b.id.endsWith(':audio')),
   );
   const change = (values: Partial<ImageRequest>) =>
-    onChange({
-      ...request,
+    onChange(patchGeneration(request,{
       ...values,
       ...(values.count !== undefined || values.seed !== undefined
         ? { resolved_seeds: undefined }
         : {}),
-    });
+    }));
   return (
     <fieldset disabled={disabled}>
       <div>
@@ -75,13 +76,14 @@ export function RequestFields({
           ref={promptEditor}
           id="review-prompt"
           value={request.prompt}
-          mentions={request.workflow === 'reference-to-video' ? mentions : undefined}
+          mentions={usesInputs(request.workflow) ? mentions : undefined}
           disabled={disabled}
           onChange={(prompt) => change({ prompt })}
         />
       </div>
-      {request.workflow === 'reference-to-video' && (
+      {usesInputs(request.workflow) && (
         <RequestInputs
+          editingImage={request.workflow==='image-to-image'}
           references={request.references ?? []}
           assets={assets}
           labels={labels}

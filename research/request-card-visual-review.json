@@ -1,0 +1,626 @@
+{
+  "reviewed_at": "2026-09-25T02:17:26.239Z",
+  "run_id": "2026-09-25T02:07:55.030Z",
+  "method": "Screenshots inspected individually, not as resized mosaics; findings deduplicated and corrected.",
+  "screenshots": 74,
+  "findings": [
+    {
+      "issue": "Unbroken LoRA names pushed approval controls outside the visible card.",
+      "resolution": "Wrap and shrink badge/title content; bound card width; assert each control and badge stays inside."
+    },
+    {
+      "issue": "Mobile Edit aligned with the middle of tall LoRA summaries.",
+      "resolution": "Anchor Edit to the workflow heading."
+    },
+    {
+      "issue": "Branch draft cards could exceed the approval-card desktop width.",
+      "resolution": "Apply the same 640px/available-width bound to drafts."
+    },
+    {
+      "issue": "Review-dialog screenshots did not show the LoRA settings.",
+      "resolution": "Capture both inputs and the lower settings area; wrap long selector names."
+    },
+    {
+      "issue": "Completed-video fixture served an image instead of a playable video.",
+      "resolution": "Use the local MP4 fixture and verify the completed result screenshot."
+    }
+  ],
+  "unresolved": [
+    "Intermittent entire-screen disappearance after Branch in Chat was not reproduced; the separately confirmed delayed-branch race was fixed."
+  ],
+  "limitations": "Representative valid state combinations, Chromium, offline API fixtures. This does not certify all browsers or paid generation.",
+  "captures": [
+    {
+      "id": "201",
+      "device": "desktop",
+      "title": "Image without LoRAs",
+      "file": "desktop/201.png",
+      "status": "reviewed",
+      "sha256": "39d32451a2482e8b50b1317532b59a15013f0315618250de28bd57e98a929692"
+    },
+    {
+      "id": "202",
+      "device": "desktop",
+      "title": "Image editing with two inputs",
+      "file": "desktop/202.png",
+      "status": "reviewed",
+      "sha256": "3ac578f82b39bed331515b5c59544a492c2731256e46ce8f22065e85c434094c"
+    },
+    {
+      "id": "203",
+      "device": "desktop",
+      "title": "Video with first frame",
+      "file": "desktop/203.png",
+      "status": "reviewed",
+      "sha256": "f8378e3d43a7d5398934632f8c9a41dea734e98d3f98b0ab1b88786a9f35f5e9"
+    },
+    {
+      "id": "204",
+      "device": "desktop",
+      "title": "Reference video with three inputs",
+      "file": "desktop/204.png",
+      "status": "reviewed",
+      "sha256": "b8f897213ce8fd51a92375133e1d0e305f565840243616d9b69489dd2865251a"
+    },
+    {
+      "id": "205",
+      "device": "desktop",
+      "title": "Image short LoRA",
+      "file": "desktop/205.png",
+      "status": "reviewed",
+      "sha256": "69b645d47fc8010c69f4fb476c151f56a80730252193936fa54562599b9fa13b"
+    },
+    {
+      "id": "206",
+      "device": "desktop",
+      "title": "Image long title and version",
+      "file": "desktop/206.png",
+      "status": "reviewed",
+      "sha256": "16dc270637a4989185e5b72620c5b754bdd22951f8e14c1aa7eead2a5c9db54c"
+    },
+    {
+      "id": "207",
+      "device": "desktop",
+      "title": "Image unbroken title",
+      "file": "desktop/207.png",
+      "status": "reviewed",
+      "sha256": "84e90aeceb78282a5953b12c65fff9ebf2ccd9378064c2dcf3aa653f0388c72d"
+    },
+    {
+      "id": "208",
+      "device": "desktop",
+      "title": "Image multilingual title",
+      "file": "desktop/208.png",
+      "status": "reviewed",
+      "sha256": "05c721f1aa652e345e745238835e9fc08aa45dbc93b435e42d27dc28ebeb116a"
+    },
+    {
+      "id": "209",
+      "device": "desktop",
+      "title": "Image three mixed LoRAs",
+      "file": "desktop/209.png",
+      "status": "reviewed",
+      "sha256": "4b63b85d2e81563bf6575322ce7ff086342e6853d899c42eeecaddfc98750782"
+    },
+    {
+      "id": "210",
+      "device": "desktop",
+      "title": "Image missing catalog entry",
+      "file": "desktop/210.png",
+      "status": "reviewed",
+      "sha256": "9ce5bd41529d38c0c7f39ec9e9b677bd5bcd239784d2775d9b794caf3048200d"
+    },
+    {
+      "id": "211",
+      "device": "desktop",
+      "title": "Video short LoRA",
+      "file": "desktop/211.png",
+      "status": "reviewed",
+      "sha256": "a18a708bc685469dba69a5ebdf7fb0707790816abb1e8912f8b2f46d6afad5f2"
+    },
+    {
+      "id": "212",
+      "device": "desktop",
+      "title": "Video long title and version",
+      "file": "desktop/212.png",
+      "status": "reviewed",
+      "sha256": "1527d3e09e5433bcc4b9a4f9517a32eacf78582e26388535a5f7969e8d11f06c"
+    },
+    {
+      "id": "213",
+      "device": "desktop",
+      "title": "Video unbroken title",
+      "file": "desktop/213.png",
+      "status": "reviewed",
+      "sha256": "baf4f2f05cbffbd9b57a7370aeaad702d0d0b8a4a43492469d1d919e774189d4"
+    },
+    {
+      "id": "214",
+      "device": "desktop",
+      "title": "Video multilingual title",
+      "file": "desktop/214.png",
+      "status": "reviewed",
+      "sha256": "9da1b3710d818160dd2e50b9af6d577b2526c5bea2a27311deec12912f23d6e4"
+    },
+    {
+      "id": "215",
+      "device": "desktop",
+      "title": "Video three mixed LoRAs",
+      "file": "desktop/215.png",
+      "status": "reviewed",
+      "sha256": "0a549f0f660d7cf1cce8876be0eb6ca478bff9c3ccf9bde24cbd0e93fe443298"
+    },
+    {
+      "id": "216",
+      "device": "desktop",
+      "title": "Video missing catalog entry",
+      "file": "desktop/216.png",
+      "status": "reviewed",
+      "sha256": "05a470f336f3023eec0338b65f67ea9f16767a63378472870c201c677d2d5e53"
+    },
+    {
+      "id": "217",
+      "device": "desktop",
+      "title": "Reference short LoRA",
+      "file": "desktop/217.png",
+      "status": "reviewed",
+      "sha256": "dba11ad0efee9883aeedcb20e300ee36af184266dbd1aac73f24a169882d4c8b"
+    },
+    {
+      "id": "218",
+      "device": "desktop",
+      "title": "Reference long title and version",
+      "file": "desktop/218.png",
+      "status": "reviewed",
+      "sha256": "c0f6db6dce92cd501b10231295a59e9e692984dce581e67db7f487a5007f3750"
+    },
+    {
+      "id": "219",
+      "device": "desktop",
+      "title": "Reference unbroken title",
+      "file": "desktop/219.png",
+      "status": "reviewed",
+      "sha256": "8ba5aa3d2361c1362e31027bf6b59f94d36afbe164aa206fd6d55d4da177ea7d"
+    },
+    {
+      "id": "220",
+      "device": "desktop",
+      "title": "Reference multilingual title",
+      "file": "desktop/220.png",
+      "status": "reviewed",
+      "sha256": "a62e269b07349e29eef50391fb126f2e1b434b55c52fbe2b1f4b571278cc3728"
+    },
+    {
+      "id": "221",
+      "device": "desktop",
+      "title": "Reference three mixed LoRAs",
+      "file": "desktop/221.png",
+      "status": "reviewed",
+      "sha256": "cefd101d91ec29a2083b9ac7fd8597f379a6e482da65ed4193d24e701220b459"
+    },
+    {
+      "id": "222",
+      "device": "desktop",
+      "title": "Reference missing catalog entry",
+      "file": "desktop/222.png",
+      "status": "reviewed",
+      "sha256": "9bab78538b422f6ed85dda3eab7dc1e989a13da7c4fd0f88ad030a440941df4f"
+    },
+    {
+      "id": "223",
+      "device": "desktop",
+      "title": "Approved",
+      "file": "desktop/223.png",
+      "status": "reviewed",
+      "sha256": "19563065a3228ea3d19397b0997a798d62cf714d160f6e6ddcd00d49407a56de"
+    },
+    {
+      "id": "224",
+      "device": "desktop",
+      "title": "Denied",
+      "file": "desktop/224.png",
+      "status": "reviewed",
+      "sha256": "235dcf6b11cbf7004da78745bfca689fb745a2a408ffbbc9bfffcfd7cf7b28b3"
+    },
+    {
+      "id": "225",
+      "device": "desktop",
+      "title": "Queued",
+      "file": "desktop/225.png",
+      "status": "reviewed",
+      "sha256": "30d3753603a2fc84763d2e84b61eb84a5324b4690d939189b1f6bb8cf3182886"
+    },
+    {
+      "id": "226",
+      "device": "desktop",
+      "title": "Running",
+      "file": "desktop/226.png",
+      "status": "reviewed",
+      "sha256": "a06c288fe81c25e33370ffff4cc2c2610b11b1c3ee422659a44650666730d27e"
+    },
+    {
+      "id": "227",
+      "device": "desktop",
+      "title": "Failed",
+      "file": "desktop/227.png",
+      "status": "reviewed",
+      "sha256": "c978ed2e13bcfb9472dba9a04a2b515f95a78e78498c7707b79b47c98a7f1b61"
+    },
+    {
+      "id": "228",
+      "device": "desktop",
+      "title": "Completed",
+      "file": "desktop/228.png",
+      "status": "reviewed",
+      "sha256": "c9ac3014e49985a78379703ddfc019dc15cea7462047da8cde8f9154c70a6856"
+    },
+    {
+      "id": "229",
+      "device": "desktop",
+      "title": "Revising",
+      "file": "desktop/229.png",
+      "status": "reviewed",
+      "sha256": "ea5c3c5fff057dfedbbeb95471b0332cae529ddcc4f7cb97b22d98c5c5905afe"
+    },
+    {
+      "id": "230",
+      "device": "desktop",
+      "title": "Stopped",
+      "file": "desktop/230.png",
+      "status": "reviewed",
+      "sha256": "b21f797f7983b3034f61823ebc418c143f42e07ca92b4f68ee483f1d2c7a90de"
+    },
+    {
+      "id": "231",
+      "device": "desktop",
+      "title": "Revision history",
+      "file": "desktop/231.png",
+      "status": "reviewed",
+      "sha256": "e4b1376a2f0c0c27c96b63f886e42f521dc8d149377d70bf584675daed1fc115"
+    },
+    {
+      "id": "232",
+      "device": "desktop",
+      "title": "Branch draft with three LoRAs",
+      "file": "desktop/232.png",
+      "status": "reviewed",
+      "sha256": "0bb8b4f7ec40cf8012b28c287ef788f1fe416dbdfdadcbaea00588b92f97d44b"
+    },
+    {
+      "id": "233",
+      "device": "desktop",
+      "title": "Feedback draft with long LoRA",
+      "file": "desktop/233.png",
+      "status": "reviewed",
+      "sha256": "582a287841fdaadf442a00c144d693ff57986b36d45a5baabb54bc8e89cf6336"
+    },
+    {
+      "id": "234",
+      "device": "desktop",
+      "title": "Request editor with long LoRAs",
+      "file": "desktop/234.png",
+      "status": "reviewed",
+      "sha256": "b6d41e1a626abf44104caf9c21ee2cb5c41c4f772a99e573eb42abd091bf55a4"
+    },
+    {
+      "id": "234",
+      "device": "desktop",
+      "title": "Request editor with long LoRAs",
+      "file": "desktop/234-top.png",
+      "status": "reviewed",
+      "sha256": "6781b75ea8677520e44fcb576ac055dbba95be73eb45623bc0de8751cd3b68f8"
+    },
+    {
+      "id": "235",
+      "device": "desktop",
+      "title": "Image editing with ten inputs",
+      "file": "desktop/235.png",
+      "status": "reviewed",
+      "sha256": "fc3bab2285754151ccb1bd56506aca87977ffb1ef8725646b4cafbcc2fa9e320"
+    },
+    {
+      "id": "236",
+      "device": "desktop",
+      "title": "Video without first frame",
+      "file": "desktop/236.png",
+      "status": "reviewed",
+      "sha256": "b39b2f2857cbe056f337b8c964c7a0b4f8bc2ef1ff1a460ffa18d078fdba1e45"
+    },
+    {
+      "id": "201",
+      "device": "mobile",
+      "title": "Image without LoRAs",
+      "file": "mobile/201.png",
+      "status": "reviewed",
+      "sha256": "1f7b8b53c542fb64019da15c17de8432106a91052ca842adbeed58ef5b6807d4"
+    },
+    {
+      "id": "202",
+      "device": "mobile",
+      "title": "Image editing with two inputs",
+      "file": "mobile/202.png",
+      "status": "reviewed",
+      "sha256": "b3a47e59b6bb80aa5c1801e68d4d88ae440f32e0438394af6db0d558cde647ff"
+    },
+    {
+      "id": "203",
+      "device": "mobile",
+      "title": "Video with first frame",
+      "file": "mobile/203.png",
+      "status": "reviewed",
+      "sha256": "f0c62c69de1a38620ae6be26645f8de76aa382397501bd893a2578e8584b9e70"
+    },
+    {
+      "id": "204",
+      "device": "mobile",
+      "title": "Reference video with three inputs",
+      "file": "mobile/204.png",
+      "status": "reviewed",
+      "sha256": "ae13f21fb63ead8b551f375457bb143d39ccee7a2d014b37391350ffa07c13c6"
+    },
+    {
+      "id": "205",
+      "device": "mobile",
+      "title": "Image short LoRA",
+      "file": "mobile/205.png",
+      "status": "reviewed",
+      "sha256": "5d83c4beb8cb9294e12c6b0ce5cb541a843b58ad73f6a036144d049cac416a1f"
+    },
+    {
+      "id": "206",
+      "device": "mobile",
+      "title": "Image long title and version",
+      "file": "mobile/206.png",
+      "status": "reviewed",
+      "sha256": "27702b69d814cc64ed388a9fbfbe4f4f707fdecd582ff323c9ce146cbf1ed3f6"
+    },
+    {
+      "id": "207",
+      "device": "mobile",
+      "title": "Image unbroken title",
+      "file": "mobile/207.png",
+      "status": "reviewed",
+      "sha256": "c8c8b4b85ad1af5b29134f45a947e8b8edbe387ac30a4fce76c218b80a333abe"
+    },
+    {
+      "id": "208",
+      "device": "mobile",
+      "title": "Image multilingual title",
+      "file": "mobile/208.png",
+      "status": "reviewed",
+      "sha256": "e14f19f2dac8cd07996cd22d2a77decf3b7b2d04dbdaca157a4bec6cf742ecca"
+    },
+    {
+      "id": "209",
+      "device": "mobile",
+      "title": "Image three mixed LoRAs",
+      "file": "mobile/209.png",
+      "status": "reviewed",
+      "sha256": "d55a5f4c5f243fdc7e943644276a0f9774854342f7e99f99f8bd71a2cd301998"
+    },
+    {
+      "id": "210",
+      "device": "mobile",
+      "title": "Image missing catalog entry",
+      "file": "mobile/210.png",
+      "status": "reviewed",
+      "sha256": "1c7ba51fb476d4c0e31c9c600c6b36aaa4d39a974a7a3e233d632b331d0ffb2f"
+    },
+    {
+      "id": "211",
+      "device": "mobile",
+      "title": "Video short LoRA",
+      "file": "mobile/211.png",
+      "status": "reviewed",
+      "sha256": "294b966adcc1f4a13dbed4abdb0ce27276d9afb0906619c27fa11c51ec83517e"
+    },
+    {
+      "id": "212",
+      "device": "mobile",
+      "title": "Video long title and version",
+      "file": "mobile/212.png",
+      "status": "reviewed",
+      "sha256": "b60d4b8846285935424f5b39111ae65686884f9e4acc2357d1e92b77200f3a69"
+    },
+    {
+      "id": "213",
+      "device": "mobile",
+      "title": "Video unbroken title",
+      "file": "mobile/213.png",
+      "status": "reviewed",
+      "sha256": "6ebd392750a3c4c303ad03de6e7b9500f8072748a0687fd82e0c6eca3aa48bc7"
+    },
+    {
+      "id": "214",
+      "device": "mobile",
+      "title": "Video multilingual title",
+      "file": "mobile/214.png",
+      "status": "reviewed",
+      "sha256": "407d55155f345385d960a99452fddee218459c9a3b821ad9a648cd0799bbebc4"
+    },
+    {
+      "id": "215",
+      "device": "mobile",
+      "title": "Video three mixed LoRAs",
+      "file": "mobile/215.png",
+      "status": "reviewed",
+      "sha256": "cdcafa70d1fd4e93926008fc4be095270e3b7de1df6ce2b64ec0a48b2594e9a0"
+    },
+    {
+      "id": "216",
+      "device": "mobile",
+      "title": "Video missing catalog entry",
+      "file": "mobile/216.png",
+      "status": "reviewed",
+      "sha256": "e5e82e763f4b5073160ed7764762e110fd11279c2092fb241ad28360e2b02083"
+    },
+    {
+      "id": "217",
+      "device": "mobile",
+      "title": "Reference short LoRA",
+      "file": "mobile/217.png",
+      "status": "reviewed",
+      "sha256": "6bab1a7b4616269828c8b2aed834c51f7d85a8c985b88305e4737376fe1545fc"
+    },
+    {
+      "id": "218",
+      "device": "mobile",
+      "title": "Reference long title and version",
+      "file": "mobile/218.png",
+      "status": "reviewed",
+      "sha256": "e0b63a7fc8173120b3e9cd42c911e9cf07e21068afceb900872117fd887986ea"
+    },
+    {
+      "id": "219",
+      "device": "mobile",
+      "title": "Reference unbroken title",
+      "file": "mobile/219.png",
+      "status": "reviewed",
+      "sha256": "214175662fc0ed95e7304dbd6db12215365d4a42da8fea2f3a6581d0f92eda20"
+    },
+    {
+      "id": "220",
+      "device": "mobile",
+      "title": "Reference multilingual title",
+      "file": "mobile/220.png",
+      "status": "reviewed",
+      "sha256": "fa882c4a709303cb6ce433045738bb1a589459eca989113b391e76dfcfbf06ac"
+    },
+    {
+      "id": "221",
+      "device": "mobile",
+      "title": "Reference three mixed LoRAs",
+      "file": "mobile/221.png",
+      "status": "reviewed",
+      "sha256": "abcbca1fc5309e98c5c7f38cec014ca0204fcb43a2ba88b6ad545c80e5cca37b"
+    },
+    {
+      "id": "222",
+      "device": "mobile",
+      "title": "Reference missing catalog entry",
+      "file": "mobile/222.png",
+      "status": "reviewed",
+      "sha256": "2d1368e84cf080e591ddc67210aa95593a6cb221bdebf6e0115cbc2606867723"
+    },
+    {
+      "id": "223",
+      "device": "mobile",
+      "title": "Approved",
+      "file": "mobile/223.png",
+      "status": "reviewed",
+      "sha256": "da7f6aa11e97727a3d2e83ef6ab0f1115911a46023f7923547ef6d7fb2133ebc"
+    },
+    {
+      "id": "224",
+      "device": "mobile",
+      "title": "Denied",
+      "file": "mobile/224.png",
+      "status": "reviewed",
+      "sha256": "79fc924ebec1da84957abb1c238d5a2c8107727fde2622e9d26e9f8703dc2439"
+    },
+    {
+      "id": "225",
+      "device": "mobile",
+      "title": "Queued",
+      "file": "mobile/225.png",
+      "status": "reviewed",
+      "sha256": "405383e2a076e302a4c4f94ab9663404136c517ca6d2ae853e617e0495f5a763"
+    },
+    {
+      "id": "226",
+      "device": "mobile",
+      "title": "Running",
+      "file": "mobile/226.png",
+      "status": "reviewed",
+      "sha256": "d9f26412f1c73f05f86c30bc673a083462aa7390f5ff3746fb1283530b05095a"
+    },
+    {
+      "id": "227",
+      "device": "mobile",
+      "title": "Failed",
+      "file": "mobile/227.png",
+      "status": "reviewed",
+      "sha256": "5e3e68167c9b66fa948bac0b8df7e6f03916192364eee327829e703e138bf6f1"
+    },
+    {
+      "id": "228",
+      "device": "mobile",
+      "title": "Completed",
+      "file": "mobile/228.png",
+      "status": "reviewed",
+      "sha256": "e1c36d11af83dfd276500d2df97b68b9139ac05e59ff2e99e68d050c6e390890"
+    },
+    {
+      "id": "229",
+      "device": "mobile",
+      "title": "Revising",
+      "file": "mobile/229.png",
+      "status": "reviewed",
+      "sha256": "7f96c248947c8de92187788152b510c00f0267147daa430484131f76827fa50e"
+    },
+    {
+      "id": "230",
+      "device": "mobile",
+      "title": "Stopped",
+      "file": "mobile/230.png",
+      "status": "reviewed",
+      "sha256": "e6b5d711eeed76697607ecb53032fca1b86e4f5294d6854f9333dccd0e0bab54"
+    },
+    {
+      "id": "231",
+      "device": "mobile",
+      "title": "Revision history",
+      "file": "mobile/231.png",
+      "status": "reviewed",
+      "sha256": "b8780b0e395647c648c795426f32ec93741b9af472d3088a24b5f6bebfb1c349"
+    },
+    {
+      "id": "232",
+      "device": "mobile",
+      "title": "Branch draft with three LoRAs",
+      "file": "mobile/232.png",
+      "status": "reviewed",
+      "sha256": "ab02286ba6c85d91fcdb3cf9da4331467a6339b1671915ce750b44d267cdf89f"
+    },
+    {
+      "id": "233",
+      "device": "mobile",
+      "title": "Feedback draft with long LoRA",
+      "file": "mobile/233.png",
+      "status": "reviewed",
+      "sha256": "8f78f46fc865f06ae31d3cf99990b8eb0318812d1cc08f9dcb7b34a11942d29c"
+    },
+    {
+      "id": "234",
+      "device": "mobile",
+      "title": "Request editor with long LoRAs",
+      "file": "mobile/234.png",
+      "status": "reviewed",
+      "sha256": "22be614442e2122a430a55005d6ed969082b4c4a01db5d14e1dcd66d153479db"
+    },
+    {
+      "id": "234",
+      "device": "mobile",
+      "title": "Request editor with long LoRAs",
+      "file": "mobile/234-top.png",
+      "status": "reviewed",
+      "sha256": "2257bc3a46d13f2c309ff6afd687550c1da5c06ab6ac8610fb7a7eaa43192f43"
+    },
+    {
+      "id": "235",
+      "device": "mobile",
+      "title": "Image editing with ten inputs",
+      "file": "mobile/235.png",
+      "status": "reviewed",
+      "sha256": "1e18dc35917a3d35776076cbd8bc808acc3979073d4eb2f6d7258c5b5c6e4520"
+    },
+    {
+      "id": "236",
+      "device": "mobile",
+      "title": "Video without first frame",
+      "file": "mobile/236.png",
+      "status": "reviewed",
+      "sha256": "a2fa1988b1688b8ce7ed8e01dedef08de7eb0808fdd07c7c53e59917e14a1455"
+    }
+  ]
+}

@@ -1,0 +1,21 @@
+{
+  "reviewer": "diagnose_launch_visibility",
+  "run_id": "2026-09-25T22:31:45.619Z",
+  "method": "Each of the ten scenarios was viewed individually at original resolution. Cases 515 were reviewed again individually after capture stabilization; the other eight unchanged layouts were reviewed in the preceding run.",
+  "preceding_run_id": "2026-09-25T22:26:59.265Z",
+  "scope": "Local isolated fixture screenshots only. No live application or private content inspected.",
+  "product_changes_from_review": [],
+  "capture_correction": "515 previously captured the 120ms provider color transition and overlapping transient toasts. The test now verifies RunPod selection, waits for visible toasts to leave and disables animations for screenshots. Reinspection confirms no provider selection styling defect.",
+  "images": [
+    {"file":"desktop/511.png","status":"passed","notes":"Rejected-only card is prominent; zero rental count and costs are clear; both actions fit."},
+    {"file":"desktop/512.png","status":"passed","notes":"Failed launch is distinct from ready capacity. Summary counts only the ready rental; controls and labels fit."},
+    {"file":"desktop/513.png","status":"passed","notes":"Two failures remain separate and readable; both sets of actions fit without overlap."},
+    {"file":"desktop/514.png","status":"passed","notes":"Dismissed failure remains accurately labeled in Activity with its cause and replacement action."},
+    {"file":"desktop/515.png","status":"passed","reviewed_run":"2026-09-25T22:31:45.619Z","notes":"Stable RunPod selection matches offer content; no offer remains selected, Start is disabled and heading/costs are unobscured."},
+    {"file":"mobile/511.png","status":"passed","notes":"Failure text wraps naturally, the two actions have usable targets, no horizontal overflow."},
+    {"file":"mobile/512.png","status":"passed","notes":"Failed and ready cards remain distinct; ready-worker shutdown controls are visible and separate from dismissal."},
+    {"file":"mobile/513.png","status":"passed","notes":"Both failure cards and all actions fit in the scrollable mobile panel; no text or button overlap."},
+    {"file":"mobile/514.png","status":"passed","notes":"Activity retains a compact readable failure record with wrapped cause and replacement action."},
+    {"file":"mobile/515.png","status":"passed","reviewed_run":"2026-09-25T22:31:45.619Z","notes":"Stable RunPod highlight matches displayed offer. Cleared selection and disabled Start are legible; sticky footer fits the viewport."}
+  ]
+}

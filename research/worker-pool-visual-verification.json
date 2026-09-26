@@ -1,0 +1,249 @@
+{
+  "method": "Each capture opened separately at original resolution. Records include intermediate findings and final rechecks; no contact sheet used for sign-off.",
+  "originals_reviewed": 82,
+  "reinspections": [
+    {
+      "id": "008",
+      "device": "desktop",
+      "notes": "Catalog footer separation and spacing corrected; one seeded adapter only."
+    },
+    {
+      "id": "013",
+      "device": "desktop",
+      "notes": "Shared LoRA worker link now consistent with Generate; footer actions reachable."
+    },
+    {
+      "id": "025",
+      "device": "desktop",
+      "notes": "No Reconnect on source failure; correct cost display; compact details and all quit actions visible."
+    },
+    {
+      "id": "016",
+      "device": "mobile",
+      "notes": "Worker type now visible in top capture; header and launch footer more compact. Offers continue in supplemental scroll views."
+    },
+    {
+      "id": "032",
+      "device": "mobile",
+      "notes": "Scroll origin fixed and preview visible. New finding: completion and submission toasts stack for a fast result; replace same submission toast on completion."
+    },
+    {
+      "id": "036",
+      "device": "mobile",
+      "notes": "Return control now consistent and touch-sized; credential copy accurate; larger action hit areas."
+    },
+    {
+      "id": "007",
+      "device": "desktop",
+      "notes": "Credential wording corrected and desktop spacing preserved."
+    },
+    {
+      "id": "009",
+      "device": "desktop",
+      "notes": "Nonempty files correctly show B/KB, workflow mapping remains explicit, footer spacing clear."
+    },
+    {
+      "id": "016",
+      "device": "desktop",
+      "notes": "Rates and provider choices readable, launch footer separate; no overlap."
+    },
+    {
+      "id": "020",
+      "device": "desktop",
+      "notes": "Single clear provider warning; remaining provider still selectable."
+    },
+    {
+      "id": "021",
+      "device": "desktop",
+      "notes": "Credential errors point to Admin and empty-state advice now matches provider failure; lower content captured separately."
+    },
+    {
+      "id": "027",
+      "device": "desktop",
+      "notes": "Termination uncertainty and accrued cost remain visible; redundant finish action removed and immediate quit retained."
+    },
+    {
+      "id": "029",
+      "device": "desktop",
+      "notes": "Activity contains only intended request and worker; ordering correct with fresh clock."
+    },
+    {
+      "id": "031",
+      "device": "desktop",
+      "notes": "Queue explicitly waits for worker; no leaked H3 adapter; toast/sidebar align to top."
+    },
+    {
+      "id": "037",
+      "device": "desktop",
+      "notes": "Finishing state offers immediate quit without repeating finish; all actions fit."
+    },
+    {
+      "id": "001",
+      "device": "mobile",
+      "notes": "Current workflow now visible in mobile header; form layout and disabled action intact."
+    },
+    {
+      "id": "009",
+      "device": "mobile",
+      "notes": "File rows and B/KB sizes readable; footer no longer collides with preparation note."
+    },
+    {
+      "id": "012",
+      "device": "mobile",
+      "notes": "Edit area enlarged; approval controls visually still small, measure actual boxes in targeted test."
+    },
+    {
+      "id": "013-scroll-1",
+      "device": "mobile",
+      "notes": "Bottom of review captured at full viewport resolution; strength, seed and approval reachable."
+    },
+    {
+      "id": "016-scroll-1",
+      "device": "mobile",
+      "notes": "Both provider offers, details and persistent launch footer visible in lower capture."
+    },
+    {
+      "id": "025",
+      "device": "mobile",
+      "notes": "Recovery and immediate quit now fit in first viewport; Reconnect absent for source error."
+    },
+    {
+      "id": "026",
+      "device": "mobile",
+      "notes": "Reconnect retained for actual connection loss; immediate quit remains prominent."
+    },
+    {
+      "id": "029",
+      "device": "mobile",
+      "notes": "Current generation no longer buried by future-dated retained history; larger action areas and orderly layout."
+    },
+    {
+      "id": "032-final",
+      "device": "mobile",
+      "notes": "Completion replaces submission toast; one notification at top, decoded clickable preview below."
+    },
+    {
+      "id": "033",
+      "device": "mobile",
+      "notes": "One intended saved result, decoded correctly; no leaked prior assets."
+    },
+    {
+      "id": "038",
+      "device": "mobile",
+      "notes": "Both image/video workers and both immediate quit controls visible in first viewport after spacing fix."
+    },
+    {
+      "id": "038-scroll-1",
+      "device": "mobile",
+      "notes": "Lower capture exposes pool-wide finish and immediate quit with no overlap."
+    },
+    {
+      "id": "041",
+      "device": "mobile",
+      "notes": "Download through this PC, retry and immediate quit visible; incorrect Reconnect removed."
+    },
+    {
+      "id": "320-offers",
+      "device": "targeted",
+      "notes": "Narrow phone top layout fits width; offers require scrolling, interaction reaches launch."
+    },
+    {
+      "id": "844-offers-before",
+      "device": "targeted",
+      "notes": "New defect confirmed: fixed header consumed short landscape dialog, preventing access to offers. Interaction timed out."
+    },
+    {
+      "id": "844-offers",
+      "device": "targeted",
+      "notes": "Short-screen dialog now scrolls as a whole; worker types visible and launch journey passes."
+    },
+    {
+      "id": "844-quit",
+      "device": "targeted",
+      "notes": "Worker and pool-wide quit controls accessible after scrolling; real pointer click successfully releases fake rental."
+    },
+    {
+      "id": "012-final",
+      "device": "mobile",
+      "notes": "Final approval and deny controls are 44px high; rendered-box test passed for edit, deny and approve."
+    },
+    {
+      "id": "035-final",
+      "device": "mobile",
+      "notes": "Queued tile and larger edit/cancel controls clear. Stop is intentional while Chat monitors pending work, not proof of a capture race."
+    },
+    {
+      "id": "320-quit",
+      "device": "targeted",
+      "notes": "Narrow phone preserves worker and pool quit targets, readable rates, no horizontal overflow; quit pointer test passed."
+    },
+    {
+      "file": "desktop/013-expanded-request-review-scroll-1.png",
+      "notes": "Lower review controls and seed fully visible, footer separated."
+    },
+    {
+      "file": "desktop/016-image-offers-scroll-1.png",
+      "notes": "Both offers and launch disclaimer fully visible in lower viewport."
+    },
+    {
+      "file": "desktop/017-video-offers-scroll-1.png",
+      "notes": "Video selection and both available providers clear; lower explanatory copy visible."
+    },
+    {
+      "file": "desktop/018-multiple-workers-selected-scroll-1.png",
+      "notes": "Four-worker selection, quantity and $4.64/hour total agree; clear enabled launch action."
+    },
+    {
+      "file": "desktop/021-missing-provider-credentials-scroll-1.png",
+      "notes": "Credentials links and corrected availability guidance fully visible below scroll."
+    },
+    {
+      "file": "desktop/038-mixed-worker-pool-scroll-1.png",
+      "notes": "Both worker action rows and pool actions fit lower desktop viewport; rate total consistent."
+    },
+    {
+      "file": "mobile/017-video-offers-scroll-1.png",
+      "notes": "Video offers readable after scrolling, with launch/footer unobstructed."
+    },
+    {
+      "file": "mobile/018-multiple-workers-selected-scroll-1.png",
+      "notes": "Selected providers, quantity 3, four-worker total and enabled launch remain legible on mobile."
+    },
+    {
+      "file": "mobile/019-no-matching-offers-scroll-1.png",
+      "notes": "Genuine filter-empty case retains relevant advice; no disabled action ambiguity."
+    },
+    {
+      "file": "mobile/020-one-provider-unavailable-scroll-1.png",
+      "notes": "Warning names failed provider once, wraps cleanly and leaves other offer available."
+    },
+    {
+      "file": "mobile/021-missing-provider-credentials-scroll-1.png",
+      "notes": "Both missing-key notices and corrected availability guidance readable in lower mobile viewport."
+    },
+    {
+      "file": "mobile/025-lora-download-failure-scroll-1.png",
+      "notes": "Recovery choices and both levels of shutdown fully visible; no footer collision."
+    },
+    {
+      "file": "mobile/026-connection-interrupted-scroll-1.png",
+      "notes": "Disconnect recovery and pool-wide shutdown both reachable with costs retained."
+    },
+    {
+      "file": "mobile/041-base-model-download-fallback-scroll-1.png",
+      "notes": "Base fallback, retry, individual quit and pool quit all visible in lower viewport."
+    }
+  ],
+  "validation": {
+    "application_tests": 260,
+    "atlas_scenarios": 82,
+    "additional_scroll_captures": 17,
+    "browser_suite": "34 passed; short-landscape regression failed, was corrected, and passed the targeted rerun. Mobile touch-target test passed.",
+    "typecheck": "passed",
+    "build": "passed",
+    "external_calls": 0,
+    "live_gpu_rentals": 0
+  },
+  "demo": "http://192.168.1.212:4314",
+  "gallery": "http://192.168.1.212:4312"
+}

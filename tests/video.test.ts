@@ -1,21 +1,35 @@
 import {it,expect} from 'vitest';
 import {imageRequest} from '../server/workflows.js';
-import {falRequest} from '../server/fal-request.js';
-const base={workflow:'text-to-video',prompt:'A forest',mode:'sfw',output:{aspect:'16:9',size:'768p',duration_seconds:5}};
-it('pins standard H3, native resolution and prompt expansion off',()=>{
- const mapped=falRequest(imageRequest(base),'42');expect(mapped.endpoint).toBe('minimax/h3/text-to-video');expect(mapped.input).toMatchObject({resolution:'768P',prompt_expansion_mode:'disabled',seed:42,enable_safety_checker:true});
- expect(()=>imageRequest({...base,quality:"fast"})).toThrow('Unknown setting');
+import {graphFor} from '../server/worker-graphs.js';
+import type {PreparedReference} from '../server/media.js';
+const base={workflow:'text-to-video',prompt:'A forest',mode:'sfw',output:{aspect:'16:9',size:'768p',duration_seconds:15}};
+const prepared=(id:string,kind:'image'|'video'|'audio',role:'reference'|'last_frame'='reference'):PreparedReference=>({id,asset_id:id,kind,role,filename:id+'.png',file:id,sha256:'a'.repeat(64)});
+it('restores the measured high-quality H3 recipe without acceleration adapters',()=>{
+  const graph=graphFor(imageRequest(base),'job','42',[]);
+  expect(graph['1']!.inputs.unet_name).toBe('minimax_h3_fl2va_pruned_int8_convrot.safetensors');
+  expect(graph['5']).toBeUndefined();expect(graph['9']!.inputs.sampler_name).toBe('res_multistep');
+  expect(graph['10']!.inputs.steps).toBe(30);expect(graph['19']!.inputs.selection).toBe('sol-attn');
+  expect(graph['6']!.inputs).toMatchObject({width:1344,height:768,length:362});
+  expect(graph['14']!.inputs).toMatchObject({seconds:15,export_version:'native-v1',audio_mode:'generated'});
 });
-it('maps end-only guides to I2V and rejects mixed routes',()=>{
- const ref={id:'last',asset_id:'a',kind:'image',role:'last_frame'};
- const request=imageRequest({...base,workflow:'reference-to-video',references:[ref]});
- const mapped=falRequest(request,'42',[{kind:'image',role:'last_frame',url:'https://example.com/end.png'}]);expect(mapped.endpoint).toBe('minimax/h3/image-to-video');expect(mapped.input.end_image_url).toBe('https://example.com/end.png');
- expect(()=>imageRequest({...request,references:[ref,{...ref,id:'r',role:'reference'}]})).toThrow('either reference');
+it('supports mixed references and last-frame guides without colliding with adapter nodes',()=>{
+  const refs=[prepared('identity','image'),prepared('end','image','last_frame')];
+  const request=imageRequest({...base,workflow:'reference-to-video',references:refs.map(({file,filename,sha256,...r})=>r)});
+  const loras=[.2,1.3,4].map((strength_model,i)=>({filename:'adapter-'+i+'.safetensors',sha256:String(i).repeat(64),strength_model}));
+  const graph=graphFor(request,'job','42',loras,refs);
+  expect(graph['1']!.inputs.unet_name).toContain('ref2va');
+  expect(graph['17']!.inputs.model).toEqual(['32',0]);
+  expect(graph['30']!.inputs).toMatchObject({model:['16',0],strength_model:.2});
+  expect(graph['31']!.inputs).toMatchObject({model:['30',0],strength_model:1.3});
+  expect(graph['32']!.inputs).toMatchObject({model:['31',0],strength_model:4});
+  expect(graph['6']!.inputs['ref_images.ref_image_0']).toEqual(['40',0]);
+  expect(graph['42']!.inputs.frame_idx).toBe(359);expect(graph['7']!.inputs.conditioning).toEqual(['42',0]);
 });
-it('preserves audio slot order and translates prompt labels',()=>{
- const refs=[{id:'audio',asset_id:'a',kind:'audio',role:'reference',range:{start_seconds:0,duration_seconds:3}},{id:'video',asset_id:'v',kind:'video',role:'reference',include_audio:true,range:{start_seconds:0,duration_seconds:3}}];
- const request=imageRequest({...base,workflow:'reference-to-video',mode:'nsfw',references:refs,prompt:'Use <Video 1>, soundtrack <Audio 1> and <Audio 2>'});
- const mapped=falRequest(request,'42',[{kind:'audio',role:'reference',url:'audio'},{kind:'video',role:'reference',url:'video',audio_url:'soundtrack'}]);
- expect(mapped.input.reference_audio_urls).toEqual(['soundtrack','audio']);expect(mapped.input.prompt).toBe('Use Video 1, soundtrack Audio 1 and Audio 2');expect(mapped.input.loras).toBeUndefined();
- const adapted=falRequest(request,'42',[],[{id:'adapter',revision:'v1',scale:0.7,path:'https://example.com/lora'}]);expect(adapted.endpoint).toMatch(/\/lora$/);expect(adapted.input.loras).toEqual([{path:'https://example.com/lora',scale:0.7}]);
+it('keeps native reference video soundtracks attached to their corresponding clip',()=>{
+  const refs=[prepared('sound','audio'),{...prepared('motion','video'),audio_file:'motion.wav',audio_filename:'motion.wav'}];
+  const request=imageRequest({...base,workflow:'reference-to-video',references:refs.map(({file,filename,sha256,audio_file,audio_filename,...r}:any)=>({...r,range:{start_seconds:0,duration_seconds:3}}))});
+  const graph=graphFor(request,'job','42',[],refs);
+  expect(graph['6']!.inputs['ref_audios.ref_audio_0']).toEqual(['40',0]);
+  expect(graph['6']!.inputs['ref_videos.ref_video_0']).toEqual(['41',0]);
+  expect(graph['6']!.inputs['ref_video_audios.ref_video_audio_0']).toEqual(['42',0]);
 });

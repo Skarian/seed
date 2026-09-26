@@ -1,4 +1,6 @@
-import type { ImageRequest } from '../server/workflows.js';
+import { isVideoWorkflow } from '../shared/workflows.js';
+import type { ImageRequest } from '../shared/generation.js';
+import { patchGeneration } from '../shared/generation.js';
 import { workflowIds, type WorkflowId } from '../shared/studio.js';
 
 export type GenerationDraft = { request: ImageRequest; sourceJob?: string };
@@ -9,7 +11,8 @@ export type DraftAction =
   | { type: 'reset'; workflow: WorkflowId };
 
 export function emptyGeneration(workflow: WorkflowId): GenerationDraft {
-  const video = workflow !== 'text-to-image';
+  if(workflow==='image-to-image')return {request:{workflow,mode:'sfw',prompt:'',seed:'random',count:1,references:[],output:{aspect:'source',size:'1mp'}}};
+  const video = isVideoWorkflow(workflow);
   return {
     request: {
       workflow,
@@ -36,7 +39,7 @@ export function generationDraftReducer(
     return { ...state, [action.workflow]: emptyGeneration(action.workflow) };
   if (action.type === 'replace') return { ...state, [action.workflow]: action.draft };
   const draft = state[action.workflow],
-    request = { ...draft.request, ...action.patch };
+    request = patchGeneration(draft.request,action.patch);
   if (action.patch.seed !== undefined || action.patch.count !== undefined)
     delete request.resolved_seeds;
   return { ...state, [action.workflow]: { ...draft, request } };
@@ -49,11 +52,11 @@ export function restoreGenerationDrafts(saved: Record<string, any> = {}): Genera
       const entry = saved[workflow],
         old = entry?.request ?? entry ?? {},
         fresh = emptyGeneration(workflow),
-        video = workflow !== 'text-to-image';
+        video = isVideoWorkflow(workflow);
       const count =
         Number.isInteger(old.count) && old.count >= 1 && old.count <= 16 ? old.count : 1;
       const duration = Number(old.output?.duration_seconds ?? old.duration);
-      const request: ImageRequest = {
+      const request = patchGeneration(fresh.request, {
         ...fresh.request,
         prompt: typeof old.prompt === 'string' ? old.prompt : '',
         note: typeof old.note === 'string' ? old.note : '',
@@ -83,7 +86,7 @@ export function restoreGenerationDrafts(saved: Record<string, any> = {}): Genera
         ...((old.resolved_seeds ?? old.resolvedSeeds)?.length === count
           ? { resolved_seeds: old.resolved_seeds ?? old.resolvedSeeds }
           : {}),
-      };
+      } as Partial<ImageRequest>);
       return [
         workflow,
         { request, sourceJob: typeof entry?.sourceJob === 'string' ? entry.sourceJob : undefined },

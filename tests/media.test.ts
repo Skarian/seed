@@ -44,13 +44,13 @@ it('prepares oriented phone photos without stretching and expires abandoned rese
     await media.scan();expect(media.get('old').metadata.state).toBe('error');
   }finally{await media.close();db.close();rmSync(root,{recursive:true,force:true});}
 });
-it('routes anchors through FL and rejects mixing them with general references',()=>{
+it('routes anchors through FL and mixed conditioning through Ref',()=>{
   const request=imageRequest({workflow:'reference-to-video',prompt:'A scene',mode:'nsfw',output:{aspect:'16:9',size:'768p',duration_seconds:5},references:[{id:'first',asset_id:'asset',kind:'image',role:'last_frame'}]});
   expect(videoRoute(request)).toBe('fl');
   request.references!.push({id:'ref',asset_id:'second',kind:'image',role:'reference'});expect(videoRoute(request)).toBe('ref');
   expect(()=>imageRequest({...request,prompt:'Use <Picture 2>'})).toThrow('reference mention');
   expect(()=>imageRequest({...request,prompt:'Use [removed reference]'})).toThrow('reference mention');
-  expect(()=>imageRequest({...request,prompt:'Use <Picture 1>'})).toThrow('either reference');
+  expect(imageRequest({...request,prompt:'Use <Picture 1>'}).references).toHaveLength(2);
   expect(imageRequest({...request,references:request.references!.slice(1),prompt:'Use <Picture 1>'}).prompt).toBe('Use <Picture 1>');
 });
 

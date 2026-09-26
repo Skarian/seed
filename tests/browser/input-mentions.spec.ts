@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures.js';
 import fs from 'node:fs/promises';
 test('input mentions insert at the caret, preserve slots, preview and block missing inputs',async({page})=>{
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));
@@ -19,7 +19,16 @@ test('input mentions insert at the caret, preserve slots, preview and block miss
  await expect(page.getByRole('navigation',{name:'Input navigation'})).toContainText('1 of 3');await expect(page.getByRole('button',{name:'Previous input'})).toBeDisabled();
  await page.getByRole('button',{name:'Next input'}).click();await expect(page.locator('.viewer-reference-label')).toHaveText('Video 1');await expect(page.locator('.viewer-canvas video')).toBeVisible();
  await page.getByRole('button',{name:'Next input'}).click();await expect(page.getByRole('navigation',{name:'Input navigation'})).toContainText('3 of 3');await expect(page.getByRole('button',{name:'Next input'})).toBeDisabled();await expect(page.locator('.viewer-canvas audio')).toBeVisible();
- await page.getByRole('button',{name:'Previous input'}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:'.local/input-navigation-mobile.png'});await page.getByRole('button',{name:'Close preview',exact:true}).click();await page.setViewportSize({width:1200,height:950});await page.getByRole('button',{name:'Review / history',exact:true}).click();
+ await page.getByRole('button',{name:'Previous input'}).click();await page.setViewportSize({width:390,height:844});await page.screenshot({path:'.local/input-navigation-mobile.png'});
+ await page.getByRole('button',{name:'Previous input'}).click();await page.locator('.preview-image-surface').dblclick();await expect(page.getByRole('button',{name:'Reset zoom'})).toBeVisible();
+ await page.getByRole('button',{name:'Next input'}).click();await expect(page.locator('.viewer-canvas video')).toBeVisible();
+ let releasePreview!:()=>void;const delayedPreview=new Promise<void>(resolve=>{releasePreview=resolve;});
+ await page.route('**/api/v1/assets/image',async r=>{await delayedPreview;return r.fulfill({json:assets[0]});});
+ const loading=page.waitForRequest(r=>r.url().endsWith('/api/v1/assets/image'));
+ await page.getByRole('button',{name:'Previous input'}).click();await loading;
+ await page.goBack();await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page).toHaveURL(/\/chat\?chat=mentions$/);
+ const finished=page.waitForResponse(r=>r.url().endsWith('/api/v1/assets/image'));releasePreview();await finished;
+ await page.setViewportSize({width:1200,height:950});await page.getByRole('button',{name:'Review / history',exact:true}).click();
  const dialog=page.getByRole('dialog',{name:'Review generation'}),editor=dialog.getByRole('combobox',{name:'Prompt'});
  await editor.click();await page.keyboard.press('Control+Home');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');await page.keyboard.press('ArrowRight');
  await dialog.getByRole('button',{name:'Picture 1',exact:true}).click();await expect(editor).toHaveText('Before Picture 1 after');

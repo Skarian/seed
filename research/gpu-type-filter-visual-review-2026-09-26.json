@@ -1,0 +1,101 @@
+{
+  "run_id": "2026-09-26T03:37:30.522Z",
+  "records": [
+    {
+      "file": "desktop/701.png",
+      "sha256": "060e344124755f97e833a2df6597f66ae3a264b5850b0f38e136f9f2f83b0047",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "desktop/701-results.png",
+      "sha256": "9bdb99fec742c07084ada423d6fe4c2daf50f5dc6cde5f4e0847c021088caf1e",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "desktop/702.png",
+      "sha256": "3af9005cc2dafb5dd6d0c1a0e02f3d068c9551535707185870cda7b761a38b74",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "desktop/702-results.png",
+      "sha256": "eba15b5669469e2e2b04b05ae434d54b9cb68f741870b1c4a67c7be32621c3bc",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "desktop/703.png",
+      "sha256": "e38a0ad6ed5b36b1f45b71ca43de22ee24c3b651fa27933cc720e3be65617266",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "desktop/703-results.png",
+      "sha256": "2daddf8fab552957f83fb41c63e41d87e163d26e4dfd0e961836ed4d3c04a43c",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "desktop/704.png",
+      "sha256": "712d540a69a69660f753c1f9480cbf5dca46024ece1f70e62dfb6fbf39a3b2d2",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "desktop/704-results.png",
+      "sha256": "8b291a5b3d62eba5b2f74689617485f6f0941164dc8949bca9f1c5544b72d03f",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "mobile/701.png",
+      "sha256": "76c004bf13c3f71ba774c4c83d847f1eb5be29d6466fce433aad1418ea0f38bf",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "mobile/701-results.png",
+      "sha256": "a9833d56cc64ce17d4d66dacb8f37815e48818bde4886d436c7498e0d311c5d4",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "mobile/702.png",
+      "sha256": "4134846a143b1b6dc386014b0386f07e33d356c3cefd9112701691b93492be90",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "mobile/702-results.png",
+      "sha256": "3975029599a40b9f8aa5f2cde8bb03152387f4e27244badb1461609a498d66b1",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "mobile/703.png",
+      "sha256": "58530dfed23f543991b6a131f943bd2c342c9bd08927f8f4b27b27c8a3f7950b",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "mobile/703-results.png",
+      "sha256": "30319003fe6b8f03afc4bf0c75baf424a7a3aebcb81738ee009a76a148737855",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "mobile/704.png",
+      "sha256": "edf7d3197515d8e751ae06fda409b8d01ecb6acd30cba18175821cc71ff4d4b0",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    },
+    {
+      "file": "mobile/704-results.png",
+      "sha256": "9f25e1ad21346e5c9cc060596d50a47e7eca884bbc5997ebf0e94bc27ca910c9",
+      "disposition": "pass",
+      "review": "Inspected individually at full resolution: wrapping, checkbox targets, selected state, independent sorting, and responsive layout."
+    }
+  ]
+}

@@ -1,0 +1,742 @@
+{
+  "phase": "originals",
+  "method": "Each image opened individually at original detail; findings logged before deduplication.",
+  "screens": [
+    {
+      "id": "001",
+      "device": "desktop",
+      "notes": "No visible defect. Full-width fields, disabled action and sidebar status are legible."
+    },
+    {
+      "id": "002",
+      "device": "desktop",
+      "notes": "No visible defect. Quantity four and enabled primary action clearly distinguish readiness."
+    },
+    {
+      "id": "003",
+      "device": "desktop",
+      "issues": [
+        "F01"
+      ],
+      "notes": "Layout sound; video LoRA fixture differs from mobile due shared catalog contamination."
+    },
+    {
+      "id": "004",
+      "device": "desktop",
+      "issues": [
+        "F01"
+      ],
+      "notes": "Full-width controls and prompt color consistent. Reference catalog differs across devices."
+    },
+    {
+      "id": "005",
+      "device": "desktop",
+      "notes": "No visible defect; starting seed stays full width and has visible focus."
+    },
+    {
+      "id": "006",
+      "device": "desktop",
+      "notes": "No visible defect. Selected adapter, strength and capacity link are readable."
+    },
+    {
+      "id": "007",
+      "device": "desktop",
+      "issues": [
+        "F02"
+      ],
+      "notes": "Credentials layout sound. 'Saved keys stay on this PC' is misleading for tokens supplied to workers; describe local storage instead."
+    },
+    {
+      "id": "008",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F03"
+      ],
+      "notes": "Catalog footer status row and worker-change note touch; add vertical separation. Catalog state differs across device runs."
+    },
+    {
+      "id": "009",
+      "device": "desktop",
+      "issues": [
+        "F03",
+        "F04"
+      ],
+      "notes": "File list incorrectly displays tiny nonempty fixtures as 0 MB; use byte-aware size formatting. Catalog footer crowded."
+    },
+    {
+      "id": "010",
+      "device": "desktop",
+      "issues": [
+        "F03"
+      ],
+      "notes": "Unsupported-family error is clear. Same crowded catalog footer."
+    },
+    {
+      "id": "011",
+      "device": "desktop",
+      "notes": "No visible defect. Empty Chat composition and composer fit."
+    },
+    {
+      "id": "012",
+      "device": "desktop",
+      "notes": "No visible defect. Approval and deny contrast is clear; old generation pricing absent."
+    },
+    {
+      "id": "013",
+      "device": "desktop",
+      "issues": [
+        "F05"
+      ],
+      "notes": "Open workers link becomes an oversized button inside review, unlike shared LoRA picker in Generate. Check dialog selector leakage; verify scroll and footer access."
+    },
+    {
+      "id": "014",
+      "device": "desktop",
+      "issues": [
+        "F01"
+      ],
+      "notes": "Empty Library looks sound, but same scenario is populated on mobile."
+    },
+    {
+      "id": "015",
+      "device": "desktop",
+      "issues": [
+        "F06"
+      ],
+      "notes": "Empty pool clear. Summary label 'Estimated spent' should be 'Estimated spend'."
+    },
+    {
+      "id": "016",
+      "device": "desktop",
+      "issues": [
+        "F06"
+      ],
+      "notes": "Offers and disabled launch footer readable. Summary copy issue only."
+    },
+    {
+      "id": "017",
+      "device": "desktop",
+      "issues": [
+        "F06"
+      ],
+      "notes": "Selected Video role visually distinct. Summary copy issue only."
+    },
+    {
+      "id": "018",
+      "device": "desktop",
+      "issues": [
+        "F06"
+      ],
+      "notes": "Four-worker quantity and quote are clear. Selected row nearly touches sticky footer; verify bottom scroll padding in narrow layout."
+    },
+    {
+      "id": "019",
+      "device": "desktop",
+      "issues": [
+        "F06"
+      ],
+      "notes": "Empty filtered result and recovery guidance readable."
+    },
+    {
+      "id": "020",
+      "device": "desktop",
+      "issues": [
+        "F06",
+        "F07"
+      ],
+      "notes": "Warning duplicates provider name ('Vast: Vast availability...'). Other provider remains visible."
+    },
+    {
+      "id": "021",
+      "device": "desktop",
+      "issues": [
+        "F06",
+        "F07",
+        "F08"
+      ],
+      "notes": "Missing credentials incorrectly followed by 'No matching GPUs' and rate/region advice. Empty-state guidance must reflect unavailable providers. Provider names repeated."
+    },
+    {
+      "id": "022",
+      "device": "desktop",
+      "issues": [
+        "F06",
+        "F09"
+      ],
+      "notes": "Progress and quit actions visible. 'All 1 workers' grammar and overly precise $0.0007 estimate should be cleaned up."
+    },
+    {
+      "id": "023",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06",
+        "F09"
+      ],
+      "notes": "Ready state clear. Prior-test release history leaks in. Repeated grammar/sub-cent amount issues."
+    },
+    {
+      "id": "024",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06",
+        "F09"
+      ],
+      "notes": "Generating state and actions visible; submission toast doesn't obscure actions. Repeated fixture/copy issues."
+    },
+    {
+      "id": "025",
+      "device": "desktop",
+      "issues": [
+        "F06",
+        "F09",
+        "F10",
+        "F11",
+        "F12"
+      ],
+      "notes": "Failure calls known LoRA 'Adapter 1'; investigate safe visible catalog naming. Reconnect shown despite source-access failure. Pool-wide actions clipped at bottom of capture; add scroll coverage."
+    },
+    {
+      "id": "026",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06",
+        "F09"
+      ],
+      "notes": "Connection-specific warning and reconnect action appropriate; all shutdown actions visible."
+    },
+    {
+      "id": "027",
+      "device": "desktop",
+      "issues": [
+        "F06",
+        "F09",
+        "F11"
+      ],
+      "notes": "Billing uncertainty is clear. 'Finish jobs and quit' remains offered after immediate release already requested; make action state reflect pending quit while keeping retry-now available."
+    },
+    {
+      "id": "028",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06",
+        "F09",
+        "F12"
+      ],
+      "notes": "Released list contains unrelated earlier rentals; long list is cut off without a bottom capture. Sub-cent totals clutter history."
+    },
+    {
+      "id": "029",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06",
+        "F09",
+        "F12"
+      ],
+      "notes": "Activity cluttered with prior scenario rentals; current request present here but not mobile. Need deterministic mixed Activity fixtures and scroll capture."
+    },
+    {
+      "id": "030",
+      "device": "desktop",
+      "issues": [
+        "F13"
+      ],
+      "notes": "Queue with no workers is labeled '1 image in progress'. Show queued/waiting-for-worker rather than implying active generation."
+    },
+    {
+      "id": "031",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F13",
+        "F14"
+      ],
+      "notes": "Same misleading in-progress queue label. Page scroll position offsets fixed sidebar/toast in full-page capture; normalize before capturing."
+    },
+    {
+      "id": "032",
+      "device": "desktop",
+      "issues": [
+        "F06",
+        "F09"
+      ],
+      "notes": "Completed thumbnail and Library link are clear. Sidebar uses same spend copy/precision."
+    },
+    {
+      "id": "033",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06",
+        "F09"
+      ],
+      "notes": "Images load correctly. Two results vs five on mobile exposes shared state; sidebar spend issues repeated."
+    },
+    {
+      "id": "034",
+      "device": "desktop",
+      "notes": "No visible defect. Preview preserves aspect and all top actions clear."
+    },
+    {
+      "id": "035",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F14"
+      ],
+      "notes": "Queued status clear. Prior chats leak into sidebar; Activity badge still zero despite queued job, so capture should wait for synchronized state."
+    },
+    {
+      "id": "036",
+      "device": "desktop",
+      "issues": [
+        "F02",
+        "F15"
+      ],
+      "notes": "Return to workers button is unstyled native gray and too small compared to app controls. Banner alignment differs from Admin content."
+    },
+    {
+      "id": "037",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06",
+        "F09",
+        "F11"
+      ],
+      "notes": "Finishing badge clear, but finish action still enabled after intent is saved. Show committed state; retain immediate quit."
+    },
+    {
+      "id": "038",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06",
+        "F09",
+        "F12"
+      ],
+      "notes": "Both roles distinguishable; global actions below capture. Current video adapter count differs on mobile due fixture state."
+    },
+    {
+      "id": "039",
+      "device": "desktop",
+      "issues": [
+        "F01",
+        "F06"
+      ],
+      "notes": "Elapsed spend/rate readable and coherent; known copy/history issues."
+    },
+    {
+      "id": "040",
+      "device": "desktop",
+      "issues": [
+        "F03"
+      ],
+      "notes": "Import toast and merged workflow mapping clear; both catalog footers crowded."
+    },
+    {
+      "id": "041",
+      "device": "desktop",
+      "issues": [
+        "F06",
+        "F09",
+        "F11"
+      ],
+      "notes": "Base-model fallback explained clearly; unnecessary Reconnect accompanies source failure."
+    },
+    {
+      "id": "001",
+      "device": "mobile",
+      "issues": [
+        "F16"
+      ],
+      "notes": "Fields fit. Mobile header only shows hamburger, with no current workflow identity; add compact workflow context."
+    },
+    {
+      "id": "002",
+      "device": "mobile",
+      "issues": [
+        "F16"
+      ],
+      "notes": "Quantity and enabled action legible; missing mobile workflow label."
+    },
+    {
+      "id": "003",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F16"
+      ],
+      "notes": "Controls full width. Video catalog differs from desktop and header doesn't identify workflow."
+    },
+    {
+      "id": "004",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F16"
+      ],
+      "notes": "Reference controls fit at 390px; shared catalog/header issues."
+    },
+    {
+      "id": "005",
+      "device": "mobile",
+      "issues": [
+        "F14",
+        "F16"
+      ],
+      "notes": "Seed controls fit. Fixed header icon appears partially clipped in scrolled full-page capture; normalize capture scroll."
+    },
+    {
+      "id": "006",
+      "device": "mobile",
+      "issues": [
+        "F16"
+      ],
+      "notes": "Selected LoRA controls fit, no overflow. Header context missing."
+    },
+    {
+      "id": "007",
+      "device": "mobile",
+      "issues": [
+        "F02",
+        "F17"
+      ],
+      "notes": "Credentials cards fit. Test/remove links have cramped touch height; give actions adequate hit area without widening rows."
+    },
+    {
+      "id": "008",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F03"
+      ],
+      "notes": "Confirmed footer note crowds status pills on mobile. Added video catalog is prior-scenario residue."
+    },
+    {
+      "id": "009",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F03",
+        "F04"
+      ],
+      "notes": "Reviewed tall original individually with original image detail. Mapping rows fit; 0 MB sizes and crowded card footers repeat."
+    },
+    {
+      "id": "010",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F03"
+      ],
+      "notes": "Unsupported model error wraps cleanly. Catalog residue/footer spacing issues remain."
+    },
+    {
+      "id": "011",
+      "device": "mobile",
+      "notes": "No visible defect. Greeting fits; composer and send action remain within viewport."
+    },
+    {
+      "id": "012",
+      "device": "mobile",
+      "issues": [
+        "F17"
+      ],
+      "notes": "Approval wraps well; verify small pencil edit action has an adequate touch target."
+    },
+    {
+      "id": "013",
+      "device": "mobile",
+      "issues": [
+        "F05",
+        "F12"
+      ],
+      "notes": "Footer visible, but lower strength/details controls outside capture. Need bottom-scroll and focus checks. Open workers styling inconsistent."
+    },
+    {
+      "id": "014",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F18"
+      ],
+      "notes": "Unexpected prior outputs and third blank thumbnail. Reset intended empty state; separately validate populated asset decode before capture."
+    },
+    {
+      "id": "015",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F06"
+      ],
+      "notes": "Mobile empty pool/action fit. Released history shouldn't leak from prior cases."
+    },
+    {
+      "id": "016",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F12"
+      ],
+      "notes": "Capture starts mid-scroll with clipped Provider label and no role selector; provide top and lower views rather than one arbitrary scroll position. Footer stays visible."
+    },
+    {
+      "id": "017",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F12"
+      ],
+      "notes": "Same mid-scroll omission as 016; screenshots of Image vs Video offers are indistinguishable because chosen role is off-screen."
+    },
+    {
+      "id": "018",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F12"
+      ],
+      "notes": "Selected offers/quantity/launch quote all visible. Capture lacks top role/filter context; top/bottom pair needed."
+    },
+    {
+      "id": "019",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F12"
+      ],
+      "notes": "Rate filter and no-matches message fit; role selection omitted by capture scroll."
+    },
+    {
+      "id": "020",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F07",
+        "F12",
+        "F19"
+      ],
+      "notes": "Duplicated provider warning. Fixed header/footer consume ~half the mobile viewport; tighten spacing and capture scrolling explicitly."
+    },
+    {
+      "id": "021",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F07",
+        "F08",
+        "F12",
+        "F19"
+      ],
+      "notes": "Second credential recovery action below footer in this capture; no evidence of reachability. Missing-key guidance must replace filter advice."
+    },
+    {
+      "id": "022",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F19"
+      ],
+      "notes": "Preparation progress and both quit scopes visible, although worker detail has excess blank space and header is tall."
+    },
+    {
+      "id": "023",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F19"
+      ],
+      "notes": "Ready state and actions readable. Large collapsed detail whitespace increases scrolling."
+    },
+    {
+      "id": "024",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F19"
+      ],
+      "notes": "Generating status clear; shared copy/precision/spacing findings."
+    },
+    {
+      "id": "025",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F10",
+        "F11",
+        "F12",
+        "F19"
+      ],
+      "notes": "Immediate quit partly below viewport. Need scroll verification, compact spacing, identifiable permitted adapter name and failure-specific recovery."
+    },
+    {
+      "id": "026",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F12",
+        "F19"
+      ],
+      "notes": "Connection error and per-worker actions visible; global actions require second scroll capture."
+    },
+    {
+      "id": "027",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F11",
+        "F12",
+        "F19"
+      ],
+      "notes": "Termination warning clear. Finish action inappropriate after quit intent; lower pool controls not captured."
+    },
+    {
+      "id": "028",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F06",
+        "F09",
+        "F12"
+      ],
+      "notes": "Release confirmed, but unrelated history and incomplete long-list capture."
+    },
+    {
+      "id": "029",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F06",
+        "F09",
+        "F12",
+        "F17"
+      ],
+      "notes": "Expected current request not visible; old rentals dominate. View-worker and close affordances warrant touch-target checks."
+    },
+    {
+      "id": "030",
+      "device": "mobile",
+      "issues": [
+        "F13",
+        "F14",
+        "F16"
+      ],
+      "notes": "Queued job mislabeled in progress. Scrolled full-page capture loses hamburger and puts fixed toast over prompt."
+    },
+    {
+      "id": "031",
+      "device": "mobile",
+      "issues": [
+        "F01",
+        "F13",
+        "F14",
+        "F16"
+      ],
+      "notes": "Same queue and scrolled-fixed-element issues; toast covers Aspect ratio label in artifact."
+    },
+    {
+      "id": "032",
+      "device": "mobile",
+      "issues": [
+        "F14",
+        "F16"
+      ],
+      "notes": "Completed thumbnail and Library link clear. Capture displaced fixed header/toast."
+    },
+    {
+      "id": "033",
+      "device": "mobile",
+      "issues": [
+        "F01"
+      ],
+      "notes": "Five duplicate fixtures carried across scenarios; individually visible thumbnails decode correctly."
+    },
+    {
+      "id": "034",
+      "device": "mobile",
+      "notes": "Preview fits viewport; controls legible and separated. No visual defect."
+    },
+    {
+      "id": "035",
+      "device": "mobile",
+      "issues": [
+        "F14"
+      ],
+      "notes": "Queued request is readable. Composer still says Stop: verify capture waits for chat stream completion rather than transient state."
+    },
+    {
+      "id": "036",
+      "device": "mobile",
+      "issues": [
+        "F02",
+        "F15",
+        "F17"
+      ],
+      "notes": "Return to workers is a tiny native grey button. Credential action targets are visually small; storage copy overstates local-only use."
+    },
+    {
+      "id": "037",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F11",
+        "F19"
+      ],
+      "notes": "Finishing worker still offers Finish jobs and quit; repeated pool action also active. Subcent costs and excessive blank detail space."
+    },
+    {
+      "id": "038",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F12",
+        "F19"
+      ],
+      "notes": "Second worker and pool quit actions below fold; supplementary scroll capture needed. Excess collapsed detail space limits visibility."
+    },
+    {
+      "id": "039",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F19"
+      ],
+      "notes": "Two-hour estimate correct and readable; singular wording and whitespace remain."
+    },
+    {
+      "id": "040",
+      "device": "mobile",
+      "issues": [
+        "F03",
+        "F14"
+      ],
+      "notes": "Import confirmation readable; LoRA footer overlap repeated. Toast over hamburger can be intentional temporary overlay; verify deterministic top capture."
+    },
+    {
+      "id": "041",
+      "device": "mobile",
+      "issues": [
+        "F06",
+        "F09",
+        "F11",
+        "F12",
+        "F19"
+      ],
+      "notes": "Base model fallback action is clear. Reconnect shown for healthy transport preparation error; bottom pool actions outside frame, costs and detail spacing repeated."
+    }
+  ]
+}

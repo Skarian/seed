@@ -208,7 +208,7 @@ function ImportLora({
   return (
     <section className="admin-import" aria-label="Import LoRA">
       <h3>Add from Civitai</h3>
-      <p>Choose a version, then map its files to the workflows you want to use.</p>
+      <p>Choose a version, then map its files to the workflows you want to use. New workers download enabled LoRAs directly from Civitai when they start.</p>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -415,7 +415,7 @@ function LoraEditor({
             <span>Strength {group.default_scale}</span>
             <span>
               {group.files.every((file) => file.compatibility === 'verified')
-                ? 'Tested on fal'
+                ? 'Runtime verified'
                 : `${group.files.filter((file) => file.compatibility === 'verified').length} of ${group.files.length} mappings tested`}
             </span>
             {group.source_url && (
@@ -424,6 +424,8 @@ function LoraEditor({
               </a>
             )}
           </footer>
+          <p className="admin-hint">Changes apply to newly started workers. Existing workers keep their prepared LoRAs.</p>
+          {group.files.some(file=>file.source_status==='needs_source')&&<p role="status" className="admin-hint">This older import needs a pinned Civitai source. Choose Change files to reimport it before starting a new worker.</p>}
         </>
       )}
       {error && <p role="alert">{error}</p>}

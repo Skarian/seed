@@ -6,6 +6,7 @@ import { createApp } from '../server/http.js';
 import { resolvePaths } from '../server/storage.js';
 import sharp from 'sharp';
 import {gunzipSync} from 'node:zlib';
+import {workflowIds} from '../shared/studio.js';
 
 let app: Awaited<ReturnType<typeof createApp>>;
 let root: string;
@@ -17,6 +18,21 @@ beforeEach(async () => {
 afterEach(async () => { await app.close(); await new Promise(resolve => setTimeout(resolve, 30)); rmSync(root, { recursive: true, force: true }); });
 
 describe('local studio boundary', () => {
+  it('reads only the saved startup record and keeps internal collection fields private', async () => {
+    const db=openDatabase(resolvePaths(root).data);
+    try {
+      db.prepare('INSERT INTO worker_startup_logs VALUES (?,?)').run('fixture-worker',JSON.stringify({worker_id:'fixture-worker',revision:2,phase:'complete',collection:'sealed',availability:'available',truncated:false,
+        cursor:'PRIVATE_CURSOR',resource_id:'PRIVATE_PROVIDER_ID',progress_key:'PRIVATE_HASH',provider_closed:true,sections:[{source:'Vast startup',captured_at:'2026-09-25T00:00:00Z',text:'Pull complete'}]}));
+      const response=await app.inject({url:'/api/v1/pool/workers/fixture-worker/startup-logs',headers:{host}});
+      expect(response.statusCode).toBe(200);expect(response.body).toContain('Pull complete');expect(response.body).not.toContain('PRIVATE_');
+      expect((await app.inject({url:'/api/v1/pool/workers/missing/startup-logs',headers:{host}})).statusCode).toBe(404);
+    } finally {db.close();}
+  });
+  it('accepts every shared workflow through the Chat settings API',async()=>{
+    const headers={host,origin:`http://${host}`};
+    let chat=(await app.inject({method:'POST',url:'/api/v1/chats',headers,payload:{mode:'sfw'}})).json();
+    for(const workflow of workflowIds){const reply=await app.inject({method:'PATCH',url:'/api/v1/chats/'+chat.id,headers,payload:{version:chat.version,workflow}});expect(reply.statusCode,reply.body).toBe(200);chat=reply.json();expect(chat.workflow).toBe(workflow);}
+  });
   it('serves the compressed entry page and caches hashed scripts', async () => {
     const response=await app.inject({url:'/',headers:{host,'accept-encoding':'gzip'}});
     expect(response.statusCode).toBe(200);expect(response.headers['content-encoding']).toBe('gzip');expect(response.headers['cache-control']).toBe('no-cache');
@@ -74,10 +90,10 @@ describe('local studio boundary', () => {
     expect(existsSync(outside)).toBe(true);
     db.close();
   });
-  it('reports fal configuration without GPU lifecycle fields', async () => {
+  it('reports server-owned worker capacity and queue state', async () => {
     const result = await app.inject({ url: '/api/v1/studio', headers: { host } });
     expect(result.statusCode).toBe(200);
-    expect(result.json()).toMatchObject({ provider: {name:'fal',configured:false}, activity: {active:0,waiting:0,needs_attention:0} });
+    expect(result.json()).toMatchObject({ pool: {active:0,hourly:0,estimated_spend:0}, activity: {active:0,waiting:0,needs_attention:0} });
     expect(result.headers['cache-control']).toBe('no-store');
   });
   it('rejects rebinding hosts, hostile origins and cross-site reads', async () => {

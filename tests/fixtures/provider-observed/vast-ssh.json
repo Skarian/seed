@@ -1,0 +1,12 @@
+{
+  "provenance": {
+    "observed_at": "2026-09-23T22:06:37.336Z",
+    "source": "Seed live acquisition qualification, 2026-09-23; allowlisted fields from retained provider exchange",
+    "redactions": "Only listed protocol fields retained. Credentials, keys, host identity, addresses and unrelated provider metadata excluded; rental/offer identifiers and names anonymized."
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "msg": "SSH key added to instance."
+  }
+}

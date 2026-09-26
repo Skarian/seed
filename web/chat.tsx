@@ -1,8 +1,9 @@
+import {workerClassFor} from '../shared/pool.js';
 import {ProviderError} from './job-ui.js';
 import {ApprovalCard,RequestCard} from './request-card.js';
 import {TurnTranscript} from './turn-transcript.js';
-import {MentionText,type InputMention} from './input-mentions.js';
-import {inputLabels} from '../shared/reference-labels.js';
+import {MentionText,boundMentionPattern,unboundMentionPattern,type InputMention} from './input-mentions.js';
+import {inputLabels,parseInputLabel} from '../shared/reference-labels.js';
 import {RequestDetails} from './request-details.js';
 import {Review} from './review-request.js';
 import {SentRequest} from './sent-request.js';
@@ -22,7 +23,7 @@ import {Modal} from './modal.js';
 import {createPortal,flushSync} from 'react-dom';
 import React,{useEffect,useLayoutEffect,useRef,useState} from 'react';
 import type {ChatView,ChatWorkflow,ChatCard,ChatRevision,ChatMessage,ChatGroup} from '../shared/chat.js';
-import type {ImageRequest} from '../server/workflows.js';
+import type {ImageRequest} from '../shared/generation.js';
 import type {RequestPreviewContext} from './request-preview.js';
 import {useSpicy} from './spicy-mode.js';
 import {GalleryPicker} from './gallery-picker.js';
@@ -31,19 +32,23 @@ import {MediaPreview,type PreviewMedia} from './media-preview.js';
 import {AssetNote} from './asset-note.js';
 import {FrameViewer} from './frame-viewer.js';
 import {ConfirmDialog} from './confirm-dialog.js';
+import {useWorkerPool} from './hooks/use-worker-pool.js';
+import {submissionStatus} from './chat-submission-status.js';
 
 const workflows:Record<ChatWorkflow,{label:string;command:string}>={
+  'image-to-image':{label:workflowLabels['image-to-image'],command:'/image-to-image'},
   'text-to-image':{label:workflowLabels['text-to-image'],command:'/text-to-image'},
   'text-to-video':{label:workflowLabels['text-to-video'],command:'/text-to-video'},
   'reference-to-video':{label:workflowLabels['reference-to-video'],command:'/reference-to-video'},
 };
-function remembered(key:string){try{return sessionStorage.getItem('seed.chat.fal.'+key)??'';}catch{return '';}}
-function remember(key:string,value:string){try{sessionStorage.setItem('seed.chat.fal.'+key,value);}catch{/* Server history remains durable. */}}
+function remembered(key:string){try{return sessionStorage.getItem('seed.chat.v2.'+key)??sessionStorage.getItem('seed.chat.fal.'+key)??'';}catch{return '';}}
+function remember(key:string,value:string){try{sessionStorage.setItem('seed.chat.v2.'+key,value);}catch{/* Server history remains durable. */}}
 type AssetContext={id:string;name:string;kind:'image'|'video'|'audio';note:string;metadata?:{duration?:number}};
 type View=ChatView&{asset_manifest?:AssetContext[];jobs:JobRecord[];accounting:Array<{cost:number|null}>};
-async function api(url:string,method='GET',body?:unknown){const response=await fetch('/api/v1/'+url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const result=await response.json();if(!response.ok){const message=result.error?.message;if(message?.startsWith('The cost preview'))window.dispatchEvent(new Event('seed:estimate-invalidated'));throw Error(message==='fetch failed'?'Cannot reach fal. Check your connection and API key, then try again.':message||'Request failed. Please try again.');}return result;}
+async function api(url:string,method='GET',body?:unknown){const response=await fetch('/api/v1/'+url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const result=await response.json();if(!response.ok){const message=result.error?.message;throw Error(message==='fetch failed'?'Cannot reach the service. Check your connection and credentials in Admin, then try again.':message||'Request failed. Please try again.');}return result;}
 
 export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|null;onChooseChat:()=>void}){
+ const pool=useWorkerPool();
   const {spicy}=useSpicy(),mode=spicy?'nsfw':'sfw';
   const [list,setList]=useState<Array<{id:string;title:string;activity:string;error:string|null;status?:string;last_reply_id?:string}>>([]);
   const [id,setId]=useState<string|null>(null),[savedChat,setChat]=useState<View|null>(null);
@@ -60,6 +65,8 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   const [gallery,setGallery]=useState(false),[review,setReview]=useState<{card:ChatCard;revision:ChatRevision}|null>(null);
   useEffect(()=>setReviewError(''),[review?.card.id]);
   const [preview,setPreview]=useState<(PreviewMedia&{id:string;referenceLabel?:string;gallery?:string[];requestContext?:RequestPreviewContext})|null>(null),[sequence,setSequence]=useState<string|null>(null);
+  const previewLoad=useRef(0);
+  function updatePreview(value:typeof preview){++previewLoad.current;setPreview(value);}
   const [deleting,setDeleting]=useState<string|null>(null),[rename,setRename]=useState<{id:string;title:string}|null>(null);
   const refs=useReferences(true),file=useRef<HTMLInputElement>(null);
   const [readReplies,setReadReplies]=useState<Record<string,string>>(()=>{try{return JSON.parse(localStorage.getItem('seed.chat.read-replies')||'{}');}catch{return {};}});
@@ -68,6 +75,28 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   useEffect(()=>{setReadReplies(previous=>{const next={...previous};for(const item of list){if(!(item.id in next))next[item.id]=item.last_reply_id??'';}if(savedChat&&visible)next[savedChat.id]=savedChat.messages.filter(m=>m.role==='assistant').at(-1)?.id??'';if(JSON.stringify(next)===JSON.stringify(previous))return previous;try{localStorage.setItem('seed.chat.read-replies',JSON.stringify(next));}catch{}return next;});},[list,savedChat,visible]);
   const currentId=useRef(id);currentId.current=id;
   const generation=useRef(0),composer=useRef<ComposerHandle>(null);
+  const reads=useRef({epoch:0,busy:null as {id:string;mode:string}|null,again:false,active:false});
+  const actionEpoch=useRef(0),versionFloor=useRef({id:'',version:-1});
+  const refreshCurrent=useRef<(replacePending?:boolean)=>Promise<void>>(async()=>{});
+  function invalidateRead(){reads.current.epoch++;}
+  function acceptChat(value:View){
+    if(value.id!==currentId.current||value.mode!==mode)return false;
+    if(versionFloor.current.id===value.id&&value.version<versionFloor.current.version)return false;
+    versionFloor.current={id:value.id,version:value.version};
+    invalidateRead();setChat(value);return true;
+  }
+  async function refreshChat(replacePending=false){
+    const active=currentId.current;if(!active||!reads.current.active)return;
+    if(!replacePending&&reads.current.busy?.id===active&&reads.current.busy.mode===mode){reads.current.again=true;return;}
+    const owner={id:active,mode};reads.current.busy=owner;reads.current.again=false;const epoch=reads.current.epoch;
+    const current=()=>reads.current.active&&reads.current.busy===owner&&epoch===reads.current.epoch&&active===currentId.current;
+    try{const value=await api('chats/'+active);if(current()&&acceptChat(value)){connectionFailures.current=0;setConnection('online');}}
+    catch(e){if(current()){
+      if((e as Error).message==='Chat not found.'){remember('selected.'+mode,'');currentId.current=null;setId(null);setChat(null);setText('');invalidateRead();window.history.replaceState(null,'','/chat');}
+      else{connectionFailures.current++;setConnection(connectionFailures.current>=5?'offline':'reconnecting');}
+    }}finally{if(reads.current.busy===owner){reads.current.busy=null;if(reads.current.again){reads.current.again=false;if(reads.current.active)void refreshCurrent.current();}}}
+  }
+  refreshCurrent.current=refreshChat;
   const [jobDetail,setJobDetail]=useState<string|null>(null),[jobPreview,setJobPreview]=useState<JobRecord|null>(null);
   const [cardVersions,setCardVersions]=useState<Record<string,number>>({});
   const knownRevisions=useRef<Record<string,number>>({});
@@ -75,8 +104,9 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
 
   const [selected,setSelected]=useState<string[]>([]);
   const [branchDraft,setBranchDraft]=useState<{jobs:JobRecord[];fresh:boolean;submitted?:string}|null>(null),[branchDetails,setBranchDetails]=useState(false);
+  const branchLoad=useRef(0);
   const [feedbackDraft,setFeedbackDraft]=useState<{card:ChatCard;revision:ChatRevision}|null>(null);
-  function clearBranch(){setFeedbackDraft(null);setBranchDraft(null);setBranchDetails(false);window.history.replaceState(null,'',chat.id?'/chat?chat='+chat.id:'/chat');}
+  function clearBranch(){branchLoad.current++;actionEpoch.current++;invalidateRead();reads.current.busy=null;setSaving(false);setFeedbackDraft(null);setBranchDraft(null);setBranchDetails(false);window.history.replaceState(null,'',chat.id?'/chat?chat='+chat.id:'/chat');}
 
   const referenceRequest=feedbackDraft?.revision.request??branchDraft?.jobs[0]?.request;
   const currentReferences=referenceRequest?.references??[];
@@ -87,8 +117,8 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   for(const ref of currentReferences){const label=currentLabels.get(ref.id)?.slice(1,-1);if(label&&!currentAssetLabels.has(ref.asset_id))currentAssetLabels.set(ref.asset_id,label);}
   const mentionAssets=[...(chat.asset_manifest??[]).map(a=>({...a,url:'/api/v1/assets/'+a.id+'/content',local:undefined})),...refs.items.map(r=>({id:r.id,name:r.name,kind:r.kind,url:r.url,local:r})),...currentReferences.map(r=>({id:r.asset_id,name:currentAssetLabels.get(r.asset_id)??'Request input',kind:r.kind,url:'/api/v1/assets/'+r.asset_id+'/content',local:undefined}))].filter((a,i,all)=>all.findIndex(b=>b.id===a.id)===i);
   const mentionCounts={image:0,video:0,audio:0};
-  for(const label of currentLabels.values()){const match=label.match(/<(Picture|Video|Audio) (\d+)>/)!;const kind=match[1]==='Picture'?'image':match[1]==='Video'?'video':'audio';mentionCounts[kind]=Math.max(mentionCounts[kind],Number(match[2]));}
-  const inputMentions:InputMention[]=mentionAssets.map(a=>{const label=currentAssetLabels.get(a.id)??`${a.kind==='image'?'Picture':a.kind==='video'?'Video':'Audio'} ${++mentionCounts[a.kind]}`;return {id:a.id,asset_id:a.id,input_id:currentReferences.find(ref=>ref.asset_id===a.id)?.id,token:`[${label}](asset:${a.id})`,label,name:a.name,kind:a.kind,url:a.url,earlier:!a.local&&!selected.includes(a.id)&&!currentReferences.some(r=>r.asset_id===a.id),onChoose:()=>{if(!a.local)setSelected(current=>current.includes(a.id)?current:[...current,a.id]);},onPreview:()=>a.local?setPreview({...a.local,id:a.id}):void show(a.id)};});
+  for(const label of currentLabels.values()){const slot=parseInputLabel(label);if(slot)mentionCounts[slot.kind]=Math.max(mentionCounts[slot.kind],slot.number);}
+  const inputMentions:InputMention[]=mentionAssets.map(a=>{const label=currentAssetLabels.get(a.id)??`${a.kind==='image'?'Picture':a.kind==='video'?'Video':'Audio'} ${++mentionCounts[a.kind]}`;return {id:a.id,asset_id:a.id,input_id:currentReferences.find(ref=>ref.asset_id===a.id)?.id,token:`[${label}](asset:${a.id})`,label,name:a.name,kind:a.kind,url:a.url,earlier:!a.local&&!selected.includes(a.id)&&!currentReferences.some(r=>r.asset_id===a.id),onChoose:()=>{if(!a.local)setSelected(current=>current.includes(a.id)?current:[...current,a.id]);},onPreview:()=>a.local?updatePreview({...a.local,id:a.id}):void show(a.id)};});
   for(const ref of currentReferences.filter((ref,index,all)=>all.findIndex(other=>other.asset_id===ref.asset_id)!==index)){
     const base=inputMentions.find(m=>m.asset_id===ref.asset_id);if(!base)continue;
     const label=currentLabels.get(ref.id)?.slice(1,-1)??`${ref.kind==='image'?'Picture':ref.kind==='video'?'Video':'Audio'} ${++mentionCounts[ref.kind]}`;
@@ -98,7 +128,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   // Existing mentions retain their display label when the picker order changes.
   for(const match of text.matchAll(/\[([^\]]+)\]\(asset:([^)]+)\)/g)){const item=inputMentions.find(m=>m.id===match[2]);if(item&&!inputMentions.some(m=>m.token===match[0]))inputMentions.push({...item,id:item.id+':existing:'+match[1],token:match[0],label:match[1]!,hidden:true});}
   inputMentions.sort((a,b)=>Number(Boolean(a.earlier))-Number(Boolean(b.earlier)));
-  const missingMention=text.includes('[removed reference]')||/<(?:Picture|Video|Audio) [1-9][0-9]*>/.test(text)||[...text.matchAll(/\[[^\]]+\]\(asset:([^)]+)\)/g)].some(m=>!mentionAssets.some(a=>a.id===m[1]));
+  const missingMention=text.includes('[removed reference]')||unboundMentionPattern.test(text)||[...text.matchAll(/\[[^\]]+\]\(asset:([^)]+)\)/g)].some(m=>!mentionAssets.some(a=>a.id===m[1]));
   function removeMentionAsset(asset:string){setText(current=>current.replace(/\[[^\]]+\]\(asset:([^)]+)\)/g,(token,id)=>id===asset?'[removed reference]':token));}
   const drafts=useRef<Record<string,string>>({});
   const [caret,setCaret]=useState(0),[commandIndex,setCommandIndex]=useState(0),[dismissed,setDismissed]=useState(false);
@@ -115,26 +145,30 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   useLayoutEffect(scrollFollowing,[historyVersion,id]);
   useLayoutEffect(()=>{const observer=new ResizeObserver(scrollFollowing);if(history.current)observer.observe(history.current);if(historyContent.current)observer.observe(historyContent.current);return()=>{observer.disconnect();if(scrollFrame.current!==null)cancelAnimationFrame(scrollFrame.current);scrollFrame.current=null;};},[]);
   const busy=sending||saving||Boolean(chat&&chat.activity!=='idle');
-  useEffect(()=>{let disposed=false;const epoch=++generation.current;
+  useEffect(()=>{let disposed=false;++generation.current;++actionEpoch.current;invalidateRead();reads.current.busy=null;reads.current.active=true;setSaving(false);
     const params=new URLSearchParams(location.search),fromJob=params.get('fromJob');const restored=fromJob?null:params.get('chat')||remembered('selected.'+mode)||null;currentId.current=restored;
-    setList([]);setId(restored);setChat(null);setText(restored?remembered('draft.'+restored):'');setReview(null);setPreview(null);setSequence(null);setGallery(false);setSelected([]);setRename(null);setDeleting(null);
+    setList([]);setId(restored);setChat(null);setText(restored?remembered('draft.'+restored):'');setReview(null);updatePreview(null);setSequence(null);setGallery(false);setSelected([]);setRename(null);setDeleting(null);
     setFeedbackDraft(null);setBranchDraft(null);
+    const branchVersion=++branchLoad.current;
+    const branchAbandoned=()=>disposed||branchVersion!==branchLoad.current;
     if(fromJob)void (async()=>{try{
       const ids=(params.get('outputs')||fromJob).split(',');const jobs=await Promise.all(ids.map(id=>api('jobs/'+encodeURIComponent(id)))) as JobRecord[];
-      if(disposed)return;const first=jobs[0]!;if(!ids.includes(fromJob)||jobs.some(j=>j.submission_id!==first.submission_id))throw Error('Choose outputs from one request.');
+      if(branchAbandoned())return;const first=jobs[0]!;if(!ids.includes(fromJob)||jobs.some(j=>j.submission_id!==first.submission_id))throw Error('Choose outputs from one request.');
       if(first.request.mode!==mode)throw Error('Switch to the original request’s mode to use this draft.');
-      const source=first.source?.chat_id;if(source){const value=await api('chats/'+source);if(disposed)return;currentId.current=source;setId(source);setChat(value);setText(remembered('draft.'+source));}else{currentId.current=null;setId(null);setChat(null);}
+      const source=first.source?.chat_id;if(source){const value=await api('chats/'+source);if(branchAbandoned())return;currentId.current=source;setId(source);acceptChat(value);setText(remembered('draft.'+source));}else{currentId.current=null;setId(null);setChat(null);}
       setBranchDraft({jobs,fresh:params.get('seed')==='new'});
-    }catch(e){if(!disposed)setError((e as Error).message);}})();
+    }catch(e){if(!branchAbandoned())setError((e as Error).message);}})();
     void api('chat-config').then(v=>{if(!disposed)setConfigured(v.configured);}).catch(()=>{});
-    async function refresh(){try{const value=await api('chats?mode='+mode);if(!disposed){setList(value.items);connectionFailures.current=0;setConnection('online');}const active=currentId.current;if(active){const value=await api('chats/'+active);if(!disposed&&epoch===generation.current&&active===currentId.current&&value.mode===mode)setChat(value);}}catch(e){if(!disposed&&(e as Error).message==='Chat not found.'){remember('selected.'+mode,'');currentId.current=null;setId(null);setChat(null);setText('');window.history.replaceState(null,'','/chat');return;}if(!disposed){connectionFailures.current++;setConnection(connectionFailures.current>=5?'offline':'reconnecting');}}}
-    void refresh();const timer=setInterval(()=>void refresh(),1000);return()=>{disposed=true;clearInterval(timer);};
+    let listing=false;
+    async function refresh(){void refreshCurrent.current();if(listing)return;listing=true;try{const value=await api('chats?mode='+mode);if(!disposed){setList(value.items);if(!currentId.current){connectionFailures.current=0;setConnection('online');}}}catch{if(!disposed&&!currentId.current){connectionFailures.current++;setConnection(connectionFailures.current>=5?'offline':'reconnecting');}}finally{listing=false;}}
+    void refresh();const timer=setInterval(()=>void refresh(),1000);return()=>{disposed=true;reads.current.active=false;reads.current.busy=null;invalidateRead();++generation.current;++actionEpoch.current;clearInterval(timer);};
   },[mode]);
   useEffect(()=>{
     const branch=(event:Event)=>{
       const {jobs,fresh}=(event as CustomEvent<{jobs:JobRecord[];fresh:boolean}>).detail;
       if(!jobs.length||jobs[0]!.source?.chat_id!==currentId.current||jobs[0]!.request.mode!==mode)return;
       event.preventDefault();
+      branchLoad.current++;
       window.dispatchEvent(new Event('seed:branch-ready'));
       setFeedbackDraft(null);setBranchDraft({jobs,fresh});setBranchDetails(false);
       setJobDetail(null);setJobPreview(null);setReview(null);setError('');
@@ -144,12 +178,46 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
     window.addEventListener('seed:branch-chat',branch);
     return()=>window.removeEventListener('seed:branch-chat',branch);
   },[mode]);
-  useEffect(()=>{if(!id)return;const stream=new EventSource('/api/v1/chats/'+id+'/events');stream.onopen=()=>{void api('chats/'+id).then(value=>{if(currentId.current===id)setChat(value);}).catch(()=>{});};stream.onmessage=event=>{const value=JSON.parse(event.data);setChat(current=>current?.id===id?{...current,...value,messages:value.stream_message?(current.messages.some(m=>m.id===value.stream_message.id)?current.messages.map(m=>m.id===value.stream_message.id?value.stream_message:m):[...current.messages,value.stream_message]):current.messages,partial:value.activity==='idle'?current.partial:value.partial,partial_reasoning:value.activity==='idle'?current.partial_reasoning:value.partial_reasoning}:current);if(value.activity==='idle')void api('chats/'+id).then(value=>{if(currentId.current===id)setChat(value);});};return()=>stream.close();},[id]);
+  useEffect(()=>{if(!id)return;let closed=false;const stream=new EventSource('/api/v1/chats/'+id+'/events');stream.onopen=()=>{if(closed||currentId.current!==id)return;invalidateRead();void refreshCurrent.current();};stream.onmessage=event=>{
+    if(closed||currentId.current!==id)return;const value=JSON.parse(event.data);
+    if(typeof value.version==='number'){
+      if(versionFloor.current.id===id&&value.version<versionFloor.current.version)return;
+      versionFloor.current={id,version:value.version};
+    }
+    invalidateRead();if(reads.current.busy)reads.current.again=true;
+    setChat(current=>current?.id===id?{...current,...value,messages:value.stream_message?(current.messages.some(m=>m.id===value.stream_message.id)?current.messages.map(m=>m.id===value.stream_message.id?value.stream_message:m):[...current.messages,value.stream_message]):current.messages,partial:value.activity==='idle'?current.partial:value.partial,partial_reasoning:value.activity==='idle'?current.partial_reasoning:value.partial_reasoning}:current);
+    if(value.activity==='idle'||value.activity==='preparing')void refreshCurrent.current();
+  };return()=>{closed=true;stream.close();};},[id,mode]);
   useEffect(()=>{if(id)remember('draft.'+id,text);},[id,text]);
-  async function act(fn:()=>Promise<any>,scope:'chat'|'review'='chat'){const report=scope==='review'?setReviewError:setError;setSaving(true);report('');const epoch=generation.current;try{const value=await fn();if(epoch===generation.current&&value?.id===currentId.current)setChat(value);return value;}catch(e){if(epoch===generation.current)report((e as Error).message);return null;}finally{setSaving(false);}}
-  async function open(next:string){clearBranch();window.history.replaceState(null,'','/chat?chat='+next);onChooseChat();if(id)drafts.current[id]=text;remember('selected.'+mode,next);currentId.current=next;setId(next);setChat(null);setText(drafts.current[next]??remembered('draft.'+next));setSelected([]);refs.reset();setReview(null);const value=await act(()=>api('chats/'+next));if(value&&currentId.current===next)setChat(value);}
+  async function act(fn:()=>Promise<any>,scope:'chat'|'review'='chat',mutation=true){
+    const report=scope==='review'?setReviewError:setError,action=mutation?++actionEpoch.current:actionEpoch.current,epoch=generation.current,source=currentId.current;
+    const current=()=>action===actionEpoch.current&&epoch===generation.current&&source===currentId.current;
+    if(mutation){setSaving(true);invalidateRead();}report('');const readEpoch=reads.current.epoch;
+    try{
+      const value=await fn();if(!current())return null;
+      if(value?.id===currentId.current){
+        if(versionFloor.current.id===value.id&&value.version<versionFloor.current.version){void refreshCurrent.current(true);return null;}
+        // Streaming/refreshes can be newer than this HTTP snapshot at the same version.
+        if(readEpoch===reads.current.epoch)acceptChat(value);else void refreshCurrent.current(true);
+      }
+      return value;
+    }catch(e){if(current())report((e as Error).message);return null;}
+    finally{if(mutation&&action===actionEpoch.current&&epoch===generation.current)setSaving(false);}
+  }
+  async function decide(card:ChatCard,revision:ChatRevision,decision:'approved'|'denied',scope:'chat'|'review'='chat'){
+    const source=chat.id;
+    const result=await act(()=>api(`chats/${source}/cards/${card.id}/decision`,'POST',{revision:revision.number,decision}),scope) as View|null;
+    if(!result||source!==currentId.current)return;
+    const group=result.groups.find(g=>g.cards.some(c=>c.id===card.id));
+    if(scope==='review'&&!group?.submission_error)setReview(null);
+    const previous=new Set(chat.jobs.map(j=>j.id));
+    const admitted=result.jobs.filter(j=>jobActive(j)&&!previous.has(j.id)&&group?.cards.some(c=>c.revisions.at(-1)?.job_ids.includes(j.id)));
+    const needsWorker=admitted.find(j=>!pool.hasCapacity(workerClassFor(j.request.workflow),j.request.loras,j.request.workflow));
+    if(needsWorker)pool.open(workerClassFor(needsWorker.request.workflow));
+  }
+  async function open(next:string){clearBranch();window.history.replaceState(null,'','/chat?chat='+next);onChooseChat();if(id)drafts.current[id]=text;remember('selected.'+mode,next);currentId.current=next;setId(next);setChat(null);setText(drafts.current[next]??remembered('draft.'+next));setSelected([]);refs.reset();setReview(null);void refreshCurrent.current();}
   async function create(){clearBranch();window.history.replaceState(null,'','/chat');onChooseChat();if(id)drafts.current[id]=text;remember('selected.'+mode,'');currentId.current=null;setId(null);setChat(null);setText('');setSelected([]);refs.reset();setReview(null);setError('');setDismissed(true);composer.current?.focus();}
-  async function ensureChat(){if(chat.id)return chat;const value=await act(()=>api('chats','POST',{mode}));if(value){remember('selected.'+mode,value.id);setId(value.id);currentId.current=value.id;setChat(value);}return value;}
+  async function ensureChat(){if(chat.id)return chat;const value=await act(()=>api('chats','POST',{mode}));if(value){remember('selected.'+mode,value.id);setId(value.id);currentId.current=value.id;acceptChat(value);}return value;}
   async function settings(values:object){if(!chat.id){const value={...chat,...values};setChat(value);return value;}return act(()=>api('chats/'+chat.id,'PATCH',{version:chat.version,...values}));}
   async function chooseWorkflow(workflow:ChatWorkflow|'reasoning'){
     if(busy)return;const original=text,position=caret,token=commandToken;setDismissed(true);
@@ -181,7 +249,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
     let current:View|null;
     if(branchDraft){
       current=branchDraft.submitted?await api('chats/'+branchDraft.submitted):await api('jobs/'+branchDraft.jobs[0]!.id+'/branch-chat','POST',{fresh:branchDraft.fresh,job_ids:branchDraft.jobs.map(j=>j.id),draft:true});
-      if(!current)return;setBranchDraft({...branchDraft,submitted:current.id});setId(current.id);currentId.current=current.id;setChat(current);remember('selected.'+mode,current.id);window.history.replaceState(null,'','/chat?chat='+current.id);
+      if(!current)return;setBranchDraft({...branchDraft,submitted:current.id});setId(current.id);currentId.current=current.id;acceptChat(current);remember('selected.'+mode,current.id);window.history.replaceState(null,'','/chat?chat='+current.id);
       card=current.groups.find(g=>!['released','stopped'].includes(g.state))?.cards[0];revision=card?.revisions.at(-1)?.number;
     }else current=await ensureChat();if(!current)return;
     if(current.workflow!==workflow||current.reasoning!==reasoning){const changed=await act(()=>api('chats/'+current!.id,'PATCH',{version:current!.version,workflow,reasoning}));if(!changed)return;current=changed;}
@@ -190,7 +258,9 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
     }catch(e){setSendFailed(true);setError((e as Error).message);void reconnect();}finally{setSending(false);}
   }
   async function show(assetId:string,referenceLabel?:string,gallery?:string[],requestContext?:RequestPreviewContext){
-    const value=await act(()=>api('assets/'+assetId));
+    const load=++previewLoad.current;
+    const value=await act(()=>api('assets/'+assetId),'chat',false);
+    if(load!==previewLoad.current)return;
     const context=requestContext?structuredClone(requestContext):undefined,input=context?.references.find(ref=>ref.id===context.inputId);
     const inputLabel=input?(inputLabels(context!.references).get(input.id)?.slice(1,-1)??(input.role==='first_frame'?'First frame':input.role==='last_frame'?'Last frame':'Input')):undefined;
     if(value)setPreview({id:assetId,gallery:[...new Set(gallery??currentReferences.map(r=>r.asset_id))],requestContext:context,referenceLabel:context?.label??inputLabel??referenceLabel??inputMentions.find(m=>m.id===assetId)?.label,name:value.name||'Conversation asset',url:'/api/v1/assets/'+assetId+'/content',kind:value.kind,type:value.mime_type??'',width:value.width,height:value.height,duration:value.duration,size:value.size,has_audio:value.has_audio});
@@ -206,15 +276,35 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
   }
   const target=review&&chat?.groups.flatMap(g=>g.cards).find(c=>c.id===review.card.id);
   const openGroup=chat?.groups.find(g=>!['released','stopped'].includes(g.state));
-  const timeline:Array<{message:ChatMessage;group?:never}|{group:ChatGroup & {timeline_revision?:number};message?:never}>=[];
+  const reviewGroup=target&&chat.groups.find(g=>g.cards.some(c=>c.id===target.id));
+  const reviewStatus=target&&reviewGroup?submissionStatus(reviewGroup,target,target.revisions.at(-1)!,chat.activity):undefined;
+  type CardEntry={group:ChatGroup;card:ChatCard;timeline_revision:number;key:string};
+  const timeline:Array<{message:ChatMessage;entry?:never}|{entry:CardEntry;message?:never}>=[];
   const anchored=new Set<string>();
-  const entries=chat.groups.flatMap(group=>group.cards.flatMap(card=>card.revisions.filter(r=>r.number>=(card.timeline_start??1)).map(revision=>({group:{...group,id:group.id+'-'+card.id+'-'+revision.number,cards:[card],timeline_revision:revision.number},after:revision.after_message_id===undefined?group.after_message_id:revision.after_message_id}))));
-  function appendGroups(after:string|null){for(const entry of entries)if(entry.after===after){timeline.push({group:entry.group});anchored.add(entry.group.id);}}
-  appendGroups(null);for(const message of chat.messages){if(!(message.role==='event'&&(message.text.startsWith('Workflow: ')||message.text==='Workflow turned off.')))timeline.push({message});appendGroups(message.id);}for(const entry of entries)if(!anchored.has(entry.group.id))timeline.push({group:entry.group});
+  const entries=chat.groups.flatMap(group=>group.cards.flatMap(card=>card.revisions.filter(r=>r.number>=(card.timeline_start??1)).map(revision=>({group,card,timeline_revision:revision.number,key:group.id+'-'+card.id+'-'+revision.number,after:revision.after_message_id===undefined?group.after_message_id:revision.after_message_id}))));
+  function appendGroups(after:string|null){for(const entry of entries)if(entry.after===after){timeline.push({entry});anchored.add(entry.key);}}
+  appendGroups(null);for(const message of chat.messages){if(!(message.role==='event'&&(message.text.startsWith('Workflow: ')||message.text==='Workflow turned off.')))timeline.push({message});appendGroups(message.id);}for(const entry of entries)if(!anchored.has(entry.key))timeline.push({entry});
+  function renderCard({group,card,timeline_revision,key}:CardEntry){
+    const historical=timeline_revision!==card.revisions.at(-1)!.number;
+    const revision=card.revisions.find(r=>r.number===(historical?timeline_revision:cardVersions[card.id]))??card.revisions.at(-1)!;
+    const cardJobs=revision.job_ids.map(id=>chat.jobs.find(j=>j.id===id)).filter((j):j is JobRecord=>Boolean(j));
+    const status=submissionStatus(group,card,revision,chat.activity),active=cardJobs.some(jobActive),pending=status.kind==='review';
+    const edit=()=>setReview({card,revision});
+    const header=<RequestCardHeader request={revision.request} onPreview={showRequestInput} showLoras={false} onEdit={pending||(active&&!cardJobs.every(j=>jobState(j)==='cancelling'))?edit:undefined} label={cardJobs.length?'View job details':pending?'Review / history':'View request'} onOpen={()=>cardJobs.length?setJobDetail(cardJobs[0]!.id):edit()}/>;
+    const actions=active?<>{!cardJobs.every(j=>jobState(j)==='cancelling')&&<><JobButton icon="close" label="Cancel" danger disabled={saving} onClick={()=>void act(async()=>{await Promise.all(cardJobs.filter(jobActive).map(j=>jobApi('jobs/'+j.id+'/cancel',{})));return api('chats/'+chat.id);})}/></>}</>:cardJobs.length?cardJobs.every(j=>jobState(j)==='failed'&&!j.recovery_blocked)?<button type="button" className="job-button" disabled={saving} onClick={()=>void act(async()=>{await branchJobs(cardJobs,false,'chat');})}>Retry</button>:cardJobs.some(j=>['unknown','blocked'].includes(jobState(j))||j.recovery_blocked)?<button type="button" className="job-button" onClick={()=>setJobDetail(cardJobs.find(j=>['unknown','blocked'].includes(jobState(j))||j.recovery_blocked)!.id)}>Resolve issue</button>:<SeedMenu disabled={saving||Boolean(openGroup)} onChoose={(fresh,destination)=>void act(async()=>{await branchJobs(cardJobs,fresh,destination);return api('chats/'+chat.id);})}/>:<>
+      <span className={status.kind==='failed'?'job-start-failed':'job-pending-label'}>{status.label}</span>
+      {status.kind==='preparing'&&<JobButton icon="close" label="Stop" danger onClick={requestStop}/>}
+    </>;
+    const footer=status.kind==='waiting'?<div className="request-start-footer"><button type="button" disabled={saving} onClick={()=>setReview({card:status.next!,revision:status.next!.revisions.at(-1)!})}>Review next request</button></div>:status.kind==='failed'?<div className="request-start-footer"><p role="alert">{status.error}</p><div><button type="button" disabled={busy} onClick={edit}>Edit request</button><button type="button" className="job-review-button" disabled={busy} onClick={()=>void decide(card,revision,'approved')}>{status.retryLabel}</button></div></div>:undefined;
+    return <section className="chat-group" key={key}><div className="job-chat-wrap" id={historical?undefined:`request-${card.id}`}>
+      {pending?<ApprovalCard request={revision.request} header={header} disabled={busy} onEdit={edit} onDeny={()=>void decide(card,revision,'denied')} onApprove={()=>void decide(card,revision,'approved')}/>:<RequestCard request={revision.request} header={header} actions={actions} footer={footer} onEdit={edit}/>}
+      {cardJobs.length>0&&<>{cardJobs.filter(j=>j.provider_issue).slice(0,1).map(j=><ProviderError key={j.id} issue={j.provider_issue}/>)}<JobOutputs jobs={cardJobs} onSelect={j=>jobState(j)==='completed'?setJobPreview(j):setJobDetail(j.id)}/></>}
+      {!historical&&card.revisions.length>1&&<RevisionControls current={revision.number} total={card.revisions.length} label="request revision" onChange={number=>setCardVersions(v=>({...v,[card.id]:number}))}/>}</div></section>;
+  }
   return <section className="chat-layout">
     {sidebarTarget&&createPortal(<aside className="chat-sidebar"><div className="sidebar-chats-heading"><span>Chats</span><button aria-label="New chat" title="New chat" onClick={()=>void create()} disabled={saving}>+</button></div>{list.map(item=><ChatSidebarRow key={item.id} title={item.title} selected={item.id===id} working={item.activity!=='idle'} unread={Boolean(item.last_reply_id&&readReplies[item.id]!==undefined&&readReplies[item.id]!==item.last_reply_id)} status={item.error?'Needs attention':undefined} onOpen={()=>void open(item.id)} onRename={()=>{onChooseChat();setRename({id:item.id,title:item.title});}} onDelete={()=>{onChooseChat();setDeleting(item.id);}}/>)}</aside>,sidebarTarget)}
     <div className={'chat-main'+(welcome?' chat-welcome':'')}>
-      {!configured&&<p>Set up Chat with <code>seed setup --chat-only</code>.</p>}
+      {!configured&&<p>Add your OpenRouter key in <button onClick={()=>window.dispatchEvent(new Event('seed:admin-open'))}>Admin → Credentials</button> to use Chat.</p>}
         <>
         <div ref={history} className="chat-history" aria-live="polite" tabIndex={0}
  onWheel={event=>{if(event.deltaY<0)pauseFollowing();}}
@@ -223,15 +313,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
  onTouchEnd={()=>{touchY.current=null;}}
  onKeyDown={event=>{const target=event.target as HTMLElement;if(target.closest('input,textarea,[contenteditable="true"]'))return;if(['ArrowUp','PageUp','Home'].includes(event.key)||(event.key===' '&&event.shiftKey))pauseFollowing();}}
  onScroll={event=>{if(event.target!==event.currentTarget)return;const element=history.current;if(!element)return;const previous=lastScrollTop.current;const near=element.scrollHeight-element.scrollTop-element.clientHeight<=5;if(element.scrollTop<previous-1&&scrollSize.current===[element.scrollHeight,element.clientHeight,element.clientWidth].join())pauseFollowing();else if(near&&element.scrollTop>previous)follow.current=true;lastScrollTop.current=element.scrollTop;}}><div ref={historyContent} className="chat-history-content">
-          {timeline.map(({message,group})=>message?<article className={'chat-message '+message.role} key={message.id}>{message.role!=='assistant'&&<small>{message.role==='user'?'You':'Workflow'}</small>}{message.transcript?<TurnTranscript turn={message.transcript}/>:message.reasoning_text&&<Reasoning text={message.reasoning_text}/>}{message.request_attachment&&<SentRequest attachment={message.request_attachment} onOpen={showRequestInput}/>}{message.role==='assistant'?<ChatMarkdown text={message.text} streaming={message.transcript?.state==='running'}/>:<p>{message.role==='user'?<MentionedMessage text={message.text} onPreview={(asset,label)=>void show(asset,label,message.assets)}/>:message.text}</p>} {message.assets.length>0&&<div className="history-attachments">{message.assets.map(asset=><AssetThumbnail key={asset} id={asset} onOpen={()=>void show(asset,undefined,message.assets)}/>)}</div>}</article>:<section className="chat-group" key={group.id}>{group.cards.map(card=>{const historical=group.timeline_revision!==card.revisions.at(-1)!.number;const revision=card.revisions.find(r=>r.number===(historical?group.timeline_revision:cardVersions[card.id]))??card.revisions.at(-1)!;const replaced=revision.number!==card.revisions.at(-1)!.number&&!revision.job_ids.length;const cardJobs=revision.job_ids.map(id=>chat.jobs.find(j=>j.id===id)).filter((j):j is JobRecord=>Boolean(j));const active=cardJobs.some(jobActive),pending=!replaced&&revision.decision==='undecided'&&group.state==='reviewing';const header=<RequestCardHeader request={revision.request} onPreview={showRequestInput} onEdit={pending?()=>setReview({card,revision}):undefined} label={cardJobs.length?'View job details':pending?'Review / history':'View request'} onOpen={()=>cardJobs.length?setJobDetail(cardJobs[0]!.id):setReview({card,revision})}/>;
- const edit=()=>setReview({card,revision});
- const actions=replaced?<span className="job-pending-label">Replaced</span>:revision.decision==='denied'?<span className="job-denied"><JobIcon name="close"/>Denied</span>:active?<>{!cardJobs.every(j=>jobState(j)==='cancelling')&&<><JobButton icon="edit" label="Edit" onClick={()=>setReview({card,revision})}/><JobButton icon="close" label="Cancel" danger disabled={saving} onClick={()=>void act(async()=>{await Promise.all(cardJobs.filter(jobActive).map(j=>jobApi('jobs/'+j.id+'/cancel',{})));return api('chats/'+chat.id);})}/></>}</>:cardJobs.length?cardJobs.every(j=>jobState(j)==='failed'&&!j.recovery_blocked)?<button type="button" disabled={saving} onClick={()=>void act(async()=>{await branchJobs(cardJobs,false,'chat');})}>Retry</button>:cardJobs.some(j=>['unknown','blocked'].includes(jobState(j))||j.recovery_blocked)?<button type="button" onClick={()=>setJobDetail(cardJobs.find(j=>['unknown','blocked'].includes(jobState(j))||j.recovery_blocked)!.id)}>Resolve issue</button>:<SeedMenu disabled={saving||Boolean(openGroup)} onChoose={(fresh,destination)=>void act(async()=>{await branchJobs(cardJobs,fresh,destination);return api('chats/'+chat.id);})}/>:group.state==='revising'?<span className="job-pending-label">Revising…</span>:revision.decision==='approved'?<span className="job-approved" title="Waiting for decisions on the other requests"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden="true"><path d="m5 12 4 4 10-10"/></svg>Approved</span>:<span className="job-pending-label">{group.state==='stopped'?'Stopped':''}</span>;
- return <div className="job-chat-wrap" id={historical?undefined:`request-${card.id}`} key={card.id}>
- {pending?<ApprovalCard request={revision.request} header={header} disabled={busy} onEdit={edit}
-   onDeny={()=>void act(()=>api(`chats/${chat.id}/cards/${card.id}/decision`,'POST',{revision:revision.number,decision:'denied'}))}
-   onApprove={estimate_id=>{setReview({card,revision});void act(()=>api(`chats/${chat.id}/cards/${card.id}/decision`,'POST',{revision:revision.number,decision:'approved',estimate_id}),'review').then(result=>{if(result)setReview(null);});}}/>
-   :<RequestCard header={header} actions={actions} onEdit={edit}/>}
-{cardJobs.length>0&&<>{cardJobs.filter(j=>j.provider_issue).slice(0,1).map(j=><ProviderError key={j.id} issue={j.provider_issue}/>)}<JobOutputs jobs={cardJobs} onSelect={j=>jobState(j)==='completed'?setJobPreview(j):setJobDetail(j.id)}/></>}{!historical&&card.revisions.length>1&&<RevisionControls current={revision.number} total={card.revisions.length} label="request revision" onChange={number=>setCardVersions(v=>({...v,[card.id]:number}))}/>}</div>;})}</section>)}
+          {timeline.map(({message,entry})=>message?<article className={'chat-message '+message.role} key={message.id}>{message.role!=='assistant'&&<small>{message.role==='user'?'You':'Workflow'}</small>}{message.transcript?<TurnTranscript turn={message.transcript}/>:message.reasoning_text&&<Reasoning text={message.reasoning_text}/>}{message.request_attachment&&<SentRequest attachment={message.request_attachment} onOpen={showRequestInput}/>}{message.role==='assistant'?<ChatMarkdown text={message.text} streaming={message.transcript?.state==='running'}/>:<p>{message.role==='user'?<MentionedMessage text={message.text} onPreview={(asset,label)=>void show(asset,label,message.assets)}/>:message.text}</p>} {message.assets.length>0&&<div className="history-attachments">{message.assets.map(asset=><AssetThumbnail key={asset} id={asset} onOpen={()=>void show(asset,undefined,message.assets)}/>)}</div>}</article>:renderCard(entry))}
           {(chat.partial||chat.partial_reasoning)&&<article className="chat-message assistant">{chat.partial_reasoning&&<Reasoning text={chat.partial_reasoning} streaming={chat.activity==='thinking'&&!chat.partial}/>} {chat.partial&&<ChatMarkdown text={chat.partial} streaming={chat.activity!=='idle'}/>}</article>}
           {chat.error&&!chat.messages.some(m=>m.transcript?.error===chat.error)&&<p role="alert">{chat.error}</p>}
           {chat.activity==='thinking'&&!chat.partial&&!chat.partial_reasoning&&!chat.messages.some(m=>m.transcript?.state==='running')&&<p role="status">Thinking…</p>}
@@ -244,28 +326,32 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
           <div className="composer-input-line">
 
           <InlineComposer mentions={inputMentions} ref={composer} value={text} placeholder="Describe what you want to create… use / for workflows and commands" expanded={commandOpen&&!busy} activeOption={commandOpen&&commandResults.length?'workflow-option-'+(commandIndex%commandResults.length):undefined} onSelect={setCaret} onChange={(value,position)=>{if(chat.workflow&&text.includes(workflows[chat.workflow].command)&&!value.includes(workflows[chat.workflow].command))void settings({workflow:null});setText(value);setCaret(position);setDismissed(false);setCommandIndex(0);}} onKeyDown={e=>{if(e.key==='Backspace'&&!e.nativeEvent.isComposing&&composer.current!.selectionStart===composer.current!.selectionEnd){const position=composer.current!.selectionStart;const before=text.slice(0,position);const entry=Object.entries(workflows).find(([,w])=>before.endsWith(w.command)||before.endsWith(w.command+' '));if(entry){e.preventDefault();const length=entry[1].command.length+(before.endsWith(' ')?1:0);const next=text.slice(0,position-length)+text.slice(position);flushSync(()=>setText(next));composer.current!.setSelectionRange(position-length,position-length);setCaret(position-length);setDismissed(true);if(chat.workflow===entry[0])void settings({workflow:null});return;}}if(!e.nativeEvent.isComposing&&commandOpen&&!busy){if(e.key==='Escape'){e.preventDefault();setDismissed(true);return;}if(e.key==='ArrowDown'||e.key==='ArrowUp'){e.preventDefault();setCommandIndex(i=>(i+(e.key==='ArrowDown'?1:-1)+commandResults.length)%Math.max(1,commandResults.length));return;}if((e.key==='Enter'||e.key==='Tab')&&commandResults.length){e.preventDefault();void chooseWorkflow(commandResults[commandIndex%commandResults.length]![0] as ChatWorkflow|'reasoning');return;}}if(e.key==='Enter'&&!e.shiftKey&&!e.nativeEvent.isComposing){e.preventDefault();void send();}}} onPasteFiles={files=>{if(!busy)void refs.add(files);}}/></div>
-          {(refs.items.length>0||selected.length>0)&&<div className="composer-attachments">{refs.items.map(ref=><AssetThumbnail key={ref.id} id={ref.asset_id??ref.id} local={ref.file?ref:undefined} name={ref.name} onOpen={()=>ref.file?setPreview({...ref,id:ref.id}):void show(ref.asset_id!)} onRemove={()=>{removeMentionAsset(ref.id);refs.remove(ref.id);}}/>)}{selected.map(asset=><AssetThumbnail key={asset} id={asset} onOpen={()=>void show(asset)} onRemove={()=>{removeMentionAsset(asset);setSelected(current=>current.filter(v=>v!==asset));}}/>)}</div>}
+          {(refs.items.length>0||selected.length>0)&&<div className="composer-attachments">{refs.items.map(ref=><AssetThumbnail key={ref.id} id={ref.asset_id??ref.id} local={ref.file?ref:undefined} name={ref.name} onOpen={()=>ref.file?updatePreview({...ref,id:ref.id}):void show(ref.asset_id!)} onRemove={()=>{removeMentionAsset(ref.id);refs.remove(ref.id);}}/>)}{selected.map(asset=><AssetThumbnail key={asset} id={asset} onOpen={()=>void show(asset)} onRemove={()=>{removeMentionAsset(asset);setSelected(current=>current.filter(v=>v!==asset));}}/>)}</div>}
           {refs.errors.map((error,i)=><p role="alert" key={i}>{error}</p>)}
           {error&&!review&&!sendFailed&&connection==='online'&&<p role="alert" className="composer-error">{error}</p>}
-          {missingMention&&<small role="alert">Remove or replace the missing input mentions.</small>}<div className="composer-actions"><input ref={file} hidden type="file" multiple accept="image/*,video/*,audio/*" onChange={e=>{void refs.add(Array.from(e.target.files??[]));e.target.value='';}}/><AttachmentMenu disabled={busy||refs.busy} onFiles={()=>file.current?.click()} onLibrary={()=>setGallery(true)}/>{connection!=='online'?<span className="composer-connection" role="status">{connection==='reconnecting'?'⟳ Reconnecting…':'● Can’t reach Seed'}</span>:sendFailed?<details className="composer-failure"><summary>Couldn’t send ⓘ</summary><p role="alert">{error}</p></details>:null}{chat.id&&chat.activity!=='idle'?<button type="button" className="send-button stop-action" disabled={saving} onClick={requestStop}>Stop</button>:connection==='offline'?<button type="button" className="send-button" onClick={()=>void reconnect()}>Reconnect</button>:<button className="primary-action send-button" type="submit" disabled={busy||refs.busy||missingMention||connection!=='online'||!text.trim()||!configured}>{sendFailed?'Retry':'Send'}</button>}</div>
+          {missingMention&&<small role="alert">Remove or replace the missing input mentions.</small>}<div className="composer-actions"><input ref={file} hidden type="file" multiple accept="image/*,video/*,audio/*" onChange={e=>{void refs.add(Array.from(e.target.files??[]));e.target.value='';}}/><AttachmentMenu disabled={busy||refs.busy} onFiles={()=>file.current?.click()} onLibrary={()=>setGallery(true)}/>{connection!=='online'?<span className="composer-connection" role="status">{connection==='reconnecting'?'⟳ Reconnecting…':'● Can’t reach Seed'}</span>:sendFailed?<details className="composer-failure"><summary>Couldn’t send ⓘ</summary><p role="alert">{error}</p></details>:null}{chat.id&&chat.activity!=='idle'?<button type="button" className="send-button stop-action" disabled={saving&&chat.activity!=='preparing'} onClick={requestStop}>Stop</button>:connection==='offline'?<button type="button" className="send-button" onClick={()=>void reconnect()}>Reconnect</button>:<button className="primary-action send-button" type="submit" disabled={busy||refs.busy||missingMention||connection!=='online'||!text.trim()||!configured}>{sendFailed?'Retry':'Send'}</button>}</div>
         </form>
       </>
     </div>
     {branchDetails&&branchDraft&&<RequestDetails label="Draft request" title={jobName(branchDraft.jobs[0]!.request.workflow)} caption="Draft · not sent" close={()=>setBranchDetails(false)} request={{...branchDraft.jobs[0]!.request,count:branchDraft.jobs.length}} seedLabel={branchDraft.fresh?'Random':branchDraft.jobs.map(j=>j.seed).join(', ')} inputs={branchDraft.jobs[0]!.input_snapshot??[]} onPreview={showRequestInput}/>}
-    {jobPreview&&<JobMedia job={jobPreview} onClose={()=>setJobPreview(null)}/>}
-    {jobDetail&&chat.jobs.some(j=>j.id===jobDetail)&&<JobDetails initial={jobDetail} jobs={chat.jobs.filter(j=>j.submission_id===chat.jobs.find(v=>v.id===jobDetail)!.submission_id)} onClose={()=>setJobDetail(null)} onRefresh={()=>void api('chats/'+chat.id).then(setChat)}/>}
+    {jobPreview&&<JobMedia job={jobPreview} jobs={chat.jobs} onClose={()=>setJobPreview(null)}/>}
+    {jobDetail&&chat.jobs.some(j=>j.id===jobDetail)&&<JobDetails initial={jobDetail} jobs={chat.jobs.filter(j=>j.submission_id===chat.jobs.find(v=>v.id===jobDetail)!.submission_id)} onClose={()=>setJobDetail(null)} onRefresh={()=>void refreshCurrent.current()}/>}
     {gallery&&<GalleryPicker existing={refs.items} onClose={()=>setGallery(false)} onSelect={async assets=>{await refs.add(assets);setGallery(false);}}/>}
     {refs.notes.length>0&&<NoteModal ids={refs.notes} close={refs.dismissNotes} local={refs.items.filter(r=>Boolean(r.file))} onLocalNote={(id,note)=>refs.update(id,{note})}/>}
-    {preview&&<MediaPreview media={preview} navigation={previewNavigation()} referenceLabel={preview.referenceLabel??inputMentions.find(m=>m.id===preview.id)?.label} onClose={()=>setPreview(null)} controls={previewInput?.range&&<p className="viewer-input-range">Selected clip: {previewInput.range.start_seconds}–{Number((previewInput.range.start_seconds+previewInput.range.duration_seconds).toFixed(2))} seconds · Preview plays the full source</p>} note={preview.id.startsWith('reference-')?undefined:<AssetNote id={preview.id}/>}/>}
+    {preview&&<MediaPreview media={preview} navigation={previewNavigation()} referenceLabel={preview.referenceLabel??inputMentions.find(m=>m.id===preview.id)?.label} onClose={()=>updatePreview(null)} controls={previewInput?.range&&<p className="viewer-input-range">Selected clip: {previewInput.range.start_seconds}–{Number((previewInput.range.start_seconds+previewInput.range.duration_seconds).toFixed(2))} seconds · Preview plays the full source</p>} note={preview.id.startsWith('reference-')?undefined:<AssetNote id={preview.id}/>}/>}
     {sequence&&<FrameViewer id={sequence} onClose={()=>setSequence(null)}/>}
-    {review&&chat&&target&&<Review key={review.card.id} card={target} initial={review.revision} error={reviewError} assets={chat.asset_manifest??[]} mode={chat.mode} busy={saving||chat.activity==='thinking'||chat.activity==='preparing'} editable={openGroup?.cards.some(c=>c.id===target.id)??false} onPreview={showRequestInput} close={()=>setReview(null)}
+    {review&&chat&&target&&<Review key={review.card.id} card={target} initial={review.revision} error={reviewError||reviewStatus?.error||''} approveLabel={reviewStatus?.retryLabel} assets={chat.asset_manifest??[]} mode={chat.mode} busy={saving||chat.activity==='thinking'||chat.activity==='preparing'} editable={openGroup?.cards.some(c=>c.id===target.id)??false} onPreview={showRequestInput} close={()=>setReview(null)}
       save={async request=>{const result=await act(()=>api(`chats/${chat.id}/cards/${target.id}/revise`,'POST',{revision:target.revisions.at(-1)!.number,request}),'review');if(result){setCardVersions(v=>{const next={...v};delete next[review.card.id];return next;});const card=result.groups.flatMap((g:any)=>g.cards).find((c:any)=>c.id===target.id);setReview({card,revision:card.revisions.at(-1)});}return Boolean(result);}}
-      approve={async(estimate_id)=>{const result=await act(()=>api(`chats/${chat.id}/cards/${target.id}/decision`,'POST',{revision:target.revisions.at(-1)!.number,decision:'approved',estimate_id}),'review');if(result)setReview(null);}}
+      approve={()=>decide(target,target.revisions.at(-1)!,'approved','review')}
       restore={async(revision,request)=>{const value=await act(()=>api(`chats/${chat.id}/cards/${target.id}/restore`,'POST',{revision,request}),'review');if(value)setReview(null);}}
       stop={()=>{requestStop();setReview(null);}}
       feedback={()=>{setBranchDraft(null);setFeedbackDraft({card:target,revision:target.revisions.at(-1)!});setReview(null);requestAnimationFrame(()=>composer.current?.focus());}} />}
     {rename&&<Modal className="rename-chat-modal" aria-label="Rename chat" onCancel={()=>setRename(null)}><form onSubmit={e=>{e.preventDefault();void act(async()=>{const current=await api('chats/'+rename.id);const value=await api('chats/'+rename.id,'PATCH',{version:current.version,title:rename.title});setList(items=>items.map(item=>item.id===value.id?{...item,title:value.title}:item));setRename(null);return value;});}}><header><h2>Rename chat</h2><JobButton icon="close" label="Close rename" iconOnly onClick={()=>setRename(null)}/></header><label>Chat name<input autoFocus onFocus={e=>e.currentTarget.select()} aria-label="Chat title" value={rename.title} maxLength={120} onChange={e=>setRename({...rename,title:e.target.value})}/></label>{error&&<p role="alert">{error}</p>}<footer><button type="button" onClick={()=>setRename(null)}>Cancel</button><button className="primary-action" disabled={saving||!rename.title.trim()}>Save</button></footer></form></Modal>}
-    {stopping&&<ConfirmDialog title="Stop this chat?" description="This will stop the agent and cancel all queued and running jobs in this chat. Completed media stays in Library." action="Stop chat and jobs" onClose={()=>setStopping(null)} onConfirm={async()=>{const value=await api('chats/'+stopping+'/stop','POST',{});if(currentId.current===stopping)setChat(value);}}/>}
+    {stopping&&<ConfirmDialog title="Stop this chat?" description="This will stop the agent and cancel all queued and running jobs in this chat. Completed media stays in Library." action="Stop chat and jobs" onClose={()=>setStopping(null)} onConfirm={async()=>{
+      const action=++actionEpoch.current,epoch=generation.current;invalidateRead();const readEpoch=reads.current.epoch;
+      try{const value=await api('chats/'+stopping+'/stop','POST',{});if(action===actionEpoch.current&&epoch===generation.current&&currentId.current===stopping){if(readEpoch===reads.current.epoch)acceptChat(value);else void refreshCurrent.current(true);}}
+      finally{if(action===actionEpoch.current&&epoch===generation.current)setSaving(false);}
+    }}/>}
     {deleting&&<ConfirmDialog title="Delete chat?" description="Uploaded and generated media stays in Library. Stop active generation before deleting a chat." action="Delete chat" onClose={()=>setDeleting(null)} onConfirm={async()=>{await api('chats/'+deleting,'DELETE');setList(items=>items.filter(item=>item.id!==deleting));if(currentId.current===deleting){remember('selected.'+mode,'');setId(null);currentId.current=null;setChat(null);setText('');}setDeleting(null);}}/>}
   </section>;
 }
@@ -281,4 +367,4 @@ function Reasoning({text,streaming=false}:{text:string;streaming?:boolean}){
 
 
 
-function MentionedMessage({text,onPreview}:{text:string;onPreview:(id:string,label?:string)=>void}){return <>{text.split(/(\[(?:Picture|Video|Audio) [1-9][0-9]*\]\(asset:[^)]+\))/g).map((part,i)=>part.includes('](asset:')?<MentionText key={i} text={part} onPreview={onPreview}/>:<CommandText key={i} text={part}/>)}</>;}
+function MentionedMessage({text,onPreview}:{text:string;onPreview:(id:string,label?:string)=>void}){return <>{text.split(boundMentionPattern).map((part,i)=>part.includes('](asset:')?<MentionText key={i} text={part} onPreview={onPreview}/>:<CommandText key={i} text={part}/>)}</>;}

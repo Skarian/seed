@@ -1,7 +1,15 @@
 export type LabelInput={id?:string;asset_id:string;kind:'image'|'video'|'audio';role:string;include_audio?:boolean};
+export const inputLabelPatternSource='(?:(?:Picture|Video|Audio) [1-9][0-9]*|image[1-9][0-9]*)';
+/** Both video and image-editing labels reserve their numbered composer slots. */
+export function parseInputLabel(label:string):{kind:LabelInput['kind'];number:number}|undefined{
+ const match=/^<(?:(Picture|Video|Audio) ([1-9][0-9]*)|image([1-9][0-9]*))>$/.exec(label);
+ if(!match)return;
+ return {kind:match[1]==='Video'?'video':match[1]==='Audio'?'audio':'image',number:Number(match[2]??match[3])};
+}
 /** Model slots are keyed by input INSTANCE, not its source file. Id-less composer
  * assets may use their asset id until a request instance exists. */
 export function inputLabels(refs:LabelInput[]){
+ if(refs.some(ref=>ref.role==='source')) return new Map([...refs.filter(r=>r.role==='source'),...refs.filter(r=>r.role!=='source')].map((ref,i)=>[ref.id??ref.asset_id,`<image${i+1}>`]));
  const labels=new Map<string,string>();let audio=0;
  for(const ref of refs)if(ref.kind==='video'&&ref.role==='reference'&&ref.include_audio)labels.set((ref.id??ref.asset_id)+':audio',`<Audio ${++audio}>`);
  const counts={image:0,video:0,audio};
@@ -18,7 +26,7 @@ export function promptBindings(refs:LabelInput[]){
  }
  return bindings;
 }
-export const promptReferencePattern=/<(?:Picture|Video|Audio) [1-9][0-9]*>|\bthe (?:opening|ending)-frame guide\b/g;
+export const promptReferencePattern=new RegExp('<'+inputLabelPatternSource+'>|\\bthe (?:opening|ending)-frame guide\\b','g');
 export function remapReferences(prompt:string,before:Map<string,string>,after:Map<string,string>){
  const replacements=new Map([...before].map(([id,label])=>[label,after.get(id)??'[removed reference]']));
  return prompt.replace(promptReferencePattern,label=>replacements.get(label)??label);

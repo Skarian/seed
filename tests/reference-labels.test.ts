@@ -1,6 +1,14 @@
 import {test,expect} from 'vitest';
-import {inputLabels,promptBindings,remapReferences,type LabelInput} from '../shared/reference-labels.js';
+import {inputLabels,parseInputLabel,promptBindings,remapReferences,type LabelInput} from '../shared/reference-labels.js';
 const refs:LabelInput[]=[{asset_id:'photo',kind:'image',role:'reference'},{asset_id:'clip',kind:'video',role:'reference',include_audio:true},{asset_id:'sound',kind:'audio',role:'reference'}];
+
+test('composer slots understand every label emitted by image editing and video inputs',()=>{
+ const edit:LabelInput[]=[{id:'style',asset_id:'style-file',kind:'image',role:'reference'},{id:'source',asset_id:'source-file',kind:'image',role:'source'}];
+ expect([...inputLabels(edit).values()].map(parseInputLabel)).toEqual([{kind:'image',number:1},{kind:'image',number:2}]);
+ expect([...inputLabels(refs).values()].map(parseInputLabel)).toEqual([{kind:'audio',number:1},{kind:'image',number:1},{kind:'video',number:1},{kind:'audio',number:2}]);
+ for(const label of ['<image0>','<image>','<Picture 0>','Unknown label'])expect(parseInputLabel(label)).toBeUndefined();
+ expect(remapReferences('Use <image1> with <image2>.',inputLabels(edit),inputLabels(edit.slice(1)))).toBe('Use <image1> with [removed reference].');
+});
 test('soundtracks reserve slots and changing inputs preserves mention identity',()=>{
  const before=inputLabels(refs);expect(before.get('sound')).toBe('<Audio 2>');
  const after=inputLabels(refs.map(r=>({...r,include_audio:false})));

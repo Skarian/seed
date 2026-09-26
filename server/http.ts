@@ -2,39 +2,55 @@ import { Sequences } from './sequences.js';
 import { pickFrame } from './frames.js';
 import {registerAdmin} from './admin.js';
 import {LoraImports} from './lora-imports.js';
-import {Pricing} from './pricing.js';
+import {WorkerPool} from './pool.js';
+import {createProviders} from './pool-providers.js';
+import {PoolWorkerDriver} from './pool-worker.js';
+import type {PoolDependencies} from './pool-contracts.js';
+import {Loras} from './loras.js';
+import {acquireCoordinator} from './coordinator-lock.js';
+import {PoolError,poolIssue} from './pool-errors.js';
+import {Diagnostics} from './diagnostics.js';
+import {clientFailurePath,registerClientFailures} from './client-failure.js';
+import type {LaunchRequest,PoolAction} from '../shared/pool.js';
 import {imageRequest} from './workflows.js';
-import {FalError} from './fal-errors.js';
 import { registerNotes } from './notes.js';
+import {registerAssetOrganization} from './asset-organization.js';
 import { Chats } from './chat/service.js';
 import { registerChats } from './chat/http.js';
 import { chatCredential } from './chat/credentials.js';
 import { Previews } from './previews.js';
+import {removeAssetCaches,sweepMediaCaches} from './media-cache.js';
 import Fastify from 'fastify';
-import { Fal, type FalTransport } from './fal.js';
-import { falCredential } from './credentials.js';
 import fastifyStatic from '@fastify/static';
 import { randomUUID } from 'node:crypto';
 import { existsSync, createReadStream, statSync, realpathSync, unlinkSync } from 'node:fs';
 import { Jobs } from './jobs.js';
+import {jobNeedsAttention} from '../shared/jobs.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listAssets, openDatabase } from './db.js';
 import { prepareStorage, type StudioPaths } from './storage.js';
 import type { StudioSnapshot } from '../shared/studio.js';
 
-export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; fal?: FalTransport; providerFetch?:typeof fetch; chatFetch?:typeof fetch }) {
+export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; poolDependencies?: PoolDependencies; providerFetch?:typeof fetch; chatFetch?:typeof fetch }) {
   prepareStorage(options.paths);
-  const db = openDatabase(options.paths.data);
-  const fal = options.fal ?? new Fal(()=>falCredential(options.paths));
-  const jobs = new Jobs(db, options.paths, fal);
-  const pricing=new Pricing(options.paths,jobs.loras,options.providerFetch);
-  const imports=new LoraImports(options.paths,jobs.loras,fal,options.providerFetch);
-  const chats = new Chats(db, options.paths, jobs,options.chatFetch,pricing);
+  const releaseCoordinator=acquireCoordinator(options.paths);
+  let db:ReturnType<typeof openDatabase>;
+  try {db=openDatabase(options.paths.data);}catch(error){releaseCoordinator();throw error;}
+  const diagnostics=new Diagnostics(db,options.paths,options.poolDependencies?.now);
+  try {
+  const dependencies=options.poolDependencies??{providers:createProviders(options.paths,options.providerFetch,diagnostics),worker:new PoolWorkerDriver(options.paths,diagnostics)};
+  const pool=new WorkerPool(db,options.paths,new Loras(options.paths),dependencies,diagnostics);
+  const jobs=new Jobs(db,options.paths,pool);
+  const imports=new LoraImports(options.paths,jobs.loras,options.providerFetch);
+  const chats=new Chats(db,options.paths,jobs,options.chatFetch);
   const sequences = new Sequences(db, options.paths.data, options.paths.cache, jobs);
   const previews = new Previews(options.paths.data, options.paths.cache);
-  sequences.recover();
-  const app = Fastify({ logger: false, bodyLimit: 16 * 1024, trustProxy: false, ajv: { customOptions: { removeAdditional: false } } });
+  sequences.recover(failure=>diagnostics.event({category:'server',operation:'media.sequence_cleanup',level:'warn',data:failure}));
+  const sweepCaches=()=>sweepMediaCaches(db,options.paths,jobs,failure=>diagnostics.event({category:'server',operation:'media.cache_cleanup',level:'warn',data:failure}));
+  await jobs.serialize(async()=>sweepCaches());
+  const app = Fastify({ logger: false, genReqId:()=>randomUUID(), bodyLimit: 16 * 1024, trustProxy: false, ajv: { customOptions: { removeAdditional: false } } });
+  app.decorate('seedPool',pool);
   const allowedHost = `${options.host ?? '127.0.0.1'}:${options.port}`;
   const origin = `http://${allowedHost}`;
   const instanceId = randomUUID();
@@ -52,6 +68,12 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     }
   });
   app.addHook('onSend', async (request, reply, payload) => {
+    if(reply.statusCode>=400 && request.routeOptions.url !== clientFailurePath) {
+      let detail:unknown;
+      if(typeof payload==='string')try{detail=JSON.parse(payload).error;}catch{}
+      diagnostics.event({category:'server',operation:'http.response',level:reply.statusCode>=500?'error':'warn',request_id:request.id,
+        data:{method:request.method,path:request.routeOptions.url,status:reply.statusCode,error:detail}});
+    }
     reply.header('X-Content-Type-Options', 'nosniff');
     reply.header('Referrer-Policy', 'no-referrer');
     reply.header('Content-Security-Policy', "default-src 'self'; script-src 'self'; style-src 'self'; img-src 'self' blob: data:; media-src 'self' blob:; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
@@ -59,25 +81,41 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     return payload;
   });
   app.setErrorHandler((error, request, reply) => {
+    diagnostics.error('http.exception',error,{request_id:request.id});
     const statusCode = error instanceof Error && 'statusCode' in error ? error.statusCode : undefined;
     const status = typeof statusCode === 'number' && statusCode >= 400 && statusCode < 500 ? statusCode : 500;
     return fail(reply, status, status === 500 ? 'internal_error' : 'invalid_request', status === 500 ? 'seed could not complete this request.' : 'Check the request and try again.', request.id);
   });
   await jobs.media.register(app);
+  registerClientFailures(app,diagnostics);
   registerNotes(app, db);
-  registerAdmin(app,options.paths,jobs,imports,pricing,options.providerFetch);
+  registerAssetOrganization(app, db);
+  registerAdmin(app,options.paths,jobs.loras,imports,{fetcher:options.providerFetch,changeCredential:(field,next,previous,commit)=>pool.withCredentialChange(field,next,previous,commit)});
   registerChats(app,chats,()=>Boolean(chatCredential(options.paths)));
-  app.addHook('onReady', async () => { jobs.start(); });
-  app.addHook('preClose', async () => { await imports.close();await chats.close(); await jobs.close(); });
-  app.addHook('onClose', async () => { await jobs.media.close(); db.close(); });
+  app.addHook('onReady', async () => { diagnostics.event({category:'server',operation:'started',data:{instance_id:instanceId}});pool.start();jobs.start(); });
+  app.addHook('preClose', async () => { await imports.close();await chats.close(); await pool.close();await jobs.close(); });
+  app.addHook('onClose', async () => { await jobs.media.close();diagnostics.event({category:'server',operation:'stopped'}); db.close();releaseCoordinator(); });
+  const poolResult=(fn:(r:any)=>Promise<unknown>|unknown)=>async(request:any,reply:any)=>diagnostics.within({request_id:request.id},async()=>{try{return await fn(request);}catch(error){diagnostics.error('pool.request',error);return reply.code(409).send({error:error instanceof PoolError?error.issue:{code:'pool_request_failed',message:error instanceof Error?error.message:'Cannot complete this worker action.',retryable:false}});}});
+  app.get('/api/v1/pool/history',{schema:{querystring:{type:'object',additionalProperties:false,properties:{from:{type:'string',format:'date-time'},to:{type:'string',format:'date-time'},provider:{enum:['vast','runpod']},worker_class:{enum:['image','video']}}}}},async request=>diagnostics.history(request.query as any));
+  app.get('/api/v1/pool/workers/:id/history',{schema:{querystring:{type:'object',additionalProperties:false,properties:{after:{type:'integer',minimum:0}}}}},async request=>diagnostics.details((request.params as any).id,(request.query as any).after));
+  app.get('/api/v1/pool/workers/:id/startup-logs',async (request,reply)=>{
+    const record=pool.startupLogs.read((request.params as {id:string}).id);
+    return record??reply.code(404).send({error:{message:'Worker startup logs were not found.'}});
+  });
+  app.post('/api/v1/pool/workers/:id/history',{schema:{body:{type:'object',additionalProperties:false,properties:{campaign:{type:'string',maxLength:100},manual_intervention:{type:'boolean'},note:{type:'string',maxLength:2000}}}}},poolResult(r=>{diagnostics.annotate(r.params.id,r.body);return {saved:true};}));
+  app.get('/api/v1/pool',async()=>pool.snapshot());
+  app.get('/api/v1/diagnostics',{schema:{querystring:{type:'object',additionalProperties:false,properties:{after:{type:'integer',minimum:0},level:{enum:['info','warn','error']}}}}},async request=>diagnostics.events((request.query as any).after,(request.query as any).level));
+  app.get('/api/v1/pool/offers',{schema:{querystring:{type:'object',additionalProperties:false,required:['worker_class'],properties:{worker_class:{enum:['image','video']}}}}},poolResult(r=>pool.offers(r.query.worker_class)));
+  app.post('/api/v1/pool/launch',{schema:{body:{type:'object',additionalProperties:false,required:['selections','max_hourly'],properties:{max_hourly:{type:'number',minimum:0},selections:{type:'array',minItems:1,maxItems:16,items:{type:'object',additionalProperties:false,required:['offer_id','quantity'],properties:{offer_id:{type:'string'},quantity:{type:'integer',minimum:1,maximum:16}}}}}}}},poolResult(r=>pool.launch(r.body as LaunchRequest,String(r.headers['idempotency-key']??''))));
+  app.post('/api/v1/pool/workers/:id/actions',{schema:{body:{type:'object',additionalProperties:false,required:['action'],properties:{action:{enum:['reconnect','retry_preparation','omit_loras','local_fallback','finish','quit','dismiss_launch_failure']},paths:{type:'array',maxItems:256,items:{type:'string'}}}}}},poolResult(r=>pool.action(r.params.id,r.body.action as PoolAction,r.body.paths)));
+  app.post('/api/v1/pool/actions',{schema:{body:{type:'object',additionalProperties:false,required:['action'],properties:{action:{enum:['finish','quit']}}}}},poolResult(r=>pool.actionAll(r.body.action)));
   app.get('/api/v1/health', async () => ({ application: 'seed', version: '0.1.0', instance_id: instanceId }));
-  app.post('/api/v1/estimates',async(request,reply)=>{try{return await pricing.estimate(request.body);}catch(error){return reply.code(409).send({error:error instanceof FalError?error.issue:{code:'estimate_unavailable',message:(error as Error).message,retryable:true}});}});
   app.get('/api/v1/studio', async (): Promise<StudioSnapshot> => {
     const importJobs=imports.list('nsfw');
     return {
       loras_revision: jobs.loras.revision(),
-      provider: { configured: fal.configured, name: 'fal' },
-      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + jobs.all().filter(j => j.state === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + jobs.all().filter(j => ['uploading','submitting','running','copying','cancel_requested'].includes(j.state)&&!j.recovery_blocked).length, needs_attention: importJobs.filter(j=>j.state==='failed').length + jobs.all().filter(j=>j.recovery_blocked||j.state==='blocked'||j.state==='needs_attention'&&!j.uncertainty_acknowledged).length },
+      pool: pool.snapshot().summary,
+      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + jobs.all().filter(j => j.state === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + jobs.all().filter(j => ['uploading','submitting','running','copying','cancel_requested'].includes(j.state)&&!j.recovery_blocked).length, needs_attention: importJobs.filter(j=>j.state==='failed').length + jobs.all().filter(j=>jobNeedsAttention(j)).length },
       outputs: { pending: jobs.all().filter(j => j.state === 'copying').length },
     };
   });
@@ -86,7 +124,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try {jobs.loras.setAvailability((request.params as {id:string}).id,(request.body as {availability:string}).availability);return {saved:true};}
     catch(error){return fail(reply,409,'lora_update_failed',(error as Error).message,request.id);}
   });
-  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},kind:{enum:['image','video','audio']},mode:{enum:['sfw','nsfw']}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw';kind?:string}; const items = listAssets(db, query.cursor ?? '', 51, query.mode, query.kind); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},kind:{enum:['image','video','audio']},mode:{enum:['sfw','nsfw']},favorites:{type:'boolean'},collection_id:{type:'string',minLength:1}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw';kind?:string;favorites?:boolean;collection_id?:string}; const items = listAssets(db, query.cursor ?? '', 51, query.mode, query.kind, query); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/sequences/:id', async (request,reply)=> {
     try {return sequences.get((request.params as any).id) ?? fail(reply,404,'not_found','Sequence not found.',request.id);}
     catch(e){return fail(reply,409,'sequence_busy',(e as Error).message,request.id);}
@@ -103,16 +141,17 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     catch{return fail(reply,409,'preview_failed','Could not load sequence preview.',request.id);}
   });
   app.post('/api/v1/sequences/:id/keep-only',async(request,reply)=>jobs.serialize(async()=>{
-    try {const body=request.body as any;return sequences.prune((request.params as any).id,body?.asset_ids,body?.revision);}
+    try {const body=request.body as any,id=(request.params as any).id;
+      const result=await previews.withDeletion(sequences.assetIds(id),[id],()=>sequences.prune(id,body?.asset_ids,body?.revision));sweepCaches();return result;}
     catch(e){return fail(reply,409,'sequence_changed',(e as Error).message,request.id);}
   }));
   app.post('/api/v1/sequences/:id/retry-cleanup',async(request,reply)=>jobs.serialize(async()=>{
-    try{return {sequence:sequences.retry((request.params as any).id)};}
+    try{const id=(request.params as any).id;const sequence=await previews.withDeletion(sequences.assetIds(id),[id],()=>sequences.retry(id));sweepCaches();return {sequence};}
     catch(e){return fail(reply,409,'cleanup_pending',(e as Error).message,request.id);}
   }));
   app.delete('/api/v1/sequences/:id',async(request,reply)=>jobs.serialize(async()=>{
     try {const id=(request.params as any).id;const sequence=db.prepare('SELECT revision FROM sequences WHERE id=?').get(id) as any;
-      sequences.prune(id,[],sequence?.revision??0,true);return reply.code(204).send();}
+      await previews.withDeletion(sequences.assetIds(id),[id],()=>sequences.prune(id,[],sequence?.revision??0,true));sweepCaches();return reply.code(204).send();}
     catch(e){return fail(reply,409,'delete_failed',(e as Error).message,request.id);}
   }));
   app.get('/api/v1/assets/:id/preview',async(request,reply)=>{
@@ -136,30 +175,40 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
         const sequence=sequences.get(membership.sequence_id)!;
         if(sequence.cleanup_pending)throw Error('This image is still being removed. Try again shortly.');
         const keep=sequence.frames.filter(frame=>frame.id!==id).map(frame=>frame.id);
-        sequences.prune(sequence.id,keep,sequence.revision,!keep.length);
+        await previews.withDeletion(sequences.assetIds(sequence.id),[sequence.id],()=>sequences.prune(sequence.id,keep,sequence.revision,!keep.length));
+        sweepCaches();
         return reply.code(204).send();
       }catch(error){return fail(reply,409,'delete_failed',(error as Error).message,request.id);}
     }
-    if(jobs.all().some(job=>!['completed','failed','cancelled'].includes(job.state) && job.request.references?.some(ref=>ref.asset_id===id))) return fail(reply,409,'asset_busy','A queued job still needs this file.',request.id);
+    if(jobs.usesAsset(id)) return fail(reply,409,'asset_busy','A job still needs this file. Wait for it to finish.',request.id);
     const owners = jobs.all().filter(job => job.outputs.includes(id));
     if (owners.some(job => job.state !== 'completed')) return fail(reply, 409, 'asset_busy', 'This file is still being saved. Try again shortly.', request.id);
     const root = realpathSync(options.paths.data) + path.sep;
     const file = path.resolve(options.paths.data, asset.relative_path);
     if (!file.startsWith(path.resolve(options.paths.data) + path.sep) || (existsSync(file) && !realpathSync(file).startsWith(root))) return fail(reply, 409, 'invalid_asset', 'Cannot delete this file location.', request.id);
+    return previews.withDeletion([id],[],async()=>{
+    try {removeAssetCaches(db,options.paths,jobs,[id]);}
+    catch {return fail(reply,409,'delete_failed','Could not remove a cached copy. Close apps using it and retry deletion.',request.id);}
     // Keep the record on file errors so deletion can be retried. A missing file is already deleted.
     try { unlinkSync(file); } catch (error) { if ((error as NodeJS.ErrnoException).code !== 'ENOENT') return fail(reply, 409, 'delete_failed', 'Could not delete the file. Close any apps using it and try again.', request.id); }
     db.transaction(() => {
       db.prepare('DELETE FROM assets WHERE id=?').run(id);
       for (const job of owners) { job.deleted_outputs = [...(job.deleted_outputs??[]),id]; job.outputs = job.outputs.filter(output => output !== id); jobs.save(job); }
     })();
+    sweepCaches();
     return reply.code(204).send();
+    });
   }));
   app.post('/api/v1/jobs', async (request, reply) => {
-    try { const estimate=pricing.accept(request.headers['x-seed-estimate'],imageRequest(request.body));const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''),estimate)); return reply.code(202).send(result); }
+    try { const result = await jobs.serialize(() => jobs.submit(request.body, String(request.headers['idempotency-key'] ?? ''))); return reply.code(202).send(result); }
     catch (error) { return fail(reply, 409, 'submission_failed', (error as Error).message, request.id); }
   });
-  app.get('/api/v1/jobs', async request => { const query=request.query as {cursor?:string;mode?:string};if(query.mode){const items=jobs.all().filter(j=>j.request.mode===query.mode).reverse();return {items,next_cursor:null};}const cursor = String(query.cursor ?? ''); const items = jobs.list(51, cursor); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
-  app.get('/api/v1/jobs/:id', async (request, reply) => jobs.get((request.params as { id: string }).id) ?? fail(reply, 404, 'not_found', 'Job not found.', request.id));
+  app.get('/api/v1/jobs', async request => { const query=request.query as {cursor?:string;mode?:string};if(query.mode){const items=jobs.all().filter(j=>j.request.mode===query.mode).reverse().map(j=>jobs.publicJob(j));return {items,next_cursor:null};}const cursor = String(query.cursor ?? ''); const items = jobs.list(51, cursor); return { items: items.slice(0, 50).map(j=>jobs.publicJob(j)), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.get('/api/v1/jobs/:id', async (request, reply) => { const job=jobs.get((request.params as { id: string }).id); return job ? jobs.publicJob(job) : fail(reply, 404, 'not_found', 'Job not found.', request.id); });
+  app.post('/api/v1/jobs/:id/recover', {schema:{body:{type:'object',additionalProperties:false,maxProperties:0}}}, async(request,reply)=>{
+    try { return reply.code(202).send(jobs.recover((request.params as {id:string}).id)); }
+    catch(error) { return fail(reply,409,'recovery_failed',(error as Error).message,request.id); }
+  });
   app.post('/api/v1/jobs/:id/branch-chat', {schema:{body:{type:'object',additionalProperties:false,required:['fresh'],properties:{draft:{type:'boolean'},fresh:{type:'boolean'},job_ids:{type:'array',minItems:1,maxItems:16,items:{type:'string'}}}}}}, async(request,reply)=>{
     try{const id=(request.params as {id:string}).id,body=request.body as {fresh:boolean;draft?:boolean;job_ids?:string[]};if(body.job_ids&&!body.job_ids.includes(id))throw Error('Source output must be included.');return chats.branch(body.job_ids??[id],body.fresh,body.draft);}catch(e){return fail(reply,409,'branch_failed',(e as Error).message,request.id);}
   });
@@ -167,8 +216,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try{return await jobs.serialize(async()=>{
       const original=jobs.get((request.params as {id:string}).id);if(!original)throw Error('Job not found.');
       const body=request.body as {request:unknown};
-      const estimate=pricing.accept(request.headers['x-seed-estimate'],imageRequest(body.request));
-      const staged=await jobs.prepareSubmission(body.request,String(request.headers['idempotency-key']??''),{...original.source,job_id:original.id},estimate);
+      const staged=await jobs.prepareSubmission(body.request,String(request.headers['idempotency-key']??''),{...original.source,job_id:original.id});
       return db.transaction(staged.commit)();
     });}catch(e){return fail(reply,409,'repeat_failed',(e as Error).message,request.id);}
   });
@@ -219,4 +267,5 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   }
   app.setNotFoundHandler((request, reply) => fail(reply, 404, 'not_found', 'This page or operation is not available.', request.id));
   return app;
+  } catch(error){diagnostics.error('server.initialize',error);db.close();releaseCoordinator();throw error;}
 }

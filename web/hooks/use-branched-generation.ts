@@ -9,9 +9,12 @@ export function useBranchedGeneration(
   replace: (workflow: WorkflowId, draft: GenerationDraft) => void,
   references: ReturnType<typeof useReferences>,
   onWorkflowChange: (workflow: WorkflowId) => void,
+  editingReferences?:ReturnType<typeof useReferences>,
 ) {
   const [error, setError] = useState<{ mode: string; workflow: WorkflowId; message: string }>();
   useEffect(() => {
+    // Generate remains mounted in Chat; only the destination may consume a branch URL.
+    if (location.pathname !== '/') return;
     const query = new URLSearchParams(location.search),
       id = query.get('fromJob');
     if (!id) return;
@@ -69,7 +72,7 @@ export function useBranchedGeneration(
             query.get('seed') === 'new' ? undefined : originals.map((output) => output.seed),
         },
       });
-      references.replace(refs);
+      (job.request.workflow==='image-to-image'?editingReferences??references:references).replace(refs);
       onWorkflowChange(job.request.workflow);
       if (refs.some((ref) => ref.name === 'No longer available'))
         setError({

@@ -1,8 +1,7 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures.js';
 import {readFile} from 'node:fs/promises';
 import sharp from 'sharp';
 
-test.beforeEach(async({page})=>{await page.route('**/api/v1/estimates',r=>{const input=r.request().postDataJSON();return r.fulfill({json:{id:'fixture-estimate',total:.01*input.count,per_item:.01,count:input.count,breakdown:'Fixture estimate',expires_at:new Date(Date.now()+600000).toISOString()}});});});
 test('Spicy LoRAs are discoverable on Ref to video before adding inputs and leave Standard selections',async({page})=>{
   await page.addInitScript(()=>sessionStorage.setItem('seed.spicy','true'));
   await page.route('**/api/v1/studio',r=>r.fulfill({json:{provider:{name:'fal',configured:true},activity:{active:0,waiting:0,needs_attention:0}}}));
@@ -31,14 +30,18 @@ test('video preview picks and saves a frame without submitting another generatio
   await page.route('**/api/v1/assets/video/frames',r=>{picked=r.request().postDataJSON().time_seconds;return r.fulfill({json:{id:'picked',url:'/api/v1/assets/picked/content',width:480,height:270}});});
   await page.route('**/api/v1/assets/picked/content',r=>r.fulfill({contentType:'image/png',body:png}));
   const posts:string[]=[];page.on('request',r=>{if(r.method()==='POST')posts.push(new URL(r.url()).pathname);});
-  await page.goto('/library');await page.getByRole('button',{name:'Saved video',exact:true}).click();await page.getByRole('button',{name:'Pick Frame',exact:true}).click();
+  await page.goto('/library');await expect(page.locator('.library-preview.media-ready')).toBeVisible();await page.getByRole('button',{name:'Saved video',exact:true}).click();await page.getByRole('button',{name:'Pick Frame',exact:true}).click();
   await page.getByRole('slider',{name:'Frame position'}).fill('1');await page.getByRole('button',{name:'Next frame',exact:true}).click();
   await page.getByRole('button',{name:'Save frame',exact:true}).click();await expect(page.getByText('Saved to Library',{exact:true})).toBeVisible();expect(picked).toBeGreaterThan(.99);expect(picked).toBeLessThan(1.1);
   await page.setViewportSize({width:390,height:844});await page.screenshot({path:'.local/pick-frame-mobile.png'});expect(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
   await page.getByRole('button',{name:'View frame',exact:true}).click();await expect(page.getByRole('img',{name:'Picked frame',exact:true})).toBeVisible();expect(posts).toEqual(['/api/v1/assets/video/frames']);
+  await page.goBack();await expect(page.getByRole('img',{name:'Picked frame',exact:true})).toHaveCount(0);
+  await expect(page.getByRole('button',{name:'View frame',exact:true})).toBeVisible();
+  await page.goBack();await expect(page.getByRole('dialog')).toHaveCount(0);await expect(page).toHaveURL(/\/library$/);
 });
 
 test('Generate scopes compact previews to their workflow and announces completion once',async({page})=>{
+  await page.route('**/api/v1/pool',r=>r.fulfill({json:{server_time:new Date().toISOString(),workers:[{id:'ready-image',worker_class:'image',state:'ready',installed_loras:[]}],summary:{active:1,ready:1,busy:0,preparing:0,needs_attention:0,hourly:1,estimated_spend:0,image:1,video:0}}}));
   const png=await sharp({create:{width:1280,height:720,channels:3,background:'#758d61'}}).png().toBuffer();
   let jobs:any[]=[];
   await page.route('**/api/v1/jobs?mode=*',r=>r.fulfill({json:{items:jobs}}));
@@ -87,9 +90,9 @@ test('Activity uses request-specific continuation and saving recovery',async({pa
   await page.route('**/api/v1/jobs/*/retry-save',r=>{actions.push(r.request().url());return r.fulfill({json:{}});});
   await page.goto('/');await page.getByRole('button',{name:/^Activity/}).click();
   await page.getByRole('button',{name:'Resolve issue',exact:true}).first().click();
-  await expect(page.getByText('This output has not been sent to fal.',{exact:false})).toBeVisible();
+  await expect(page.getByText('This output is waiting for a compatible worker.',{exact:false})).toBeVisible();
   await page.getByRole('button',{name:'Continue request',exact:true}).click();await page.getByRole('button',{name:'Close request details'}).click();
   await page.getByRole('button',{name:'Resolve issue',exact:true}).nth(1).click();
-  await expect(page.getByText('This does not generate or charge again.',{exact:false})).toBeVisible();await page.getByRole('button',{name:'Retry saving',exact:true}).click();
+  await expect(page.getByText('This does not generate again.',{exact:false})).toBeVisible();await page.getByRole('button',{name:'Retry saving',exact:true}).click();
   expect(actions.map(url=>new URL(url).pathname)).toEqual(['/api/v1/jobs/held/continue','/api/v1/jobs/save/retry-save']);
 });

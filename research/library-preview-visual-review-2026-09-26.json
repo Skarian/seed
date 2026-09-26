@@ -1,0 +1,66 @@
+{
+  "run_id": "2026-09-26T07:26:04.478Z",
+  "method": "Ten screenshots reviewed individually at full resolution in desktop and mobile sizes. The mobile note-panel overlap was corrected and rechecked. Browser interaction tests use an isolated real server with public fixtures.",
+  "records": [
+    {
+      "file": "desktop/921.png",
+      "sha256": "f7f3604e69e24306fccf3eee7453c5eaac6792fcb6a218ac83c96d1453cbbe33",
+      "disposition": "pass",
+      "review": "Filtered Library: first file, clear counter and disabled Previous; desktop arrows and mobile touch targets fit."
+    },
+    {
+      "file": "desktop/922.png",
+      "sha256": "1cb2d64944c6002408ea8c826f39aa46292e31d0d2b31c6b03e2f201f92ee356",
+      "disposition": "pass",
+      "review": "Selected portrait owns note/favorite state. Mobile note editor stays below the canvas without covering toolbar or position."
+    },
+    {
+      "file": "desktop/923.png",
+      "sha256": "ce3aefbb1f08b1aebf70f0fecd153b8520d4854e5a97963f713e8f2c3781148c",
+      "disposition": "pass",
+      "review": "Mixed Library video: arrows clear native playback controls; frame picking suppresses navigation."
+    },
+    {
+      "file": "desktop/924.png",
+      "sha256": "9f320fa105e6079d56d8f2f146a605d313943b5d37d9a3839615605509a7b3e5",
+      "disposition": "pass",
+      "review": "Pagination failure retains the current file and navigation, with a readable error below the canvas."
+    },
+    {
+      "file": "desktop/925.png",
+      "sha256": "db2e27d388119047879ff064079b9511b2b6634e0b2b9d7e902eeef9b986ab0c",
+      "disposition": "pass",
+      "review": "Older page loaded in the same preview; final Next is disabled and one Back dismisses the viewer."
+    },
+    {
+      "file": "mobile/921.png",
+      "sha256": "3dca9beeccf550f23855f9cb87c9e9151b589f5928b58c4ca8f772ada5f671c1",
+      "disposition": "pass",
+      "review": "Filtered Library: first file, clear counter and disabled Previous; desktop arrows and mobile touch targets fit."
+    },
+    {
+      "file": "mobile/922.png",
+      "sha256": "f4291ab7be7fde96dc9173d1cc938591dba65d8811d4221453a3016550d6f463",
+      "disposition": "pass",
+      "review": "Selected portrait owns note/favorite state. Mobile note editor stays below the canvas without covering toolbar or position."
+    },
+    {
+      "file": "mobile/923.png",
+      "sha256": "3475f32f8baeb0d875cdb5e2150716af0b449420dea6df9e662f4c1f40b136c2",
+      "disposition": "pass",
+      "review": "Mixed Library video: arrows clear native playback controls; frame picking suppresses navigation."
+    },
+    {
+      "file": "mobile/924.png",
+      "sha256": "2e462252675e435ce0d944db20145a06c9523a609006e8d17f9439ca4301403e",
+      "disposition": "pass",
+      "review": "Pagination failure retains the current file and navigation, with a readable error below the canvas."
+    },
+    {
+      "file": "mobile/925.png",
+      "sha256": "bf3d338f1f9a9fe3d1d1fdecb2ff7ee3f64de44fb820a8fa587ebc20728b98d4",
+      "disposition": "pass",
+      "review": "Older page loaded in the same preview; final Next is disabled and one Back dismisses the viewer."
+    }
+  ]
+}

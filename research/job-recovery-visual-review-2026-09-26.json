@@ -1,0 +1,91 @@
+{
+  "run_id": "2026-09-26T06:49:09.823Z",
+  "review": "Each full-size screenshot was reviewed individually by the UI agent; primary agent additionally inspected desktop601 and mobile601/602/603/605. Mosaics are navigation aids, not substitutes for individual review.",
+  "records": [
+    {
+      "file": "desktop/601.png",
+      "sha256": "838254e7048f41703161d5bfa49df924310891b6cfce1328231d23d3399bef45",
+      "disposition": "pass"
+    },
+    {
+      "file": "desktop/602.png",
+      "sha256": "fdbab11b10ec3d9f3768167b613e2284592946dac04ac329f69e0969b968ae3f",
+      "disposition": "pass"
+    },
+    {
+      "file": "desktop/603.png",
+      "sha256": "523d119d73eea2c8b766ddfb4e5f2ee02d22d179ee092e8368e3a266249d5c9f",
+      "disposition": "pass"
+    },
+    {
+      "file": "desktop/604.png",
+      "sha256": "ef88449b11c55dc9cbc29c74c23b79383c121435daafb1783cd323d218e4a0f0",
+      "disposition": "pass"
+    },
+    {
+      "file": "desktop/605.png",
+      "sha256": "31c59049cb481664b88af5fb06ccc725928ac1efd2fbeb70e152b0ee6d5fa4e1",
+      "disposition": "pass"
+    },
+    {
+      "file": "desktop/606.png",
+      "sha256": "96a483ab9a32592e8765fb730ac8984d4afabf9616f8a23c473e12758df6455c",
+      "disposition": "pass"
+    },
+    {
+      "file": "desktop/607.png",
+      "sha256": "db1847df75460915274e3186d92c41ca4bae06786006a1259a8267b11bfd2ccc",
+      "disposition": "pass"
+    },
+    {
+      "file": "mobile/601.png",
+      "sha256": "3aff9ea29abf3d2df21b1308db78a96cfa34a4380d6850479d7f955ca0b78a17",
+      "disposition": "pass"
+    },
+    {
+      "file": "mobile/602.png",
+      "sha256": "c832b08c0c8ec3ee793ed72eb61d42aa2f78f4c3b10481e7e0da35da29511d91",
+      "disposition": "pass"
+    },
+    {
+      "file": "mobile/603.png",
+      "sha256": "f61de6f29812bac37bc5a566deea47504e69e2f64d2ff35170d4758b16dcb001",
+      "disposition": "pass"
+    },
+    {
+      "file": "mobile/604.png",
+      "sha256": "de18d4ebec7918dbe4c9dc766695c250f37864a1be611f3f8cc9623bc9f1328f",
+      "disposition": "pass"
+    },
+    {
+      "file": "mobile/605.png",
+      "sha256": "0cedbc1e9fcd2744bbf531da30287094b754ca64c6201d2adef9c67e855b365f",
+      "disposition": "pass"
+    },
+    {
+      "file": "mobile/606.png",
+      "sha256": "c539d37c2d023a6a6ad372d4a83331234c8cef0779d1d8fae4c422b4bb0ddaaf",
+      "disposition": "pass"
+    },
+    {
+      "file": "mobile/607.png",
+      "sha256": "96397a892ad52d3448cbeb030ca76f0e46bcd9b57a811c108d695c4c1dff9e2d",
+      "disposition": "pass"
+    },
+    {
+      "file": "boundary-320/608.png",
+      "sha256": "574f24c3090f607ac40d82bda701b2beb0063255b5c9891a82ce3663b94380f2",
+      "disposition": "pass"
+    },
+    {
+      "file": "boundary-844/608.png",
+      "sha256": "6cc829683f7b2e6c5aff3ef0c3cabf0725f04cf0f364bb6541b01766b4742791",
+      "disposition": "pass"
+    }
+  ],
+  "resolved": [
+    "Separated inline recovery error from the selected-output panel.",
+    "Removed an invented worker issue notice from the fixture to match the real server projection."
+  ],
+  "remaining": []
+}

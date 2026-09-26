@@ -1,0 +1,570 @@
+{
+  "run_id": "2026-09-25T03:11:16.899Z",
+  "reviewed_at": "2026-09-25T03:16:26.029Z",
+  "method": "Screenshots inspected individually, one image per tool call. Mosaics used only as navigation artifacts.",
+  "captures": 90,
+  "identical_to_reviewed": 76,
+  "files": [
+    {
+      "file": "desktop/201.png",
+      "sha256": "39D32451A2482E8B50B1317532B59A15013F0315618250DE28BD57E98A929692",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/202.png",
+      "sha256": "3AC578F82B39BED331515B5C59544A492C2731256E46CE8F22065E85C434094C",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/203.png",
+      "sha256": "F8378E3D43A7D5398934632F8C9A41DEA734E98D3F98B0AB1B88786A9F35F5E9",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/204.png",
+      "sha256": "B8F897213CE8FD51A92375133E1D0E305F565840243616D9B69489DD2865251A",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/205.png",
+      "sha256": "69B645D47FC8010C69F4FB476C151F56A80730252193936FA54562599B9FA13B",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/206.png",
+      "sha256": "16DC270637A4989185E5B72620C5B754BDD22951F8E14C1AA7EEAD2A5C9DB54C",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/207.png",
+      "sha256": "84E90AECEB78282A5953B12C65FFF9EBF2CCD9378064C2DCF3AA653F0388C72D",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/208.png",
+      "sha256": "05C721F1AA652E345E745238835E9FC08AA45DBC93B435E42D27DC28EBEB116A",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/209.png",
+      "sha256": "4B63B85D2E81563BF6575322CE7FF086342E6853D899C42EEECADDFC98750782",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/210.png",
+      "sha256": "9CE5BD41529D38C0C7F39EC9E9B677BD5BCD239784D2775D9B794CAF3048200D",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/211.png",
+      "sha256": "A18A708BC685469DBA69A5EBDF7FB0707790816ABB1E8912F8B2F46D6AFAD5F2",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/212.png",
+      "sha256": "1527D3E09E5433BCC4B9A4F9517A32EACF78582E26388535A5F7969E8D11F06C",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/213.png",
+      "sha256": "BAF4F2F05CBFFBD9B57A7370AEAAD702D0D0B8A4A43492469D1D919E774189D4",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/214.png",
+      "sha256": "9DA1B3710D818160DD2E50B9AF6D577B2526C5BEA2A27311DEEC12912F23D6E4",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/215.png",
+      "sha256": "0A549F0F660D7CF1CCE8876BE0EB6CA478BFF9C3CCF9BDE24CBD0E93FE443298",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/216.png",
+      "sha256": "05A470F336F3023EEC0338B65F67EA9F16767A63378472870C201C677D2D5E53",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/217.png",
+      "sha256": "DBA11AD0EFEE9883AEEDCB20E300EE36AF184266DBD1AAC73F24A169882D4C8B",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/218.png",
+      "sha256": "C0F6DB6DCE92CD501B10231295A59E9E692984DCE581E67DB7F487A5007F3750",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/219.png",
+      "sha256": "8BA5AA3D2361C1362E31027BF6B59F94D36AFBE164AA206FD6D55D4DA177EA7D",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/220.png",
+      "sha256": "A62E269B07349E29EEF50391FB126F2E1B434B55C52FBE2B1F4B571278CC3728",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/221.png",
+      "sha256": "CEFD101D91EC29A2083B9AC7FD8597F379A6E482DA65ED4193D24E701220B459",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/222.png",
+      "sha256": "9BAB78538B422F6ED85DDA3EAB7DC1E989A13DA7C4FD0F88AD030A440941DF4F",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/223.png",
+      "sha256": "D6D4911E01D6F98870D19A0AAB201E55FABC3137318BE7A91C718D749C68E1B9",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/224.png",
+      "sha256": "C8814DA16D7637970194C2786EBBB0B1DE289D448153ED1ADE2C92A9BDE6AAA7",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/225.png",
+      "sha256": "30D3753603A2FC84763D2E84B61EB84A5324B4690D939189B1F6BB8CF3182886",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/226.png",
+      "sha256": "A06C288FE81C25E33370FFFF4CC2C2610B11B1C3EE422659A44650666730D27E",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/227.png",
+      "sha256": "0B59C0FB4D619B0D05E821E5E71B2C1297FB899DA59B75D137FEAACAAFDF7AE9",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "desktop/228.png",
+      "sha256": "C9AC3014E49985A78379703DDFC019DC15CEA7462047DA8CDE8F9154C70A6856",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/229.png",
+      "sha256": "EA5C3C5FFF057DFEDBBEB95471B0332CAE529DDCC4F7CB97B22D98C5C5905AFE",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/230.png",
+      "sha256": "B21F797F7983B3034F61823EBC418C143F42E07CA92B4F68EE483F1D2C7A90DE",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/231.png",
+      "sha256": "E4B1376A2F0C0C27C96B63F886E42F521DC8D149377D70BF584675DAED1FC115",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/232.png",
+      "sha256": "0BB8B4F7EC40CF8012B28C287EF788F1FE416DBDFDADCBAEA00588B92F97D44B",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/233.png",
+      "sha256": "582A287841FDAADF442A00C144D693FF57986B36D45A5BAABB54BC8E89CF6336",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/234-top.png",
+      "sha256": "6781B75EA8677520E44FCB576AC055DBBA95BE73EB45623BC0DE8751CD3B68F8",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/234.png",
+      "sha256": "11C848359B83AA74FFFDC35F8EFCCF58C68AA9FA1E6446605AEC80D237BCF434",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/235.png",
+      "sha256": "FC3BAB2285754151CCB1BD56506ACA87977FFB1EF8725646B4CAFBCC2FA9E320",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/236.png",
+      "sha256": "B39B2F2857CBE056F337B8C964C7A0B4F8BC2EF1FF1A460FFA18D078FDBA1E45",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/237.png",
+      "sha256": "4795FCF92188473095EB7DD1C387270305F76892AE55BDAB6348A81E3C5B7022",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/238.png",
+      "sha256": "38C1493B1EE46EB43BF5957DE2A27C6D08A4D7DC17EC851F24DF103F36DD4159",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/239.png",
+      "sha256": "BD85C741511B7E5A023594DC5E379490F462AFC4F171FDF2D70B18FFA62224A0",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/240.png",
+      "sha256": "C78CB911F40DC58FA2BB27D1CC8988CF0A175F554BD42C3AB12E8A9E9A6710A4",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/241.png",
+      "sha256": "B21F797F7983B3034F61823EBC418C143F42E07CA92B4F68EE483F1D2C7A90DE",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/242.png",
+      "sha256": "FD6EB937715E95575C2FDAACA3B887401B98597ACD5323B1354FC12E31BD1D75",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "desktop/243-top.png",
+      "sha256": "7A178111E305A591A28CEE3EB06812E541BD411AF8629473BF7BD22A32EA5F82",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "desktop/243.png",
+      "sha256": "E3DD0EE6659D4E874E6A3292E87B2F844B7B1A0F958600FEFACDC740AAF33D88",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/201.png",
+      "sha256": "1F7B8B53C542FB64019DA15C17DE8432106A91052CA842ADBEED58EF5B6807D4",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/202.png",
+      "sha256": "B3A47E59B6BB80AA5C1801E68D4D88AE440F32E0438394AF6DB0D558CDE647FF",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/203.png",
+      "sha256": "09A26E14BC8D6342AE554BC1AB4D2ED5F57D3A255DA10E9BEC6371D9B5219D80",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/204.png",
+      "sha256": "AE13F21FB63EAD8B551F375457BB143D39CCEE7A2D014B37391350FFA07C13C6",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/205.png",
+      "sha256": "5387DE2075B1CB75A624C63AB0329DE169A24E2C54E213CB66D46DC1E0A42F7D",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/206.png",
+      "sha256": "27702B69D814CC64ED388A9FBFBE4F4F707FDECD582FF323C9CE146CBF1ED3F6",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/207.png",
+      "sha256": "C8C8B4B85AD1AF5B29134F45A947E8B8EDBE387AC30A4FCE76C218B80A333ABE",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/208.png",
+      "sha256": "E14F19F2DAC8CD07996CD22D2A77DECF3B7B2D04DBDACA157A4BEC6CF742ECCA",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/209.png",
+      "sha256": "D55A5F4C5F243FDC7E943644276A0F9774854342F7E99F99F8BD71A2CD301998",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/210.png",
+      "sha256": "1C7BA51FB476D4C0E31C9C600C6B36AAA4D39A974A7A3E233D632B331D0FFB2F",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/211.png",
+      "sha256": "294B966ADCC1F4A13DBED4ABDB0CE27276D9AFB0906619C27FA11C51EC83517E",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/212.png",
+      "sha256": "B60D4B8846285935424F5B39111AE65686884F9E4ACC2357D1E92B77200F3A69",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/213.png",
+      "sha256": "6EBD392750A3C4C303AD03DE6E7B9500F8072748A0687FD82E0C6ECA3AA48BC7",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/214.png",
+      "sha256": "407D55155F345385D960A99452FDDEE218459C9A3B821AD9A648CD0799BBEBC4",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/215.png",
+      "sha256": "5E4FBDECF665375CC612DA62F315FF695DF686CC218B0A4FE8556BBCFE49B590",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/216.png",
+      "sha256": "A251604AACD1F8F2E9EE0BD8C7E8DA95FDD6781ACEB21F636F94262E7A244E49",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/217.png",
+      "sha256": "6BAB1A7B4616269828C8B2AED834C51F7D85A8C985B88305E4737376FE1545FC",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/218.png",
+      "sha256": "E0B63A7FC8173120B3E9CD42C911E9CF07E21068AFCEB900872117FD887986EA",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/219.png",
+      "sha256": "214175662FC0ED95E7304DBD6DB12215365D4A42DA8FEA2F3A6581D0F92EDA20",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/220.png",
+      "sha256": "FA882C4A709303CB6CE433045738BB1A589459ECA989113B391E76DFCFBF06AC",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/221.png",
+      "sha256": "ABCBCA1FC5309E98C5C7F38CEC014CA0204FCB43A2BA88B6AD545C80E5CCA37B",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/222.png",
+      "sha256": "D3E8E4A45EA84B8259A08754C1797BD23AEE8E8B70C385366EF2A52B1AF54FA4",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/223.png",
+      "sha256": "23E711B5A9AC83E674DCFE97465475FA5B60F114A3BC7CFF0301EB4CE1829213",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/224.png",
+      "sha256": "5037D9C2D71A0B3502F014C17AC75FB3816E4094BB2A77C521ADE5ED6BFA8F61",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/225.png",
+      "sha256": "405383E2A076E302A4C4F94AB9663404136C517CA6D2AE853E617E0495F5A763",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/226.png",
+      "sha256": "7ADD1BBEF0C7BD2925F9611FF4CC0AA049A3D02D2FB25C25556BCD5A28FB426F",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/227.png",
+      "sha256": "6FD6A448FD6C736E9226D55D07CB31D0F4C58C69E149BC708DA551CE94BFCD7F",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/228.png",
+      "sha256": "E1C36D11AF83DFD276500D2DF97B68B9139AC05E59FF2E99E68D050C6E390890",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/229.png",
+      "sha256": "DD2CDD071C8FE47B22D357FE026D26265F3454917F011F5EB98531297FB526ED",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/230.png",
+      "sha256": "E6B5D711EEED76697607ECB53032FCA1B86E4F5294D6854F9333DCCD0E0BAB54",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/231.png",
+      "sha256": "B8780B0E395647C648C795426F32EC93741B9AF472D3088A24B5F6BEBFB1C349",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/232.png",
+      "sha256": "AB02286BA6C85D91FCDB3CF9DA4331467A6339B1671915CE750B44D267CDF89F",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/233.png",
+      "sha256": "8F78F46FC865F06AE31D3CF99990B8EB0318812D1CC08F9DCB7B34A11942D29C",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/234-top.png",
+      "sha256": "7D7E4543E36BC94BA030BBCC1F1ED3B437E9357F892F67E26869240AB80BC6FC",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/234.png",
+      "sha256": "7D08C0076AFA503B4FC85326F71F61E97400CC2E6E14FCAABE87AC9027380C33",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/235.png",
+      "sha256": "13F2037E2450D2823C00D02767664E33DE79EB4A1517A0B91449893AF8EE9852",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/236.png",
+      "sha256": "B3BF08F7233749231AF606DD2E9B66B418A0C961613FABD120D0D03F3DD6925D",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    },
+    {
+      "file": "mobile/237.png",
+      "sha256": "41FFF002539CA899875615A0FB84EB6EC414F70018968C4DD026D19507FA94CC",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/238.png",
+      "sha256": "2F0C078507B27A1593351E9B051D67BCE10F997668A920816B280DA14A6C4268",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/239.png",
+      "sha256": "9A577EB4355847D6D296872B6F85C5908061BD82A25EF2F589EACBEFA88317DF",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/240.png",
+      "sha256": "64AFB69D34BB4BFA7A4A8C6E253DA8C92F74CA2A220BA1ADC8F7DD94F2CF579D",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/241.png",
+      "sha256": "E6B5D711EEED76697607ECB53032FCA1B86E4F5294D6854F9333DCCD0E0BAB54",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/242.png",
+      "sha256": "4233B59F7D569F73FA2C2E6B79A8C7BA969182B1B1986DD81CAC9AD788249155",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/243-top.png",
+      "sha256": "7E7FFC9F7CEA01C0516C31DAAFD9AE63A6833D6A7D67DC4F065DD8EB45F09665",
+      "status": "passed",
+      "verification": "Byte-identical to individually inspected initial capture"
+    },
+    {
+      "file": "mobile/243.png",
+      "sha256": "56C30C0C0B6972C571838B736289DF303A56F9F058DF607FEE59EA6DD89DB569",
+      "status": "passed",
+      "verification": "Individually inspected final capture"
+    }
+  ],
+  "review_records": [
+    "review-desktop-201-236.json",
+    "review-mobile-201-236.json",
+    "review-237-243.json",
+    "review-final-mobile.json"
+  ],
+  "root_final_rechecked": [
+    "desktop/227.png",
+    "mobile/227.png",
+    "desktop/243-top.png"
+  ],
+  "correction": "Terminal Retry/Resolve issue now use shared card button styling; mobile direct-card actions asserted at least44px high.",
+  "remaining_observations": [
+    "Existing compact expanded-review controls were left unchanged; outside the bounded card fix."
+  ],
+  "tests": {
+    "browser": 143,
+    "chat_job": 118,
+    "atlas": 86
+  },
+  "privacy": "Only synthetic fixture content inspected. Deployment preflight used aggregate activity counts; health and static assets verified after restart."
+}

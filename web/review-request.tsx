@@ -1,11 +1,9 @@
-import { CostPreview } from './cost-preview.js';
-import { useEstimate } from './hooks/use-estimate.js';
-import { priceInput } from '../shared/pricing.js';
+import { isVideoWorkflow } from '../shared/workflows.js';
 import { inputLabels } from '../shared/reference-labels.js';
 import { RequestSummary } from './request-details.js';
 import React, { useEffect, useState } from 'react';
 import type { ChatCard, ChatRevision } from '../shared/chat.js';
-import type { ImageRequest } from '../server/workflows.js';
+import type { ImageRequest } from '../shared/generation.js';
 import { RequestDialog } from './request-dialog.js';
 import { RequestFields, type RequestAsset } from './request-fields.js';
 import { jobName } from './job-ui.js';
@@ -23,6 +21,7 @@ export function Review({
   close,
   save,
   approve,
+  approveLabel = 'Approve',
   feedback,
   restore,
   stop,
@@ -37,7 +36,8 @@ export function Review({
   editable: boolean;
   close: () => void;
   save: (r: unknown) => Promise<boolean>;
-  approve: (estimateId: string) => Promise<void>;
+  approve: () => Promise<void>;
+  approveLabel?: string;
   feedback: () => void;
   restore: (n: number, r: unknown) => Promise<void>;
   stop: () => void;
@@ -51,8 +51,7 @@ export function Review({
   }, [initial.number, initial.request]);
   const historical = revision !== card.revisions.at(-1)!.number,
     dirty = JSON.stringify(request) !== JSON.stringify(card.revisions.at(-1)!.request),
-    video = card.workflow !== 'text-to-image';
-  const cost = useEstimate(priceInput(request), editable && !historical);
+    video = isVideoWorkflow(card.workflow);
   const raw = () => {
     const v: any = { ...request };
     delete v.workflow;
@@ -65,7 +64,7 @@ export function Review({
       BigInt(request.seed) + BigInt(request.count - 1) <= 9007199254740991n);
   const missing =
     request.prompt.includes('[removed reference]') ||
-    [...request.prompt.matchAll(/<(?:Picture|Video|Audio) [1-9][0-9]*>/g)].some(
+    [...request.prompt.matchAll(/<(?:Picture|Video|Audio) [1-9][0-9]*>|<image[1-9][0-9]*>/g)].some(
       (m) => !new Set(inputLabels(request.references ?? []).values()).has(m[0]),
     );
   const invalid = missing
@@ -143,10 +142,10 @@ export function Review({
                 )}
                 <button
                   className="primary-action"
-                  disabled={busy || dirty || !!invalid || !cost.estimate}
-                  onClick={() => cost.estimate && void approve(cost.estimate.id)}
+                  disabled={busy || dirty || !!invalid}
+                  onClick={() => void approve()}
                 >
-                  Approve
+                  {approveLabel}
                 </button>
               </>
             ) : (
@@ -155,7 +154,6 @@ export function Review({
               </button>
             )}
           </div>
-          {editable && !historical && <CostPreview cost={cost} />}
         </>
       }
     >

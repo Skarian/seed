@@ -1,6 +1,7 @@
+import { isVideoWorkflow } from '../shared/workflows.js';
 import React from 'react';
-import type { ImageRequest } from '../server/workflows.js';
-import { loraRoute } from '../server/fal-request.js';
+import type { ImageRequest } from '../shared/generation.js';
+import { loraRoute } from '../shared/workflows.js';
 import { LoraPicker } from './lora-picker.js';
 import { AspectPicker, BatchPicker, LengthPicker, SeedControl } from './request-controls.js';
 import './request-settings.css';
@@ -11,16 +12,18 @@ type Props = {
   route?: 'image' | 'fl' | 'ref';
 };
 /** The same generation settings, order, and field layout in Generate and Chat review. */
-export function RequestSettings({ request, onChange, route = loraRoute(request) }: Props) {
-  const video = request.workflow !== 'text-to-image';
-  const output = (patch: Partial<ImageRequest['output']>) =>
-    onChange({ output: { ...request.output, ...patch } });
+export function RequestSettings({ request, onChange, route }: Props) {
+  const video = isVideoWorkflow(request.workflow);
+  const output = (patch: Partial<ImageRequest['output']>) => {
+    if(request.workflow==='image-to-image')return;
+    onChange({ output: { ...request.output, ...patch,aspect:patch.aspect==='source'?request.output.aspect:patch.aspect??request.output.aspect } });
+  };
   return (
     <div className="request-settings">
-      <div className="request-setting">
+      {request.workflow==='image-to-image'?<p className="request-settings-hint">Output follows your source image’s shape, up to about 1 MP.</p>:<div className="request-setting">
         <span>Aspect ratio</span>
         <AspectPicker value={request.output.aspect} onChange={(aspect) => output({ aspect })} />
-      </div>
+      </div>}
       <label className="request-setting">
         Quantity
         <BatchPicker value={request.count} onChange={(count) => onChange({ count })} />
@@ -34,12 +37,12 @@ export function RequestSettings({ request, onChange, route = loraRoute(request) 
           />
         </label>
       )}
-      <LoraPicker
-        route={route}
+      {request.workflow!=='image-to-image'&&<LoraPicker
+        route={route??loraRoute(request)}
         mode={request.mode}
         value={request.loras}
         onChange={(loras) => onChange({ loras })}
-      />
+      />}
       <SeedControl
         random={request.seed === 'random'}
         value={request.seed}

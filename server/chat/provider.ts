@@ -91,7 +91,7 @@ export function createChatAgent(options: {
   fetch?: typeof fetch;
   onAccounting?: (value: ChatAccounting) => void;
 }) {
-  if (!options.apiKey.trim()) throw new Error('Configure an OpenRouter key using Seed setup.');
+  if (!options.apiKey.trim()) throw new Error('Add your OpenRouter key in Admin → Credentials.');
   let turns = 0;
   return new Agent({
     initialState: {

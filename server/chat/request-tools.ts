@@ -1,3 +1,4 @@
+import { isVideoWorkflow, usesInputs } from '../../shared/workflows.js';
 import {randomUUID} from 'node:crypto';
 import {Type} from '@earendil-works/pi-ai';
 import {imageRequest,type ImageRequest} from '../workflows.js';
@@ -19,40 +20,41 @@ export class ToolRequestError extends Error {
 const enumOf=(values:string[],description='')=>Type.String({enum:values,description:`${description}${description?' ':''}Allowed values: ${values.join(', ')}.`});
 /** Flat schemas intentionally avoid requiring unchanged settings during edits. */
 export function requestToolSchemas(workflow:ChatWorkflow,mode:ChatMode,hasLoras=true){
-  const video=workflow!=='text-to-image';
+  const video=isVideoWorkflow(workflow), editingImage=workflow==='image-to-image'; hasLoras=hasLoras&&!editingImage;
   const input=Type.Object({
     asset:Type.Optional(Type.String({description:'New input: copy its supplied asset handle here. Example if the handle is input1: {asset: \"input1\", role: \"first_frame\"}.'})),
     replace_asset:Type.Optional(Type.String({description:'Replace the source of an existing id deliberately. Copy the new asset handle. For reordering, use only existing ids in the new order.'})),
     id:Type.Optional(Type.String({description:'Existing input only: copy an id from the current request. Never use id to add an asset. Omit for a new input.'})),
     instance:Type.Optional(Type.String({pattern:'^[-\\w]{1,100}$',description:'New inputs only: optional distinct name when the same asset is used more than once, e.g. clipA and clipB. Use this name for the specific clip token. When several selected video clips share a source, its asset handle names their shared source, not one clip. Omit for ordinary single use. Do not combine with id.'})),
-    role:Type.Optional(enumOf(['reference','first_frame','last_frame'],'Video/audio: reference only. Images: reference, opening guide first_frame, or ending guide last_frame.')),
-    framing:Type.Optional(enumOf(['fit','fill'],'Images only: default fit keeps the whole image. Use fill only when the user asks to crop.')),
-    start_seconds:Type.Optional(Type.Number({minimum:0})),
+    role:Type.Optional(enumOf(editingImage?['source','reference']:['reference','first_frame','last_frame'],'Image editing: exactly one source, other images reference. Video/audio: reference only. Images: reference, opening guide first_frame, or ending guide last_frame.')),
+    ...(!editingImage?{framing:Type.Optional(enumOf(['fit','fill'],'Images only: fit keeps the whole image.'))}:{}),
+    ...(!editingImage?{start_seconds:Type.Optional(Type.Number({minimum:0})),
     duration_seconds:Type.Optional(Type.Number({minimum:2,maximum:15})),
-    include_audio:Type.Optional(Type.Boolean({description:'Video input soundtrack only: set true when asked to use the source soundtrack, even if final audio_output is silent. false excludes it.'}))
+    include_audio:Type.Optional(Type.Boolean({description:'Video input soundtrack only: set true when asked to use the source soundtrack, even if final audio_output is silent. false excludes it.'}))}:{} )
   },{additionalProperties:false,description:'App determines media kind. Only images can be first_frame/last_frame. Video/audio need a 2–15 second clip. For edits this list replaces the input list; list each input to keep, using its id.'});
   const fields={
-    prompt:Type.String({minLength:1,maxLength:12000,description:workflow==='reference-to-video'?'Complete prompt. Keep every user requirement, including exclusions. If ANY input has role reference, use subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music. Only frame guides use integrated_multimodal_description, overall_soundscape, non_diegetic_music. An edit replaces the whole prompt.':'Complete generation prompt. Keep every user requirement, including exclusions. An edit replaces the whole prompt.'}),
+    prompt:Type.String({minLength:1,maxLength:editingImage?5000:12000,description:workflow==='reference-to-video'?'Complete prompt. Keep every user requirement, including exclusions. If ANY input has role reference, use subject_definitions, summary, retention_analysis, detailed_description, overall_soundscape, non_diegetic_music. Only frame guides use integrated_multimodal_description, overall_soundscape, non_diegetic_music. An edit replaces the whole prompt.':'Complete generation prompt. Keep every user requirement, including exclusions. An edit replaces the whole prompt.'}),
     ...(hasLoras?{loras:Type.Array(Type.Object({id:Type.String(),revision:Type.String(),scale:Type.Number({minimum:0,maximum:4})},{additionalProperties:false}),{maxItems:3,description:'Prefer zero or one compatible adapter from available_loras. Copy its id and revision exactly; use its default_scale unless the user asks otherwise. An empty array removes all adapters. Omit during edits to keep the current selection.'})}:{}),
     batch_size:Type.Integer({minimum:1,maximum:16}),
     seed:Type.String({pattern:'^(random|0|[1-9][0-9]{0,15})$',description:'random, or the starting seed as a string; last batch seed must be <=9007199254740991.'}),
-    aspect_ratio:enumOf(['16:9','9:16'],'16:9 is landscape; 9:16 is portrait.'),size:video?enumOf(['768p'],'H3 uses 768P.'):enumOf(['1mp']),
+    aspect_ratio:enumOf(editingImage?['source']:['16:9','9:16'],'16:9 is landscape; 9:16 is portrait.'),size:video?enumOf(['768p'],'H3 uses 768P.'):enumOf(['1mp']),
     note:Type.String({maxLength:4000,description:'A note saved with generated assets. Empty text clears it.'}),
     ...(video?{
       duration_seconds:Type.Integer({minimum:5,maximum:15,description:'Generated video length. Distinct from each input clip duration.'}),
       audio_output:enumOf(['generated','silent'],'Final output sound: silent means no audio; generated enables sound. For silence, set silent explicitly; do not omit this setting.')
     }:{}),
-    ...(workflow==='reference-to-video'?{inputs:Type.Array(input,{minItems:1,maxItems:12})}:{}),
+    ...(usesInputs(workflow)?{inputs:Type.Array(input,{minItems:1,maxItems:editingImage?10:12})}:{}),
     ...(mode==='nsfw'?{mode:enumOf(['sfw','nsfw'])}:{})
   };
   const optional=Type.Partial(Type.Object(fields,{additionalProperties:false}));
   return {
-    create:Type.Object({...optional.properties,prompt:fields.prompt,...(workflow==='reference-to-video'?{inputs:Type.Array(Type.Object({...input.properties,asset:Type.String({description:'Required: copy a supplied asset handle, e.g. input1.'})},{additionalProperties:false}),{minItems:1,maxItems:12})}:{})},{additionalProperties:false}),
+    create:Type.Object({...optional.properties,prompt:fields.prompt,...(usesInputs(workflow)?{inputs:Type.Array(Type.Object({...input.properties,asset:Type.String({description:'Required: copy a supplied asset handle, e.g. input1.'})},{additionalProperties:false}),{minItems:1,maxItems:editingImage?10:12})}:{})},{additionalProperties:false}),
     edit:Type.Object({...optional.properties,request_id:Type.String({minLength:1})},{additionalProperties:false})
   };
 }
-export function requestToolRules(mode:ReferenceMode='direct'){
-  return `Use create_request for a new review card. Use edit_request with the supplied request_id to change a card. Neither tool generates media. Send only changed settings when editing; omitted settings and inputs stay unchanged. Use a complete prompt, not a text replacement operation. For a new input, use asset, not id. Example when the supplied asset handle is input1: {"asset":"input1","role":"first_frame"}. For an existing input, copy its current id: {"id":"input1"}. Reorder by listing ids in the new order. To replace an input source deliberately, use {"id":"input1","replace_asset":"input2"}; do not use asset with a different existing id. To use one source twice, give each new input a distinct instance name, e.g. clipA and clipB; its prompt token uses that instance name. A supplied inputs array replaces the list: include each input to keep, using its existing id. A failed save creates no card or revision. Defaults for a new request: batch_size 1, seed random, aspect_ratio 16:9; video size 768p, duration_seconds 5, generated audio, video output. For a silent result, set audio_output to silent explicitly. audio_output accepts only generated or silent; it is not the output file format. Do not omit a setting to bypass a rejection if the user asked for it. Video/audio inputs use role reference and need start_seconds plus duration_seconds (2–15). Only images can be first_frame or last_frame. Use either general references or first/last frame guides; do not combine them. Keep image framing fit unless the user asks to crop. If asked to use a video soundtrack, set include_audio true even when final audio_output is silent. A standalone audio input is already audio: omit include_audio. Its token is [[input1]], not [[input1:audio]]; :audio is for a video soundtrack. To exclude standalone audio, remove that input from the list. ${mode==='stable'?'Use input tokens in the prompt, for example [[input1]] or [[clipA]]. Use [[clipA]] and [[clipB]] for their specific clips. If both clips come from input2, [[input2]] means the source video shared by both selected clips; it never selects one clip or adds the whole video. Shared source tokens are general context only; timed actions must name the specific clip tokens. For a soundtrack, use a specific clip token, never a shared source token. A video soundtrack uses [[clipA:audio]]. Frame guides use the same token form; the app translates it to the correct label or guide description. Do not write numbered Picture/Video/Audio labels.':'In the prompt, copy labels from the current input mapping. Do not use a prompt label as an input id.'}`;
+export function requestToolRules(mode:ReferenceMode='direct',workflow?:string){
+  if(workflow==='image-to-image')return `Create an editing review card with create_request; modify one with edit_request and its request_id. Tools do not generate images. Use a complete editing instruction. Exactly one supplied image must have role source, the rest role reference (up to 10 images total). New inputs use asset handles; existing inputs use id. Replace a source using its id and replace_asset. A supplied inputs array replaces the list: include all inputs to keep. Use stable [[input_handle]] tokens in the instruction. Omitted fields remain unchanged during edits. Defaults: batch_size 1, seed random, aspect_ratio source, size 1mp. No LoRA, video, audio, framing or strength settings. A failed save creates no card or revision; fix the reported fields and retry.`;
+  return `Use create_request for a new review card. Use edit_request with the supplied request_id to change a card. Neither tool generates media. Send only changed settings when editing; omitted settings and inputs stay unchanged. Use a complete prompt, not a text replacement operation. For a new input, use asset, not id. Example when the supplied asset handle is input1: {"asset":"input1","role":"first_frame"}. For an existing input, copy its current id: {"id":"input1"}. Reorder by listing ids in the new order. To replace an input source deliberately, use {"id":"input1","replace_asset":"input2"}; do not use asset with a different existing id. To use one source twice, give each new input a distinct instance name, e.g. clipA and clipB; its prompt token uses that instance name. A supplied inputs array replaces the list: include each input to keep, using its existing id. A failed save creates no card or revision. Defaults for a new request: batch_size 1, seed random, aspect_ratio 16:9; video size 768p, duration_seconds 5, generated audio, video output. For a silent result, set audio_output to silent explicitly. audio_output accepts only generated or silent; it is not the output file format. Do not omit a setting to bypass a rejection if the user asked for it. Video/audio inputs use role reference and need start_seconds plus duration_seconds (2–15). Only images can be first_frame or last_frame. General references may be combined with first/last image guides. Keep their roles explicit. Keep image framing fit unless the user asks to crop. If asked to use a video soundtrack, set include_audio true even when final audio_output is silent. A standalone audio input is already audio: omit include_audio. Its token is [[input1]], not [[input1:audio]]; :audio is for a video soundtrack. To exclude standalone audio, remove that input from the list. ${mode==='stable'?'Use input tokens in the prompt, for example [[input1]] or [[clipA]]. Use [[clipA]] and [[clipB]] for their specific clips. If both clips come from input2, [[input2]] means the source video shared by both selected clips; it never selects one clip or adds the whole video. Shared source tokens are general context only; timed actions must name the specific clip tokens. For a soundtrack, use a specific clip token, never a shared source token. A video soundtrack uses [[clipA:audio]]. Frame guides use the same token form; the app translates it to the correct label or guide description. Do not write numbered Picture/Video/Audio labels.':'In the prompt, copy labels from the current input mapping. Do not use a prompt label as an input id.'}`;
 }
 /** Resolver keyed by input instance, including distinct soundtrack channels. */
 export function toolInputLabels(refs:InputReference[]):Map<string,string>{return inputLabels(refs);}
@@ -91,15 +93,15 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
   const issues:RequestIssue[]=[];
   const add=(field:string,message:string,fix?:string)=>issues.push({field,message,...(fix?{fix}:{})});
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new ToolRequestError([{field:'request',message:'Provide request settings.'}]);
-  const value=raw as Record<string,any>,video=context.workflow!=='text-to-image';
-  const allowed=['request_id','loras','prompt','batch_size','seed','aspect_ratio','size','note',...(video?['duration_seconds','audio_output']:[]),...(context.workflow==='reference-to-video'?['inputs']:[]),...(context.mode==='nsfw'?['mode']:[])];
+  const value=raw as Record<string,any>,video=isVideoWorkflow(context.workflow);
+  const allowed=['request_id',...(context.workflow==='image-to-image'?[]:['loras']),'prompt','batch_size','seed','aspect_ratio','size','note',...(video?['duration_seconds','audio_output']:[]),...(usesInputs(context.workflow)?['inputs']:[]),...(context.mode==='nsfw'?['mode']:[])];
   for(const key of Object.keys(value))if(!allowed.includes(key))add(key,'Unknown setting.','Remove this field. Use flat setting names from the tool schema.');
   if(value.request_id!==undefined&&!context.previous)add('request_id','No existing request was supplied for this edit.','Use create_request for a new card.');
   if(!context.previous&&value.prompt===undefined)add('prompt','Provide the generation prompt.');
   if(context.previous&&Object.keys(value).every(k=>k==='request_id'))add('request','No changes were supplied.','Send at least one changed setting.');
   const request:any=context.previous?structuredClone(context.previous):{
     workflow:context.workflow,mode:context.mode,
-    prompt:'',count:1,seed:'random',output:{aspect:'16:9',size:video?'768p':'1mp',...(video?{duration_seconds:5,format:'video'}:{})},
+    prompt:'',count:1,seed:'random',output:{aspect:context.workflow==='image-to-image'?'source':'16:9',size:video?'768p':'1mp',...(video?{duration_seconds:5,format:'video'}:{})},
     ...(video?{audio:{output:'generated'},references:[]}:{})
   };
   request.workflow=context.workflow;
@@ -141,13 +143,13 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
         const id=prior?.id??input.instance??asset.handle;
         if(!prior&&context.previous?.references?.some(r=>r.id===id))add(field+'.'+(input.instance===undefined?'asset':'instance'),'This name belongs to an existing input.','Use its id to keep or edit that input, or give the new input a distinct instance name.');
         if(used.has(id))add(field+'.asset','This input handle is already used.','Give each new input a distinct instance name, such as clipA and clipB.');used.add(id);
-        const ref:any=prior?structuredClone(prior):{id:/^[-\w]{1,100}$/.test(id)?id:randomUUID(),asset_id:asset.asset_id,kind:asset.kind,role:'reference'};
+        const ref:any=prior?structuredClone(prior):{id:/^[-\w]{1,100}$/.test(id)?id:randomUUID(),asset_id:asset.asset_id,kind:asset.kind,role:context.workflow==='image-to-image'&&index===0?'source':'reference'};
         if(prior&&asset.asset_id!==prior.asset_id){ref.asset_id=asset.asset_id;ref.kind=asset.kind;delete ref.range;delete ref.include_audio;if(asset.kind!=='image')delete ref.framing;ref.role='reference';}
         for(const key of ['role','framing','include_audio'])if(Object.hasOwn(input,key))ref[key]=input[key];
         if(asset.kind==='image'){
           for(const key of ['start_seconds','duration_seconds','include_audio'])if(Object.hasOwn(input,key))add(field+'.'+key,'This setting does not apply to an image.');
         }else {
-          if(ref.role!=='reference')add(field+'.role',`${asset.kind==='video'?'Video':'Audio'} inputs must use role reference.`,'Only images can be first_frame or last_frame. Use either general references or first/last frame guides; do not combine them.');
+          if(ref.role!=='reference')add(field+'.role',`${asset.kind==='video'?'Video':'Audio'} inputs must use role reference.`,'Only images can be first_frame or last_frame. General references may be combined with first/last image guides. Keep their roles explicit.');
           if(Object.hasOwn(input,'framing'))add(field+'.framing','Framing applies only to images.');
           if(asset.kind==='audio'&&Object.hasOwn(input,'include_audio')){
             if(input.include_audio!==true)add(field+'.include_audio','A standalone audio input cannot have include_audio false.','Remove that input from the list to exclude it; omit include_audio to keep it.');
@@ -167,7 +169,7 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
   if(!issues.length&&typeof request.prompt==='string'){
    try{
     if(context.compilePrompt)request.prompt=context.compilePrompt(request.prompt,refs,context.previous);
-    else if(context.referenceMode==='stable'&&context.workflow==='reference-to-video'&&Object.hasOwn(value,'prompt')){
+    else if(context.referenceMode==='stable'&&usesInputs(context.workflow)&&Object.hasOwn(value,'prompt')){
       // The persisted source ID is also an unambiguous identity; normalize it
       // only when this request uses that source exactly once.
       request.prompt=request.prompt.replace(/\[\[([^\[\]]+)\]\]/g,(token:string,identity:string)=>{

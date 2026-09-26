@@ -1,4 +1,4 @@
-import { test, expect } from '@playwright/test';
+import { test, expect } from './fixtures.js';
 
 test('imports explicitly mapped H3 files as one LoRA, announces acceptance, and tracks it in Activity', async ({
   page,

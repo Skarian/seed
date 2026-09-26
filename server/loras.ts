@@ -1,22 +1,20 @@
+import type {LoraSelection} from '../shared/generation.js';
+export type {LoraSelection} from '../shared/generation.js';
 import {
   createReadStream,
   readFileSync,
   writeFileSync,
   renameSync,
-  mkdirSync,
-  copyFileSync,
   existsSync,
-  rmSync,
   statSync,
 } from 'node:fs';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
-import type { LoraGroup, LoraGuidance } from '../shared/loras.js';
+import type { LoraGroup, LoraGuidance, LoraSource, LoraSourceManifest, LoraRoute } from '../shared/loras.js';
 import type { StudioPaths } from './storage.js';
-import type { FalTransport } from './fal.js';
-import { convertH3Lora, readTensorHeader } from './lora-convert.js';
 
-export type LoraSelection = { id: string; revision: string; scale: number };
+
+
 export type Lora = {
   group_id?: string;
   filename?: string;
@@ -33,8 +31,9 @@ export type Lora = {
   trigger_words?: string[];
   route: 'image' | 'fl' | 'ref';
   revision: string;
-  file: string;
-  format: 'lora' | 'lokr';
+  file?: string;
+  source?: LoraSource;
+  format: 'lora' | 'lokr' | 'unknown';
   compatibility: 'untested' | 'verified';
   source_sha256?: string;
   conversion?: 'h3-kohya-v1';
@@ -45,6 +44,10 @@ export async function digest(file: string) {
   const hash = createHash('sha256');
   for await (const bytes of createReadStream(file)) hash.update(bytes);
   return hash.digest('hex');
+}
+export function sourceReady(source: LoraSource | undefined): source is LoraSource {
+  if(!source||source.provider!=='civitai'||!['model_id','version_id','file_id'].every(key=>Number.isSafeInteger(source[key as 'model_id'])&&source[key as 'model_id']>0)||!Number.isSafeInteger(source.size_bytes)||source.size_bytes<=0||source.size_bytes>8*1024**3||!/^[a-f0-9]{64}$/.test(source.sha256))return false;
+  try{const url=new URL(source.url);return url.protocol==='https:'&&url.hostname==='civitai.com'&&!url.username&&!url.password&&!url.port&&url.pathname===`/api/download/models/${source.version_id}`&&[...url.searchParams.keys()].every(key=>['type','format','size','fp'].includes(key));}catch{return false;}
 }
 
 export function loraGroupId(
@@ -67,7 +70,7 @@ export function loraGroupId(
 }
 export class Loras {
   private file: string;
-  private uploads = new Map<string, Promise<string>>();
+
   constructor(private paths: StudioPaths) {
     this.file = path.join(paths.config, 'loras.json');
   }
@@ -75,6 +78,21 @@ export class Loras {
     try {
       const entries = JSON.parse(readFileSync(this.file, 'utf8'));
       if (!Array.isArray(entries)) throw Error();
+      // Older imports already persisted pinned metadata. Recover that metadata
+      // without reading, converting, downloading or deleting their local files.
+      let changed=false;
+      let imports:any[]=[];
+      try{const saved=JSON.parse(readFileSync(path.join(this.paths.config,'lora-imports.json'),'utf8'));if(Array.isArray(saved))imports=saved;}catch{}
+      for(const entry of entries as Lora[]){
+        if(entry.source)continue;
+        for(const job of imports){
+          const file=job.files?.find((f:any)=>f.lora_id===entry.id&&f.sha256===entry.revision);
+          const modelId=Number(String(job.source_url??'').match(/\/models\/(\d+)/)?.[1]);
+          const source:LoraSource={provider:'civitai',model_id:modelId,version_id:job.version_id,file_id:file?.file_id,url:file?.download_url,sha256:file?.sha256,size_bytes:file?.total};
+          if(sourceReady(source)){entry.source=source;changed=true;break;}
+        }
+      }
+      if(changed)this.save(entries);
       return entries;
     } catch (error) {
       if ((error as NodeJS.ErrnoException).code === 'ENOENT') return [];
@@ -97,9 +115,10 @@ export class Loras {
       )
       .map(({ file, upload, ...entry }) => ({
         ...entry,
+        source_status: sourceReady(entry.source) ? 'ready' as const : 'needs_source' as const,
         enabled: entry.enabled !== false,
         availability: entry.availability ?? 'all',
-        uploaded: Boolean(upload && Date.parse(upload.expires_at) > Date.now()),
+        compatibility: entry.verification?.endpoint.startsWith('worker:') ? entry.compatibility : 'untested',
         min_scale: 0,
         max_scale: 4,
         default_scale: entry.default_scale ?? 1,
@@ -171,50 +190,42 @@ export class Loras {
           id: e.id,
           name: e.filename ?? 'Imported adapter',
           route: e.route,
-          uploaded: Boolean(e.upload && Date.parse(e.upload.expires_at) > Date.now()),
-          compatibility: e.compatibility,
+          compatibility: e.verification?.endpoint.startsWith('worker:') ? e.compatibility : 'untested',
+          source_status: sourceReady(e.source) ? 'ready' : 'needs_source',
         })),
       };
     });
   }
-  applyGroup(
-    groupId: string,
-    files: Array<{ id: string; route: Lora['route']; name: string }>,
-    guidance: LoraGuidance & {
-      availability: 'all' | 'spicy';
-      enabled: boolean;
-      version?: string;
-      source_url?: string;
-    },
-  ) {
-    const entries = this.all();
-    if (!files.length || new Set(files.map((f) => f.route)).size !== files.length)
-      throw Error('Map one file to each workflow.');
-    const selected = new Map(files.map((f) => [f.id, f]));
-    for (const file of files) {
-      const entry = entries.find((e) => e.id === file.id);
-      if (!entry || entry.route !== file.route) throw Error('The mapped adapter is unavailable.');
-    }
-    this.save(
-      entries.map((entry) => {
-        const file = selected.get(entry.id);
-        if (file)
-          return {
-            ...entry,
-            ...guidance,
-            group_id: groupId,
-            filename: file.name,
-            staged: false,
-            archived: false,
-          };
-        return loraGroupId(entry) === groupId && !entry.staged
-          ? { ...entry, archived: true, enabled: false }
-          : entry;
-      }),
-    );
+  manifestSources(role: 'image' | 'video'): LoraSourceManifest[] {
+    return this.all().filter(entry=>!entry.archived&&!entry.staged&&entry.enabled!==false&&(role==='image'?entry.route==='image':entry.route!=='image')&&sourceReady(entry.source)).map(entry=>{
+      const source=entry.source!;
+      // The worker protocol pins one exact file, not Civitai's default file for
+      // a version. Legacy catalog URLs may omit selectors or name another file.
+      const url=`https://civitai.com/api/download/models/${source.version_id}?fileId=${source.file_id}`;
+      return {id:entry.id,name:entry.name,revision:entry.revision,route:entry.route,path:`loras/seed-${source.sha256}.safetensors`,url,sha256:source.sha256,size_bytes:source.size_bytes,source:{...source}};
+    });
   }
-  clearUploads() {
-    this.save(this.all().map(({ upload, ...entry }) => entry));
+  applySources(groupId:string,files:Array<{name:string;route:LoraRoute;source:LoraSource}>,details:LoraGuidance&{availability:'all'|'spicy';enabled:boolean;version?:string;source_url?:string}) {
+    if(!files.length||new Set(files.map(f=>f.route)).size!==files.length||files.some(f=>!sourceReady(f.source)))throw Error('Choose pinned adapter sources and map one file per workflow.');
+    const selected=files.map(file=>({
+      ...details,group_id:groupId,id:`${file.route}-${file.source.sha256.slice(0,16)}-${groupId}`,
+      filename:file.name,route:file.route,revision:file.source.sha256,format:'unknown' as const,
+      compatibility:'untested' as const,source:{...file.source},staged:false,archived:false,
+    }));
+    const entries=this.all();
+    for(const entry of selected){
+      const previous=entries.find(e=>e.id===entry.id);
+      if(previous)Object.assign(entry,{...previous,...entry,compatibility:previous.compatibility??'untested'});
+    }
+    this.save([...entries.filter(e=>!selected.some(s=>s.id===e.id)).map(e=>loraGroupId(e)===groupId?{...e,archived:true,enabled:false}:e),...selected]);
+  }
+  remapGroup(groupId:string,files:Array<{id:string;route:LoraRoute}>,details:LoraGuidance&{availability:'all'|'spicy';enabled:boolean;version?:string;source_url?:string}) {
+    const entries=this.all(),selected=files.map(file=>{
+      const old=entries.find(e=>e.id===file.id&&loraGroupId(e)===groupId&&!e.archived&&!e.staged);
+      if(!old)throw Error('A selected file is not part of this LoRA.');
+      return {...old,...details,route:file.route,id:file.route===old.route?old.id:`${file.route}-${old.revision.slice(0,16)}-${groupId}`,staged:false,archived:false,...(file.route===old.route?{}:{compatibility:'untested' as const,verification:undefined})};
+    });
+    this.save([...entries.filter(e=>!selected.some(s=>s.id===e.id)).map(e=>loraGroupId(e)===groupId?{...e,archived:true,enabled:false}:e),...selected]);
   }
   setAvailability(id: string, availability: unknown) {
     if (availability !== 'all' && availability !== 'spicy')
@@ -222,57 +233,6 @@ export class Loras {
     const entries = this.all();
     if (!entries.some((entry) => entry.id === id)) throw Error('LoRA not found.');
     this.save(entries.map((entry) => (entry.id === id ? { ...entry, availability } : entry)));
-  }
-  async add(source: string, route: string, name: string, groupId?: string) {
-    if (!['image', 'fl', 'ref'].includes(route) || !name.trim())
-      throw Error('Choose image, fl, or ref and a name.');
-    if (!source.endsWith('.safetensors')) throw Error('Choose a .safetensors adapter.');
-    const sourceRevision = await digest(source);
-    const tensors = Object.keys((await readTensorHeader(source)).tensors);
-    let format: Lora['format'] = 'lora';
-    if (tensors.some((k) => k.includes('lokr_'))) format = 'lokr';
-    else if (!tensors.some((k) => /lora_[AB]|lora_down|lora_up/.test(k)))
-      throw Error('No recognized adapter tensors.');
-    const directory = path.join(this.paths.data, 'loras');
-    mkdirSync(directory, { recursive: true });
-    let revision = sourceRevision,
-      file = path.join(directory, revision + '.safetensors');
-    if (!existsSync(file)) copyFileSync(source, file);
-    const converted = route !== 'image' && tensors.some((k) => k.startsWith('lora_unet_'));
-    if (converted) {
-      const temporary = path.join(directory, randomUUID() + '.safetensors');
-      try {
-        await convertH3Lora(file, temporary);
-        revision = await digest(temporary);
-        file = path.join(directory, revision + '.safetensors');
-        if (!existsSync(file)) renameSync(temporary, file);
-      } finally {
-        rmSync(temporary, { force: true });
-      }
-    }
-    const entries = this.all();
-    if (groupId) {
-      const existing = entries.find(
-        (e) =>
-          !e.archived && loraGroupId(e) === groupId && e.route === route && e.revision === revision,
-      );
-      if (existing) return existing.id;
-    }
-    const id = `${route}-${revision.slice(0, 16)}` + (groupId ? '-' + groupId : '');
-    if (entries.some((e) => e.id === id)) return id;
-    entries.push({
-      ...(groupId ? { group_id: groupId, staged: true, enabled: false } : {}),
-      id,
-      name: name.trim(),
-      route: route as Lora['route'],
-      revision,
-      file,
-      format,
-      compatibility: 'untested',
-      ...(converted ? { source_sha256: sourceRevision, conversion: 'h3-kohya-v1' as const } : {}),
-    });
-    this.save(entries);
-    return id;
   }
   markVerified(selected: LoraSelection[], request_id: string, endpoint: string) {
     if (!selected.length) return;
@@ -305,52 +265,5 @@ export class Loras {
         throw Error('LoRA strength must be between 0 and 4.');
       return { ...entry, scale: selection.scale };
     });
-  }
-  async url(id: string, revision: string, fal: FalTransport) {
-    const key = revision;
-    let pending = this.uploads.get(key);
-    if (!pending) {
-      pending = this.ensureUrl(id, revision, fal).finally(() => this.uploads.delete(key));
-      this.uploads.set(key, pending);
-    }
-    return pending;
-  }
-  private async ensureUrl(id: string, revision: string, fal: FalTransport) {
-    const entries = this.all(),
-      entry = entries.find((e) => e.id === id && e.revision === revision);
-    if (!entry) throw Error('The selected adapter version is missing.');
-    const previousUpload = entry.upload;
-    const reusable = entries.find(
-      (other) =>
-        other.revision === revision &&
-        other.upload &&
-        Date.parse(other.upload.expires_at) > Date.now() + 86400000,
-    )?.upload;
-    if (reusable) entry.upload = reusable;
-    if (!entry.upload || Date.parse(entry.upload.expires_at) < Date.now() + 86400000) {
-      if ((await digest(entry.file)) !== entry.revision)
-        throw Error('The local adapter has changed. Import it as a new version.');
-      const url = await fal.upload(entry.file, true);
-      entry.upload = { url, expires_at: new Date(Date.now() + 365 * 86400000).toISOString() };
-      this.save(
-        this.all().map((current) =>
-          current.id === id && current.revision === revision
-            ? { ...current, upload: entry.upload }
-            : current,
-        ),
-      );
-    }
-    if (
-      previousUpload?.url !== entry.upload.url ||
-      previousUpload?.expires_at !== entry.upload.expires_at
-    )
-      this.save(
-        this.all().map((current) =>
-          current.id === id && current.revision === revision
-            ? { ...current, upload: entry.upload }
-            : current,
-        ),
-      );
-    return fal.sign(entry.upload.url);
   }
 }

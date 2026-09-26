@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures.js';
 test('inline workflow badges survive sending and rename is compact across sizes',async({page})=>{
  let chat:any={id:'inline',title:'A long chat name for a creative project',mode:'sfw',version:0,epoch:0,workflow:null,reasoning:true,activity:'idle',assets:[],jobs:[],accounting:[],groups:[],messages:[]};
  const errors:string[]=[];page.on('pageerror',e=>errors.push(e.message));

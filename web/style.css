@@ -392,7 +392,7 @@ legend {
   color: #96a386;
   font-size: 11px;
 }
-footer {
+.studio-shell > main > footer {
   color: #8a977a;
   font-size: 11px;
   padding: 24px 0;
@@ -1308,11 +1308,13 @@ footer {
 }
 
 .confirm-dialog { width:min(440px, calc(100vw - 32px)); box-sizing:border-box; padding:28px; border:1px solid #414247; border-radius:18px; background:#202125; color:#f5f5f5; box-shadow:0 24px 90px #0008; }
+.seed-modal.confirm-dialog { width:min(440px, calc(100vw - 32px)); }
+body:has(.confirm-dialog) .mode-toasts { z-index:99; }
 .confirm-dialog::backdrop { background:rgb(0 0 0 / .62); }
 .confirm-dialog h2 { margin:0 0 12px; font-size:1.2rem; }
 .confirm-dialog p { color:#c5c7ce; line-height:1.5; }
-.confirm-actions { display:flex; justify-content:flex-end; gap:12px; margin-top:24px; }
-.confirm-actions button { padding:10px 18px; border-radius:10px; border:1px solid #53545b; background:#303137; color:white; }
+.confirm-actions { display:flex; flex-wrap:wrap; justify-content:flex-end; gap:12px; margin-top:24px; }
+.confirm-actions button { min-height:44px; padding:10px 18px; border-radius:10px; border:1px solid #53545b; background:#303137; color:white; }
 .confirm-actions .destructive { background:#b92e3e; border-color:#d84758; }
 .confirm-dialog button:focus-visible { outline:2px solid white; outline-offset:3px; }
 .confirm-dialog button:disabled { opacity:.5; cursor:wait; }
@@ -1769,6 +1771,8 @@ body { background:#171917; }
 /* The sidebar toggle floats over the page without a navigation strip. */
 .app-bar { position:fixed; top:var(--viewport-top,0px); left:0; width:auto; height:52px; padding:8px 20px; background:transparent; border:0; pointer-events:none; }
 .app-bar .sidebar-toggle { pointer-events:auto; }
+.mobile-workflow-title{display:none}
+@media(max-width:650px){.mobile-workflow-title{display:block;font-size:13px;font-weight:500;color:#b8c7a7}.page-generate .app-bar{right:0;background:#171b16}.app-bar .sidebar-toggle{width:44px;height:44px}}
 .page-chat>main { height:var(--viewport-height); }
 .chat-history { padding-top:56px; scrollbar-gutter:stable both-edges; }
 .studio-shell:not(.page-chat)>main { padding-top:56px; }
@@ -1879,3 +1883,10 @@ body { background:#171917; }
 
 /* Keep inline tags visually separated from following text. */
 .inline-composer :is(.command-badge,.input-mention),.chat-message.user>p :is(.command-badge,.input-mention){margin-inline-end:0.3em}
+.retained-chat-page:not([hidden]){height:100%;min-height:0;display:flex;flex-direction:column}.retained-chat-page[hidden]{display:none}
+
+.reference-role-badge { position:absolute; bottom:4px; left:4px; padding:3px 7px; border-radius:4px; background:#191d19; color:#f2f0e9; font-size:11px; font-weight:600; }
+
+.request-settings-hint { margin:0; color:var(--muted); font-size:13px; line-height:1.6; }
+.job-output-detail > button + button { margin-left:8px; }
+@media(max-width:650px){body:has(.modal-overlay) .mode-toasts{z-index:99;}}

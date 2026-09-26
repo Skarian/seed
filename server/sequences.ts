@@ -1,11 +1,17 @@
 import type Database from 'better-sqlite3';
-import { existsSync, realpathSync, unlinkSync, readdirSync } from 'node:fs';
+import { existsSync, realpathSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import type { Jobs } from './jobs.js';
 import type { FrameSequence } from '../shared/studio.js';
+import {removeAssetCaches} from './media-cache.js';
 
 export class Sequences {
   constructor(private db: Database.Database, private data: string, private cache: string, private jobs: Jobs) {}
+  assetIds(id:string){
+    const frames=(this.db.prepare('SELECT asset_id FROM sequence_frames WHERE sequence_id=?').all(id) as {asset_id:string}[]).map(row=>row.asset_id);
+    const row=this.db.prepare('SELECT pending_json FROM sequences WHERE id=?').get(id) as {pending_json:string|null}|undefined;
+    return [...new Set([...frames,...(row?.pending_json?JSON.parse(row.pending_json).remove as string[]:[])])];
+  }
   get(id: string): FrameSequence | null {
     const row = this.db.prepare('SELECT * FROM sequences WHERE id=?').get(id) as any;
     if (!row) return null;
@@ -22,7 +28,7 @@ export class Sequences {
   }
   private check(ids: string[]) {
     for (const job of this.jobs.all()) {
-      if (!['completed','failed','cancelled'].includes(job.state) && job.request.references?.some(r=>ids.includes(r.asset_id))) throw Error('A queued job still needs a selected file. Wait for it to finish.');
+      if ((!['completed','failed','cancelled'].includes(job.state)||this.jobs.isInFlight(job.id)) && [...(job.request?.references??[]),...(job.prepared??[])].some(r=>ids.includes(r.asset_id))) throw Error('A queued job still needs a selected file. Wait for it to finish.');
       if (job.outputs.some(id=>ids.includes(id)) && (job.state!=='completed')) throw Error('These frames are still being saved. Try again shortly.');
     }
     for (const id of ids) {
@@ -54,26 +60,27 @@ export class Sequences {
     if(!row?.pending_json) return;
     const pending=JSON.parse(row.pending_json);
     this.check(pending.remove);
+    removeAssetCaches(this.db,{data:this.data,cache:this.cache},this.jobs,pending.remove,[id]);
     for(const assetId of pending.remove) {
       const asset=this.db.prepare('SELECT relative_path FROM assets WHERE id=?').get(assetId) as any;
       if(asset) {
         try { unlinkSync(this.location(asset.relative_path)); } catch(e) { if((e as NodeJS.ErrnoException).code!=='ENOENT') throw Error('Could not remove a frame. Close apps using it and retry.'); }
-        for(const size of [384,1280]) { try { unlinkSync(path.join(this.cache,'previews',assetId+'-'+size+'.webp')); } catch(e) { if((e as NodeJS.ErrnoException).code!=='ENOENT') throw e; } }
       }
       this.db.transaction(()=>{
         this.db.prepare('DELETE FROM assets WHERE id=?').run(assetId);
         for(const job of this.jobs.all()) if(job.outputs.includes(assetId)) {job.outputs=job.outputs.filter(x=>x!==assetId);this.jobs.save(job);}
       })();
     }
-    // Preview sheets are disposable; failed cache cleanup must not undo a prune.
-    try { for(const file of readdirSync(path.join(this.cache,'previews'))) if(file.startsWith('sequence-'+id+'-')) unlinkSync(path.join(this.cache,'previews',file)); } catch {}
     if(pending.deleting) this.db.prepare('DELETE FROM sequences WHERE id=?').run(id);
     else this.db.prepare('UPDATE sequences SET pending_json=NULL,revision=revision+1 WHERE id=?').run(id);
   }
   retry(id:string) { this.finish(id); return this.get(id); }
-  recover() {
+  recover(onFailure?:(failure:{code:string})=>void) {
     for(const row of this.db.prepare('SELECT id FROM sequences WHERE pending_json IS NOT NULL').all() as {id:string}[]) {
-      try { this.finish(row.id); } catch { /* Keep intent for an explicit retry; never claim deletion succeeded. */ }
+      try { this.finish(row.id); } catch(error) {
+        // Keep intent for retry and report the bounded failure without file names or media content.
+        onFailure?.({code:(error as NodeJS.ErrnoException).code??'SEQUENCE_CLEANUP_FAILED'});
+      }
     }
   }
 }

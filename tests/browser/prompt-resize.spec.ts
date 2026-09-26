@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures.js';
 import fs from 'node:fs/promises';
 
 for(const mobile of [false,true])test(`prompt resize handles across editors (${mobile?'touch':'mouse'})`,async({page})=>{

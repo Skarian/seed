@@ -1,4 +1,4 @@
-import {test,expect} from '@playwright/test';
+import {test,expect} from './fixtures.js';
 test('switching chats does not show the new-chat welcome while loading',async({page})=>{
  const base={mode:'sfw',workflow:null,version:0,epoch:0,reasoning:true,groups:[],assets:[],activity:'idle',error:null,jobs:[],accounting:[]};
  const first={...base,id:'first',title:'First chat',messages:[{id:'m1',role:'user',text:'First message',assets:[]}]};
