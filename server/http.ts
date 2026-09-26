@@ -31,8 +31,10 @@ import { fileURLToPath } from 'node:url';
 import { listAssets, openDatabase } from './db.js';
 import { prepareStorage, type StudioPaths } from './storage.js';
 import type { StudioSnapshot } from '../shared/studio.js';
+import {HttpAccess} from './http-access.js';
 
 export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; poolDependencies?: PoolDependencies; providerFetch?:typeof fetch; chatFetch?:typeof fetch }) {
+  const access = new HttpAccess(options.paths, options.host ?? '127.0.0.1', options.port);
   prepareStorage(options.paths);
   const releaseCoordinator=acquireCoordinator(options.paths);
   let db:ReturnType<typeof openDatabase>;
@@ -51,15 +53,14 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   await jobs.serialize(async()=>sweepCaches());
   const app = Fastify({ logger: false, genReqId:()=>randomUUID(), bodyLimit: 16 * 1024, trustProxy: false, ajv: { customOptions: { removeAdditional: false } } });
   app.decorate('seedPool',pool);
-  const allowedHost = `${options.host ?? '127.0.0.1'}:${options.port}`;
-  const origin = `http://${allowedHost}`;
   const instanceId = randomUUID();
   const fail = (reply: import('fastify').FastifyReply, status: number, code: string, message: string, requestId: string) =>
     reply.code(status).send({ error: { code, message, retryable: false }, request_id: requestId });
 
   app.addHook('onRequest', async (request, reply) => {
     // A loopback bind alone does not protect against DNS rebinding or hostile websites.
-    if (request.headers.host !== allowedHost) return fail(reply, 403, 'untrusted_host', 'Open seed using its local address.', request.id);
+    const origin = access.originFor(request.headers.host);
+    if (!origin) return fail(reply, 403, 'untrusted_host', 'Open Seed using its local address or configured remote URL.', request.id);
     const site = request.headers['sec-fetch-site'];
     if (site && site !== 'same-origin' && site !== 'none') return fail(reply, 403, 'untrusted_origin', 'Cross-site access is not allowed.', request.id);
     if (request.headers.origin && request.headers.origin !== origin) return fail(reply, 403, 'untrusted_origin', 'Cross-site access is not allowed.', request.id);
@@ -90,7 +91,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   registerClientFailures(app,diagnostics);
   registerNotes(app, db);
   registerAssetOrganization(app, db);
-  registerAdmin(app,options.paths,jobs.loras,imports,{fetcher:options.providerFetch,changeCredential:(field,next,previous,commit)=>pool.withCredentialChange(field,next,previous,commit)});
+  registerAdmin(app,options.paths,jobs.loras,imports,{access,fetcher:options.providerFetch,changeCredential:(field,next,previous,commit)=>pool.withCredentialChange(field,next,previous,commit)});
   registerChats(app,chats,()=>Boolean(chatCredential(options.paths)));
   app.addHook('onReady', async () => { diagnostics.event({category:'server',operation:'started',data:{instance_id:instanceId}});pool.start();jobs.start(); });
   app.addHook('preClose', async () => { await imports.close();await chats.close(); await pool.close();await jobs.close(); });

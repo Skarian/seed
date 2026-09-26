@@ -2,9 +2,11 @@ import type {FastifyInstance} from 'fastify';
 import type {StudioPaths} from './storage.js';
 import type {Loras} from './loras.js';
 import type {LoraImports} from './lora-imports.js';
+import type {HttpAccess} from './http-access.js';
 import {credential,credentialStatus,credentialValue,saveCredential,recordCredentialCheck,credentialFields,type CredentialField} from './credential-store.js';
 
 export type AdminOptions = {
+  access?: HttpAccess;
   fetcher?:typeof fetch;
   beforeCredentialChange?:(field:CredentialField,next:string|null,previous:string)=>Promise<void>;
   changeCredential?:(field:CredentialField,next:string|null,previous:string,commit:()=>void)=>Promise<void>;
@@ -31,6 +33,10 @@ export function registerAdmin(app:FastifyInstance,paths:StudioPaths,loras:Loras,
     catch(e){return reply.code(409).send({error:{code:'admin_error',message:(e as Error).message,retryable:false}});}
   };
   app.get('/api/v1/admin',async()=>({credentials:credentialStatus(paths),storage:{config:paths.config,data:paths.data}}));
+  if (options.access) {
+    app.get('/api/v1/admin/access',async()=>options.access!.snapshot());
+    app.patch('/api/v1/admin/access',{schema:{body:{type:'object',additionalProperties:false,required:['publicOrigin'],properties:{publicOrigin:{type:['string','null'],minLength:1,maxLength:2048}}}}},handle(r=>options.access!.update(r.body.publicOrigin)));
+  }
   app.patch('/api/v1/admin/credentials/:field',{schema:{body:{type:'object',additionalProperties:false,required:['value'],properties:{value:{anyOf:[{type:'string',minLength:1,maxLength:4096},{type:'null'}]}}}}},handle(r=>serialized(async()=>{
     const field=fieldOf(r.params.field),next=credentialValue(r.body.value),previous=credential(paths,field);
     if(next!==previous){

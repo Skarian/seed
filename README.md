@@ -26,7 +26,34 @@ workers, jobs, transfers, and cost tracking running. Keep this PC awake and
 connected. `seed stop` stops the coordinator, not your rentals: restart Seed to
 resume reconciliation, or explicitly quit workers before stopping the server.
 Use `seed setup --host <LAN IPv4>` while stopped to select a local-network
-address. This personal, local app is not intended to be exposed to the internet.
+address. Remote access requires an authenticated reverse proxy; see below.
+
+## Remote access
+
+In **Admin → Access**, save a **Remote URL**, for example
+`https://seed.example.com`. Seed accepts that exact HTTPS address in addition to
+its existing local address. It is stored as `publicOrigin` in the normal user
+`settings.json`. Saving or removing it takes effect for new requests without
+restarting Seed or its workers. Local access remains available for recovery.
+
+The setting permits an address; it does not create a tunnel or provide a login.
+For Cloudflare, create an Access application restricted to your account **before**
+publishing the tunnel route. Protect the whole hostname, including API and media
+paths, and enable **Protect with Access** so `cloudflared` validates Access tokens.
+Use a named tunnel: Quick Tunnels do not support the chat event stream.
+See [Cloudflare's authenticated application guide](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/self-hosted-public-app/).
+
+Point the tunnel at Seed's configured local URL (for example
+`http://192.168.1.212:4310`). Preserve the public HTTP Host header; do not override
+it with the local IP. Seed does not trust forwarded headers to grant access.
+Keep the tunnel and Seed running, and keep the PC awake. No router port forwarding
+is needed for Cloudflare Tunnel. Keep lifecycle control ports and the QA gallery
+outside the tunnel, and bypass caching for Seed's private API/media responses.
+
+Only a full HTTPS origin is supported: no wildcard, credentials, query, fragment,
+or subpath such as `/seed`. Removing an address blocks new requests through it;
+use Cloudflare Access or stop the tunnel to revoke remote sessions, including
+already-open streams. Cloudflare credentials belong to `cloudflared`, not Seed.
 
 ## Workers
 
@@ -180,6 +207,7 @@ npm run test:package -- .local/skarian-seed-0.1.0.tgz
 npm run test:browser
 npm run test:visual
 npm run test:cards
+node scripts/test-remote-access.mjs
 npm run qa:serve
 ```
 
@@ -209,3 +237,10 @@ mosaics to navigate or discuss findings.
 
 Live GPU inference and provider purchases require a separate test
 run; passing offline tests does not establish generation latency or quality.
+
+The remote-access harness builds into isolated staging directories, exercises a
+real HTTPS-to-HTTP local proxy (including resumable uploads, byte-range media and
+chat events), and captures desktop/mobile Admin screens. It generates a temporary
+test certificate using OpenSSL (`OPENSSL_PATH`, PATH, or Git for Windows' bundled
+OpenSSL), and uses fixture data only. It does not configure a real tunnel or rent
+GPUs. Actual Cloudflare login policy must also be checked when deploying a tunnel.

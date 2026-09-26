@@ -28,7 +28,11 @@ test('CLI setup, concurrent start, authenticated stop, restart and data preserva
     expect((await run('status')).stdout).toContain('Running:');
     await run('stop'); await run('stop');
     expect((await run('status')).stdout).toContain('stopped');
+    const settingsFile = path.join(root, 'config/settings.json');
+    const remoteSettings = {...JSON.parse(readFileSync(settingsFile, 'utf8')), publicOrigin: 'https://seed.example.com'};
+    writeFileSync(settingsFile, JSON.stringify(remoteSettings));
     await run('setup');
+    expect(JSON.parse(readFileSync(settingsFile, 'utf8'))).toEqual(remoteSettings);
     await run('start'); expect(readFileSync(original, 'utf8')).toBe('unique media');
     await run('stop');
     expect(readFileSync(original, 'utf8')).toBe('unique media');

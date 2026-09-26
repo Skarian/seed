@@ -2,14 +2,16 @@ import React, { useEffect, useState } from 'react';
 import { useSpicy } from './spicy-mode.js';
 import './admin.css';
 import { AdminLoras } from './admin-loras.js';
+import { AdminAccess } from './admin-access.js';
 import { adminApi as api } from './admin-api.js';
 import { credentialDefinitions, type AdminSettings, type CredentialField, type CredentialStatuses } from '../shared/credentials.js';
 export function Admin() {
   const { spicy } = useSpicy(),
     mode = spicy ? 'nsfw' : 'sfw';
-  const [section, setSection] = useState(
-    new URLSearchParams(location.search).get('section') === 'loras' ? 'loras' : 'credentials',
-  );
+  const [section, setSection] = useState(() => {
+    const selected = new URLSearchParams(location.search).get('section');
+    return selected === 'loras' || selected === 'access' ? selected : 'credentials';
+  });
   const [settings, setSettings] = useState<AdminSettings>(),
     [error, setError] = useState('');
   useEffect(() => {
@@ -35,7 +37,7 @@ export function Admin() {
         </div>
       </header>
       <nav className="admin-tabs" aria-label="Admin pages">
-        {['credentials', 'loras'].map((tab) => (
+        {['credentials', 'loras', 'access'].map((tab) => (
           <button
             key={tab}
             type="button"
@@ -45,11 +47,11 @@ export function Admin() {
               history.replaceState(null, '', '/admin?section=' + tab);
             }}
           >
-            {tab === 'credentials' ? 'Credentials' : 'LoRAs'}
+            {tab === 'credentials' ? 'Credentials' : tab === 'loras' ? 'LoRAs' : 'Access'}
           </button>
         ))}
       </nav>
-      {error && <p role="alert">{error}</p>}
+      {error && section === 'credentials' && <p role="alert">{error}</p>}
       {section === 'credentials' ? (
         <>
           <div className="admin-section-heading">
@@ -79,7 +81,7 @@ export function Admin() {
             <code>{settings?.storage.data}</code>
           </details>
         </>
-      ) : (
+      ) : section === 'access' ? <AdminAccess /> : (
         <AdminLoras key={mode} mode={mode} />
       )}
     </section>

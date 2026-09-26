@@ -48,7 +48,7 @@ try {
       if(!args.includes('--chat-only')){
         current.host=value('--host')??current.host;current.port=Number(value('--port')??current.port);
         const {validateAddress}=await import('./address.js');validateAddress(current.host,current.port);
-        await ensureCredentials(paths,{interactive:Boolean(process.stdin.isTTY)&&!quiet});saveSettings(paths,{host:current.host,port:current.port});
+        await ensureCredentials(paths,{interactive:Boolean(process.stdin.isTTY)&&!quiet});saveSettings(paths,current);
         say('Data: '+paths.data+'\nRun seed start, then add your keys in Admin → Credentials.');
       }
     } else if (command === 'status') {

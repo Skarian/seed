@@ -4,6 +4,8 @@
 
 .admin-page .admin-tabs button{border-color:transparent}.admin-page .admin-tabs button[aria-current]{border-bottom-color:#bfd393}
 
+.admin-local-address{margin-bottom:24px}.admin-local-address h3{margin:0 0 8px;font-size:13px;font-weight:500;color:#a6b49a}.admin-local-address a{color:#c7d7ac;overflow-wrap:anywhere;line-height:1.6}.admin-access-card{border:1px solid #394232;background:#1b2118;border-radius:12px;padding:22px;min-width:0}.admin-access-heading{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}.admin-access-heading label{font-size:17px;font-weight:500}.admin-access-description{color:#a6b49a;font-size:13px;line-height:1.6;margin:10px 0 18px}.admin-access-help{color:#98a58a;font-size:12px;line-height:1.65;margin:14px 0 22px;max-width:72ch}.admin-access-actions{display:flex;align-items:center;flex-wrap:wrap;gap:10px}.admin-access-actions button{min-height:44px}.admin-access-card [role=alert]{margin-bottom:0}.admin-access-load-error{padding:16px 0}.admin-access input{display:block;box-sizing:border-box}@media(max-width:650px){.admin-access-card{padding:17px}.admin-access-actions>*{flex:1}.admin-access .admin-section-heading p{font-size:13px}.admin-local-address{margin-bottom:20px}}
+
 .lora-detected-model{margin:0;display:flex;flex-direction:column;gap:6px;color:#a2ad98;font-size:12px}.lora-detected-model strong{color:#e3eccf;font-size:16px;font-weight:500}.lora-detected-model small{font-size:12px;line-height:1.5}
 
 .admin-lora-card footer{border-top:1px solid #343d2e;padding-top:14px;margin-top:18px;gap:12px 16px}
