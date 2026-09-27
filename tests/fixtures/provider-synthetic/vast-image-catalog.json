@@ -1,0 +1,32 @@
+{
+  "provenance": {
+    "kind": "synthetic-provider-fixture",
+    "provider": "vast",
+    "generated_at": "2026-01-01T00:00:00.000Z"
+  },
+  "status": 200,
+  "response": {
+    "offers": [
+      {
+        "num_gpus": 1,
+        "gpu_name": "RTX 5090",
+        "gpu_ram": 32607,
+        "cpu_ram": 64469,
+        "cuda_max_good": 13.2,
+        "compute_cap": 1200,
+        "disk_space": 314.525,
+        "direct_port_count": 12,
+        "dph_total": 0.5366666666666666,
+        "reliability2": 0.9927515,
+        "verification": "verified",
+        "storage_cost": 0.1333333333333333,
+        "gpu_max_power": 525,
+        "geolocation": "United States, US",
+        "inet_up_cost": 0.00390625,
+        "inet_down_cost": 0.0026041666666666665,
+        "cpu_cores_effective": 32,
+        "id": 1001
+      }
+    ]
+  }
+}

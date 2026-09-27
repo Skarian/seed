@@ -1,0 +1,15 @@
+.resizable-prompt{position:relative;min-width:0;width:100%;--initial-editor-height:200px}
+.resizable-prompt.resizable-chat{--initial-editor-height:104px}
+.resizable-prompt>textarea,.resizable-prompt>.inline-composer{height:var(--editor-height,var(--initial-editor-height));min-height:0;max-height:none;resize:none;overflow-y:auto;box-sizing:border-box;padding-bottom:34px}
+.resizable-prompt>.prompt-resize-grip,.seed-modal .resizable-prompt>.prompt-resize-grip{position:absolute;right:2px;bottom:2px;display:grid;place-items:center;width:32px;height:32px;min-height:0;margin:0;padding:5px;background:transparent;border:0;border-radius:7px;color:#a7b88d;cursor:ns-resize;touch-action:none;user-select:none;-webkit-user-select:none}
+.prompt-resize-grip svg{width:22px;height:22px;pointer-events:none}
+.resizable-prompt>.prompt-resize-grip:hover,.resizable-prompt>.prompt-resize-grip:focus-visible{background:#a5bf6b20;color:#d6eba7}
+.resizable-prompt>.prompt-resize-grip:focus-visible{outline:2px solid #bdd48d;outline-offset:-3px}
+@media(max-width:650px),(pointer:coarse){.resizable-prompt{--initial-editor-height:220px}.resizable-prompt.resizable-chat{--initial-editor-height:144px}.resizable-prompt>.prompt-resize-grip,.seed-modal .resizable-prompt>.prompt-resize-grip{width:44px;height:44px;padding:10px}.resizable-prompt>textarea,.resizable-prompt>.inline-composer{padding-bottom:46px}}
+
+.seed-modal .resizable-prompt>textarea{resize:none;min-height:0;max-height:none;padding-bottom:46px}
+
+/* Keep every scrolled line outside the grip's horizontal hit area. Bottom
+   padding alone does not protect text while the editor is scrolled. */
+:is(.chat-composer,.prompt-field,.prompt-editor,.review-request) .resizable-prompt>:is(.inline-composer,textarea){padding-right:44px}
+@media(max-width:650px),(pointer:coarse){:is(.chat-composer,.prompt-field,.prompt-editor,.review-request) .resizable-prompt>:is(.inline-composer,textarea){padding-right:56px}}

@@ -1,0 +1,175 @@
+.mention-editor {
+  position: relative;
+  min-width: 0;
+}
+.mention-editor .mention-picker {
+  position: absolute;
+  z-index: 5;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  margin-bottom: 6px;
+  max-height: 260px;
+  overflow: auto;
+  background: #20271d;
+  border: 1px solid #48523b;
+  border-radius: 14px;
+  padding: 6px;
+  box-shadow: 0 8px 30px #0006;
+}
+.mention-picker > button {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 8px;
+  border: 0;
+  border-radius: 9px;
+  background: transparent;
+  text-align: left;
+  color: inherit;
+  min-width: 0;
+}
+.mention-picker > button[aria-selected='true'],
+.mention-picker > button:hover {
+  background: #35402b;
+}
+.mention-picker > button > span:nth-child(2) {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  flex-direction: column;
+  gap: 3px;
+}
+.mention-picker strong {
+  font-size: 14px;
+}
+.mention-picker small {
+  font-size: 12px;
+  color: #a9b39e;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.mention-picker p {
+  padding: 8px;
+  font-size: 14px;
+}
+.mention-thumbnail {
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  position: relative;
+  display: grid;
+  place-items: center;
+  border-radius: 6px;
+  overflow: hidden;
+  background: #39422f;
+}
+.mention-thumbnail img,
+.mention-thumbnail video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mention-thumbnail > span {
+  position: absolute;
+  font-size: 14px;
+}
+.input-mention {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  vertical-align: baseline;
+  max-width: 100%;
+  border: 1px solid #566444;
+  background: #303c25;
+  color: #dfebcc;
+  border-radius: 6px;
+  padding: 1px 6px;
+  font: inherit;
+  font-size: 0.9em;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.input-mention.missing {
+  color: #efb2a7;
+  border-color: #83544b;
+  background: #412b27;
+}
+
+.mention-help {
+  font-size: 12px;
+  color: #a1ad92;
+  display: block;
+  margin: 6px 0 0;
+}
+.mention-help button {
+  padding: 0;
+  background: none;
+  border: 0;
+  color: inherit;
+  font: inherit;
+  text-decoration: underline;
+}
+.input-label-insert {
+  font: inherit;
+  font-weight: 600;
+  border: 0 !important;
+  background: none !important;
+  padding: 0 !important;
+  color: inherit;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-style: dotted;
+  text-underline-offset: 4px;
+}
+@media (max-width: 500px) {
+  .mention-picker > button > small {
+    max-width: 72px;
+    white-space: normal;
+  }
+}
+
+.mention-editor {
+  flex: 1;
+  width: 100%;
+}
+.mention-editor > .inline-composer {
+  width: 100%;
+  box-sizing: border-box;
+}
+.seed-modal .mention-picker > button {
+  border: 0;
+  background: transparent;
+  margin: 0;
+  padding: 8px;
+  border-radius: 9px;
+}
+.seed-modal .mention-picker > button[aria-selected='true'],
+.seed-modal .mention-picker > button:hover {
+  background: #35402b;
+}
+
+.chat-composer .mention-picker > button {
+  border: 0;
+  background: transparent;
+  margin: 0;
+  padding: 8px;
+  border-radius: 9px;
+}
+.chat-composer .mention-picker > button[aria-selected='true'],
+.chat-composer .mention-picker > button:hover {
+  background: #35402b;
+}
+
+.mention-editor .mention-picker {
+  right: auto;
+  width: min(380px, 100%);
+  box-sizing: border-box;
+}
+
+.mention-editor .resizable-prompt > .inline-composer {
+  width: 100%;
+  box-sizing: border-box;
+}

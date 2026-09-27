@@ -1,0 +1,27 @@
+{
+  "provenance": {
+    "kind": "synthetic-provider-fixture",
+    "provider": "vast",
+    "generated_at": "2026-01-01T00:00:00.000Z"
+  },
+  "status": 200,
+  "response": {
+    "instances": {
+      "actual_status": "running",
+      "cur_state": "running",
+      "dph_total": 0.5366666666666666,
+      "image_uuid": "ghcr.io/skarian/seed-worker-image@sha256:8edf7a9eb0567e4cd935cb7f3602029bc8d69525c340da671ec8bd0ffc8508cb",
+      "status_msg": "success, running ghcr.io/skarian/seed-worker-image@sha256:8edf7a9eb0567e4cd935cb7f3602029bc8d69525c340da671ec8bd0ffc8508cb",
+      "id": 100001,
+      "label": "seed-fixture-worker",
+      "ports": {
+        "22/tcp": [
+          {
+            "HostPort": "22222"
+          }
+        ]
+      },
+      "public_ipaddr": "127.0.0.1"
+    }
+  }
+}

@@ -1,0 +1,10 @@
+{
+  "provenance": {
+    "kind": "synthetic-provider-fixture",
+    "provider": "vast",
+    "generated_at": "2026-01-01T00:00:00.000Z"
+  },
+  "status": 429,
+  "retry_after": "3",
+  "body": "<html>\n <head>\n  <title>429 Too Many Requests</title>\n </head>\n <body>\n  <h1>429 Too Many Requests</h1>\n  The action could not be performed because there were too many requests by the client.<br/><br/>\nAPI requests too frequent: endpoint threshold=3.0*1.0\n\n\n </body>\n</html>"
+}

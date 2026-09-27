@@ -1,0 +1,107 @@
+.job-chat-wrap > .job-request-card.request-card-surface {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 14px;
+  width: max-content;
+  min-width: 0;
+  max-width: min(100%, 640px);
+}
+
+.request-card-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 14px;
+  padding: 12px;
+  border: 1px solid #414b37;
+  border-radius: 14px;
+  background: #20271d;
+  min-width: 0;
+}
+.branch-draft-preview .job-request-card {
+  max-width: min(100%, 640px);
+}
+.request-card-body > .request-card-summary {
+  max-width: 100%;
+}
+/* Adapter names span the card without pushing its actions onto a new row. */
+.request-card-body > .selected-loras {
+  grid-column: 1 / -1;
+  margin: 0;
+}
+.request-card-body .request-card-title strong { white-space: normal; }
+.request-card-body .request-card-title-row > .job-button { flex-shrink: 0; }
+.has-footer > .request-card-body {
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+}
+.request-start-footer {
+  padding: 12px 16px;
+  border: 1px solid #414b37;
+  border-top-style: dashed;
+  border-radius: 0 0 14px 14px;
+  background: #20271d;
+  font-size: 13px;
+  line-height: 1.5;
+  overflow-wrap: anywhere;
+}
+.request-start-footer p { margin: 0 0 10px; color: #edceb0; }
+.request-start-footer > div { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px; }
+.request-start-footer button { max-width: 100%; margin: 0; white-space: normal; }
+.job-start-failed { color: #edceb0; font-size: 13px; }
+@media (max-width: 600px) {
+  .request-start-footer { padding: 10px; }
+  .request-start-footer button { min-height: 44px; }
+}
+.request-card-body > .job-controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+  align-items: center;
+  gap: 8px;
+  margin: 0;
+  max-width: 100%;
+}
+.request-card-body .request-card-title strong {
+  font-size: 14px;
+}
+.request-card-body .job-controls > .job-button,
+.request-card-body .job-controls > .job-review-button {
+  font-size: 13px;
+  line-height: 20px;
+  padding: 8px 14px;
+  min-height: 36px;
+  margin: 0;
+}
+@media (max-width: 600px) {
+  .request-card-body {
+    padding: 10px;
+    gap: 8px;
+  }
+  .request-card-body .job-controls > .job-button,
+  .request-card-body .job-controls > .job-review-button {
+    min-height: 44px;
+  }
+  .request-card-body > .request-card-summary {
+    position: relative;
+    min-height: 44px;
+  }
+  .request-card-body .request-card-title-row:has(.job-button.icon-only) {
+    padding-right: 44px;
+    min-height: 28px;
+  }
+  .request-card-body .request-card-title-row .job-button.icon-only {
+    position: absolute;
+    top: 0;
+    right: 0;
+  }
+  /* Two decision actions need their own row on phones; the shared heading and
+     adapter rows keep the same spacing before and after approval. */
+  .approval-card > .request-card-body {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .approval-card .request-card-body > .job-controls {
+    order: 1;
+  }
+}

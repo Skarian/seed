@@ -1,0 +1,20 @@
+{
+  "image": {
+    "image": "ghcr.io/skarian/seed-worker-image@sha256:524dd90bb05e893b6cc53fe80852503ec19283463c2cdb08b3288fa3afe22aab",
+    "disk_gb": 160,
+    "protocol_version": 2,
+    "runtime_revision": "seed-pool-v1",
+    "manifest": "models-image.json",
+    "local_tag": "ghcr.io/skarian/seed-worker-image:v0.1.0-download-rate.1",
+    "status": "published"
+  },
+  "video": {
+    "image": "ghcr.io/skarian/seed-worker-video@sha256:d321e774f6c1dfdbaa168a39527bb054e13d77f75878a97f8643e109c93b6a21",
+    "disk_gb": 180,
+    "protocol_version": 2,
+    "runtime_revision": "seed-pool-v1",
+    "manifest": "models-video.json",
+    "local_tag": "ghcr.io/skarian/seed-worker-video:v0.1.0-download-rate.1",
+    "status": "published"
+  }
+}

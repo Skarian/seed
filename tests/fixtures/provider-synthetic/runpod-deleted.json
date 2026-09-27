@@ -1,0 +1,13 @@
+{
+  "provenance": {
+    "kind": "synthetic-provider-fixture",
+    "provider": "runpod",
+    "generated_at": "2026-01-01T00:00:00.000Z"
+  },
+  "status": 404,
+  "response": {
+    "detail": "pod not found",
+    "status": 404,
+    "title": "Not Found"
+  }
+}

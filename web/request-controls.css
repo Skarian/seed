@@ -1,0 +1,140 @@
+.aspect-picker {
+  position: relative;
+  min-width: 0;
+}
+.aspect-picker > summary {
+  list-style: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: #141c13;
+  border: 1px solid #46513e;
+  border-radius: 9px;
+  padding: 7px 11px;
+  min-height: 42px;
+  box-sizing: border-box;
+  cursor: pointer;
+  color: #e4eedc;
+  font-size: 13px;
+}
+.aspect-picker > summary::-webkit-details-marker {
+  display: none;
+}
+.aspect-picker small {
+  display: block;
+  font-size: 10px;
+  color: #a8b899;
+}
+.aspect-symbol {
+  display: block;
+  flex-shrink: 0;
+  width: 25px;
+  height: 16px;
+  border: 1.5px solid #b4c49c;
+  border-radius: 3px;
+}
+.aspect-symbol.portrait {
+  width: 15px;
+  height: 24px;
+}
+.picker-chevron {
+  margin-left: auto;
+}
+.aspect-picker > div {
+  position: absolute;
+  top: calc(100% + 5px);
+  left: 0;
+  right: 0;
+  background: #253020;
+  border: 1px solid #62704f;
+  border-radius: 11px;
+  padding: 5px;
+  z-index: 5;
+  box-shadow: 0 10px 25px #0008;
+}
+.aspect-picker:not([open]) > div {
+  display: none;
+}
+.aspect-picker > div button {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  width: 100%;
+  padding: 8px;
+  margin: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 7px;
+  color: #e4eedc;
+  text-align: left;
+}
+.aspect-picker button[aria-pressed='true'] {
+  background: #303d25;
+  outline: 1px solid #9cad78;
+}
+.aspect-picker summary[aria-disabled='true'] {
+  opacity: 0.5;
+  cursor: default;
+}
+.seed-controls {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px 16px;
+  grid-column: 1/-1;
+}
+.seed-controls label {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+}
+.seed-controls small {
+  grid-column: 1/-1;
+  color: #9eac91;
+  font-size: 11px;
+  line-height: 1.5;
+}
+.seed-controls input,
+.seed-controls select {
+  width: 100%;
+  box-sizing: border-box;
+  background: #141c13;
+  color: #e4eedc;
+  border: 1px solid #46513e;
+  border-radius: 9px;
+  padding: 10px;
+  min-height: 42px;
+}
+.composer > label input:not([type='checkbox']) {
+  width: 100%;
+  box-sizing: border-box;
+  background: #141c13;
+  border: 1px solid #46513e;
+  border-radius: 9px;
+  color: #e4eedc;
+  padding: 10px;
+  margin-top: 8px;
+}
+
+.seed-controls input,
+.seed-controls select {
+  min-width: 0;
+  max-width: 100%;
+}
+
+@media (max-width: 360px) {
+  .aspect-picker > summary {
+    gap: 6px;
+    font-size: 12px;
+    padding: 7px 8px;
+  }
+  .aspect-symbol {
+    width: 20px;
+    height: 13px;
+  }
+  .aspect-symbol.portrait {
+    width: 13px;
+    height: 20px;
+  }
+}

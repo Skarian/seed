@@ -1,0 +1,37 @@
+.app-sidebar.sidebar-layout {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+.sidebar-layout > .sidebar-brand-header {
+  flex-shrink: 0;
+}
+.sidebar-content {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-bottom: 28px;
+  scrollbar-width: thin;
+}
+.sidebar-footer {
+  flex-shrink: 0;
+  border-top: 1px solid #343b30;
+  padding: 14px 0 max(16px, env(safe-area-inset-bottom));
+}
+.sidebar-footer > button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  padding: 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: #b7c3b2;
+  font-size: 13px;
+}
+.sidebar-footer > button[aria-current='page'] {
+  background: #30362b;
+  color: #e4e9df;
+}

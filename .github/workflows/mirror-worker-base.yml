@@ -1,0 +1,40 @@
+name: Mirror worker base image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+concurrency:
+  group: mirror-worker-base
+  cancel-in-progress: false
+
+jobs:
+  mirror:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    env:
+      SOURCE: docker.io/hearmeman/comfyui-minimax-template@sha256:5b01d3f62ce157792bd6aab4bef0b7c6b4c95b1b37ed4d9e3454f898e1bcca15
+      DESTINATION: ghcr.io/skarian/runpod-studio:v1.0.0
+      EXPECTED_DIGEST: sha256:5b01d3f62ce157792bd6aab4bef0b7c6b4c95b1b37ed4d9e3454f898e1bcca15
+    steps:
+      - name: Install registry copy tool
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y skopeo
+      - name: Authenticate to GitHub Container Registry
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: printf '%s' "$GHCR_TOKEN" | skopeo login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
+      - name: Copy the pinned upstream image
+        run: skopeo copy --all --preserve-digests --retry-times 3 "docker://$SOURCE" "docker://$DESTINATION"
+      - name: Verify the mirrored digest
+        run: |
+          actual=$(skopeo inspect --format '{{.Digest}}' "docker://$DESTINATION")
+          test "$actual" = "$EXPECTED_DIGEST"
+          printf 'Verified image: `%s@%s`\n' "${DESTINATION%:*}" "$actual" >> "$GITHUB_STEP_SUMMARY"
+      - name: Remove registry session
+        if: always()
+        run: skopeo logout ghcr.io || true

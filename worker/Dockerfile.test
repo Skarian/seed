@@ -1,0 +1,7 @@
+ARG WORKER_IMAGE=seed-worker-video:pool-local
+FROM ${WORKER_IMAGE}
+RUN /opt/venv/bin/python -m pip install --no-cache-dir pytest==9.1.1 pytest-asyncio==1.4.0
+ENV SEED_WORKER_CLASS="" HF_HUB_OFFLINE=1 PYTHONPATH=/opt/tests PYTHONDONTWRITEBYTECODE=1
+WORKDIR /opt/tests
+ENTRYPOINT ["/opt/venv/bin/python", "-m", "pytest"]
+CMD ["worker", "-q", "-p", "no:cacheprovider", "--basetemp", "/tmp/worker-tests"]

@@ -1,0 +1,9 @@
+.app-recovery { min-height:100dvh; display:grid; place-items:center; padding:24px; }
+.app-recovery section { width:100%; max-width:480px; padding:32px; border:1px solid #444d38; border-radius:20px; background:#20251c; }
+.app-recovery-brand { color:#b9c99b; font-size:14px; font-weight:600; }
+.app-recovery h1 { margin:24px 0 12px; font-size:28px; line-height:1.2; letter-spacing:-.6px; }
+.app-recovery p { color:#b8bfad; line-height:1.65; margin:0; }
+.app-recovery-actions { display:flex; align-items:center; gap:24px; margin-top:28px; flex-wrap:wrap; }
+.app-recovery-actions button { color:#23300e; background:#d4ea93; border:0; border-radius:10px; padding:13px 24px; font-weight:600; }
+.app-recovery-actions a { text-underline-offset:4px; }
+@media(max-width:480px) { .app-recovery section { padding:24px; } .app-recovery h1 { font-size:26px; } }

@@ -1,0 +1,12 @@
+{
+  "provenance": {
+    "kind": "synthetic-provider-fixture",
+    "provider": "vast",
+    "generated_at": "2026-01-01T00:00:00.000Z"
+  },
+  "status": 200,
+  "response": {
+    "success": true,
+    "msg": "SSH key added to instance."
+  }
+}

@@ -1,0 +1,23 @@
+{
+  "provenance": {
+    "kind": "synthetic-provider-fixture",
+    "provider": "runpod",
+    "generated_at": "2026-01-01T00:00:00.000Z"
+  },
+  "status": 200,
+  "response": {
+    "gpus": [
+      {
+        "id": "NVIDIA RTX PRO 4500 Blackwell",
+        "memory": 32,
+        "secure": true,
+        "availability": "LOW",
+        "price": {
+          "community": 0.34,
+          "secure": 0.72,
+          "serverless": 1.15
+        }
+      }
+    ]
+  }
+}

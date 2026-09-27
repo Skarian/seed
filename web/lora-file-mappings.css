@@ -1,0 +1,80 @@
+.lora-file-table {
+  border: 1px solid #46513c;
+  border-radius: 10px;
+  overflow: hidden;
+  background: #191e17;
+}
+.lora-file-table-heading,
+.lora-file-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, 0.7fr);
+  gap: 20px;
+  padding: 14px 16px;
+  align-items: center;
+}
+.lora-file-table-heading {
+  color: #99a78d;
+  background: #22291d;
+  font-size: 11px;
+}
+.lora-file-row + .lora-file-row {
+  border-top: 1px solid #343d2e;
+}
+.lora-file-name {
+  min-width: 0;
+  display: grid;
+  gap: 6px;
+}
+.lora-file-name strong {
+  font-size: 13px;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+  color: #e0e7d7;
+}
+.lora-file-name small {
+  font-size: 11px;
+  color: #9eae8f;
+}
+.lora-file-table > p {
+  padding: 0 16px;
+  color: #a5b496;
+  font-size: 12px;
+}
+.lora-supported-workflows {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 16px 0 0;
+  padding: 0;
+  list-style: none;
+}
+.lora-supported-workflows li {
+  padding: 5px 9px;
+  border: 1px solid #45543a;
+  border-radius: 6px;
+  color: #c0cfae;
+  font-size: 11px;
+}
+.lora-edit-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+@media (max-width: 650px) {
+  .lora-file-table-heading {
+    display: none;
+  }
+  .lora-file-row {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 12px;
+    padding: 14px;
+  }
+  .lora-file-row select {
+    font-size: 16px;
+  }
+  .lora-file-name strong {
+    font-size: 13px;
+  }
+}

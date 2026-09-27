@@ -1,0 +1,45 @@
+/* Both editor implementations share one surface; InlineComposer owns mention behavior. */
+.prompt-field {
+  --prompt-surface: #1b1e19;
+  --prompt-border: #3a4032;
+  width: 100%;
+  min-width: 0;
+}
+.prompt-field .resizable-prompt > :is(textarea, .inline-composer) {
+  display: block;
+  width: 100%;
+  box-sizing: border-box;
+  margin: 0;
+  background: var(--prompt-surface);
+  border: 1px solid var(--prompt-border);
+  border-radius: 9px;
+  color: #eff0e8;
+  font: inherit;
+  font-size: 14px;
+  line-height: 1.7;
+  padding: 17px 44px 34px 18px;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  outline: none;
+}
+.prompt-field .resizable-prompt > :is(textarea, .inline-composer):focus {
+  border-color: #99ae78;
+  box-shadow: 0 0 0 2px #99ae7814;
+}
+.prompt-field textarea::placeholder,
+.prompt-field .inline-composer:empty:before {
+  color: #909c80;
+}
+.prompt-field .mention-picker {
+  top: 100%;
+  bottom: auto;
+  margin-top: 6px;
+  margin-bottom: 0;
+}
+@media (max-width: 650px), (pointer: coarse) {
+  .prompt-field .resizable-prompt > :is(textarea, .inline-composer) {
+    font-size: 16px;
+    padding-right: 56px;
+    padding-bottom: 46px;
+  }
+}

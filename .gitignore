@@ -1,0 +1,57 @@
+# Credentials and private backups
+*.private.*
+.env
+.env.*
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+studio.local.json
+backups/
+
+# Private working notes and publication evidence remain local
+/research/
+/studio/TODO.md
+
+# Dependencies and build/test output
+node_modules/
+dist/
+.local/
+test-results/
+playwright-report/
+coverage/
+/debug.log
+**/__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# Media, model weights, and packages remain local
+*.png
+*.jpg
+*.jpeg
+*.webp
+*.gif
+*.mp4
+*.webm
+*.mov
+*.wav
+*.mp3
+*.safetensors
+*.ckpt
+*.pt
+*.pth
+*.zip
+*.tar
+*.tar.gz
+*.tgz
+
+# Curated images and videos used by the public README
+!/docs/assets/readme/*.webp
+!/docs/assets/readme/*.mp4
+
+# Editor/OS files
+.DS_Store
+Thumbs.db
+desktop.ini

@@ -1,0 +1,92 @@
+{
+  "provenance": {
+    "kind": "synthetic-provider-fixture",
+    "provider": "vast",
+    "generated_at": "2026-01-01T00:00:00.000Z"
+  },
+  "status": 200,
+  "response": {
+    "offers": [
+      {
+        "id": 1001,
+        "num_gpus": 1,
+        "gpu_name": "RTX PRO 6000 WS",
+        "gpu_ram": 97887,
+        "cpu_ram": 193014,
+        "cuda_max_good": 13.2,
+        "compute_cap": 1200,
+        "disk_space": 6215.000000000001,
+        "direct_port_count": 256,
+        "dph_total": 1.4335185185185186,
+        "reliability2": 0.9907419,
+        "verification": "verified",
+        "storage_cost": 0.1333333333333333,
+        "gpu_max_power": 600,
+        "geolocation": "Minnesota, US",
+        "inet_up_cost": 0.00390625,
+        "inet_down_cost": 0.0026041666666666665,
+        "cpu_cores_effective": 64
+      },
+      {
+        "id": 1002,
+        "num_gpus": 1,
+        "gpu_name": "RTX PRO 6000 S",
+        "gpu_ram": 97887,
+        "cpu_ram": 128967,
+        "cuda_max_good": 13.2,
+        "compute_cap": 1200,
+        "disk_space": 225.97793542521433,
+        "direct_port_count": 31,
+        "dph_total": 1.4674074074074073,
+        "reliability2": 0.992399,
+        "verification": "verified",
+        "storage_cost": 0.5333333333333332,
+        "gpu_max_power": 600,
+        "geolocation": "California, US",
+        "inet_up_cost": 0.013020833333333334,
+        "inet_down_cost": 0.013020833333333334,
+        "cpu_cores_effective": 16
+      },
+      {
+        "id": 1003,
+        "num_gpus": 1,
+        "gpu_name": "RTX PRO 6000 WS",
+        "gpu_ram": 97887,
+        "cpu_ram": 128638,
+        "cuda_max_good": 13.2,
+        "compute_cap": 1200,
+        "disk_space": 1287,
+        "direct_port_count": 98,
+        "dph_total": 1.5337037037037038,
+        "reliability2": 0.9961946,
+        "verification": "verified",
+        "storage_cost": 0.2666666666666666,
+        "gpu_max_power": 600,
+        "geolocation": "Hong Kong, HK",
+        "inet_up_cost": 0.00390625,
+        "inet_down_cost": 0.0026041666666666665,
+        "cpu_cores_effective": 24
+      },
+      {
+        "id": 1004,
+        "num_gpus": 1,
+        "gpu_name": "RTX PRO 6000 WS",
+        "gpu_ram": 97887,
+        "cpu_ram": 257806,
+        "cuda_max_good": 13,
+        "compute_cap": 1200,
+        "disk_space": 2180.5,
+        "direct_port_count": 256,
+        "dph_total": 1.7001851851851852,
+        "reliability2": 0.9968668,
+        "verification": "verified",
+        "storage_cost": 0.1333333333333333,
+        "gpu_max_power": 600,
+        "geolocation": "Japan, JP",
+        "inet_up_cost": 0.006510416666666667,
+        "inet_down_cost": 0.006510416666666667,
+        "cpu_cores_effective": 64
+      }
+    ]
+  }
+}
