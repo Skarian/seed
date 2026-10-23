@@ -3,6 +3,7 @@ import json
 import math
 from pathlib import Path
 from worker.profile import installed_loras, worker_class
+from worker.resolution import resolution_preset, validate_canvas
 
 
 def validate_adapters(workspace, graph, selections, route):
@@ -18,6 +19,12 @@ def validate_adapters(workspace, graph, selections, route):
             raise ValueError('Qwen editing does not support adapters in this release')
         validate_edit_profile(graph)
         return ['6', 0]
+    canvas = graph.get('6', {})
+    kind = {'image': 'EmptyLatentImage', 'fl': 'MiniMaxH3ImageToVideo', 'ref': 'MiniMaxH3ReferenceToVideo'}[route]
+    if canvas.get('class_type') != kind:
+        raise ValueError('Invalid workflow canvas node')
+    inputs = canvas.get('inputs', {})
+    validate_canvas('image' if route == 'image' else 'video', inputs.get('width'), inputs.get('height'))
     inventory = {entry['sha256']: entry for entry in installed_loras(workspace)}
     root = Path(workspace).resolve()
     selected, previous = set(), ['1' if route == 'image' else '16', 0]
@@ -72,6 +79,10 @@ def validate_edit_profile(graph):
         key = str(100+i)
         if graph[key].get('class_type') != 'SeedLoadEditImage' or graph['4']['inputs'].get('images.image_'+str(i+1)) != [key, 0]:
             raise ValueError('Image input ordering changed')
+        size = graph[key].get('inputs', {}).get('size')
+        resolution_preset('image', size)
+        if i > 0 and size != '1mp':
+            raise ValueError('Auxiliary images require the baseline target')
 
 
 def validate_video_profile(graph, profile, model):

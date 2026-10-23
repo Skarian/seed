@@ -5,25 +5,46 @@ import { loraRoute } from '../shared/workflows.js';
 import { LoraPicker } from './lora-picker.js';
 import { AspectPicker, BatchPicker, LengthPicker, SeedControl } from './request-controls.js';
 import './request-settings.css';
+import { resolutionOptions, isResolutionSize, type Dimensions, type ResolutionSize } from '../shared/resolution.js';
+import { useGeneratePreferences } from './generate-preferences.js';
 
 type Props = {
   request: ImageRequest;
   onChange: (patch: Partial<ImageRequest>) => void;
   route?: 'image' | 'fl' | 'ref';
+  source?: Dimensions;
+  sourceError?: string;
+  resolutionReady?: boolean;
+  onResolutionChange?: (size: ResolutionSize) => void;
+  resolutionNote?: React.ReactNode;
 };
 /** The same generation settings, order, and field layout in Generate and Chat review. */
-export function RequestSettings({ request, onChange, route }: Props) {
+export function RequestSettings({ request, onChange, route, source, sourceError, resolutionReady = true, onResolutionChange, resolutionNote }: Props) {
   const video = isVideoWorkflow(request.workflow);
+  const { candidates } = useGeneratePreferences();
+  let options: ReturnType<typeof resolutionOptions> = [], resolutionError = sourceError;
+  try { if (!resolutionError) options = resolutionOptions(request.workflow, request.output.aspect, request.output.size, source, candidates); }
+  catch (error) { resolutionError = (error as Error).message; }
+  const supported = isResolutionSize(request.workflow, request.output.size, candidates);
   const output = (patch: Partial<ImageRequest['output']>) => {
-    if(request.workflow==='image-to-image')return;
-    onChange({ output: { ...request.output, ...patch,aspect:patch.aspect==='source'?request.output.aspect:patch.aspect??request.output.aspect } });
+    onChange({ output: { ...request.output, ...patch,aspect:request.workflow==='image-to-image'?'source':patch.aspect==='source'?request.output.aspect:patch.aspect??request.output.aspect } } as Partial<ImageRequest>);
   };
   return (
     <div className="request-settings">
-      {request.workflow==='image-to-image'?<p className="request-settings-hint">Output follows your source image’s shape, up to about 1 MP.</p>:<div className="request-setting">
-        <span>Aspect ratio</span>
-        <AspectPicker value={request.output.aspect} onChange={(aspect) => output({ aspect })} />
+      {request.workflow==='image-to-image'?<p className="request-settings-hint">Output follows your source image’s shape.</p>:<div className="request-setting">
+        <span>Orientation</span>
+        <AspectPicker value={request.output.aspect} orientationOnly onChange={(aspect) => output({ aspect })} />
       </div>}
+      <div className="request-setting resolution-setting"><label>
+        Resolution
+        <select aria-label="Resolution" value={resolutionError || !resolutionReady ? '' : request.output.size}
+          disabled={!!resolutionError || (resolutionReady && supported && options.length < 2)}
+          onChange={event => { const size = event.target.value as ResolutionSize; if (size !== request.output.size || !resolutionReady) { if (onResolutionChange) onResolutionChange(size); else output({ size }); } }}>
+          {(resolutionError || !resolutionReady) && <option value="" disabled>{resolutionError ?? 'Choose a resolution'}</option>}
+          {!resolutionError && resolutionReady && !supported && <option value={request.output.size} disabled>Unsupported saved resolution</option>}
+          {options.map(option => <option key={option.label} value={option.size}>{option.label}</option>)}
+        </select>
+      </label>{resolutionNote}</div>
       <label className="request-setting">
         Quantity
         <BatchPicker value={request.count} onChange={(count) => onChange({ count })} />

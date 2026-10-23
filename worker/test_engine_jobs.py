@@ -92,7 +92,10 @@ async def engine(tmp_path, monkeypatch, valid=True, observe_request=None):
 
 
 def request_for(job_id):
-    return {'prompt_id': job_id, 'prompt': {'9': {'class_type': 'SaveImage', 'inputs': {'filename_prefix': f'seed/{job_id}/image'}}}}
+    return {'prompt_id': job_id, 'prompt': {
+        '6': {'class_type': 'EmptyLatentImage', 'inputs': {'width': 1280, 'height': 720}},
+        '9': {'class_type': 'SaveImage', 'inputs': {'filename_prefix': f'seed/{job_id}/image'}},
+    }}
 
 
 HEADERS = {'X-Studio-Engine-Session': 'current-engine'}
@@ -358,6 +361,7 @@ async def test_quality_readiness_does_not_require_turbo_for_high(tmp_path, monke
 
 def high_graph(job_id, adapters):
     graph = {
+        '6': {'class_type': 'MiniMaxH3ImageToVideo', 'inputs': {'width': 1344, 'height': 768}},
         '7': {'class_type': 'BasicGuider', 'inputs': {'model': ['19', 0]}},
         '9': {'class_type': 'KSamplerSelect', 'inputs': {'sampler_name': 'res_multistep'}},
         '10': {'class_type': 'BasicScheduler', 'inputs': {'model': ['19', 0], 'scheduler': 'simple', 'steps': 30, 'denoise': 1}},

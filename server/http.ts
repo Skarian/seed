@@ -1,6 +1,7 @@
 import { Sequences } from './sequences.js';
 import { pickFrame } from './frames.js';
 import {registerAdmin} from './admin.js';
+import {registerGeneratePreferences} from './generate-preferences.js';
 import {LoraImports} from './lora-imports.js';
 import {WorkerPool} from './pool.js';
 import {createProviders} from './pool-providers.js';
@@ -96,6 +97,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   await jobs.media.register(app);
   registerClientFailures(app,diagnostics);
   registerNotes(app, db);
+  registerGeneratePreferences(app,options.paths);
   registerAssetOrganization(app, db);
   registerAdmin(app,options.paths,jobs.loras,imports,{access,fetcher:options.providerFetch,changeCredential:(field,next,previous,commit)=>pool.withCredentialChange(field,next,previous,commit)});
   registerChats(app,chats,()=>Boolean(chatCredential(options.paths)));

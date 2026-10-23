@@ -1,0 +1,14 @@
+{
+  "image": [
+    {"id": "image-480", "width": 864, "height": 480, "area": 414720, "released": true},
+    {"id": "image-768", "width": 1344, "height": 768, "area": 1032192, "released": true},
+    {"id": "2mp", "width": 1920, "height": 1080, "area": 2097152, "released": true},
+    {"id": "image-1440", "width": 2560, "height": 1440, "area": 3686400, "released": true},
+    {"id": "0.5mp", "width": 896, "height": 504, "area": 524288, "released": true, "legacy": true},
+    {"id": "1mp", "width": 1280, "height": 720, "area": 1048576, "released": true, "legacy": true}
+  ],
+  "video": [
+    {"id": "480p", "width": 864, "height": 480, "released": true},
+    {"id": "768p", "width": 1344, "height": 768, "released": true}
+  ]
+}

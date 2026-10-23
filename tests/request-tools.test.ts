@@ -1,8 +1,15 @@
-import {describe,it,expect} from 'vitest';
+import {afterEach,describe,it,expect,vi} from 'vitest';
 import {validateToolCall} from '@earendil-works/pi-ai';
 import {prepareToolRequest,compileStablePrompt,toolInputLabels,requestToolResultError,requestToolSchemas,requestToolRules,ToolRequestError,type RequestToolContext} from '../server/chat/request-tools.js';
 import {imageRequest} from '../server/workflows.js';
 import {VideoRequestError} from '../server/video.js';
+import {mkdtempSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
+import path from 'node:path';
+import {openDatabase} from '../server/db.js';
+import {prepareStorage,resolvePaths} from '../server/storage.js';
+import {Jobs} from '../server/jobs.js';
+import {Chats} from '../server/chat/service.js';
+import {fakePool} from './fake-pool.js';
 const context:RequestToolContext={workflow:'reference-to-video',mode:'sfw',assets:[
   {handle:'image1',asset_id:'image-a',kind:'image'},
   {handle:'image2',asset_id:'image-b',kind:'image'},
@@ -11,9 +18,10 @@ const context:RequestToolContext={workflow:'reference-to-video',mode:'sfw',asset
 ]};
 const base={prompt:'<Picture 1> speaks in <Video 1>.',inputs:[{asset:'image1'},{asset:'video1',start_seconds:0,duration_seconds:3,include_audio:true}]};
 const previous=()=>prepareToolRequest(context,base);
+afterEach(()=>vi.unstubAllEnvs());
 describe('simple request adapter',()=>{
-  it('supports every canonical configurable setting and generates ids from supplied handles',()=>{
-    const result=prepareToolRequest(context,{...base,prompt:'<Picture 1> speaks.',batch_size:3,seed:'42',aspect_ratio:'9:16',size:'768p',duration_seconds:15,audio_output:'silent',note:'Save this note'});
+  it('supports model-editable settings and generates ids from supplied handles',()=>{
+    const result=prepareToolRequest(context,{...base,prompt:'<Picture 1> speaks.',batch_size:3,seed:'42',aspect_ratio:'9:16',duration_seconds:15,audio_output:'silent',note:'Save this note'});
     expect(result).toMatchObject({count:3,seed:'42',note:'Save this note',output:{aspect:'9:16',size:'768p',duration_seconds:15,format:'video'},audio:{output:'silent'},references:[{id:'image1',asset_id:'image-a',kind:'image',role:'reference'},{id:'video1',kind:'video',range:{start_seconds:0,duration_seconds:3}}]});
   });
   it('edits one duration without losing aspect,size,inputs,note,or source settings',()=>{
@@ -56,6 +64,72 @@ describe('simple request adapter',()=>{
   });
   it('text-only workflows reject input settings instead of discarding them',()=>{
     for(const workflow of ['text-to-image','text-to-video'] as const){const c={...context,workflow};expect(prepareToolRequest(c,{prompt:'Scene.'}).workflow).toBe(workflow);expect(()=>prepareToolRequest(c,{...base})).toThrow('Unknown setting');}
+  });
+});
+describe('Chat resolution ownership',()=>{
+  const workflows=['text-to-image','image-to-image','text-to-video','reference-to-video'] as const;
+  const creation=(workflow:string)=>({prompt:'A quiet scene.',...(['image-to-image','reference-to-video'].includes(workflow)?{inputs:[{asset:'image1'}]}:{})});
+  it('omits size from create/edit schemas and rejects it even when it equals the current default',()=>{
+    for(const workflow of workflows){
+      const c={...context,workflow},original=prepareToolRequest(c,creation(workflow)),copy=structuredClone(original);
+      for(const operation of ['create','edit'] as const){
+        const schema=requestToolSchemas(workflow,'sfw')[operation];
+        expect(schema.properties).not.toHaveProperty('size');
+        const tool={name:operation+'_request',description:'test',parameters:schema};
+        const raw={...(operation==='create'?creation(workflow):{request_id:'card',prompt:'A new scene.'}),size:original.output.size};
+        expect(()=>validateToolCall([tool],{id:'t',name:tool.name,arguments:raw,type:'toolCall'})).toThrow();
+        expect(()=>prepareToolRequest({...c,...(operation==='edit'?{previous:original}:{})},raw)).toThrow('size: Unknown setting');
+      }
+      expect(original).toEqual(copy);
+      expect(requestToolRules('stable',workflow)).toContain('Never send size in a tool call');
+    }
+  });
+  it('uses fixed creation sizes even when candidate resolutions are enabled',()=>{
+    vi.stubEnv('SEED_QUALIFY_RESOLUTIONS','1');
+    for(const workflow of workflows)expect(prepareToolRequest({...context,workflow},creation(workflow)).output.size).toBe(workflow.endsWith('video')?'768p':'image-768');
+  });
+  it('preserves manual overrides through prompt, settings, and source edits without mutating the original',()=>{
+    vi.stubEnv('SEED_QUALIFY_RESOLUTIONS','1');
+    for(const workflow of workflows){
+      const c={...context,workflow},created=prepareToolRequest(c,creation(workflow));
+      const original=imageRequest({...created,output:{...created.output,size:workflow.endsWith('video')?'480p':'2mp'}}),copy=structuredClone(original);
+      const edits:Record<string,unknown>[]=[{prompt:'A misty scene.'},{note:'Keep this selection'},{batch_size:2},{seed:'7'}];
+      if(workflow!=='image-to-image')edits.push({aspect_ratio:'9:16'});
+      if(original.references?.length)edits.push({inputs:[{id:'image1',replace_asset:'image2',role:original.references[0]!.role}]});
+      for(const edit of edits)expect(prepareToolRequest({...c,previous:original},edit).output.size).toBe(original.output.size);
+      expect(()=>prepareToolRequest({...c,previous:original},{prompt:'Rejected scene.',size:created.output.size})).toThrow('size: Unknown setting');
+      expect(original).toEqual(copy);
+    }
+  });
+  it('rejects tool size before persisting a revision and preserves a manual size on a correctly targeted edit',async()=>{
+    vi.stubEnv('SEED_QUALIFY_RESOLUTIONS','1');
+    mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/request-resolution-')),paths=resolvePaths(root);prepareStorage(paths);
+    writeFileSync(path.join(paths.config,'generate-preferences.json'),JSON.stringify({image:'2mp',video:'480p'}));
+    const db=openDatabase(paths.data),pool=fakePool(db,paths).pool,jobs=new Jobs(db,paths,pool),chats=new Chats(db,paths,jobs);
+    try{
+      for(const workflow of ['text-to-image','text-to-video'] as const){
+        let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow});
+        const tools=()=>(chats as any).workflowTools(chat.id,chat.epoch,workflow,'fixture-run',[]);
+        const [create]=tools();
+        await expect(create.execute('bad-create',{prompt:'A scene.',size:workflow==='text-to-image'?'image-768':'768p'})).rejects.toThrow('Unknown setting');
+        expect(chats.view(chat.id).groups).toHaveLength(0);
+        const result=await create.execute('create',{prompt:'A scene.'});
+        expect(result.details.request).not.toHaveProperty('size');
+        let card=chats.view(chat.id).groups[0]!.cards[0]!,request=card.revisions[0]!.request;
+        expect(request.output.size).toBe(workflow==='text-to-image'?'image-768':'768p');
+        const {mode,...manual}=request;
+        chats.revise(chat.id,card.id,1,{...manual,output:{...manual.output,size:workflow==='text-to-image'?'2mp':'480p'}});
+        card=chats.view(chat.id).groups[0]!.cards[0]!;const before=structuredClone(card);
+        const [,edit]=tools();
+        await expect(edit.execute('bad-edit',{request_id:card.id,prompt:'Rejected prompt.',size:request.output.size})).rejects.toThrow('Unknown setting');
+        expect(chats.view(chat.id).groups[0]!.cards[0]).toEqual(before);
+        const edited=await edit.execute('edit',{request_id:card.id,prompt:'A misty scene.'});
+        card=chats.view(chat.id).groups[0]!.cards[0]!;
+        expect(card.revisions).toHaveLength(3);
+        expect(card.revisions.at(-1)!.request).toMatchObject({prompt:'A misty scene.',output:{size:workflow==='text-to-image'?'2mp':'480p'}});
+        expect(edited.details.request).not.toHaveProperty('size');
+      }
+    }finally{await chats.close();await jobs.close();await pool.close();db.close();rmSync(root,{recursive:true,force:true});}
   });
 });
 describe('stable prompt experiment',()=>{

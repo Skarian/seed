@@ -101,7 +101,10 @@ export function RequestFields({
           onPreview={onPreview}
         />
       )}
-      <RequestSettings request={request} onChange={change} />
+      <RequestSettings request={request} onChange={change} source={(() => {
+        const source = assets.find(a => a.id === request.references?.find(r => r.role === 'source')?.asset_id)?.metadata;
+        return source?.width && source.height ? { width: source.width, height: source.height } : undefined;
+      })()} />
       <details className="review-disclosure" open={request.note?.trim() ? true : undefined}>
         <summary>Note</summary>
         <label>

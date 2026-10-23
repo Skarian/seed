@@ -1,6 +1,7 @@
 import type { ImageRequest } from "./workflows.js";
 import type { PreparedReference } from "./media.js";
 import { loraRoute } from "../shared/workflows.js";
+import { resolveDimensions } from "../shared/resolution.js";
 export type GraphLora = {
   filename: string;
   sha256: string;
@@ -36,8 +37,7 @@ export function graphFor(
   if(request.workflow==='image-to-image') return editGraph(request,id,seed,references);
   if (request.workflow !== "text-to-image")
     return videoGraph(request, id, seed, loras, references);
-  const [width, height] =
-    request.output.aspect === "16:9" ? [1280, 720] : [720, 1280];
+  const {width, height} = resolveDimensions(request.workflow,request.output.size,request.output.aspect);
   const graph: Record<
     string,
     { class_type: string; inputs: Record<string, unknown> }
@@ -113,7 +113,7 @@ function editGraph(request:ImageRequest,id:string,seed:string,refs:PreparedRefer
     '8':{class_type:'VAEDecode',inputs:{samples:['7',0],vae:['3',0]}},
     '9':{class_type:'SaveImage',inputs:{images:['8',0],filename_prefix:'seed/'+id+'/image'}},
   };
-  refs.forEach((r,index)=>{const key=String(100+index);graph[key]={class_type:'SeedLoadEditImage',inputs:{image:'seed/'+id+'/'+r.filename}};graph['4']!.inputs['images.image_'+(index+1)]=[key,0];});
+  refs.forEach((r,index)=>{const key=String(100+index);graph[key]={class_type:'SeedLoadEditImage',inputs:{image:'seed/'+id+'/'+r.filename,size:index===0?request.output.size:'1mp'}};graph['4']!.inputs['images.image_'+(index+1)]=[key,0];});
   return graph;
 }
 
@@ -126,8 +126,7 @@ export function videoGraph(
 ) {
   const route = loraRoute(request);
   const seconds = request.output.duration_seconds!;
-  const [width, height] =
-    request.output.aspect === "16:9" ? [1344, 768] : [768, 1344];
+  const {width, height} = resolveDimensions(request.workflow,request.output.size,request.output.aspect);
   const graph: Record<
     string,
     { class_type: string; inputs: Record<string, any> }

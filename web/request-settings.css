@@ -33,3 +33,7 @@
 .request-settings .lora-picker {
   margin: 0;
 }
+.resolution-setting { grid-column: 1 / -1; }
+.resolution-setting > label { display: flex; flex-direction: column; gap: 8px; }
+.resolution-memory { margin: 0; font-size: 12px; color: #9eab95; }
+.resolution-memory button { font: inherit; }

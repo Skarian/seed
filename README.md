@@ -18,7 +18,9 @@ Describe what you want to make. **Gemma 4 31B**, through OpenRouter, turns your 
 
 ## Build a request in Generate
 
-Choose a workflow, enter your prompt, and add any references. Set the aspect ratio, quantity, and seed; for video, choose the duration and audio. Pick LoRAs yourself when the workflow supports them. Everything you create goes to the same Library.
+Choose a workflow, enter your prompt, and add any references. Set the orientation, quantity, and seed; for video, choose the duration and audio. Pick LoRAs yourself when the workflow supports them. Everything you create goes to the same Library.
+
+Resolution shows the requested dimensions and flips with orientation. Images offer 864 × 480, 1344 × 768, 1920 × 1080, and 2560 × 1440; video offers 864 × 480 and 1344 × 768. New selections default to 1344 × 768. Generate remembers separate image and video selections; manual resolution changes in Chat apply only to that request. Image editing follows the source's shape and shows its actual dimensions. Saved older requests keep their original sizes. Outputs are not cropped or resized to another preset after generation.
 
 ![The actual Generate form, filled with the prompt used for the teapot example below.](docs/assets/readme/generate.webp)
 

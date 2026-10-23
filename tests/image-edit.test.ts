@@ -27,7 +27,7 @@ it('Chat uses image handles, preserves the source during reordering and rejects 
   const assets=[{handle:'input1',asset_id:'photo',kind:'image' as const},{handle:'input2',asset_id:'style',kind:'image' as const}];
   const previous=prepareToolRequest({workflow:'image-to-image',mode:'sfw',assets,referenceMode:'stable'},{prompt:'Change [[input1]] using [[input2]].',inputs:[{asset:'input1',role:'source'},{asset:'input2',role:'reference'}]});
   expect(previous.prompt).toBe('Change <image1> using <image2>.');
-  expect(previous.output).toEqual({aspect:'source',size:'1mp'});
+  expect(previous.output).toEqual({aspect:'source',size:'image-768'});
   const changed=prepareToolRequest({workflow:'image-to-image',mode:'sfw',assets,previous,referenceMode:'stable'},{request_id:'card',inputs:[{id:'input2'},{id:'input1'}]});
   expect(changed.references?.[0]?.role).toBe('source');
   expect(changed.prompt).toBe(previous.prompt);

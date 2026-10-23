@@ -2,6 +2,7 @@ import type {InputReference} from '../shared/generation.js';
 export type {InputReference} from '../shared/generation.js';
 export type PreparedReference = InputReference & { file: string; filename: string; sha256: string; width?:number; height?:number; audio_file?: string; audio_filename?: string; effective_frames?: number };
 import {editDimensions} from './image-edit.js';
+import {isResolutionSize,resolveDimensions,type ImageSize,type ResolutionSize} from '../shared/resolution.js';
 import {assetOrganization} from './asset-organization.js';
 
 import type Database from 'better-sqlite3';
@@ -79,7 +80,8 @@ export class Media {
       }catch{this.mark(item.id,{state:'error',error:'This file could not be decoded. Choose another file.'});await this.store?.remove(item.id).catch(()=>{});}
     }
   });this.chain=task.catch(()=>{});return task;}
-  async prepare(ref:InputReference,aspect:string,seconds:number):Promise<PreparedReference>{
+  async prepare(ref:InputReference,aspect:string,seconds:number,size:ResolutionSize=aspect==='source'?'1mp':'768p'):Promise<PreparedReference>{
+    if(!isResolutionSize(aspect==='source'?'image':'video',size,process.env.SEED_QUALIFY_RESOLUTIONS==='1'))throw Error('Choose a supported resolution.');
     const item=await this.describe(ref.asset_id);if(!item||(item.metadata.state??'ready')!=='ready'||item.kind!==ref.kind)throw new Error('Wait for references to finish uploading.');
     const original=path.resolve(this.paths.data,item.relative_path);if(!original.startsWith(path.resolve(this.paths.data)+path.sep))throw new Error('Invalid input path');
     if(aspect==='source') {
@@ -87,7 +89,7 @@ export class Media {
       const base=sharp(original,{limitInputPixels:100_000_000}).rotate();
       const m=await base.metadata();
       const rotated=(m.orientation??0)>=5;
-      const {width,height}=editDimensions(rotated?m.height!:m.width!,rotated?m.width!:m.height!);
+      const {width,height}=editDimensions(rotated?m.height!:m.width!,rotated?m.width!:m.height!,ref.role==='source'?size as ImageSize:'1mp');
       const key=createHash('sha256').update(JSON.stringify({source:item.metadata.sha256,width,height,recipe:'qwen-edit-1'})).digest('hex');
       const filename=key+'.png',file=path.join(this.paths.data,'media/prepared',filename);
       mkdirSync(path.dirname(file),{recursive:true});
@@ -95,9 +97,10 @@ export class Media {
       const digest=createHash('sha256');for await(const chunk of createReadStream(file))digest.update(chunk);
       return {...ref,file,filename,sha256:digest.digest('hex'),width,height};
     }
-    const key=createHash('sha256').update(JSON.stringify({ref,aspect,seconds,source:item.metadata.sha256,recipe:4})).digest('hex');
+    const {width,height}=resolveDimensions('video',size,aspect);
+    const key=createHash('sha256').update(JSON.stringify({ref,aspect,seconds,source:item.metadata.sha256,...(ref.kind!=='audio'?{width,height}:{}),recipe:5})).digest('hex');
     const extension=ref.kind==='image'?'.png':ref.kind==='video'?'.mp4':'.wav';const filename=key+extension,file=path.join(this.paths.data,'media/prepared',filename);
-    const [width,height]=aspect==='16:9'?[1344,768]:[768,1344];
+    mkdirSync(path.dirname(file),{recursive:true});
     let effective_frames:number|undefined,audio_file:string|undefined,audio_filename:string|undefined;
     if(ref.kind==='image'){
       if(!existsSync(file)){const base=sharp(original,{limitInputPixels:false}).rotate();const m=await base.metadata();

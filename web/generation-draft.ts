@@ -2,6 +2,7 @@ import { isVideoWorkflow } from '../shared/workflows.js';
 import type { ImageRequest } from '../shared/generation.js';
 import { patchGeneration } from '../shared/generation.js';
 import { workflowIds, type WorkflowId } from '../shared/studio.js';
+import { defaultPreferences, type ResolutionSize } from '../shared/resolution.js';
 
 export type GenerationDraft = { request: ImageRequest; sourceJob?: string };
 export type GenerationDrafts = Record<WorkflowId, GenerationDraft>;
@@ -11,7 +12,7 @@ export type DraftAction =
   | { type: 'reset'; workflow: WorkflowId };
 
 export function emptyGeneration(workflow: WorkflowId): GenerationDraft {
-  if(workflow==='image-to-image')return {request:{workflow,mode:'sfw',prompt:'',seed:'random',count:1,references:[],output:{aspect:'source',size:'1mp'}}};
+  if(workflow==='image-to-image')return {request:{workflow,mode:'sfw',prompt:'',seed:'random',count:1,references:[],output:{aspect:'source',size:defaultPreferences.image}}};
   const video = isVideoWorkflow(workflow);
   return {
     request: {
@@ -23,7 +24,7 @@ export function emptyGeneration(workflow: WorkflowId): GenerationDraft {
       loras: [],
       output: {
         aspect: '16:9',
-        size: video ? '768p' : '1mp',
+        size: video ? defaultPreferences.video : defaultPreferences.image,
         ...(video ? { duration_seconds: 5 } : {}),
       },
       ...(video ? { audio: { output: 'generated' } } : {}),
@@ -68,6 +69,8 @@ export function restoreGenerationDrafts(saved: Record<string, any> = {}): Genera
         loras: Array.isArray(old.loras) ? old.loras : [],
         output: {
           ...fresh.request.output,
+          // Preserve unknown saved IDs too: the editor must flag them, not silently downgrade.
+          size: (typeof old.output?.size === 'string' ? old.output.size : fresh.request.output.size) as ResolutionSize,
           aspect: (old.output?.aspect ?? old.aspect) === '9:16' ? '9:16' : '16:9',
           ...(video
             ? {

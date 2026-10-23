@@ -29,7 +29,7 @@ describe('workflow and reference combinations',()=>{
   it.each(['sfw','nsfw'] as const)('retains %s settings across all workflows',mode=>{
     for(const [,request] of cases){const parsed=imageRequest({...request,mode,note:'Forest study'});expect(parsed.mode).toBe(mode);expect(parsed.note).toBe('Forest study');}
   });
-  it('rejects unsupported video resolution',()=>expect(()=>imageRequest({...video,output:{...video.output,size:'720p'}})).toThrow('768p'));
+  it('rejects unsupported video resolution',()=>expect(()=>imageRequest({...video,output:{...video.output,size:'720p'}})).toThrow('supported video resolution'));
   it('does not silently accept images on text-only workflows',()=>{
     expect(()=>imageRequest({...video,references:[picture('subject')]})).toThrow();
     expect(()=>imageRequest({...image,references:[picture('subject')]})).toThrow();

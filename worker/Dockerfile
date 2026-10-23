@@ -22,6 +22,7 @@ ENV SEED_IMAGE_REVISION=${SOURCE_REVISION}
 COPY __init__.py app.py jobs.py inputs.py spool.py profile.py prepare.py run.py entrypoint.py models.json models-image.json models-video.json requirements.txt model_files.py download_process.py download_progress.py preparation.py processes.py uploads.py owned_process.py /opt/seed/worker/
 COPY static/ /opt/seed/worker/static/
 COPY diagnostics.py /opt/seed/worker/
+COPY resolution.py resolutions.json /opt/seed/worker/
 COPY comfy_seed/ /ComfyUI/custom_nodes/comfy_seed/
 COPY spool.py /ComfyUI/custom_nodes/comfy_seed/spool.py
 

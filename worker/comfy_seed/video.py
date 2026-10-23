@@ -6,6 +6,7 @@ from pathlib import Path
 import numpy as np
 import torch
 import folder_paths
+from worker.resolution import validate_canvas
 
 class SeedLoadVideo:
     @classmethod
@@ -37,7 +38,7 @@ class SeedVideoSave:
         if not target.is_relative_to(root / 'seed') or (not isinstance(seconds, int) or isinstance(seconds, bool) or not 5 <= seconds <= 15) or len(images)<seconds*24 or export_version not in ('legacy-v1', 'native-v1') or audio_mode not in ('generated', 'silent'): raise ValueError('Invalid video export')
         native = export_version == 'native-v1'
         if len(images.shape) != 4 or images.shape[-1] != 3: raise ValueError('Invalid video frames')
-        if native and (int(images.shape[2]), int(images.shape[1])) not in ((1344, 768), (768, 1344)): raise ValueError('Invalid native video dimensions')
+        if native: validate_canvas('video', int(images.shape[2]), int(images.shape[1]))
         target.parent.mkdir(parents=True,exist_ok=True)
         width,height=(int(images.shape[2]), int(images.shape[1])) if native else ((720,1280) if images.shape[1]>images.shape[2] else (1280,720))
         sample_rate=audio['sample_rate']; waveform=audio['waveform'][0,...,:seconds*sample_rate].detach().cpu()

@@ -10,6 +10,8 @@ import { jobName } from './job-ui.js';
 import { RevisionControls } from './revision-controls.js';
 import type { PreviewRequestInput } from './request-preview.js';
 import './review-request.css';
+import { isResolutionSize, resolveDimensions } from '../shared/resolution.js';
+import { useGeneratePreferences } from './generate-preferences.js';
 export function Review({
   card,
   initial,
@@ -45,6 +47,7 @@ export function Review({
 }) {
   const [revision, setRevision] = useState(initial.number),
     [request, setRequest] = useState(initial.request);
+  const { candidates } = useGeneratePreferences();
   useEffect(() => {
     setRevision(initial.number);
     setRequest(initial.request);
@@ -67,7 +70,12 @@ export function Review({
     [...request.prompt.matchAll(/<(?:Picture|Video|Audio) [1-9][0-9]*>|<image[1-9][0-9]*>/g)].some(
       (m) => !new Set(inputLabels(request.references ?? []).values()).has(m[0]),
     );
-  const invalid = missing
+  let resolutionError = '';
+  const source = assets.find(a => a.id === request.references?.find(r => r.role === 'source')?.asset_id)?.metadata;
+  if (!isResolutionSize(request.workflow, request.output.size, candidates)) resolutionError = 'Choose a supported resolution.';
+  else try { resolveDimensions(request.workflow, request.output.size, request.output.aspect, source?.width && source.height ? {width: source.width, height: source.height} : undefined); }
+  catch (error) { resolutionError = (error as Error).message; }
+  const invalid = resolutionError || (missing
     ? 'Remove or replace the missing input mentions.'
     : !request.prompt.trim()
       ? 'Enter a prompt.'
@@ -80,7 +88,7 @@ export function Review({
                 request.output.duration_seconds! < 5 ||
                 request.output.duration_seconds! > 15)
             ? 'Choose a supported length between 5 and 15 seconds.'
-            : '';
+            : '');
   return (
     <RequestDialog
       title={jobName(card.workflow)}

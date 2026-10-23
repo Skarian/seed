@@ -5,6 +5,7 @@ import { Loras, digest, sourceReady, type LoraSelection } from "./loras.js";
 import { WorkerPool } from "./pool.js";
 import type { RentalRecord, WorkerReceipt } from "./pool-contracts.js";
 import { graphFor, type GraphLora } from "./worker-graphs.js";
+import { resolveDimensions } from "../shared/resolution.js";
 import {
   WorkerHttpError,
   TransferIntegrityError,
@@ -344,9 +345,13 @@ export class Jobs {
           ref,
           request.output.aspect,
           request.output.duration_seconds!,
+          request.output.size,
         ),
       );
     }
+    const dimensions = request.workflow==='image-to-image'
+      ? {width:prepared[0]!.width!,height:prepared[0]!.height!}
+      : resolveDimensions(request.workflow,request.output.size,request.output.aspect);
     const submission_id = randomUUID(),
       now = new Date().toISOString();
     const jobs = seeds(request).map((seed, index): Job => {
@@ -387,6 +392,7 @@ export class Jobs {
         submission_id,
         submission_index: index,
         request,
+        output_dimensions: dimensions,
         seed,
         worker: {
           loras: selected.map(({ id, revision, scale }) => ({

@@ -38,3 +38,16 @@ it('hashes the effective system and changes when editable instructions change',(
  writeFileSync(path.join(paths.config,'prompting','chat/standard.md'),'Custom creative direction');
  expect(chatPromptSnapshot(paths,'sfw','text-to-image').hash).not.toBe(first.hash);
 });
+
+it('makes request-editor resolution ownership an authoritative application rule',()=>{
+ const paths=fixture();initializeChatPrompts(paths);
+ writeFileSync(path.join(paths.config,'prompting','chat/standard.md'),'Local instructions: always send size when preparing a request.');
+ for(const workflow of ['text-to-image','image-to-image','text-to-video','reference-to-video'] as const){
+  const snapshot=chatPromptSnapshot(paths,'sfw',workflow);
+  const rules=snapshot.system.split('Current application rules (these take precedence over conflicting editable guidance):')[1]!;
+  expect(rules).toContain('Never send size in a tool call');
+  expect(rules).toContain('independently of remembered Generate selections');
+  expect(rules).toContain('Editing a request preserves its manual resolution');
+  expect(snapshot.version).toBe(CHAT_PROMPT_VERSION);
+ }
+});

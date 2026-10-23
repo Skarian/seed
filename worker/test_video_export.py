@@ -38,7 +38,9 @@ class Audio(Pixels):
 
 @pytest.mark.parametrize('portrait', [False, True])
 @pytest.mark.parametrize('native', [False, True])
-def test_export_preserves_native_pixels_and_legacy_graph_behavior(tmp_path, monkeypatch, portrait, native):
+@pytest.mark.parametrize('canvas', [(1344, 768), (864, 480)])
+def test_export_preserves_native_pixels_and_legacy_graph_behavior(tmp_path, monkeypatch, portrait, native, canvas):
+    monkeypatch.setenv('SEED_QUALIFY_RESOLUTIONS', '1' if canvas == (864, 480) else '0')
     folders = types.SimpleNamespace(get_output_directory=lambda: str(tmp_path))
     resize_calls = []
     def resize(pixels, width, height, method, crop):
@@ -67,11 +69,11 @@ def test_export_preserves_native_pixels_and_legacy_graph_behavior(tmp_path, monk
         def wait(self): return 0
         def poll(self): return 0
     monkeypatch.setattr(module.subprocess, 'Popen', Process)
-    dimensions = (1344, 768) if portrait else (768, 1344)
+    dimensions = canvas if portrait else canvas[::-1]
     kwargs = {'export_version': 'native-v1'} if native else {}
     result = module.SeedVideoSave().save(Pixels(124, *dimensions), {'sample_rate': 24, 'waveform': Audio()}, 5, 'seed/job/video', 'generated', **kwargs)
     args = captured['args']
-    expected_size = ('768x1344' if portrait else '1344x768') if native else ('720x1280' if portrait else '1280x720')
+    expected_size = (('480x864' if portrait else '864x480') if canvas == (864, 480) else ('768x1344' if portrait else '1344x768')) if native else ('720x1280' if portrait else '1280x720')
     assert args[args.index('-s')+1] == expected_size
     assert args[args.index('-frames:v')+1] == '120'
     assert args[args.index('-r')+1] == '24'

@@ -14,7 +14,7 @@ import {compactConversation,settingsOnlyMessage} from '../server/chat/context.js
 
 const request={prompt:'A quiet landscape',seed:'random',count:1,output:{aspect:'16:9',size:'1mp'}};
 function sse(chunk:unknown){return new Response('data: '+JSON.stringify(chunk)+'\n\ndata: [DONE]\n\n',{headers:{'content-type':'text/event-stream'}});}
-function flatRequest(r:any){const {output,count,audio,references,...rest}=r;return {...rest,...(count!==undefined?{batch_size:count}:{}),...(output?{aspect_ratio:output.aspect,size:output.size,...(output.duration_seconds!==undefined?{duration_seconds:output.duration_seconds}:{})}:{}),...(audio?{audio_output:audio.output}:{})};}
+function flatRequest(r:any){const {output,count,audio,references,...rest}=r;return {...rest,...(count!==undefined?{batch_size:count}:{}),...(output?{aspect_ratio:output.aspect,...(output.duration_seconds!==undefined?{duration_seconds:output.duration_seconds}:{})}:{}),...(audio?{audio_output:audio.output}:{})};}
 async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDatabase>;paths:ReturnType<typeof resolvePaths>;queue:unknown[];requests:any[];titleRequests:any[]})=>Promise<void>){
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/chat-')),paths=resolvePaths(root);prepareStorage(paths);
   writeFileSync(path.join(paths.config,'credentials.json'),JSON.stringify({openrouterApiKey:'fake',vastApiKey:null,runpodApiKey:null,civitaiKey:null,huggingFaceToken:null}));
@@ -186,13 +186,13 @@ it('compacts older dialogue while retaining recent turns and the original histor
 
 it('surfaces rejected tool calls even when the model falsely claims success',async()=>fixture(async({chats,jobs,queue,requests})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
-  queue.push([{operation:'create',request:{...request,seed:'puppy_snapshot_01',output:{aspect:'16:9',size:'768p'}}}]);
+  queue.push([{operation:'create',request:{...request,seed:'puppy_snapshot_01'}}]);
   chats.send(c.id,{version:c.version,text:'A candid puppy photo',assets:[]});c=await idle(chats,c.id);
   expect(c.groups).toHaveLength(0);expect(jobs.all()).toHaveLength(0);
   expect(c.error).toBeNull();expect(c.messages.at(-1)?.transcript?.state).toBe('failed');expect(c.messages.at(-1)?.transcript?.steps.some(s=>s.kind==='tool'&&s.state==='failed')).toBe(true);
   expect(c.messages.some(m=>m.role==='event'&&m.text.includes('tool failed'))).toBe(false);
   const schema=requests[0].tools[0].function.parameters;
-  expect(schema.properties.size.enum).toEqual(['1mp']);
+  for(const tool of requests[0].tools)expect(tool.function.parameters.properties).not.toHaveProperty('size');
   expect(schema.properties).not.toHaveProperty('duration_seconds');
   expect(schema.properties.seed.pattern).toContain('random');
 }));
@@ -310,7 +310,7 @@ it('edits prompts with a full replacement while preserving other settings',async
  const card=c.groups[0]!.cards[0]!;
  queue.push([{operation:'revise',request_id:card.id,changes:{prompt:'A softly lit landscape'}}]);
  chats.send(c.id,{version:c.version,text:'Soften the lighting',assets:[],card_id:card.id,revision:1});c=await idle(chats,c.id);
- expect(c.groups[0]!.cards[0]!.revisions.at(-1)!.request).toMatchObject({...request,prompt:'A softly lit landscape'});
+ expect(c.groups[0]!.cards[0]!.revisions.at(-1)!.request).toMatchObject({...request,output:{aspect:'16:9',size:'image-768'},prompt:'A softly lit landscape'});
 }));
 
 it('persists the sent request snapshot independently of later revisions',async()=>fixture(async({chats,queue})=>{

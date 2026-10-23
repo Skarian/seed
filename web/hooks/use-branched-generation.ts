@@ -44,9 +44,9 @@ export function useBranchedGeneration(
             include_audio: ref.include_audio,
             start: ref.range?.start_seconds ?? 0,
             end: (ref.range?.start_seconds ?? 0) + (ref.range?.duration_seconds ?? 0),
-            duration: asset?.metadata?.duration_seconds,
-            width: asset?.metadata?.width,
-            height: asset?.metadata?.height,
+            duration: asset?.duration ?? asset?.metadata?.duration_seconds,
+            width: asset?.width ?? asset?.metadata?.width,
+            height: asset?.height ?? asset?.metadata?.height,
           };
         }),
       );

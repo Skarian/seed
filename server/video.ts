@@ -1,4 +1,5 @@
 import type { ImageRequest } from './workflows.js';
+import { isResolutionSize } from '../shared/resolution.js';
 export interface RequestIssue {field:string;message:string;fix?:string}
 export class VideoRequestError extends Error {
   constructor(public issues:RequestIssue[]){super(issues.map(i=>`${i.field}: ${i.message}${i.fix?' '+i.fix:''}`).join('\n'));this.name='VideoRequestError';}
@@ -17,7 +18,7 @@ export function videoRequest(value:any):ImageRequest {
   else {
     unknown(value.output,['aspect','size','duration_seconds','format'],'output');
     if(!['16:9','9:16'].includes(value.output.aspect))add('output.aspect','Choose 16:9 or 9:16.');
-    if(value.output.size!=='768p')add('output.size','H3 uses 768p output.');
+    if(!isResolutionSize('video',value.output.size,process.env.SEED_QUALIFY_RESOLUTIONS==='1'))add('output.size','Choose a supported video resolution.');
     if(!Number.isInteger(value.output.duration_seconds)||value.output.duration_seconds<5||value.output.duration_seconds>15)add('output.duration_seconds','Use a whole number from 5 to 15.','This is the generated video length, not an input clip length.');
     if(value.output.format!==undefined&&value.output.format!=='video')add('output.format','Videos are saved as videos. Use Pick Frame in the preview to save an image.');
   }

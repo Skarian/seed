@@ -24,7 +24,7 @@ import { compactConversation, settingsOnlyMessage, type ConversationSummary } fr
 function agentRequest(request:ImageRequest,assets:ToolAsset[]=[]){
   const bindings=new Map([...toolPromptBindings(request.references??[])].map(([id,label])=>[label,'[['+id+']]']));
   const prompt=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?request.prompt.replace(toolPromptReferencePattern,label=>bindings.get(label)??label):request.prompt;
-  return {prompt,batch_size:request.count,seed:request.seed,aspect_ratio:request.output.aspect,size:request.output.size,loras:request.loras??[],
+  return {prompt,batch_size:request.count,seed:request.seed,aspect_ratio:request.output.aspect,loras:request.loras??[],
     ...(request.note?{note:request.note}:{}),...(request.mode==='nsfw'?{mode:request.mode}:{}),
     ...(isVideoWorkflow(request.workflow)?{duration_seconds:request.output.duration_seconds,audio_output:request.audio?.output}:{}),
     ...(request.references?{inputs:request.references.map(ref=>({id:ref.id,asset:assets.find(a=>a.asset_id===ref.asset_id)?.handle??ref.asset_id,role:ref.role,

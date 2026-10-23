@@ -44,7 +44,7 @@ const workflows:Record<ChatWorkflow,{label:string;command:string}>={
 // Import the retired storage key once for users upgrading from API-provider builds.
 function remembered(key:string){try{return sessionStorage.getItem('seed.chat.v2.'+key)??sessionStorage.getItem('seed.chat.fal.'+key)??'';}catch{return '';}}
 function remember(key:string,value:string){try{sessionStorage.setItem('seed.chat.v2.'+key,value);}catch{/* Server history remains durable. */}}
-type AssetContext={id:string;name:string;kind:'image'|'video'|'audio';note:string;metadata?:{duration?:number}};
+type AssetContext={id:string;name:string;kind:'image'|'video'|'audio';note:string;metadata?:{duration?:number;width?:number;height?:number}};
 type View=ChatView&{asset_manifest?:AssetContext[];jobs:JobRecord[];accounting:Array<{cost:number|null}>};
 async function api(url:string,method='GET',body?:unknown){const response=await fetch('/api/v1/'+url,{method,...(body===undefined?{}:{headers:{'Content-Type':'application/json'},body:JSON.stringify(body)})});const result=await response.json();if(!response.ok){const message=result.error?.message;throw Error(message==='fetch failed'?'Cannot reach the service. Check your connection and credentials in Admin, then try again.':message||'Request failed. Please try again.');}return result;}
 

@@ -19,24 +19,34 @@ export function useGenerationSubmission(scope: string) {
   const [state, setState] = useState<SubmissionState>({ status: 'idle' });
   const busy = useRef(false);
   const pending = useRef(new Map<string, string>());
+  const attempts = useRef(new Map<string, { fingerprint: string; body: string; url: string; request: ImageRequest; sourceJob?: string; restorable: boolean }>());
+  const editVersions = useRef(new Map<string, number>());
+  const fingerprint = ({request, references, sourceJob}: Input) => JSON.stringify({ request, sourceJob, references: references.map(({file, url, ...reference}) => ({...reference, file: file ? [file.name, file.size, file.lastModified] : undefined})) });
   async function submit({ request, references, sourceJob }: Input) {
     if (busy.current) return;
     busy.current = true;
     const requestScope = request.mode + ':' + request.workflow;
+    // Freeze this click before uploads; later form/preference updates are a different intent.
+    request = structuredClone(request);
+    references = references.map(reference => ({...reference}));
+    const inputFingerprint = fingerprint({request, references, sourceJob});
+    const editVersion = editVersions.current.get(requestScope) ?? 0;
     let identity: string | undefined;
     try {
+      const prior = attempts.current.get(requestScope);
+      const retry = prior?.fingerprint === inputFingerprint ? prior : undefined;
       setState({ status: 'uploading', scope: requestScope });
       const uploaded =
-        usesInputs(request.workflow)
+        !retry && usesInputs(request.workflow)
           ? await uploadReferences(references, request.mode, (progress) =>
               setState({ status: 'uploading', scope: requestScope, progress }),
             )
           : undefined;
       const inputs=request.workflow==='image-to-image'?uploaded?.map(({id,asset_id,kind,role})=>({id,asset_id,kind,role})):uploaded;
-      const body = JSON.stringify({ ...request, ...(inputs ? { references: inputs } : {}) });
-      const url = sourceJob
+      const body = retry?.body ?? JSON.stringify({ ...request, ...(inputs ? { references: inputs } : {}) });
+      const url = retry?.url ?? (sourceJob
         ? '/api/v1/jobs/' + encodeURIComponent(sourceJob) + '/repeat'
-        : '/api/v1/jobs';
+        : '/api/v1/jobs');
       identity = url + '\n' + body;
       if (!pending.current.has(identity))
         pending.current.set(
@@ -45,6 +55,7 @@ export function useGenerationSubmission(scope: string) {
             byte.toString(16).padStart(2, '0'),
           ).join(''),
         );
+      attempts.current.set(requestScope, { fingerprint: inputFingerprint, body, url, request, sourceJob, restorable: editVersion === (editVersions.current.get(requestScope) ?? 0) });
       setState({ status: 'submitting', scope: requestScope });
       const response = await fetch(url, {
         method: 'POST',
@@ -56,10 +67,11 @@ export function useGenerationSubmission(scope: string) {
       });
       const result = await response.json();
       if (!response.ok) {
-        if (response.status < 500) pending.current.delete(identity);
+        if (response.status < 500) { pending.current.delete(identity); attempts.current.delete(requestScope); }
         throw Error(result.error?.message ?? 'Could not submit generation.');
       }
       pending.current.delete(identity);
+      attempts.current.delete(requestScope);
       setState({ status: 'idle' });
       return result.jobs as JobRecord[];
     } catch (error) {
@@ -78,6 +90,17 @@ export function useGenerationSubmission(scope: string) {
   }
   return {
     submit,
+    hasPending: (requestScope: string) => attempts.current.has(requestScope),
+    edited: (requestScope: string) => {
+      editVersions.current.set(requestScope, (editVersions.current.get(requestScope) ?? 0) + 1);
+      const attempt = attempts.current.get(requestScope);
+      if (attempt) attempt.restorable = false;
+      setState(value => value.status === 'error' && value.scope === requestScope ? {status:'idle'} : value);
+    },
+    pendingDraft: (requestScope: string) => {
+      const attempt = attempts.current.get(requestScope);
+      return attempt?.restorable ? {request: structuredClone(attempt.request), sourceJob: attempt.sourceJob} : undefined;
+    },
     busy: state.status === 'uploading' || state.status === 'submitting',
     progress: state.status === 'uploading' && state.scope === scope ? state.progress : undefined,
     error: state.status === 'error' && state.scope === scope ? state.message : undefined,

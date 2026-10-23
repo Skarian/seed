@@ -5,6 +5,7 @@ import type {
   HistoricalEstimate as Estimate,
 } from "./job-history.js";
 export type JobRecord = {
+  output_dimensions?: { width: number; height: number };
   worker?: { id?: string };
   recovery?: {
     pending: boolean;

@@ -23,6 +23,8 @@ import { MediaPreview, type PreviewMedia } from './media-preview.js';
 import { JobDetails, JobMedia, ProviderError } from './job-ui.js';
 import { workflowLabels } from './workflow-labels.js';
 import type { ComposerHandle } from './inline-composer.js';
+import { useGeneratePreferences } from './generate-preferences.js';
+import { isResolutionSize, resolutionFamily, resolveDimensions, type ResolutionSize } from '../shared/resolution.js';
 
 type Props = {
   active: boolean;
@@ -58,6 +60,16 @@ export function Generate({
 }: Props) {
   const draft = useGenerationDrafts(workflow, mode),
     request = draft.request;
+  const preferences = useGeneratePreferences();
+  const activation = useRef<{key: string; waiting: boolean; touched: boolean} | null>(null);
+  const [resolutionReady, setResolutionReady] = useState(false);
+  const family = resolutionFamily(workflow);
+  function chooseResolution(size: ResolutionSize) {
+    if (activation.current) activation.current.waiting = false;
+    setResolutionReady(true);
+    changeDraft({ output: {...request.output, size} } as Partial<typeof request>);
+    preferences.remember(family, size);
+  }
   const videoReferences = useReferences(false,'reference-to-video');
   const editReferences = useReferences(false,'image-to-image');
   const references = workflow==='image-to-image'?editReferences:videoReferences;
@@ -70,12 +82,42 @@ export function Generate({
   const branchError = useBranchedGeneration(mode, draft.replace, videoReferences, onWorkflowChange,editReferences);
   async function startEdit(asset:{id:string;name:string}) {
     setPendingEdit(null);setEditError('');
-    draft.replace('image-to-image',emptyGeneration('image-to-image'));
+    submission.edited(mode + ':image-to-image');
+    const fresh = emptyGeneration('image-to-image');
+    if (preferences.preferences) fresh.request.output.size = preferences.preferences.image;
+    draft.replace('image-to-image',fresh);
     editReferences.reset();
     await editReferences.add([{...asset,kind:'image',created_at:''}],{askForNotes:false});
   }
   useEffect(()=>{const open=(event:Event)=>{const asset=(event as CustomEvent).detail;if(!asset?.id)return;if(editReferences.items.length||draft.editHasPrompt)setPendingEdit(asset);else void startEdit(asset).catch(e=>setEditError(e.message));};window.addEventListener('seed:edit-image',open);return()=>window.removeEventListener('seed:edit-image',open);});
   const submission = useGenerationSubmission(mode + ':' + workflow);
+  function changeDraft(patch: Partial<typeof request>) {
+    submission.edited(mode + ':' + workflow);
+    draft.change(patch);
+  }
+  useEffect(() => {
+    if (!active) { activation.current = null; return; }
+    const key = mode + ':' + workflow;
+    if (activation.current?.key !== key) {
+      activation.current = { key, waiting: true, touched: false };
+      setResolutionReady(false);
+      void preferences.refresh();
+      const pendingDraft = submission.pendingDraft(key);
+      if (pendingDraft) {
+        draft.replace(workflow, pendingDraft);
+        activation.current.waiting = false;
+        setResolutionReady(true);
+        return;
+      }
+    }
+    const entry = activation.current;
+    if (draft.sourceJob || submission.hasPending(key) || !isResolutionSize(workflow, request.output.size, preferences.candidates)) { entry.waiting = false; setResolutionReady(true); return; }
+    if (entry.waiting && !entry.touched && preferences.preferences) {
+      draft.change({ output: {...request.output, size: preferences.preferences[family]} } as Partial<typeof request>);
+      entry.waiting = false;
+      setResolutionReady(true);
+    }
+  }, [active, workflow, mode, draft.sourceJob, preferences.preferences]);
   const pool = useWorkerPool();
   const feedback = useGenerationFeedback(jobs, workflow, mode);
   const priorInputs = useRef<{
@@ -124,6 +166,11 @@ export function Generate({
   }, [mode, active, workflow]);
 
   const video = isVideoWorkflow(workflow);
+  const sourceInput = workflow === 'image-to-image' ? references.items.find(ref => ref.role === 'source') : undefined;
+  const source = sourceInput?.width && sourceInput.height ? {width: sourceInput.width, height: sourceInput.height} : undefined;
+  let resolutionError = '';
+  if (!isResolutionSize(workflow, request.output.size, preferences.candidates)) resolutionError = 'Choose a supported resolution.';
+  else try { resolveDimensions(workflow, request.output.size, request.output.aspect, source); } catch (failure) { resolutionError = (failure as Error).message; }
   const seedValid =
     request.seed === 'random' ||
     (/^(0|[1-9][0-9]{0,15})$/.test(request.seed) &&
@@ -131,7 +178,7 @@ export function Generate({
   const missingReference =
     usesInputs(workflow) ? referencePromptIssue(request.prompt, references.items) : '';
   const canGenerate = Boolean(
-    request.prompt.trim() &&
+    resolutionReady && !resolutionError && request.prompt.trim() &&
       seedValid &&
       !missingReference &&
       (!usesInputs(workflow) ||
@@ -154,7 +201,7 @@ export function Generate({
   if (!active) return null;
   const selected = jobs.find((job) => job.id === detail);
   return (
-    <section className="composer" aria-label={workflowLabels[workflow]}>
+    <section className="composer" aria-label={workflowLabels[workflow]} onInputCapture={() => { if (activation.current) activation.current.touched = true; }}>
       <div className="prompt-heading">
         <label htmlFor="prompt">Prompt</label>
         <button
@@ -162,7 +209,12 @@ export function Generate({
           aria-label="Reset form"
           title="Reset this workflow"
           onClick={() => {
-            draft.reset();
+            submission.edited(mode + ':' + workflow);
+            const fresh = emptyGeneration(workflow);
+            if (preferences.preferences) fresh.request.output.size = preferences.preferences[family];
+            draft.replace(workflow, fresh);
+            activation.current = {key: mode + ':' + workflow, waiting: !preferences.preferences, touched: false};
+            setResolutionReady(!!preferences.preferences);
             if (usesInputs(workflow)) references.reset();
           }}
         >
@@ -182,7 +234,7 @@ export function Generate({
         ref={promptInput}
         id="prompt"
         value={request.prompt}
-        onChange={(prompt) => draft.change({ prompt })}
+        onChange={(prompt) => changeDraft({ prompt })}
         mentions={usesInputs(workflow) ? mentions : undefined}
         placeholder={placeholders[workflow]}
       />
@@ -191,15 +243,31 @@ export function Generate({
       )}
       {usesInputs(workflow) && (
         <ReferenceInputs
-          state={references}
+          state={{...references,
+            add: (...args) => { submission.edited(mode + ':' + workflow); return references.add(...args); },
+            update: (...args) => { submission.edited(mode + ':' + workflow); references.update(...args); },
+            remove: (...args) => { submission.edited(mode + ':' + workflow); references.remove(...args); },
+          }}
           onInsert={(label) => promptInput.current?.insert(label + ' ')}
         />
       )}
       <RequestSettings
         request={request}
         route={workflow==='image-to-image'?undefined:loraRoute({ workflow, references: references.items })}
-        onChange={draft.change}
+        onChange={changeDraft}
+        source={source}
+        sourceError={workflow === 'image-to-image' && references.busy ? 'Reading source image…' : undefined}
+        resolutionReady={resolutionReady}
+        onResolutionChange={chooseResolution}
+        resolutionNote={<p className="resolution-memory" role="status">
+        Choosing a resolution remembers it for {family} workflows.
+        {preferences.status[family] === 'saving' && ' Saving…'}
+        {preferences.status[family] === 'saved' && ' Saved.'}
+        {preferences.status[family] === 'error' && <> Selection not remembered. <button type="button" onClick={() => preferences.remember(family, request.output.size)}>Retry</button></>}
+        {preferences.error && <> {preferences.error} <button type="button" onClick={() => void preferences.refresh()}>Retry loading</button></>}
+      </p>}
       />
+      {resolutionError && resolutionReady && <p role="alert">{resolutionError}</p>}
       {!seedValid && (
         <p role="alert">
           Use a whole number from 0 to 9007199254740991, leaving room for all outputs.
@@ -211,7 +279,7 @@ export function Generate({
           maxLength={4000}
           placeholder="Optional note for the generated assets"
           value={request.note ?? ''}
-          onChange={(event) => draft.change({ note: event.target.value })}
+          onChange={(event) => changeDraft({ note: event.target.value })}
         />
       </label>
       {error && <p role="alert">{error}</p>}

@@ -5,12 +5,13 @@ import numpy as np
 from PIL import Image, ImageOps
 import torch
 import folder_paths
+from worker.resolution import size_choices, validate_edit_dimensions
 
 
 class SeedLoadEditImage:
     @classmethod
     def INPUT_TYPES(cls):
-        return {'required': {'image': ('STRING',)}}
+        return {'required': {'image': ('STRING',), 'size': ([entry['id'] for entry in size_choices('image')],)}}
     RETURN_TYPES = ('IMAGE',)
     FUNCTION = 'load'
     CATEGORY = 'seed'
@@ -24,14 +25,13 @@ class SeedLoadEditImage:
         return file
 
     @classmethod
-    def IS_CHANGED(cls, image):
+    def IS_CHANGED(cls, image, size):
         with cls.path(image).open('rb') as handle:
-            return hashlib.file_digest(handle, 'sha256').hexdigest()
+            return size + ':' + hashlib.file_digest(handle, 'sha256').hexdigest()
 
-    def load(self, image):
+    def load(self, image, size):
         with Image.open(self.path(image)) as source:
-            if source.width * source.height > 1_100_000 or min(source.size) < 32:
-                raise ValueError('Prepared image dimensions are invalid.')
+            validate_edit_dimensions(source.width, source.height, size)
             source = ImageOps.exif_transpose(source)
             source = source.convert('RGBA' if 'A' in source.getbands() else 'RGB')
             pixels = np.array(source).astype(np.float32) / 255.0
