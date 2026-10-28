@@ -61,6 +61,7 @@ export function registerAdmin(app:FastifyInstance,paths:StudioPaths,loras:Loras,
   }));
   app.get('/api/v1/admin/loras',{schema:{querystring:modeQuery}},handle(r=>({items:loras.groups(r.query.mode??'sfw')})));
   app.patch('/api/v1/admin/loras/:id',handle(r=>imports.edit(r.params.id,r.body),202));
+  app.delete('/api/v1/admin/loras/:id',handle(r=>{loras.deleteGroup(r.params.id);return {deleted:true};}));
   app.post('/api/v1/admin/loras/inspect',{schema:{body:{type:'object',required:['url'],additionalProperties:false,properties:{url:{type:'string',maxLength:2048}}}}},handle(r=>imports.inspect(r.body.url)));
   app.post('/api/v1/admin/loras/import',handle(r=>imports.add(r.body),202));
   app.get('/api/v1/lora-imports',{schema:{querystring:modeQuery}},handle(r=>({items:imports.list(r.query.mode??'sfw')})));

@@ -72,6 +72,16 @@ Add a specific subject or style with a compatible **Krea 2** or **MiniMax H3** L
 
 Choose imported LoRAs in Generate or let the Chat agent select them. New workers download your enabled LoRAs when they start, so launch a new worker after adding one. Qwen image editing uses reference images and does not support LoRAs.
 
+## Use this PC
+
+The native Windows local worker is opt-in under **GPU workers → This PC**.
+Setup downloads pinned models and a managed Python environment. An enabled
+worker loads models only for qualified requests and exits two minutes after
+its final output is saved. Each request can choose **Auto**, **This PC**, or
+**Cloud**. Auto uses an available compatible rental first and never rents one
+automatically. See [local setup, qualification, and recovery](docs/local-worker.md)
+for hardware limits and storage requirements.
+
 ## Find cloud GPUs on RunPod or Vast
 
 Open **GPU workers** to compare available machines by GPU, region, hourly rate, and download cost. Choose an Image or Video worker and review the quote before starting it. Rates vary by GPU and provider.
@@ -109,7 +119,7 @@ Seed sends each request to a compatible worker, then downloads the finished imag
 
 ## Get started
 
-Install **Node.js 26.8.2 or newer within 26.x**, Git, and an OpenSSH client, then run:
+Install **Node.js 24 or newer**, Git, and an OpenSSH client, then run:
 
 ~~~sh
 git clone https://github.com/Skarian/seed.git

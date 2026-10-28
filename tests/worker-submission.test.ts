@@ -11,6 +11,16 @@ import type {RentalRecord} from '../server/pool-contracts.js';
 
 const worker = {id:'worker-fixture',worker_class:'image',session_id:'engine-fixture'} as RentalRecord;
 const envelope = {prompt_id:'cbe792a7-8e18-486f-87f4-7c90c9234694',prompt:{private_fixture:'synthetic-private-graph'},route:'image',loras:[]};
+
+it('retains terminal persistence failures through the real status parser without exposing private fields',()=>fixture(async f=>{
+  f.state.identity.terminal_error={job_id:'attempt-fixture',message:'synthetic-private-error'};
+  f.state.identity.execution_activity={phase:'sampling',percent:42,private:'synthetic-private-extra'};
+  const status=await f.connection.status({fresh:true});
+  expect(status?.terminal_error).toEqual({job_id:'attempt-fixture',message:'The local engine could not persist its terminal output record.'});
+  expect(status?.execution_activity).toEqual({phase:'sampling',percent:42});
+  expect(JSON.stringify(status)).not.toContain('synthetic-private');
+  expect(f.posts).toEqual([]);
+}));
 async function fixture(run:(f:{
   connection:WorkerConnection; driver:PoolWorkerDriver;
   state:{stall:boolean;identity:Record<string,unknown>;postStatus:number;postBody:string;statusGate?:Promise<void>};

@@ -55,6 +55,20 @@ async function capture(page:Page,device:string,id:string,title:string){
 
 for(const device of ['desktop','mobile'] as const)test.describe(device,()=>{
  test.use({viewport:device==='desktop'?{width:1440,height:1000}:{width:390,height:844},isMobile:device==='mobile',hasTouch:device==='mobile'});
+ test('interrupted local generation requires an explicit Retry on This PC action',async({page})=>{
+  const f=await fixture(page);
+  f.jobs[0]={...unknown(),error:'Local engine interrupted',worker:{id:'local-fixture',executor:'local'},
+    recovery:{pending:false,action:'retry_local',reason:'engine_interrupted',worker_id:'local-fixture'}};
+  await page.goto('/');
+  const details=await activity(page);
+  await expect(details.getByRole('button',{name:'Retry on This PC',exact:true})).toBeEnabled();
+  expect(f.writes).toEqual([]);
+  f.recover=route=>route.fulfill({status:202,json:{...f.jobs[0],recovery:{...f.jobs[0]!.recovery,pending:true}}});
+  await details.getByRole('button',{name:'Retry on This PC',exact:true}).click();
+  await expect(details.getByRole('button',{name:'Checking worker…',exact:true})).toBeDisabled();
+  expect(f.writes).toEqual([{path:'/api/v1/jobs/unknown-output/recover',body:{}}]);
+  await expect(page.getByRole('dialog',{name:'GPU workers',exact:true})).toHaveCount(0);
+ });
  test('unknown recovery retains attention, original worker and pending state across refresh',async({page})=>{
   const f=await fixture(page);await page.goto('/');
   let details=await activity(page);

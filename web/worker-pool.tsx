@@ -8,6 +8,7 @@ import {
   type Provider,
 } from "../shared/pool.js";
 import { useWorkerPool } from "./hooks/use-worker-pool.js";
+import {LocalWorkerCard} from './local-worker.js';
 import { useWorkerOffers } from "./hooks/use-worker-offers.js";
 import { useWorkerLaunch } from "./hooks/use-worker-launch.js";
 import { Modal } from "./modal.js";
@@ -108,9 +109,9 @@ export function WorkerPoolStatus() {
           <i
             className={
               "worker-indicator " +
-              (error || summary?.needs_attention || failedLaunches
+              (error || summary?.needs_attention || failedLaunches || snapshot?.local?.issue
                 ? "attention"
-                : summary?.active
+                : summary?.active || snapshot?.local?.enabled&&!snapshot.local.paused
                   ? "active"
                   : "")
             }
@@ -121,8 +122,8 @@ export function WorkerPoolStatus() {
             ? "Reconnect needed"
             : !summary
               ? "Checking workers…"
-              : summary.active || failedLaunches
-                ? [summary.active && poolStatusText(snapshot!.workers), failedLaunches && `${failedLaunches} launch${failedLaunches === 1 ? '' : 'es'} failed`].filter(Boolean).join(' · ')
+              : summary.active || failedLaunches || snapshot?.local?.enabled
+                ? [summary.active && poolStatusText(snapshot!.workers), snapshot?.local?.enabled&&(snapshot.local.issue?'This PC needs attention':snapshot.local.paused?'This PC paused':snapshot.local.current_job_id?'This PC working':'This PC on demand'), failedLaunches && `${failedLaunches} launch${failedLaunches === 1 ? '' : 'es'} failed`].filter(Boolean).join(' · ')
                 : "No workers running"}
         </small>
         {!!summary?.active && (
@@ -235,6 +236,7 @@ export function WorkerPoolDialog({
           />
         ) : (
           <>
+            <LocalWorkerCard/>
             {launchFailures.length > 0 && <section className="pool-launch-failures" aria-label="Failed launches">
               {launchFailures.map(worker => <LaunchFailure key={worker.id} worker={worker} onCredentials={onCredentials} />)}
             </section>}
@@ -245,10 +247,9 @@ export function WorkerPoolDialog({
             ) : !active.length ? (launchFailures.length ? null : (
               <div className="pool-empty">
                 <GPU />
-                <h3>Your next idea starts here</h3>
+                <h3>{pool.snapshot?.local?.enabled?'Cloud workers':'Your next idea starts here'}</h3>
                 <p>
-                  Start an Image or Video worker. Approved requests wait safely
-                  until a compatible worker is ready.
+                  {pool.snapshot?.local?.enabled?'No cloud workers are rented. Add one when you want more capacity.':'Start an Image or Video worker. Approved requests wait safely until a compatible worker is ready.'}
                 </p>
                 <button
                   className="pool-primary"
@@ -286,14 +287,14 @@ export function WorkerPoolDialog({
                       disabled={pool.pending.has("pool") || !active.some(worker => worker.actions.includes('finish'))}
                       onClick={() => setShutdown({ action: "finish" })}
                     >
-                      Finish jobs and quit all
+                      Finish jobs and quit cloud workers
                     </button>
                     <button
                       className="pool-danger"
                       disabled={pool.pending.has("pool")}
                       onClick={() => setShutdown({ action: "quit" })}
                     >
-                      Cancel jobs and quit all now
+                      Cancel cloud jobs and quit now
                     </button>
                   </div>
                 </div>

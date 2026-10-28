@@ -1134,3 +1134,7 @@
 .startup-log-content pre { margin: 0; padding: 12px; max-height: 230px; overflow: auto; min-width: 0; max-width: 100%; background: #141911; border: 1px solid #35402c; border-radius: 8px; color: #bac7ad; font: 11px/1.65 ui-monospace, Consolas, monospace; white-space: pre-wrap; overflow-wrap: anywhere; }
 .worker-startup-logs summary:focus-visible, .startup-log-content pre:focus-visible { outline: 2px solid #b5ce8c; outline-offset: 3px; }
 @media (max-width: 600px) { .startup-log-status button { min-height: 44px; } .startup-log-content pre { max-height: 210px; } }
+.local-worker-card { margin: 0 0 1rem; padding: 1rem; border: 1px solid var(--border, #444); border-radius: 12px; }
+.local-worker-heading { display: flex; align-items: center; justify-content: space-between; gap: 1rem; }
+.local-worker-heading h3 { margin: 0; }
+.local-worker-card progress { width: 100%; }

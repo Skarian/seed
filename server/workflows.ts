@@ -7,6 +7,11 @@ import { isResolutionSize } from '../shared/resolution.js';
 
 
 export function imageRequest(value: unknown): ImageRequest {
+  if(value&&typeof value==='object'&&'target' in value){
+    const {target,...rest}=value as ImageRequest;
+    if(!['auto','local','cloud'].includes(target as string))throw Error('Choose Auto, This PC, or Cloud.');
+    return {...imageRequest(rest),target};
+  }
   if(value && typeof value==='object' && ('note' in value || 'resolved_seeds' in value || 'loras' in value)) {
     const {note,resolved_seeds,loras,...rest}=value as ImageRequest;
     const request=imageRequest(rest);

@@ -3,6 +3,7 @@ import type { ImageRequest } from '../shared/generation.js';
 import { patchGeneration } from '../shared/generation.js';
 import { workflowIds, type WorkflowId } from '../shared/studio.js';
 import { defaultPreferences, type ResolutionSize } from '../shared/resolution.js';
+import { DEFAULT_VIDEO_STEPS, isVideoSteps } from '../shared/video-settings.js';
 
 export type GenerationDraft = { request: ImageRequest; sourceJob?: string };
 export type GenerationDrafts = Record<WorkflowId, GenerationDraft>;
@@ -27,7 +28,7 @@ export function emptyGeneration(workflow: WorkflowId): GenerationDraft {
         size: video ? defaultPreferences.video : defaultPreferences.image,
         ...(video ? { duration_seconds: 5 } : {}),
       },
-      ...(video ? { audio: { output: 'generated' } } : {}),
+      ...(video ? { steps: DEFAULT_VIDEO_STEPS, audio: { output: 'generated' } } : {}),
     },
   };
 }
@@ -61,6 +62,7 @@ export function restoreGenerationDrafts(saved: Record<string, any> = {}): Genera
         ...fresh.request,
         prompt: typeof old.prompt === 'string' ? old.prompt : '',
         note: typeof old.note === 'string' ? old.note : '',
+        target:['auto','local','cloud'].includes(old.target)?old.target:'auto',
         count,
         seed:
           typeof old.seed === 'string' && (entry?.request || old.randomSeed === false)
@@ -81,6 +83,7 @@ export function restoreGenerationDrafts(saved: Record<string, any> = {}): Genera
         },
         ...(video
           ? {
+              steps: isVideoSteps(old.steps) ? old.steps : entry ? 30 : DEFAULT_VIDEO_STEPS,
               audio: {
                 output: (old.audio?.output ?? old.audio) === 'silent' ? 'silent' : 'generated',
               },

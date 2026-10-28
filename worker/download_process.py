@@ -9,7 +9,7 @@ from worker.model_files import direct_download, probe, activate
 from worker.download_progress import DownloadProgress
 
 
-def prepare(workspace, entries, credentials, report):
+def prepare(workspace, entries, credentials, report, merge_adapters=False):
     lock = threading.Lock()
     def send(value):
         with lock: report(value)
@@ -36,8 +36,15 @@ def prepare(workspace, entries, credentials, report):
     with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
         for result in pool.map(lane, lanes): pass
     if all(x['ready'] for x in probe(workspace, entries)):
-        activate(workspace, entries)
-        send({'complete': True})
+        if merge_adapters:
+            activate(workspace, entries, True)
+        else:
+            activate(workspace, entries)
+        if merge_adapters:
+            from worker.profile import installed_loras
+            send({'complete': True, 'installed_loras': installed_loras(workspace)})
+        else:
+            send({'complete': True})
 
 
 if __name__ == '__main__':
@@ -45,7 +52,7 @@ if __name__ == '__main__':
     try:
         body = json.loads(sys.stdin.buffer.readline(1024 * 1024))
         prepare(body['workspace'], body['entries'], body.get('credentials', {}),
-                lambda value: print(json.dumps(value), flush=True))
+                lambda value: print(json.dumps(value), flush=True), body.get('merge_adapters') is True)
     except Exception as exc:
         from worker.diagnostics import error_details
         secrets = body.get('credentials', {}).values() if isinstance(body, dict) else ()

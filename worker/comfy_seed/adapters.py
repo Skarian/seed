@@ -5,8 +5,11 @@ from pathlib import Path
 from worker.profile import installed_loras, worker_class
 from worker.resolution import resolution_preset, validate_canvas
 
+VIDEO_PROFILES = {'h3-high-v1': 30, **{f'h3-base-{steps}-v1': steps for steps in (10, 15, 20)},
+                  **{f'h3-official-{steps}-v1': steps for steps in (10, 15, 20, 30)}}
 
-def validate_adapters(workspace, graph, selections, route):
+
+def validate_adapters(workspace, graph, selections, route, video_profile=None):
     if route not in ('image', 'image-edit', 'fl', 'ref'):
         raise ValueError('Unknown workflow route')
     role = worker_class()
@@ -27,7 +30,8 @@ def validate_adapters(workspace, graph, selections, route):
     validate_canvas('image' if route == 'image' else 'video', inputs.get('width'), inputs.get('height'))
     inventory = {entry['sha256']: entry for entry in installed_loras(workspace)}
     root = Path(workspace).resolve()
-    selected, previous = set(), ['1' if route == 'image' else '16', 0]
+    official = isinstance(video_profile, str) and video_profile.startswith('h3-official-')
+    selected, previous = set(), ['1' if route == 'image' or official else '16', 0]
     expected_nodes = set()
     for index, selection in enumerate(selections):
         digest = selection.get('sha256')
@@ -86,18 +90,30 @@ def validate_edit_profile(graph):
 
 
 def validate_video_profile(graph, profile, model):
-    if profile != 'h3-high-v1':
+    steps = VIDEO_PROFILES.get(profile)
+    if steps is None:
         raise ValueError('Unknown video profile')
     expected = {
         '7': ('BasicGuider', {'model': ['19', 0]}),
         '9': ('KSamplerSelect', {'sampler_name': 'res_multistep'}),
-        '10': ('BasicScheduler', {'model': ['19', 0], 'scheduler': 'simple', 'steps': 30, 'denoise': 1}),
+        '10': ('BasicScheduler', {'model': ['19', 0], 'scheduler': 'simple', 'steps': steps, 'denoise': 1}),
         '16': ('MiniMaxH3SigmaShift', {'model': ['1', 0], 'shift_video': 12, 'shift_audio': 3}),
         '17': ('ModelAttentionBackend', {'model': model, 'attention': 'comfy kitchen attention'}),
         '19': ('BlockSparseAttention', {'model': ['17', 0], 'selection': 'sol-attn', 'selection.tau': 1.3,
               'start_percent': 0.2, 'end_percent': 1, 'dense_blocks': '', 'min_tokens': 12288,
               'extra_tokens': 256, 'sink_conditioning': 'exact_kv_and_rows'}),
     }
+    if profile.startswith('h3-official-'):
+        if any(key in graph for key in ('16', '17', '19')):
+            raise ValueError('Official baseline does not use acceleration patches')
+        expected = {
+            '2': ('CLIPLoader', {'clip_name': 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors', 'type': 'minimax', 'device': 'default'}),
+            '3': ('VAELoader', {'vae_name': 'minimax_h3_video_vae_int8_convrot.safetensors'}),
+            '4': ('VAELoader', {'vae_name': 'minimax_h3_audio_vae_fp32.safetensors'}),
+            '7': ('BasicGuider', {'model': model}),
+            '9': ('KSamplerSelect', {'sampler_name': 'res_multistep'}),
+            '10': ('BasicScheduler', {'model': model, 'scheduler': 'simple', 'steps': steps, 'denoise': 1}),
+        }
     if '5' in graph or '14' not in graph:
         raise ValueError('Invalid video profile graph')
     for key, (kind, values) in expected.items():

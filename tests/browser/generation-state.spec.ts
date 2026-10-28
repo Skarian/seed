@@ -32,11 +32,15 @@ test('workflow drafts survive navigation and reload without waiting for prices',
   });
   await page.goto('/');
   await page.getByLabel('Prompt', { exact: true }).fill('An image draft');
+  await page.getByLabel('Run on', { exact: true }).selectOption('local');
   await expect(page.getByRole('button', { name: /^Create image/ })).toBeEnabled();
   await page.getByLabel('Quantity', { exact: true }).selectOption('4');
   await expect(page.getByRole('button', { name: /^Create 4 images/ })).toBeEnabled();
   await expect(page.locator('.cost-preview')).toHaveCount(0);
   await page.getByRole('button', { name: 'Text to video', exact: true }).click();
+  await expect(page.getByLabel('Sampling steps', {exact:true})).toHaveValue('20');
+  await page.getByLabel('Sampling steps', {exact:true}).selectOption('15');
+  await expect(page.getByLabel('Run on', { exact: true })).toHaveValue('auto');
   await page.getByLabel('Prompt', { exact: true }).fill('A video draft');
   await page.getByLabel('Length', { exact: true }).selectOption('10');
   await expect(page.getByRole('button', { name: /^Create video/ })).toBeEnabled();
@@ -44,10 +48,12 @@ test('workflow drafts survive navigation and reload without waiting for prices',
   await page.goBack();
   await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('A video draft');
   await expect(page.getByLabel('Length', { exact: true })).toHaveValue('10');
+  await expect(page.getByLabel('Sampling steps', {exact:true})).toHaveValue('15');
   await page.getByRole('button', { name: 'Text to image', exact: true }).click();
   await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('An image draft');
   await expect(page.getByLabel('Quantity', { exact: true })).toHaveValue('4');
   await page.reload();
+  await expect(page.getByLabel('Run on', { exact: true })).toHaveValue('local');
   await expect(page.getByLabel('Prompt', { exact: true })).toHaveValue('An image draft');
   await expect(page.getByLabel('Quantity', { exact: true })).toHaveValue('4');
   await expect(page.getByRole('button', { name: /^Create 4 images/ })).toBeEnabled();
@@ -62,6 +68,7 @@ test('workflow drafts survive navigation and reload without waiting for prices',
     prompt: 'An image draft',
     count: 4,
     workflow: 'text-to-image',
+    target: 'local',
   });
   expect(prices).toHaveLength(0);
 });

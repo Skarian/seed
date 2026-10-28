@@ -1,5 +1,48 @@
 import { test, expect } from './fixtures.js';
 
+test('deletes all LoRA mappings after confirmation, handles errors, and updates an open picker', async ({ page, request, context }, testInfo) => {
+  const added=await request.post('/api/v1/admin/loras/import',{
+    headers:{origin:'http://127.0.0.1:4311'},
+    data:{version_id:11,mode:'sfw',name:'Delete test adapter',description:'Fixture',default_scale:1,trigger_words:[],files:[{file_id:30,route:'fl'},{file_id:31,route:'ref'}]},
+  });
+  expect(added.status(),await added.text()).toBe(202);
+  await page.goto('/');
+  await page.getByRole('button',{name:'Text to video',exact:true}).click();
+  const selected=page.getByRole('checkbox',{name:'Delete test adapter v2',exact:true});
+  await selected.check();
+  const admin=await context.newPage();
+  await admin.goto('/admin?section=loras');
+  const card=admin.locator('.admin-lora-card').filter({has:admin.getByRole('heading',{name:'Delete test adapter v2',exact:true,includeHidden:true})});
+  await card.getByRole('button',{name:'Delete',exact:true}).click();
+  const modal=admin.getByRole('dialog',{name:'Delete Delete test adapter?',exact:true});
+  await expect(modal).toBeVisible();
+  await modal.getByRole('button',{name:'Cancel',exact:true}).click();
+  await expect(card).toBeVisible();
+  await expect(selected).toBeChecked();
+  await admin.setViewportSize({width:390,height:844});
+  await card.getByRole('button',{name:'Delete',exact:true}).click();
+  await admin.route('**/api/v1/admin/loras/*',async route=>{
+    if(route.request().method()==='DELETE')return route.fulfill({status:409,json:{error:{message:'Could not save the catalog. Try again.'}}});
+    return route.continue();
+  });
+  await modal.getByRole('button',{name:'Delete LoRA',exact:true}).click();
+  await expect(modal.getByRole('alert')).toHaveText('Could not save the catalog. Try again.');
+  await expect(card).toHaveCount(1);
+  await admin.screenshot({path:testInfo.outputPath('delete-confirmation-mobile.png')});
+  expect(await admin.evaluate(()=>document.documentElement.scrollWidth<=innerWidth)).toBe(true);
+  await admin.unroute('**/api/v1/admin/loras/*');
+  await modal.getByRole('button',{name:'Delete LoRA',exact:true}).click();
+  await expect(modal).toHaveCount(0);
+  await expect(card).toHaveCount(0);
+  await expect(admin.getByText('LoRA deleted',{exact:true})).toBeVisible();
+  await expect(selected).toHaveCount(0,{timeout:10000});
+  await admin.reload();
+  await expect(card).toHaveCount(0);
+  await page.getByRole('button',{name:'Reference to video',exact:true}).click();
+  await expect(page.getByRole('checkbox',{name:'Delete test adapter v2',exact:true})).toHaveCount(0);
+  await admin.close();
+});
+
 test('imports explicitly mapped H3 files as one LoRA, announces acceptance, and tracks it in Activity', async ({
   page,
 }) => {

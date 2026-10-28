@@ -77,6 +77,23 @@ for(const width of [390,1440])test.describe(`approval lifecycle ${width}px`,()=>
     expect(fixture.writes.filter(w=>w.path.endsWith('/decision'))).toHaveLength(1);expect(fixture.errors).toEqual([]);
   });
 
+  for(const target of ['auto','local','cloud'])test(`LoRA approval recognizes local capacity for ${target}`,async({page})=>{
+    const fixture=await cardFixture(page,'text-to-image','multiple');
+    fixture.update(chat=>{chat.groups[0].cards[0].revisions.at(-1).request.target=target;return chat;});
+    await page.route('**/api/v1/pool',async route=>{
+      const response=await route.fetch(),snapshot=await response.json();
+      await route.fulfill({json:{...snapshot,workers:[],local:{executor:'local',id:'local-fixture',enabled:true,paused:false,
+        state:'sleeping',workflows:['text-to-image','image-to-image'],installed_loras:[],gpu:'Fixture GPU'}}});
+    });
+    fixture.onDecision(()=>{preparing(fixture);admitted(fixture);});
+    await fixture.open();
+    expect(fixture.snapshot().groups[0].cards[0].revisions.at(-1).request.loras.length).toBeGreaterThan(0);
+    await page.getByRole('button',{name:'Approve',exact:true}).click();
+    await expect(page.locator('.job-output-tile.queued')).toHaveCount(1);
+    await expect(page.getByRole('dialog',{name:'GPU workers',exact:true})).toHaveCount(target==='cloud'?1:0);
+    expect(fixture.errors).toEqual([]);
+  });
+
   for(const count of [1,2])test(`retry starts ${count} approved request(s) through the original decision identity`,async({page})=>{
     const fixture=await cardFixture(page,'text-to-image','multiple','start-failed',{siblings:count-1});
     fixture.update(chat=>{for(const card of chat.groups[0].cards){const revision=card.revisions.at(-1);revision.decision='approved';revision.approved_snapshot=true;revision.request.resolved_seeds=[revision.request.seed];}return chat;});

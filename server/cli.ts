@@ -15,8 +15,7 @@ const [command = 'help', ...args] = process.argv.slice(2);
 const quiet = args.includes('--quiet');
 const say = (value: string) => { if (!quiet) console.log(value); };
 try {
-  const [major, minor, patch] = process.versions.node.split('.').map(Number);
-  if (major !== 26 || minor! < 8 || (minor === 8 && patch! < 2)) throw new Error('seed requires Node 26.8.2 or newer in the 26.x line. Install it from nodejs.org.');
+  if (Number(process.versions.node.split('.')[0]) < 24) throw new Error('seed requires Node 24 or newer. Install it from nodejs.org.');
   if (command === 'version') {
     const manifest=JSON.parse(readFileSync(new URL('../../package.json',import.meta.url),'utf8'));
     say(JSON.stringify({package:manifest.name,version:manifest.version,node:process.version,generation_provider:'worker-pool'},null,2));

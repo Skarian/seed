@@ -79,3 +79,35 @@ it('retains interrupted legacy imports as actionable history without resuming bi
 it('standard sources are visible in both modes and private catalog entries retain visibility rules',async()=>{
   const f=fixture();await f.imports.add({...f.input,mode:'nsfw'});expect(f.loras.list('sfw')).toEqual([]);expect(f.imports.list('sfw')).toEqual([]);expect(f.loras.list('nsfw')).toHaveLength(1);expect(f.loras.manifestSources('image')).toHaveLength(1);
 });
+it('deletes all mappings in a group without changing other modes, worker snapshots or history',async()=>{
+  const f=fixture();f.version.baseModel='MiniMax H3';
+  const input={...f.input,files:[{file_id:20,route:'fl'},{file_id:20,route:'ref'}]};
+  await f.imports.add(input);
+  const group=f.loras.groups('sfw')[0]!,snapshot=f.loras.manifestSources('video');
+  // Editing away one mapping leaves a superseded entry that deletion must remove too.
+  f.imports.edit(group.id,{...input,enabled:false,files:[{id:group.files[1]!.id,route:'ref'}]});
+  await f.imports.add({...input,mode:'nsfw'});
+  const history=f.imports.list('nsfw'),privateGroup=f.loras.groups('nsfw').find(g=>g.availability==='spicy')!;
+  f.loras.deleteGroup(group.id);
+  const restored=new Loras(f.paths);
+  expect(restored.groups('sfw')).toEqual([]);
+  expect(restored.groups('nsfw')).toEqual([privateGroup]);
+  expect(restored.all()).toHaveLength(2);
+  expect(restored.manifestSources('video').map(l=>l.id)).toEqual(privateGroup.files.map(f=>f.id));
+  expect(()=>restored.resolve([{id:snapshot[0]!.id,revision:snapshot[0]!.revision,scale:1}],'fl')).toThrow();
+  restored.markVerified([{id:snapshot[0]!.id,revision:snapshot[0]!.revision,scale:1}],'old-job','worker:existing');
+  expect(restored.groups('sfw')).toEqual([]);
+  expect(snapshot.map(l=>l.route)).toEqual(['fl','ref']);
+  expect(f.imports.list('nsfw')).toEqual(history);
+  restored.deleteGroup(group.id); // Repeated requests are harmless.
+  await f.imports.add(input);
+  expect(restored.groups('sfw')[0]!.files).toHaveLength(2);
+});
+it('removes legacy catalog entries without deleting local binaries or unrelated entries',()=>{
+  const f=fixture(),binary=path.join(f.paths.data,'original.safetensors');writeFileSync(binary,'keep');
+  const entry={id:'legacy',name:'Legacy',revision:'a'.repeat(64),route:'image',file:binary,format:'lora',compatibility:'untested'};
+  writeFileSync(path.join(f.paths.config,'loras.json'),JSON.stringify([entry,{...entry,id:'other'}]));
+  f.loras.deleteGroup('legacy');
+  expect(f.loras.all().map(l=>l.id)).toEqual(['other']);
+  expect(readFileSync(binary,'utf8')).toBe('keep');
+});

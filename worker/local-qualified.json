@@ -1,0 +1,6 @@
+{
+  "runtime_revision": "seed-local-v1",
+  "gpu": "NVIDIA GeForce RTX 5090",
+  "enabled_image_workflows": ["text-to-image", "image-to-image"],
+  "boundaries": []
+}

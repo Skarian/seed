@@ -16,6 +16,7 @@ import {boundedText} from './diagnostics.js';
 import type {ModelSource} from './pool-contracts.js';
 import {validateBaseModel} from './base-model-transfer.js';
 export type WorkerStatus = {
+  terminal_error?: {job_id:string;message:string}|null;
   execution_activity?: {phase:string;percent?:number};
   active_prompt_id?: string | null;
   worker_class: "image"|"video";
@@ -254,7 +255,7 @@ export class WorkerConnection {
   ) {
     const connection = await this.requireVerified();
     if (
-      !/^\/(comfy\/(session|queue|capabilities|prompt|cancel)|worker\/v1\/(jobs(?:[/?].*)?|preparation(?:\/omit)?|model-uploads\/[a-f0-9]{64}))$/.test(
+      !/^\/(comfy\/(session|queue|capabilities|prompt|cancel|quiesce)|worker\/v1\/(jobs(?:[/?].*)?|preparation(?:\/omit)?|model-uploads\/[a-f0-9]{64}))$/.test(
         route,
       )
     )
@@ -297,6 +298,8 @@ export class WorkerConnection {
     const response = await this.request(route, options);
     if (!response.ok) {
       await response.body?.cancel();
+      if(response.status===409&&route==='/comfy/capabilities')
+        throw Error('The local engine is stopping or its runtime revision is unsupported. If it is not stopping, run setup again.');
       throw new WorkerHttpError(response.status);
     }
     const reader = response.body!.getReader();
@@ -462,6 +465,14 @@ export class WorkerConnection {
         )
           throw new TransferIntegrityError("Unexpected worker identity.");
         value = {
+          terminal_error: result.terminal_error == null ? null : {
+            job_id: typeof result.terminal_error.job_id === 'string' ? result.terminal_error.job_id.slice(0, 200) : '',
+            message: 'The local engine could not persist its terminal output record.',
+          },
+          ...(typeof result.execution_activity?.phase === 'string' ? {execution_activity: {
+            phase: result.execution_activity.phase.slice(0, 200),
+            ...(Number.isFinite(result.execution_activity.percent) ? {percent: Math.max(0, Math.min(100, result.execution_activity.percent))} : {}),
+          }} : {}),
           active_prompt_id: result.active_prompt_id, worker_class: result.worker_class, runtime_revision: result.runtime_revision, installed_loras: result.installed_loras??[],
           protocol_version: 2,
           workspace_id: result.workspace_id,

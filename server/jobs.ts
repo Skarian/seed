@@ -1,9 +1,11 @@
+import {localExecutor,type ExecutionWorker} from './executors.js';
+import {videoProfile} from '../shared/video-settings.js';
 import { Media, type PreparedReference, probe } from "./media.js";
 import { loraRoute, executionRoute, isVideoWorkflow, supportsWorkflow, QWEN_PROFILE, QWEN_SETTINGS } from "../shared/workflows.js";
 import { workerClassFor } from "../shared/pool.js";
 import { Loras, digest, sourceReady, type LoraSelection } from "./loras.js";
 import { WorkerPool } from "./pool.js";
-import type { RentalRecord, WorkerReceipt } from "./pool-contracts.js";
+import type { WorkerReceipt } from "./pool-contracts.js";
 import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { resolveDimensions } from "../shared/resolution.js";
 import {
@@ -22,6 +24,9 @@ type SubmissionMetadata = { route: string; loras: GraphLora[]; video_profile?: s
 export type Job = import("../shared/jobs.js").JobRecord & {
   worker?: {
     id?: string;
+    execution_id?: string;
+    local_retry_count?: number;
+    local_preparation_blocked?: boolean;
     loras: LoraSelection[];
     graph?: Record<string, unknown>;
     submission?: SubmissionMetadata;
@@ -33,6 +38,7 @@ export type Job = import("../shared/jobs.js").JobRecord & {
   };
   prepared?: PreparedReference[];
 };
+const executionId=(job:Job)=>job.worker?.execution_id??job.id;
 const terminal = ["completed", "failed", "cancelled"];
 export class Jobs {
   private chain: Promise<unknown> = Promise.resolve();
@@ -52,7 +58,7 @@ export class Jobs {
       pending: (w) =>
         this.all().some(
           (j) =>
-            j.state === "queued" &&
+            j.state === "queued" && j.request.target!=='local' &&
             j.worker &&
             workerClassFor(j.request.workflow) === w.worker_class &&
             (supportsWorkflow(w,j.request.workflow) || (!w.ready_at && !w.workflows)) &&
@@ -85,10 +91,17 @@ export class Jobs {
   publicJob(job: Job): Job {
     const pending = this.inFlight.get(job.id)?.recovery ?? false;
     if (!job.worker || (job.state !== 'needs_attention' && !pending)) return job;
-    const worker = job.worker.id ? this.pool.get(job.worker.id) : null;
+    const worker = job.worker.id ? this.pool.executor(job.worker.id) : null;
+    if(worker&&localExecutor(worker)&&(worker.issue||worker.interrupted)){
+      const reason=worker.issue?.code==='local_adapter_failed'?'local_preparation_failed':
+        worker.issue?.code==='local_stop_pending'||worker.issue?.code==='local_ownership_unknown'?'local_stop_pending':
+        worker.interrupted||job.worker.interruption?'engine_interrupted':'worker_unavailable';
+      return {...job,recovery:{pending,reason,worker_id:worker.id,
+        ...(!pending&&reason==='engine_interrupted'&&this.localRetryWorker(job.id)?{action:'retry_local' as const}:{})}};
+    }
     let reason: NonNullable<Job['recovery']>['reason'] = 'submission_unknown';
     if (this.cancelled(job.id) || job.worker.quit_now) reason = 'cancelled';
-    else if (!worker || ['released', 'releasing', 'reconnecting', 'starting', 'preparing'].includes(worker.state) || worker.quit_mode === 'now' || worker.current_job_id !== job.id || !this.pool.dependencies.worker.probe) reason = 'worker_unavailable';
+    else if (!worker || ['released', 'releasing', 'reconnecting', 'starting', 'preparing'].includes(worker.state) || worker.quit_mode === 'now' || worker.current_job_id !== job.id || !this.pool.executionDriver(worker).probe) reason = 'worker_unavailable';
     else if (job.worker.interruption) reason = 'engine_interrupted';
     else {
       try { this.submission(job, worker); }
@@ -102,21 +115,22 @@ export class Jobs {
     if (!job) throw Error('Job not found.');
     const previous = this.inFlight.get(id);
     if (previous?.recovery || terminal.includes(job.state) || ['running', 'copying'].includes(job.state)) return this.publicJob(job);
-    if (this.stopped || this.publicJob(job).recovery?.action !== 'retry')
+    const action=this.publicJob(job).recovery?.action;
+    if (this.stopped || !action)
       throw Error('This request cannot be retried safely. View its worker for recovery options.');
     this.track(id, async () => {
       await previous?.task;
-      try { await this.recoverOriginal(id); }
+      try { if(action==='retry_local')await this.retryLocal(id);else await this.recoverOriginal(id); }
       catch (error) {
         this.recoveryEvent(id, 'failed', error);
-        const current = this.recoveryWorker(id);
+        const current = action==='retry_local'?this.localRetryWorker(id):this.recoveryWorker(id);
         if (current) {
           if (current.job.worker?.receipt?.manifest?.state === 'completed') {
             current.job.recovery_blocked = actionableTransfer(error);
             current.job.error = 'The output is retained on the worker. Retry saving after checking local storage or reconnecting.';
           } else {
             current.job.state = 'needs_attention';
-            current.job.error = 'The worker could not confirm recovery. The original request is still reserved; check its worker before trying again.';
+            current.job.error = action==='retry_local'?'Local retry could not proceed. The prior attempt and any output files are preserved; check the worker before retrying.':'The worker could not confirm recovery. The original request is still reserved; check its worker before trying again.';
           }
           this.save(current.job);
         }
@@ -128,10 +142,33 @@ export class Jobs {
     }, true);
     return this.publicJob(job);
   }
+  private localRetryWorker(id:string){
+    const job=this.get(id),local=this.pool.local,worker=local?.get();
+    if(this.stopped||!job?.worker||job.state!=='needs_attention'||!worker||worker.current_job_id!==id||
+      worker.attempt_id!==job.worker.execution_id||!worker.interrupted||worker.issue||worker.paused||!worker.enabled||
+      !local?.runtime.recovering||this.cancelled(id)||job.worker.quit_now)return null;
+    return {job,worker};
+  }
+  private async retryLocal(id:string){
+    let current=this.localRetryWorker(id);if(!current)return;
+    const attempt=executionId(current.job);
+    const receipt=await this.pool.executionDriver(current.worker).receipt(attempt);
+    current=this.localRetryWorker(id);
+    if(!current||executionId(current.job)!==attempt)return;
+    if(receipt?.manifest&&receipt.manifest.state!=='cancelled'){await this.advance(current.job,current.worker,receipt);return;}
+    const {job,worker}=current;
+    this.pool.local!.replay(id,next=>{
+      job.worker={id:worker.id,loras:job.worker!.loras,executor:'local',profile:worker.profile,runtime_revision:worker.runtime_revision,
+        execution_id:next,local_retry_count:(job.worker!.local_retry_count??0)+1};
+      job.state='uploading';job.submission_pending=false;job.error=null;this.save(job);
+    });
+    this.recoveryEvent(id,'local_retry_requested');
+  }
   private recoveryWorker(id: string) {
-    const job = this.get(id), worker = job?.worker?.id ? this.pool.get(job.worker.id) : null;
+    const job = this.get(id), worker = job?.worker?.id ? this.pool.executor(job.worker.id) : null;
     if (this.stopped || !job?.worker || !worker || terminal.includes(job.state) ||
       this.cancelled(id) || job.worker.quit_now || worker.quit_mode === 'now' ||
+      localExecutor(worker)&&(Boolean(worker.issue)||worker.interrupted) ||
       ['released', 'releasing', 'reconnecting', 'starting', 'preparing'].includes(worker.state) || worker.current_job_id !== id) return null;
     return { job, worker };
   }
@@ -144,12 +181,12 @@ export class Jobs {
   private async recoverOriginal(id: string) {
     let current = this.recoveryWorker(id);
     if (!current || current.job.state !== 'needs_attention') return;
-    const driver = this.pool.dependencies.worker;
+    const driver = this.pool.executionDriver(current.worker);
     this.recoveryEvent(id, 'checking');
-    const probe = await driver.probe!(current.worker);
+    const probe = await driver.probe!();
     current = this.recoveryWorker(id);
     if (!current) return;
-    const receipt = await driver.receipt(current.worker, id);
+    const receipt = await driver.receipt(executionId(current.job));
     current = this.recoveryWorker(id);
     if (!current) return;
     if (receipt) {
@@ -173,7 +210,7 @@ export class Jobs {
     if (!current) return;
     this.recoveryEvent(id, 'replaying_original');
     const workerId = current.worker.id;
-    await driver.submit({ ...current.worker, session_id: probe.session_id }, body, { beforePost: () => {
+    await this.pool.executionDriver({ ...current.worker, session_id: probe.session_id }).submit(body, { beforePost: () => {
       if (this.recoveryWorker(id)?.worker.id !== workerId)
         throw Error('Recovery was stopped before submission.');
     } });
@@ -185,7 +222,7 @@ export class Jobs {
     this.save(current.job);
     await this.advance(current.job, current.worker);
   }
-  private submission(job: Job, worker: RentalRecord) {
+  private submission(job: Job, worker: ExecutionWorker) {
     if (!job.worker?.graph) throw Error('The original submission is unavailable.');
     let metadata = job.worker.submission;
     if (!metadata) {
@@ -194,16 +231,16 @@ export class Jobs {
       const video = isVideoWorkflow(job.request.workflow), output = graph[video ? '14' : '9'];
       const model = route === 'image' ? 'krea2_turbo_int8_convrot.safetensors' : route === 'image-edit' ? 'qwen_image_2.1_int8_convrot.safetensors' : `minimax_h3_${route}2va_pruned_int8_convrot.safetensors`;
       if (graph['1']?.class_type !== 'UNETLoader' || graph['1']?.inputs?.unet_name !== model ||
-        output?.class_type !== (video ? 'SeedVideoSave' : 'SaveImage') || output.inputs?.filename_prefix !== `seed/${job.id}/${video ? 'video' : 'image'}`)
+        output?.class_type !== (video ? 'SeedVideoSave' : 'SaveImage') || output.inputs?.filename_prefix !== `seed/${executionId(job)}/${video ? 'video' : 'image'}`)
         throw Error('The saved submission format is not supported.');
       const loras = this.selections(job, worker);
       if (Object.values(graph).filter(node => node.class_type === 'LoraLoaderModelOnly').length !== loras.length ||
         loras.some((lora, i) => graph[String(30 + i)]?.class_type !== 'LoraLoaderModelOnly' ||
           graph[String(30 + i)]?.inputs?.lora_name !== lora.filename || graph[String(30 + i)]?.inputs?.strength_model !== lora.strength_model))
         throw Error('The saved adapter mapping is unavailable.');
-      metadata = { route, loras, ...(video ? { video_profile: 'h3-high-v1' } : {}) };
+      metadata = { route, loras, ...(video ? { video_profile: videoProfile(job.request,localExecutor(worker)) } : {}) };
     }
-    return { prompt_id: job.id, prompt: job.worker.graph, ...metadata };
+    return { prompt_id: executionId(job), prompt: job.worker.graph, ...metadata };
   }
   usesAsset(id: string) {
     return this.all().some(job => (!terminal.includes(job.state) || this.isInFlight(job.id)) &&
@@ -461,7 +498,8 @@ export class Jobs {
   private quitJobs(workerId?: string) {
     for (const job of this.all().filter(
       (j) =>
-        !terminal.includes(j.state) && (!workerId || j.worker?.id === workerId),
+        !terminal.includes(j.state) && (workerId ? j.worker?.id===workerId :
+          j.request.target!=='local'&&(!j.worker?.id||this.pool.local?.get()?.id!==j.worker.id)),
     )) {
       if (job.worker) job.worker.quit_now = true;
       job.state = "cancelled";
@@ -499,27 +537,31 @@ export class Jobs {
         continue;
       if (job.state === "queued") {
         const w =
-          this.pool.assigned(job.id) ??
-          this.pool.claim(
-            job.id,
-            workerClassFor(job.request.workflow),
-            job.worker.loras,
-            job.created_at,
-            job.request.workflow,
-          );
+          this.pool.assignedExecutor(job.id) ??
+          this.pool.claimExecutor(job.id,job.request,job.worker.loras,job.created_at,job.output_dimensions);
         if (!w) {
-          job.waiting_reason = job.worker.loras.length
+          const local=this.pool.local, localWorker=local?.get();
+          const localSupported=job.request.target!=='cloud'&&localWorker?.enabled&&local?.supports(job.request,job.output_dimensions);
+          job.waiting_reason = localSupported
+            ? localWorker.issue?'This PC needs attention. Open Workers to review its status.':localWorker.paused?'Resume This PC in Workers to run this request.':job.worker.loras.length?'Waiting for This PC to finish its current output. Missing LoRAs download automatically when this request starts.':'Waiting for This PC to finish its current output.'
+            : job.request.target==='local'
+            ? !localWorker?.enabled?'Enable and set up This PC in Workers to run this request locally.':'These settings are unavailable on This PC. Check the workflow, output settings, and selected LoRA sources in Admin.'
+            : job.worker.loras.length
             ? "Waiting for a ready worker with the selected LoRAs. Start a new worker to include recently added adapters."
-            : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
+            : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : isVideoWorkflow(job.request.workflow)&&job.request.steps!==undefined&&job.request.steps!==30 ? 'Waiting for a Video worker that supports the selected sampling steps. Older workers support only 30 steps; use a worker built from the current release.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
           this.save(job);
           continue;
         }
         job.worker.id = w.id;
+        job.worker.executor=localExecutor(w)?'local':'cloud';
+        job.worker.profile=localExecutor(w)?w.profile:job.request.workflow==='image-to-image'?QWEN_PROFILE:isVideoWorkflow(job.request.workflow)?videoProfile(job.request):'krea-turbo-int8-v1';
+        if(localExecutor(w))job.worker.runtime_revision=w.runtime_revision;
+        if(localExecutor(w))job.worker.execution_id=w.attempt_id;
         job.state = "uploading";
         delete job.waiting_reason;
         this.save(job);
       }
-      const worker = job.worker.id ? this.pool.get(job.worker.id) : null;
+      const worker = job.worker.id ? this.pool.executor(job.worker.id) : null;
       if (!worker) {
         if (job.state !== "queued") {
           job.state = "needs_attention";
@@ -528,6 +570,21 @@ export class Jobs {
           this.save(job);
         }
         continue;
+      }
+      if(localExecutor(worker)&&this.cancelled(job.id)&&!job.worker.submitted&&!job.submission_pending&&!worker.interrupted){
+        const task=this.track(job.id,async()=>{
+          await this.pool.local!.cancelPreparation(job.id);
+          job.state='cancelled';job.error=null;this.save(job);this.pool.complete(job.id);
+        });
+        if(!background)await task;
+        continue;
+      }
+      if(localExecutor(worker)&&worker.issue){
+        if(worker.issue.code==='local_adapter_failed'&&!job.worker.submitted&&!job.submission_pending)job.worker.local_preparation_blocked=true;
+        job.state='needs_attention';job.error=worker.issue.message;this.save(job);continue;
+      }
+      if(localExecutor(worker)&&job.worker.local_preparation_blocked&&!job.worker.submitted&&!job.submission_pending){
+        job.state='uploading';job.error=null;delete job.worker.local_preparation_blocked;this.save(job);
       }
       if (worker.state === "released") {
         if (terminal.includes(job.state)) {
@@ -549,6 +606,15 @@ export class Jobs {
         continue;
       const task = this.track(job.id, async () => {
         try {
+          if(localExecutor(worker)&&worker.interrupted){
+            const record=await this.pool.executionDriver(worker).receipt(executionId(job));
+            if(record?.manifest){await this.advance(job,worker,record);return;}
+            if(this.cancelled(job.id)||worker.quit_mode==='now'){
+              job.state='cancelled';job.error=null;this.save(job);this.pool.complete(job.id);return;
+            }
+            job.state='needs_attention';job.error='The local engine was interrupted. Saved output recovery was checked. Retry on This PC when you are ready; generation will not restart automatically.';this.save(job);
+            return;
+          }
           if (
             job.state === "uploading" &&
             !job.worker!.submitted &&
@@ -564,13 +630,15 @@ export class Jobs {
             job.recovery_blocked = actionableTransfer(error);
             job.error =
               "The output is retained on the worker. Retry saving after checking local storage or reconnecting.";
+          } else if(localExecutor(worker)&&worker.interrupted){
+            job.state='needs_attention';job.error=error instanceof Error?error.message:'Local recovery needs attention.';
           } else if (job.submission_pending) {
             job.state = "needs_attention";
             job.error =
               "The worker has not confirmed this submission. Seed will check its receipt without generating it twice.";
           } else {
             job.error =
-              "Cannot reach the assigned worker. Reconnect it or quit the rental; no replacement worker will be rented automatically.";
+              localExecutor(worker)?'Cannot reach This PC. Check its worker card for recovery options.':"Cannot reach the assigned worker. Reconnect it or quit the rental; no replacement worker will be rented automatically.";
           }
           this.save(job);
         }
@@ -587,7 +655,7 @@ export class Jobs {
     this.inFlight.set(id, { task, recovery });
     return task;
   }
-  private selections(job: Job, w: RentalRecord): GraphLora[] {
+  private selections(job: Job, w: ExecutionWorker): GraphLora[] {
     return job.worker!.loras.map((l) => {
       const installed = w.installed_loras.find(
         (i) =>
@@ -604,8 +672,8 @@ export class Jobs {
       };
     });
   }
-  private async dispatch(job: Job, w: RentalRecord) {
-    const driver = this.pool.dependencies.worker;
+  private async dispatch(job: Job, w: ExecutionWorker) {
+    const driver = this.pool.executionDriver(w);
     if (this.cancelled(job.id)) {
       job.state = "cancelled";
       this.save(job);
@@ -613,9 +681,9 @@ export class Jobs {
       return;
     }
     for (const ref of job.prepared ?? []) {
-      await driver.upload(w, job.id, ref.file, ref.filename);
+      await driver.upload(executionId(job), ref.file, ref.filename);
       if (ref.audio_file)
-        await driver.upload(w, job.id, ref.audio_file, ref.audio_filename!);
+        await driver.upload(executionId(job), ref.audio_file, ref.audio_filename!);
     }
     if (this.stopped || this.get(job.id)?.worker?.quit_now) return;
     if (this.cancelled(job.id)) {
@@ -627,20 +695,21 @@ export class Jobs {
     const loras = this.selections(job, w);
     job.worker!.graph = graphFor(
       job.request,
-      job.id,
+      executionId(job),
       job.seed,
       loras,
       job.prepared ?? [],
+      localExecutor(w),
     );
     job.worker!.submission = { route: executionRoute(job.request), loras,
-      ...(isVideoWorkflow(job.request.workflow) ? { video_profile: 'h3-high-v1' } : {}) };
+      ...(isVideoWorkflow(job.request.workflow) ? { video_profile: videoProfile(job.request,localExecutor(w)) } : {}) };
     job.state = "submitting";
     job.submission_pending = true;
     job.metrics!.submitted_at = new Date().toISOString();
     this.save(job);
     try {
-      await driver.submit(w, {
-        prompt_id: job.id,
+      await driver.submit({
+        prompt_id: executionId(job),
         prompt: job.worker!.graph,
         ...job.worker!.submission,
       });
@@ -650,7 +719,7 @@ export class Jobs {
         [400, 401, 403, 409, 422].includes(error.status)
       ) {
         // A rejection is safe only after the durable receipt lookup confirms absence.
-        const receipt = await driver.receipt(w, job.id);
+        const receipt = await driver.receipt(executionId(job));
         if (!receipt) {
           job.submission_pending = false;
           job.state = "failed";
@@ -669,12 +738,12 @@ export class Jobs {
     this.save(job);
     await this.advance(job, w);
   }
-  private async advance(job: Job, w: RentalRecord, found?: WorkerReceipt, engineSession?: string | null) {
-    const driver = this.pool.dependencies.worker;
+  private async advance(job: Job, w: ExecutionWorker, found?: WorkerReceipt, engineSession?: string | null) {
+    const driver = this.pool.executionDriver(w);
     if (job.worker?.quit_now || this.get(job.id)?.worker?.quit_now) return;
     if (this.cancelled(job.id) && !terminal.includes(job.state))
-      await driver.cancel(w, job.id);
-    const record = found ?? job.worker!.receipt ?? (await driver.receipt(w, job.id));
+      await driver.cancel(executionId(job));
+    const record = found ?? job.worker!.receipt ?? (await driver.receipt(executionId(job)));
     if (!record) {
       job.state = "needs_attention";
       job.error =
@@ -688,7 +757,7 @@ export class Jobs {
       // A recorded acceptance from a dead engine is not an executing request.
       // Never infer a crash merely from an idle observation of the same engine.
       if (record.submission?.engine_session_id && driver.probe && engineSession === undefined)
-        engineSession = (await driver.probe(w)).session_id;
+        engineSession = (await driver.probe()).session_id;
       if (record.submission?.engine_session_id && engineSession === null && !job.worker!.interruption) {
         job.state = 'needs_attention';
         job.error = 'The worker has a receipt, but its engine is not ready. View the worker while Seed continues checking for a result.';
@@ -707,6 +776,12 @@ export class Jobs {
       job.error = null;
       this.save(job);
       return;
+    }
+    if(localExecutor(w)&&record.manifest.state==='cancelled'&&!this.cancelled(job.id)&&w.quit_mode!=='now'){
+      job.worker!.interruption='engine_interrupted';
+      job.state='needs_attention';
+      job.error='The local engine stopped without a cancellation request. The prior attempt and any output files are preserved. Retry on This PC after recovery.';
+      this.save(job);return; // No acknowledgement: preserve the old attempt for explicit recovery.
     }
     delete job.worker!.interruption;
     job.worker!.receipt = record;
@@ -728,7 +803,7 @@ export class Jobs {
     }
     if (this.get(job.id)?.worker?.quit_now) return;
     this.finishCancellation(job);
-    await driver.acknowledge(w, job.id, record.manifest_digest!);
+    await driver.acknowledge(executionId(job), record.manifest_digest!);
     job.worker!.acknowledged = true;
     this.save(job);
     this.pool.complete(job.id);
@@ -747,7 +822,7 @@ export class Jobs {
     this.save(job);
     return true;
   }
-  private async retrieve(job: Job, w: RentalRecord, record: WorkerReceipt) {
+  private async retrieve(job: Job, w: ExecutionWorker, record: WorkerReceipt) {
     const image = !isVideoWorkflow(job.request.workflow),
       outputs = record.manifest!.outputs;
     if (
@@ -772,7 +847,7 @@ export class Jobs {
       statSync(file).size !== output.size ||
       (await digest(file)) !== output.sha256
     )
-      await this.pool.dependencies.worker.download(w, job.id, output, file);
+      await this.pool.executionDriver(w).download(executionId(job), output, file);
     if (this.finishCancellation(job)) return;
     if (
       statSync(file).size !== output.size ||
@@ -802,6 +877,10 @@ export class Jobs {
       size: output.size,
       sha256: output.sha256,
       worker_id: w.id,
+      executor:localExecutor(w)?'local':'cloud',
+      execution_profile:localExecutor(w)?w.profile:job.request.workflow==='image-to-image'?QWEN_PROFILE:isVideoWorkflow(job.request.workflow)?videoProfile(job.request):'krea-turbo-int8-v1',
+      runtime_revision:localExecutor(w)?w.runtime_revision:undefined,
+      execution_id:executionId(job),
     });
     this.db.transaction(() => {
       this.db

@@ -29,6 +29,7 @@ class NativeQueue:
         return list(self.currently_running.values()), list(self.pending)
 
     def task_done(self, item_id, history_result, status, process_item=None):
+        if hasattr(self, 'before_done'): self.before_done(status)
         self.currently_running.pop(item_id)
 
     def delete_queue_item(self, predicate):
@@ -99,6 +100,43 @@ def request_for(job_id):
 
 
 HEADERS = {'X-Studio-Engine-Session': 'current-engine'}
+
+
+@pytest.mark.asyncio
+async def test_drain_during_validation_does_not_write_submission(tmp_path, monkeypatch):
+    client, queue, _, _ = await engine(tmp_path, monkeypatch)
+    drain = types.SimpleNamespace(state='open')
+    queue.server.seed_drain = drain
+    entered, resume = asyncio.Event(), asyncio.Event()
+    original = sys.modules['execution'].validate_prompt
+    async def validate(*args):
+        entered.set(); await resume.wait(); return await original(*args)
+    monkeypatch.setattr(sys.modules['execution'], 'validate_prompt', validate)
+    job = str(uuid.uuid4())
+    try:
+        task = asyncio.create_task(client.post('/studio/prompt', json=request_for(job), headers=HEADERS))
+        await entered.wait(); drain.state = 'draining'; resume.set()
+        assert (await task).status == 409
+        assert not spool.job_directory(tmp_path/'volume',job).joinpath('submission.json').exists()
+        assert queue.put_count == 0
+    finally: resume.set(); await client.close()
+
+
+@pytest.mark.asyncio
+async def test_refused_put_after_submission_records_failed_manifest(tmp_path, monkeypatch):
+    client, queue, _, _ = await engine(tmp_path, monkeypatch)
+    drain = types.SimpleNamespace(state='open')
+    queue.server.seed_drain = drain
+    def refuse(item):
+        drain.state = 'draining'
+        raise RuntimeError('Admission closed')
+    queue.put = refuse
+    job = str(uuid.uuid4())
+    try:
+        assert (await client.post('/studio/prompt',json=request_for(job),headers=HEADERS)).status == 409
+        record = spool.read_record(spool.job_directory(tmp_path/'volume',job))
+        assert record['manifest']['state'] == 'failed'
+    finally: await client.close()
 
 
 @pytest.mark.asyncio
@@ -260,6 +298,14 @@ async def test_engine_terminal_manifest_requires_success_and_owned_output(tmp_pa
         file.write_bytes(payload)
         images = [] if result == 'missing' else [{'subfolder': subfolder, 'filename': 'image.png', 'type': 'output'}]
         status = types.SimpleNamespace(status_str='error' if result == 'failure' else 'success', completed=result != 'failure')
+        def before_done(native_status):
+            record = spool.read_record(spool.job_directory(tmp_path / 'volume', job_id))
+            if result in ('success', 'failure', 'cancelled-late'):
+                assert 'manifest' in record
+            else:
+                assert queue.server.seed_terminal_error['job_id'] == job_id
+                assert native_status.status_str == 'error' and not native_status.completed
+        queue.before_done = before_done
         queue.task_done(0, {'outputs': {'9': {'images': images}}}, status)
         record = spool.read_record(spool.job_directory(tmp_path / 'volume', job_id))
         if result == 'success':
@@ -274,6 +320,7 @@ async def test_engine_terminal_manifest_requires_success_and_owned_output(tmp_pa
             assert record['manifest']['outputs'] == []
         else:
             assert 'manifest' not in record
+            assert (await client.post('/studio/prompt', json=request_for(str(uuid.uuid4())), headers=HEADERS)).status == 503
         assert file.read_bytes() == payload
     finally:
         await client.close()
@@ -300,6 +347,26 @@ async def test_measurement_aggregates_and_persists_missing_values(tmp_path, monk
         assert result['system_ram_peak_used_mib'] == 2000
         assert result['failed_samples'] == 1 and result['sample_count'] == 3
         assert result['complete'] and result['execution_seconds'] == 3.5
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+async def test_measurement_targets_the_owned_engine_port(tmp_path, monkeypatch):
+    client, _, _, _ = await engine(tmp_path, monkeypatch)
+    try:
+        import io
+        module = sys.modules['seed_engine_test_package.telemetry']
+        calls = []
+        def sample(url, timeout):
+            calls.append(url)
+            return io.BytesIO(b'{}')
+        monkeypatch.setattr(module, 'urlopen', sample)
+        monkeypatch.setenv('SEED_COMFY_URL', 'http://127.0.0.1:45932/')
+        module.sample()
+        monkeypatch.delenv('SEED_COMFY_URL')
+        module.sample()
+        assert calls == ['http://127.0.0.1:45932/system_stats', 'http://127.0.0.1:8188/system_stats']
     finally:
         await client.close()
 
@@ -426,6 +493,23 @@ async def test_selected_loras_and_quality_profile_are_verified(tmp_path, monkeyp
 
 
 @pytest.mark.asyncio
+@pytest.mark.parametrize('steps', [10, 15, 20, 30])
+@pytest.mark.parametrize('mismatch', [False, True])
+async def test_video_step_profile_matches_graph(tmp_path, monkeypatch, steps, mismatch):
+    client, queue, _, _ = await engine(tmp_path, monkeypatch)
+    try:
+        job_id = str(uuid.uuid4())
+        graph = high_graph(job_id, [])
+        graph['10']['inputs']['steps'] = 8 if mismatch else steps
+        profile = 'h3-high-v1' if steps == 30 else f'h3-base-{steps}-v1'
+        response = await client.post('/studio/prompt', json={'prompt_id': job_id, 'prompt': graph, 'loras': [], 'route': 'fl', 'video_profile': profile}, headers=HEADERS)
+        assert response.status == (422 if mismatch else 200)
+        assert queue.put_count == (0 if mismatch else 1)
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
 async def test_worker_class_fences_video_on_image_worker(tmp_path, monkeypatch):
     monkeypatch.setenv('SEED_WORKER_CLASS', 'image')
     client, queue, _, _ = await engine(tmp_path, monkeypatch)
@@ -433,5 +517,30 @@ async def test_worker_class_fences_video_on_image_worker(tmp_path, monkeypatch):
         job_id = str(uuid.uuid4())
         response = await client.post('/studio/prompt', json={'prompt_id': job_id, 'prompt': high_graph(job_id, []), 'loras': [], 'route': 'fl', 'video_profile': 'h3-high-v1'}, headers=HEADERS)
         assert response.status == 422 and queue.put_count == 0
+    finally:
+        await client.close()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize('steps', [10, 15, 20, 30])
+@pytest.mark.parametrize('mismatch', [None, 'encoder', 'vae', 'acceleration'])
+async def test_official_video_profile_validates_models_and_sampler(tmp_path, monkeypatch, steps, mismatch):
+    client, queue, _, _ = await engine(tmp_path, monkeypatch)
+    try:
+        job_id = str(uuid.uuid4())
+        graph = high_graph(job_id, [])
+        for key in ('16', '17', '19'):
+            del graph[key]
+        graph['2'] = {'class_type': 'CLIPLoader', 'inputs': {'clip_name': 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors', 'type': 'minimax', 'device': 'default'}}
+        graph['3'] = {'class_type': 'VAELoader', 'inputs': {'vae_name': 'minimax_h3_video_vae_int8_convrot.safetensors'}}
+        graph['4'] = {'class_type': 'VAELoader', 'inputs': {'vae_name': 'minimax_h3_audio_vae_fp32.safetensors'}}
+        graph['7']['inputs']['model'] = ['1', 0]
+        graph['10']['inputs'].update(model=['1', 0], steps=steps)
+        if mismatch == 'encoder': graph['2']['inputs']['clip_name'] = 'qwen3vl_32b_minimax_h3_int8_convrot.safetensors'
+        if mismatch == 'vae': graph['3']['inputs']['vae_name'] = 'minimax_h3_video_vae_fp16.safetensors'
+        if mismatch == 'acceleration': graph['19'] = {'class_type': 'BlockSparseAttention', 'inputs': {}}
+        response = await client.post('/studio/prompt', json={'prompt_id': job_id, 'prompt': graph, 'loras': [], 'route': 'fl', 'video_profile': f'h3-official-{steps}-v1'}, headers=HEADERS)
+        assert response.status == (422 if mismatch else 200)
+        assert queue.put_count == (0 if mismatch else 1)
     finally:
         await client.close()

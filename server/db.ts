@@ -93,6 +93,8 @@ export function openDatabase(dataDirectory: string) {
 export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string, filters: {favorites?:boolean;collection_id?:string} = {}): LibraryAsset[] {
   const rows = db.prepare(`WITH items AS (
     SELECT a.id, a.kind, a.name, a.created_at,
+      json_extract(a.metadata_json, '$.executor') AS executor,
+      json_extract(a.metadata_json, '$.execution_profile') AS execution_profile,
       COALESCE(json_extract(a.metadata_json, '$.mode'), s.mode, 'sfw') AS mode,
       EXISTS(SELECT 1 FROM asset_favorites WHERE asset_id=a.id) AS favorite
     FROM assets a
@@ -105,5 +107,6 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
     AND (? IS NULL OR EXISTS(SELECT 1 FROM collection_assets ca JOIN collections c ON c.id=ca.collection_id WHERE ca.asset_id=items.id AND c.id=? AND c.mode=items.mode))
     AND (? = '' OR (created_at,id) < (SELECT created_at,id FROM items WHERE id=?))
     ORDER BY created_at DESC,id DESC LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number}>;
-  return rows.map(row=>({...row,favorite:Boolean(row.favorite)}));
+  return rows.map(({executor,execution_profile,...row})=>({...row,favorite:Boolean(row.favorite),
+    ...(executor==='local'||executor==='cloud'?{executor}:{}),...(typeof execution_profile==='string'?{execution_profile}:{})}));
 }

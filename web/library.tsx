@@ -76,6 +76,7 @@ export function Library({
           label={preview.kind === 'image' ? 'Saved image' : 'Saved media'}
           media={{
             id:preview.id,favorite:preview.favorite,
+            executor:preview.executor,execution_profile:preview.execution_profile,
             name: preview.name,
             url: '/api/v1/assets/' + preview.id + '/content',
             kind: preview.kind,

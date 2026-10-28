@@ -39,11 +39,18 @@ def hardware_capabilities(role=None, cuda=None):
             devices.append({'name': device.name, 'vram_bytes': int(device.total_memory)})
         if count != 1:
             return {**result, 'error': 'This worker requires exactly one visible GPU.'}
-        nominal_gib = 32 if role == 'image' else 96
+        local = os.environ.get('SEED_EXECUTOR') == 'local'
+        if local:
+            qualified = json.loads(Path(__file__).with_name('local-qualified.json').read_text())
+            role_workflows = ('text-to-image', 'image-to-image') if role == 'image' else ('text-to-video', 'reference-to-video')
+            enabled = role == 'image' and any(workflow in role_workflows for workflow in qualified.get('enabled_image_workflows', []))
+            if devices[0]['name'] != qualified['gpu'] or not (enabled or any(item['workflow'] in role_workflows for item in qualified['boundaries'])):
+                return {**result, 'error': 'This GPU and workload are not enabled for local generation.'}
+        nominal_gib = 32 if local or role == 'image' else 96
         # Drivers reserve some physical memory; check capacity rather than free VRAM.
         if devices[0]['vram_bytes'] < nominal_gib * 1024**3 * 0.95:
             return {**result, 'error': f'This worker requires a GPU with at least {nominal_gib} GB of VRAM.'}
-        if role == 'video' and not re.search(r'RTX PRO 6000.*Blackwell', devices[0]['name'], re.I):
+        if not local and role == 'video' and not re.search(r'RTX PRO 6000.*Blackwell', devices[0]['name'], re.I):
             return {**result, 'error': 'Video workers require an RTX PRO 6000 Blackwell GPU.'}
         return {**result, 'ready': True}
     except (ImportError, AttributeError, RuntimeError, AssertionError):
@@ -54,7 +61,8 @@ def role_models(role=None):
     role = role or worker_class()
     if role not in ('image', 'video'):
         raise ValueError('A worker class is required')
-    return json.loads(Path(__file__).with_name('models-' + role + '.json').read_text())
+    name = 'models-local-video.json' if role == 'video' and os.environ.get('SEED_EXECUTOR') == 'local' else 'models-' + role + '.json'
+    return json.loads(Path(__file__).with_name(name).read_text())
 
 
 def validate_role_manifest(entries):

@@ -165,6 +165,13 @@ export class Loras {
   revision() {
     return existsSync(this.file) ? statSync(this.file).mtimeMs : 0;
   }
+  deleteGroup(groupId: string) {
+    const entries = this.all();
+    const remaining = entries.filter(entry => loraGroupId(entry) !== groupId);
+    // Remove every mapping, including superseded ones. Jobs and existing workers
+    // keep their own pinned snapshots; never delete their files or import history.
+    if (remaining.length !== entries.length) this.save(remaining);
+  }
   groups(mode: 'sfw' | 'nsfw'): LoraGroup[] {
     const grouped = new Map<string, Lora[]>();
     for (const entry of this.all()) {

@@ -5,7 +5,7 @@
   "private": true,
   "type": "module",
   "engines": {
-    "node": ">=26.8.2 <27"
+    "node": ">=24"
   },
   "scripts": {
     "build": "node scripts/clean-build.mjs && tsc -p tsconfig.server.json && node scripts/copy-worker-release.mjs && vite build && node scripts/compress-web.mjs",
@@ -65,6 +65,8 @@
     "dist/server/",
     "dist/shared/",
     "dist/worker/",
+    "dist/scripts/setup-local-worker.mjs",
+    "dist/scripts/local-lock.mjs",
     "dist/web/"
   ]
 }

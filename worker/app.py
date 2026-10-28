@@ -156,6 +156,7 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
             return error(401, 'authentication_required', 'Pair with this worker first.')
         state, engine_session_id, active = 'preparing', None, None
         activity = None
+        terminal_error = None
         try:
             async with app[HTTP].get(comfy_url + '/studio/session', allow_redirects=False) as reply:
                 session = await reply.json()
@@ -170,6 +171,7 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
                 if reply.status != 200 or any(confirmed.get(key) != session.get(key) for key in ('workspace_id', 'engine_session_id', 'protocol_version')):
                     raise ValueError('Engine restarted during probe')
             engine_session_id = str(uuid.UUID(session['engine_session_id']))
+            terminal_error = confirmed.get('terminal_error') or session.get('terminal_error')
             state = 'busy' if queue['queue_running'] or queue['queue_pending'] else 'ready'
             active = queue['queue_running'][0][1] if queue['queue_running'] else None
             event = confirmed.get('execution_activity') or {}
@@ -182,7 +184,7 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
             state, engine_session_id, active = 'preparing', None, None
         return web.json_response({**identity(), 'installed_loras': installed_loras(workspace), 'worker_instance_id': instance_id, 'workspace_id': workspace_id,
             'engine_session_id': engine_session_id, 'state': state, 'observed_at': clock(), 'preparation': dict(preparation),
-            'active_prompt_id': active, 'execution_activity': activity, 'pending_output_count': None, 'unresolved_job_count': None})
+            'active_prompt_id': active, 'execution_activity': activity, 'terminal_error': terminal_error, 'pending_output_count': None, 'unresolved_job_count': None})
 
     async def static(request):
         name = request.match_info.get('name', 'index.html')

@@ -20,6 +20,15 @@ const base={prompt:'<Picture 1> speaks in <Video 1>.',inputs:[{asset:'image1'},{
 const previous=()=>prepareToolRequest(context,base);
 afterEach(()=>vi.unstubAllEnvs());
 describe('simple request adapter',()=>{
+  it('defaults new videos to 20 steps, preserves omitted steps on edits, and validates explicit choices',()=>{
+    const original=previous();expect(original.steps).toBe(20);
+    const selected=prepareToolRequest({...context,previous:original},{request_id:'card',steps:15});
+    expect(selected.steps).toBe(15);
+    expect(prepareToolRequest({...context,previous:selected},{request_id:'card',note:'Keep settings'}).steps).toBe(15);
+    expect(()=>prepareToolRequest({...context,previous:selected},{request_id:'card',steps:8})).toThrow(/steps/);
+    expect(requestToolSchemas('text-to-video','sfw').create.properties.steps).toMatchObject({enum:[10,15,20,30]});
+    expect(requestToolSchemas('text-to-image','sfw').create.properties.steps).toBeUndefined();
+  });
   it('supports model-editable settings and generates ids from supplied handles',()=>{
     const result=prepareToolRequest(context,{...base,prompt:'<Picture 1> speaks.',batch_size:3,seed:'42',aspect_ratio:'9:16',duration_seconds:15,audio_output:'silent',note:'Save this note'});
     expect(result).toMatchObject({count:3,seed:'42',note:'Save this note',output:{aspect:'9:16',size:'768p',duration_seconds:15,format:'video'},audio:{output:'silent'},references:[{id:'image1',asset_id:'image-a',kind:'image',role:'reference'},{id:'video1',kind:'video',range:{start_seconds:0,duration_seconds:3}}]});

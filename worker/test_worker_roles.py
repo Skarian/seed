@@ -56,6 +56,41 @@ def test_public_direct_download_needs_no_credentials(monkeypatch, tmp_path):
     assert installed_loras(tmp_path) == [{'filename': Path(item['path']).name, 'sha256': item['sha256'], 'routes': ['image']}]
 
 
+def test_local_on_demand_reuses_files_and_preserves_adapters_added_later(monkeypatch, tmp_path):
+    calls = []
+    payloads = {adapter(data)['sha256']: adapter_bytes(data) for data in (b'one', b'two')}
+    def fetch(item, stage, token, progress):
+        calls.append(item['sha256'])
+        target = stage/'civitai.part'
+        target.write_bytes(payloads[item['sha256']])
+        return target
+    monkeypatch.setattr('worker.model_files.civitai_fetch', fetch)
+    first, second = adapter(b'one'), adapter(b'two')
+    events = []
+    prepare(tmp_path, [first], {}, events.append, merge_adapters=True)
+    prepare(tmp_path, [first], {}, events.append, merge_adapters=True)
+    prepare(tmp_path, [second], {}, events.append, merge_adapters=True)
+    assert calls == [first['sha256'], second['sha256']]
+    assert {entry['sha256'] for entry in events[-1]['installed_loras']} == set(calls)
+    assert all(item['ready'] for item in __import__('worker.model_files', fromlist=['probe']).probe(tmp_path, [first, second]))
+
+
+def test_local_failed_integrity_does_not_activate_and_can_retry(monkeypatch, tmp_path):
+    item = adapter()
+    contents = [b'corrupt', adapter_bytes()]
+    def fetch(item, stage, token, progress):
+        target = stage/'civitai.part'
+        target.write_bytes(contents.pop(0))
+        return target
+    monkeypatch.setattr('worker.model_files.civitai_fetch', fetch)
+    events = []
+    prepare(tmp_path, [item], {}, events.append, merge_adapters=True)
+    assert not any(event.get('complete') for event in events)
+    assert installed_loras(tmp_path) == []
+    prepare(tmp_path, [item], {}, events.append, merge_adapters=True)
+    assert events[-1]['complete'] and len(events[-1]['installed_loras']) == 1
+
+
 @pytest.mark.asyncio
 async def test_omission_is_explicit_failed_optional_only_and_revision_fenced(tmp_path, monkeypatch):
     base = {'path': 'vae/base.bin', 'url': 'https://huggingface.co/test/base/resolve/' + 'a'*40 + '/base.bin',
@@ -148,3 +183,16 @@ def test_cuda_initialization_error_is_safe_not_ready():
     def unavailable(): raise RuntimeError('private driver internals')
     result = hardware_capabilities('video', SimpleNamespace(is_available=unavailable))
     assert not result['ready'] and 'private' not in result['error']
+
+
+@pytest.mark.parametrize('role,name,ready', [
+    ('image', 'NVIDIA GeForce RTX 5090', True),
+    ('video', 'NVIDIA GeForce RTX 5090', False),
+    ('image', 'Different GPU', False),
+])
+def test_local_images_are_enabled_without_enabling_experimental_video(monkeypatch, role, name, ready):
+    from types import SimpleNamespace
+    monkeypatch.setenv('SEED_EXECUTOR', 'local')
+    cuda = SimpleNamespace(is_available=lambda: True, device_count=lambda: 1,
+        get_device_properties=lambda index: SimpleNamespace(name=name, total_memory=32 * 1024**3))
+    assert hardware_capabilities(role, cuda)['ready'] is ready

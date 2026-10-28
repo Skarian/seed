@@ -80,6 +80,7 @@ export type PreparationFile = {
 };
 export type PoolWorker = {
   workflows?: string[];
+  video_profiles?: string[];
   id: string;
   launch_id: string;
   provider: Provider;
@@ -122,6 +123,7 @@ export type PoolWorker = {
   console_url: string;
 };
 export type PoolSnapshot = {
+  local?:import('./local-worker.js').LocalWorkerView|null;
   server_time: string;
   workers: PoolWorker[];
   summary: {

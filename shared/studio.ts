@@ -15,6 +15,8 @@ export interface LibraryAsset {
   created_at: string;
   mode?: 'sfw' | 'nsfw';
   favorite?: boolean;
+  executor?: 'local'|'cloud';
+  execution_profile?: string;
 }
 
 export interface AssetOrganization {

@@ -208,14 +208,19 @@ def civitai_fetch(item, stage, token, progress=None):
     return partial
 
 
-def activate(workspace, entries):
-    """Record the complete boot-time adapter inventory after verification."""
+def activate(workspace, entries, merge=False):
+    """Publish verified adapters; local on-demand transfers retain earlier assets."""
     from worker.spool import atomic
     root = Path(workspace).resolve()
     directory = root / '.seed/adapters'
     if not directory.resolve().is_relative_to(root):
         raise ValueError('Adapter inventory leaves workspace')
     installed = []
+    inventory = directory / 'installed.json'
+    if merge and inventory.exists():
+        installed = json.loads(inventory.read_text())
+        if not isinstance(installed, list):
+            raise ValueError('Invalid adapter inventory')
     for item in entries:
         routes = item.get('routes')
         if not routes: continue
@@ -226,6 +231,9 @@ def activate(workspace, entries):
         s = target.stat()
         atomic(directory / 'assets' / (item['sha256'] + '.json'),
                {'sha256': item['sha256'], 'size': s.st_size, 'mtime_ns': s.st_mtime_ns})
+        previous = next((entry for entry in installed if entry['sha256'] == item['sha256']), None)
+        routes = set(routes) | set(previous['routes'] if previous else [])
+        installed = [entry for entry in installed if entry['sha256'] != item['sha256']]
         installed.append({'filename': target.name, 'sha256': item['sha256'], 'routes': sorted(routes)})
     atomic(directory / 'installed.json', installed)
     return {'adapters': len(installed)}

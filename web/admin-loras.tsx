@@ -11,6 +11,7 @@ import { adminApi } from './admin-api.js';
 import { useLoraCatalog } from './hooks/use-lora-catalog.js';
 import { useCivitaiPreview } from './hooks/use-civitai-preview.js';
 import { LoraFileMappings, type FileMapping } from './lora-file-mappings.js';
+import { ConfirmDialog } from './confirm-dialog.js';
 
 const emptyGuidance: LoraGuidance = {
   name: '',
@@ -64,6 +65,10 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
               onSubmitted={() => {
                 submitted();
                 catalog.refresh();
+              }}
+              onDeleted={() => {
+                toast.success('LoRA deleted');
+                window.dispatchEvent(new Event('seed:loras-changed'));
               }}
               onChangeFiles={() => {
                 setImporting({
@@ -309,10 +314,12 @@ function ImportLora({
 function LoraEditor({
   group,
   onSubmitted,
+  onDeleted,
   onChangeFiles,
 }: {
   group: LoraGroup;
   onSubmitted: () => void;
+  onDeleted: () => void;
   onChangeFiles: () => void;
 }) {
   const [editing, setEditing] = useState(false),
@@ -321,6 +328,7 @@ function LoraEditor({
     [enabled, setEnabled] = useState(group.enabled);
   const [busy, setBusy] = useState(false),
     [error, setError] = useState('');
+  const [deleting, setDeleting] = useState(false);
   function toggle() {
     setError('');
     setDetails(group);
@@ -356,9 +364,14 @@ function LoraEditor({
           </h3>
           <p>{loraFamilyLabels[group.family]}</p>
         </div>
-        <button aria-expanded={editing} disabled={busy} onClick={toggle}>
-          {editing ? 'Close' : 'Edit'}
-        </button>
+        <div className="lora-card-actions">
+          <button aria-expanded={editing} disabled={busy} onClick={toggle}>
+            {editing ? 'Close' : 'Edit'}
+          </button>
+          <button className="admin-destructive" disabled={busy} onClick={() => setDeleting(true)}>
+            Delete
+          </button>
+        </div>
       </header>
       {editing ? (
         <form
@@ -429,6 +442,16 @@ function LoraEditor({
         </>
       )}
       {error && <p role="alert">{error}</p>}
+      {deleting && <ConfirmDialog
+        title={`Delete ${group.name}?`}
+        description="Remove this LoRA and all its workflow mappings from Admin, Generate, and Chat. Saved media and copies on existing workers stay. Queued requests may need this LoRA reimported."
+        action="Delete LoRA"
+        onConfirm={async () => {
+          await adminApi('/loras/' + encodeURIComponent(group.id), 'DELETE');
+          onDeleted();
+        }}
+        onClose={() => setDeleting(false)}
+      />}
     </article>
   );
 }

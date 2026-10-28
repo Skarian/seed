@@ -1,6 +1,15 @@
 import { expect, it } from 'vitest';
 import { generationDraftReducer, restoreGenerationDrafts } from '../web/generation-draft.js';
 
+it('defaults new videos to 20 steps while preserving old 30-step drafts and explicit selections',()=>{
+  expect(restoreGenerationDrafts()['text-to-video'].request.steps).toBe(20);
+  expect(restoreGenerationDrafts({'text-to-video':{request:{prompt:'Old video'}}})['text-to-video'].request.steps).toBe(30);
+  const saved=restoreGenerationDrafts({'reference-to-video':{request:{prompt:'Six inputs',steps:15}}});
+  expect(saved['reference-to-video'].request.steps).toBe(15);
+  expect(restoreGenerationDrafts(JSON.parse(JSON.stringify(saved)))).toEqual(saved);
+  expect(saved['text-to-image'].request.steps).toBeUndefined();
+});
+
 it('migrates saved prompts, settings, and repeat seeds from the original draft format', () => {
   const restored = restoreGenerationDrafts({
     'text-to-video': {

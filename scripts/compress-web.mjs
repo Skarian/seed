@@ -12,4 +12,4 @@ async function compress(directory){
     }
   }
 }
-await compress(path.resolve('dist/web'));
+await compress(path.resolve(process.argv[2]??'dist/web'));

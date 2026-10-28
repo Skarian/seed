@@ -61,6 +61,7 @@ type PoolContextValue = {
     role: WorkerClass,
     loras?: ReadonlyArray<{ id: string; revision: string }>,
     workflow?:string,
+    target?:'auto'|'local'|'cloud',
   ) => boolean;
   action: (
     action: PoolAction,
@@ -183,8 +184,9 @@ export function WorkerPoolProvider({
       setTab: (tab) => setDialog((value) => ({ ...value, tab })),
       setWorkerClass: (workerClass) =>
         setDialog((value) => ({ ...value, workerClass })),
-      hasCapacity: (role, loras = [], workflow) =>
-        !!snapshot?.workers.some(
+      hasCapacity: (role, loras = [], workflow,target='auto') =>
+        (target!=='cloud'&&!!snapshot?.local?.enabled&&!snapshot.local.paused&&(!loras.length||workflow==='text-to-image')&&!!workflow&&snapshot.local.workflows.includes(workflow))||
+        (target!=='local'&&!!snapshot?.workers.some(
           (worker) =>
             worker.worker_class === role &&
             (workflow!=='image-to-image'||worker.workflows?.includes(workflow)) &&
@@ -200,7 +202,7 @@ export function WorkerPoolProvider({
                     installed.revision === lora.revision,
                 ),
               )),
-        ),
+        )),
     }),
     [snapshot, error, dialog, refresh, accept, action, pending, open],
   );

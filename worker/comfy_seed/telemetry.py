@@ -1,13 +1,15 @@
 """Persist sampled native Comfy statistics; timing comes from native history."""
 import json
 import math
+import os
 import threading
 from urllib.request import urlopen
 from .spool import atomic
 
 
 def sample():
-    with urlopen('http://127.0.0.1:8188/system_stats', timeout=2) as response:
+    origin = os.environ.get('SEED_COMFY_URL', 'http://127.0.0.1:8188').rstrip('/')
+    with urlopen(origin + '/system_stats', timeout=2) as response:
         return json.load(response)
 
 

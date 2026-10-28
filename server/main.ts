@@ -4,6 +4,7 @@ import { settings } from './settings.js';
 import { validateAddress } from './address.js';
 import { startControl } from './lifecycle.js';
 import type {WorkerPool} from './pool.js';
+import {closeManagedService} from './service-close.js';
 
 const paths = resolvePaths(process.env.STUDIO_DEV_ROOT);
 const config = settings(paths);
@@ -15,7 +16,14 @@ let closeControl: (() => Promise<void>) | undefined;
 let stopping = false;
 async function stop() {
   if (stopping) return; stopping = true;
-  await app.close(); await closeControl?.();
+  if(process.env.SEED_MANAGED==='1'){
+    await closeManagedService(()=>app.close(),async()=>{await closeControl?.();},code=>process.exit(code||process.exitCode||0));
+    return;
+  }
+  try{await app.close();}catch{process.exitCode=1;}
+  finally{
+    await closeControl?.();
+  }
 }
 for (const signal of ['SIGINT', 'SIGTERM'] as const) process.once(signal, () => { void stop(); });
 try {
@@ -23,6 +31,7 @@ try {
   if (process.env.SEED_MANAGED === '1') closeControl = await startControl(paths, `http://${host}:${port}`, stop);
   console.log(`seed: http://${host}:${port}`);
 } catch (error) {
+  process.exitCode = 1;
   (app as typeof app & {seedPool:WorkerPool}).seedPool.diagnostics?.error('server.listen',error);
   await stop();
   if ((error as NodeJS.ErrnoException).code === 'EADDRINUSE') console.error(`Port ${port} is already in use. Use the existing seed instance or choose another port.`);

@@ -6,11 +6,11 @@ import type {
 } from "./job-history.js";
 export type JobRecord = {
   output_dimensions?: { width: number; height: number };
-  worker?: { id?: string };
+  worker?: { id?: string;executor?:'local'|'cloud';profile?:string;runtime_revision?:string };
   recovery?: {
     pending: boolean;
-    action?: 'retry';
-    reason: 'submission_unknown' | 'worker_unavailable' | 'submission_unavailable' | 'engine_interrupted' | 'cancelled';
+    action?: 'retry' | 'retry_local';
+    reason: 'submission_unknown' | 'worker_unavailable' | 'submission_unavailable' | 'engine_interrupted' | 'local_preparation_failed' | 'local_stop_pending' | 'cancelled';
     worker_id?: string;
   };
   activity?: string;

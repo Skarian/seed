@@ -2,6 +2,7 @@ import type { ImageRequest } from "./workflows.js";
 import type { PreparedReference } from "./media.js";
 import { loraRoute } from "../shared/workflows.js";
 import { resolveDimensions } from "../shared/resolution.js";
+import { videoSteps } from '../shared/video-settings.js';
 export type GraphLora = {
   filename: string;
   sha256: string;
@@ -33,10 +34,11 @@ export function graphFor(
   seed: string,
   loras: GraphLora[],
   references: PreparedReference[] = [],
+  local = false,
 ) {
   if(request.workflow==='image-to-image') return editGraph(request,id,seed,references);
   if (request.workflow !== "text-to-image")
-    return videoGraph(request, id, seed, loras, references);
+    return videoGraph(request, id, seed, loras, references, local);
   const {width, height} = resolveDimensions(request.workflow,request.output.size,request.output.aspect);
   const graph: Record<
     string,
@@ -123,6 +125,7 @@ export function videoGraph(
   seed: string,
   loras: GraphLora[],
   refs: PreparedReference[] = [],
+  local = false,
 ) {
   const route = loraRoute(request);
   const seconds = request.output.duration_seconds!;
@@ -209,7 +212,17 @@ export function videoGraph(
       },
     },
   };
-  {
+  if (local) {
+    // Official Comfy-Org model choices and ordinary dense sampling. Keep
+    // optional approximation/acceleration patches outside this baseline.
+    graph['2']!.inputs.clip_name = 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors';
+    graph['3']!.inputs.vae_name = 'minimax_h3_video_vae_int8_convrot.safetensors';
+    const model = withLoras(graph, loras, '1');
+    graph['7']!.inputs.model = model;
+    graph['10']!.inputs.model = model;
+    graph['9']!.inputs.sampler_name = 'res_multistep';
+    graph['10']!.inputs.steps = videoSteps(request);
+  } else {
     graph["16"] = {
       class_type: "MiniMaxH3SigmaShift",
       inputs: { model: ["1", 0], shift_video: 12, shift_audio: 3 },
@@ -240,7 +253,7 @@ export function videoGraph(
     graph["7"]!.inputs.model = ["19", 0];
     graph["9"]!.inputs.sampler_name = "res_multistep";
     graph["10"]!.inputs.model = ["19", 0];
-    graph["10"]!.inputs.steps = 30;
+    graph["10"]!.inputs.steps = videoSteps(request);
   }
   let node = 40,
     image = 0,

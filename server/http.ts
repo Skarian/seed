@@ -1,7 +1,10 @@
 import { Sequences } from './sequences.js';
+import {closeService} from './service-close.js';
 import { pickFrame } from './frames.js';
 import {registerAdmin} from './admin.js';
 import {registerGeneratePreferences} from './generate-preferences.js';
+import {Activity,registerActivity} from './activity.js';
+import {visibleActivityJob,visibleActivityImport} from '../shared/activity.js';
 import {LoraImports} from './lora-imports.js';
 import {WorkerPool} from './pool.js';
 import {createProviders} from './pool-providers.js';
@@ -33,6 +36,8 @@ import { listAssets, openDatabase } from './db.js';
 import { prepareStorage, type StudioPaths } from './storage.js';
 import type { StudioSnapshot } from '../shared/studio.js';
 import {HttpAccess} from './http-access.js';
+import {LocalWorker} from './local-worker.js';
+import {LocalSetup} from './local-setup.js';
 
 export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; poolDependencies?: PoolDependencies; providerFetch?:typeof fetch; chatFetch?:typeof fetch }) {
   const access = new HttpAccess(options.paths, options.host ?? '127.0.0.1', options.port);
@@ -44,8 +49,11 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   try {
   const dependencies=options.poolDependencies??{providers:createProviders(options.paths,options.providerFetch,diagnostics),worker:new PoolWorkerDriver(options.paths,diagnostics)};
   const pool=new WorkerPool(db,options.paths,new Loras(options.paths),dependencies,diagnostics);
+  const localSetup=new LocalSetup(options.paths);
+  if(!options.poolDependencies)pool.local=new LocalWorker(db,options.paths);
   const jobs=new Jobs(db,options.paths,pool);
   const imports=new LoraImports(options.paths,jobs.loras,options.providerFetch);
+  const activity=new Activity(options.paths);
   const chats=new Chats(db,options.paths,jobs,options.chatFetch);
   const sequences = new Sequences(db, options.paths.data, options.paths.cache, jobs);
   const previews = new Previews(options.paths.data, options.paths.cache);
@@ -98,11 +106,18 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   registerClientFailures(app,diagnostics);
   registerNotes(app, db);
   registerGeneratePreferences(app,options.paths);
+  registerActivity(app,activity,jobs,imports,pool);
   registerAssetOrganization(app, db);
   registerAdmin(app,options.paths,jobs.loras,imports,{access,fetcher:options.providerFetch,changeCredential:(field,next,previous,commit)=>pool.withCredentialChange(field,next,previous,commit)});
   registerChats(app,chats,()=>Boolean(chatCredential(options.paths)));
   app.addHook('onReady', async () => { diagnostics.event({category:'server',operation:'started',data:{instance_id:instanceId}});pool.start();jobs.start(); });
-  app.addHook('preClose', async () => { await imports.close();await chats.close(); await pool.close();await jobs.close(); });
+  app.addHook('preClose', async () => {
+    const intentRecorded=pool.local?.recordServiceStop()??true;
+    if(!intentRecorded)try{diagnostics.event({category:'server',operation:'close.intent_unavailable',data:{stage:'local'}});}catch{}
+    await closeService({local:async()=>pool.local?.close(),background:[()=>localSetup.close(),()=>imports.close(),()=>chats.close()],
+      cloud:()=>pool.close({skipLocal:true}),jobs:()=>jobs.close(),
+      failed:stage=>diagnostics.event({category:'server',operation:'close.incomplete',data:{stage}})});
+  });
   app.addHook('onClose', async () => { await jobs.media.close();diagnostics.event({category:'server',operation:'stopped'}); db.close();releaseCoordinator(); });
   const poolResult=(fn:(r:any)=>Promise<unknown>|unknown)=>async(request:any,reply:any)=>diagnostics.within({request_id:request.id},async()=>{try{return await fn(request);}catch(error){diagnostics.error('pool.request',error);return reply.code(409).send({error:error instanceof PoolError?error.issue:{code:'pool_request_failed',message:error instanceof Error?error.message:'Cannot complete this worker action.',retryable:false}});}});
   app.get('/api/v1/pool/history',{schema:{querystring:{type:'object',additionalProperties:false,properties:{from:{type:'string',format:'date-time'},to:{type:'string',format:'date-time'},provider:{enum:['vast','runpod']},worker_class:{enum:['image','video']}}}}},async request=>diagnostics.history(request.query as any));
@@ -113,6 +128,19 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   });
   app.post('/api/v1/pool/workers/:id/history',{schema:{body:{type:'object',additionalProperties:false,properties:{campaign:{type:'string',maxLength:100},manual_intervention:{type:'boolean'},note:{type:'string',maxLength:2000}}}}},poolResult(r=>{diagnostics.annotate(r.params.id,r.body);return {saved:true};}));
   app.get('/api/v1/pool',async()=>pool.snapshot());
+  app.get('/api/v1/pool/local',async()=>({setup:await localSetup.status(),worker:pool.local?.get()??null}));
+  app.post('/api/v1/pool/local/setup',poolResult(async()=>{
+    if(pool.local?.get()?.current_job_id)throw Error('Finish the current local output before changing its installation.');
+    await pool.local?.enable(false);return localSetup.start();
+  }));
+  app.post('/api/v1/pool/local/cleanup',{schema:{body:{type:'object',additionalProperties:false,required:['kind'],properties:{kind:{enum:['models','runtime','all']}}}}},poolResult(async r=>{
+    if(pool.local?.get()?.current_job_id)throw Error('Finish or cancel the current local output before removing local files.');
+    await pool.local?.enable(false);return localSetup.cleanup(r.body.kind);
+  }));
+  app.post('/api/v1/pool/local/actions',{schema:{body:{type:'object',additionalProperties:false,required:['action'],properties:{action:{enum:['enable','disable','pause','cancel','recover','force-stop']}}}}},poolResult(async r=>{
+    if(r.body.action==='enable'){const setup=await localSetup.status();if(!setup.installed&&!setup.image_installed)throw Error('Finish image setup before enabling This PC.');}
+    return pool.localAction(r.body.action);
+  }));
   app.get('/api/v1/diagnostics',{schema:{querystring:{type:'object',additionalProperties:false,properties:{after:{type:'integer',minimum:0},level:{enum:['info','warn','error']}}}}},async request=>diagnostics.events((request.query as any).after,(request.query as any).level));
   app.get('/api/v1/pool/offers',{schema:{querystring:{type:'object',additionalProperties:false,required:['worker_class'],properties:{worker_class:{enum:['image','video']}}}}},poolResult(r=>pool.offers(r.query.worker_class)));
   app.post('/api/v1/pool/launch',{schema:{body:{type:'object',additionalProperties:false,required:['selections','max_hourly'],properties:{max_hourly:{type:'number',minimum:0},selections:{type:'array',minItems:1,maxItems:16,items:{type:'object',additionalProperties:false,required:['offer_id','quantity'],properties:{offer_id:{type:'string'},quantity:{type:'integer',minimum:1,maximum:16}}}}}}}},poolResult(r=>pool.launch(r.body as LaunchRequest,String(r.headers['idempotency-key']??''))));
@@ -120,11 +148,13 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.post('/api/v1/pool/actions',{schema:{body:{type:'object',additionalProperties:false,required:['action'],properties:{action:{enum:['finish','quit']}}}}},poolResult(r=>pool.actionAll(r.body.action)));
   app.get('/api/v1/health', async () => ({ application: 'seed', version: '0.1.0', instance_id: instanceId }));
   app.get('/api/v1/studio', async (): Promise<StudioSnapshot> => {
-    const importJobs=imports.list('nsfw');
+    const cleared=activity.snapshot();
+    const importJobs=imports.list('nsfw').filter(job=>visibleActivityImport(job,cleared));
+    const activityJobs=jobs.all().filter(job=>visibleActivityJob(job,cleared));
     return {
       loras_revision: jobs.loras.revision(),
       pool: pool.snapshot().summary,
-      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + jobs.all().filter(j => j.state === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + jobs.all().filter(j => ['uploading','submitting','running','copying','cancel_requested'].includes(j.state)&&!j.recovery_blocked).length, needs_attention: importJobs.filter(j=>j.state==='failed').length + jobs.all().filter(j=>jobNeedsAttention(j)).length },
+      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + activityJobs.filter(j => j.state === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + activityJobs.filter(j => ['uploading','submitting','running','copying','cancel_requested'].includes(j.state)&&!j.recovery_blocked).length, needs_attention: importJobs.filter(j=>j.state==='failed').length + activityJobs.filter(j=>jobNeedsAttention(j)).length },
       outputs: { pending: jobs.all().filter(j => j.state === 'copying').length },
     };
   });
@@ -214,6 +244,15 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   });
   app.get('/api/v1/jobs', async request => { const query=request.query as {cursor?:string;mode?:string};if(query.mode){const items=jobs.all().filter(j=>j.request.mode===query.mode).reverse().map(j=>jobs.publicJob(j));return {items,next_cursor:null};}const cursor = String(query.cursor ?? ''); const items = jobs.list(51, cursor); return { items: items.slice(0, 50).map(j=>jobs.publicJob(j)), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/jobs/:id', async (request, reply) => { const job=jobs.get((request.params as { id: string }).id); return job ? jobs.publicJob(job) : fail(reply, 404, 'not_found', 'Job not found.', request.id); });
+  app.get('/api/v1/jobs/:id/status', async (request, reply) => {
+    const job=jobs.get((request.params as {id:string}).id);
+    if(!job)return fail(reply,404,'not_found','Job not found.',request.id);
+    // Explicit allowlist for diagnostics. Never expose prompts, graphs, image
+    // URLs, reference filenames or freeform errors through this endpoint.
+    return {id:job.id,state:job.state,workflow:job.request.workflow,created_at:job.created_at,updated_at:job.updated_at,
+      output_count:job.outputs.length,has_error:Boolean(job.error),executor:job.worker?.executor??null,
+      execution_id:job.worker?.execution_id??null,selected_lora_count:job.worker?.loras.length??0};
+  });
   app.post('/api/v1/jobs/:id/recover', {schema:{body:{type:'object',additionalProperties:false,maxProperties:0}}}, async(request,reply)=>{
     try { return reply.code(202).send(jobs.recover((request.params as {id:string}).id)); }
     catch(error) { return fail(reply,409,'recovery_failed',(error as Error).message,request.id); }

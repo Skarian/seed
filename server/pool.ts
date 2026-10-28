@@ -1,4 +1,5 @@
 import type Database from "better-sqlite3";
+import {videoProfile} from '../shared/video-settings.js';
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -25,9 +26,35 @@ import { PoolError, poolIssue, WorkerStarting } from "./pool-errors.js";
 import {Diagnostics} from './diagnostics.js';
 import {StartupLogs} from './startup-logs.js';
 import { isRejectedLaunch } from '../shared/worker-outcome.js';
+import type {LocalWorker} from './local-worker.js';
+import {bindExecutor,localExecutor,LocalTransport,type ExecutionWorker} from './executors.js';
+import type {ImageRequest} from './workflows.js';
 
 const stopped = (w: RentalRecord) => w.state === "released";
 export class WorkerPool {
+  local?:LocalWorker;
+  async localAction(action:'enable'|'disable'|'pause'|'cancel'|'recover'|'force-stop'){
+    if(!this.local)throw Error('Local workers are unavailable.');
+    if(action==='enable'||action==='disable')await this.local.enable(action==='enable');
+    else if(action==='pause')await this.local.pause();
+    else if(action==='recover')await this.local.recover();
+    else await this.local.cancelNow(id=>this.cancelJobs(id),action==='force-stop');
+    return this.snapshot();
+  }
+  executor(id:string):ExecutionWorker|null {const local=this.local?.get();return local?.id===id?local:this.get(id);}
+  assignedExecutor(job:string):ExecutionWorker|null {const local=this.local?.get();return local?.current_job_id===job?local:this.assigned(job);}
+  executionDriver(worker:ExecutionWorker){
+    if(localExecutor(worker)){if(!this.local)throw Error('Local worker is unavailable.');return bindExecutor(new LocalTransport(this.local.runtime),worker);}
+    return bindExecutor(this.dependencies.worker,worker);
+  }
+  claimExecutor(job:string,request:ImageRequest,loras:LoraSelection[],created_at:string,dimensions?:{width:number;height:number}):ExecutionWorker|null {
+    if(request.target!=='local'){
+      const video=request.workflow.endsWith('video');
+      const rented=this.claim(job,video?'video':'image',loras,created_at,request.workflow,video?videoProfile(request):undefined);
+      if(rented)return rented;
+    }
+    return request.target==='cloud'?null:this.local?.claim(job,request,dimensions)??null;
+  }
   private timer?: ReturnType<typeof setInterval>;
   private closing = false;
   private inFlight = new Map<string, Promise<void>>();
@@ -73,13 +100,14 @@ export class WorkerPool {
       this.db
         .prepare("SELECT snapshot_json FROM pool_workers ORDER BY rowid")
         .all() as { snapshot_json: string }[]
-    ).map((r) => JSON.parse(r.snapshot_json));
+    ).map((r) => JSON.parse(r.snapshot_json)).filter(w=>w.executor!=='local');
   }
   get(id: string): RentalRecord | null {
     const r = this.db
       .prepare("SELECT snapshot_json FROM pool_workers WHERE id=?")
       .get(id) as { snapshot_json: string } | undefined;
-    return r ? JSON.parse(r.snapshot_json) : null;
+    const worker=r ? JSON.parse(r.snapshot_json) : null;
+    return worker?.executor==='local'?null:worker;
   }
   private save(w: RentalRecord) {
     const previous=this.get(w.id);
@@ -103,6 +131,7 @@ export class WorkerPool {
       active = workers.filter((w) => w.state !== "released");
     return {
       server_time: this.date(),
+      ...(this.local?{local:this.local.get()}:{}),
       workers,
       summary: {
         active: active.length,
@@ -194,6 +223,7 @@ export class WorkerPool {
       preparation: w.preparation,
       installed_loras: w.installed_loras,
       workflows: w.workflows,
+      video_profiles: w.video_profiles,
       actions,
       console_url: w.console_url,
     };
@@ -419,18 +449,21 @@ export class WorkerPool {
     return this.snapshot();
   }
   start() {
+    this.local?.start();
     this.timer = setInterval(() => void this.tick(), 2000);
     void this.tick();
   }
-  async close() {
+  async close(options:{skipLocal?:boolean}={}) {
     this.closing = true;
     this.startupLogs.close();
     clearInterval(this.timer);
-    await this.dependencies.worker.close();
+    if(!options.skipLocal)try{await this.local?.close();}catch{this.diagnostics?.event({category:'worker',operation:'local.close_pending',data:{message:'Local shutdown remains unconfirmed.'}});}
+    try{await this.dependencies.worker.close();}finally{
     await Promise.allSettled([
       ...this.inFlight.values(),
       ...this.quitting.values(),
     ]);
+    }
   }
   async tick() {
     if (this.closing) return;
@@ -570,6 +603,7 @@ export class WorkerPool {
       if(current.current_job_id && health.active_job_id===current.current_job_id)current.current_activity=health.activity;
       else if(current.current_activity!=='Downloading base models through this PC')delete current.current_activity;
       current.workflows = health.workflows;
+      current.video_profiles = health.video_profiles;
       current.session_id = health.session_id;
       current.preparation_revision =
         health.revision ?? current.preparation_revision;
@@ -892,10 +926,12 @@ export class WorkerPool {
     loras: LoraSelection[],
     created_at: string,
     workflow?: string,
+    video_profile?: string,
   ) {
     return this.db.transaction(() => {
       const w = this.all().find(
-        (w) => !w.current_job_id && this.compatible(w, role, loras, created_at) && (workflow!=='image-to-image'||w.workflows?.includes(workflow)),
+        (w) => !w.current_job_id && this.compatible(w, role, loras, created_at) && (workflow!=='image-to-image'||w.workflows?.includes(workflow)) &&
+          (!video_profile||(w.video_profiles??['h3-high-v1']).includes(video_profile)),
       );
       if (!w) return null;
       const id = randomUUID();
@@ -923,6 +959,7 @@ export class WorkerPool {
     return this.all().find((w) => w.current_job_id === job) ?? null;
   }
   saving(job: string) {
+    if(this.local?.get()?.current_job_id===job){this.local.saving(job);return;}
     const w = this.assigned(job);
     if (w && !stopped(w))
       this.update(w.id, (current) => {
@@ -930,6 +967,7 @@ export class WorkerPool {
       });
   }
   complete(job: string) {
+    if(this.local?.get()?.current_job_id===job){this.local.complete(job);return;}
     const w = this.assigned(job);
     if (!w) return;
     this.db.transaction(() => {

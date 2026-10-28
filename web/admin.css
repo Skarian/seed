@@ -10,6 +10,10 @@
 
 .admin-lora-card footer{border-top:1px solid #343d2e;padding-top:14px;margin-top:18px;gap:12px 16px}
 .admin-lora-card footer + .admin-hint{margin-top:14px}
+.admin-lora-card header{flex-wrap:wrap}
+.admin-lora-card header>div:first-child{min-width:0;overflow-wrap:anywhere;flex:1 1 180px}
+.lora-card-actions{display:flex;gap:8px;flex-wrap:wrap}
+.admin-page .admin-destructive{color:#efb0a5;border-color:#805047;background:#38241f}
 @media(max-width:650px){
   .credential-actions{gap:0 16px;margin-top:6px}
   .credential-actions a,.credential-actions button{display:inline-flex;align-items:center;min-height:44px}

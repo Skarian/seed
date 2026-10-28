@@ -64,6 +64,7 @@ export interface ProviderDriver {
 }
 export type WorkerHealth = {
   workflows?: string[];
+  video_profiles?: string[];
   busy?: boolean;
   active_job_id?: string;
   activity?: string;
@@ -106,35 +107,35 @@ export type WorkerReceipt = {
   };
   manifest_digest?: string;
 };
-export interface WorkerDriver {
+export interface WorkerDriver<W = RentalRecord> {
   preflight(role: WorkerClass): Promise<void>;
-  probe?(worker: RentalRecord): Promise<WorkerProbe>;
-  fallbackBaseModels?(worker: RentalRecord): Promise<void>;
+  probe?(worker: W): Promise<WorkerProbe>;
+  fallbackBaseModels?(worker: W): Promise<void>;
   auth(
-    worker: RentalRecord,
+    worker: W,
   ): Promise<{ public_key: string; pairing_secret: string }>;
   prepare(
-    worker: RentalRecord,
+    worker: W,
     options?: { retry?: boolean; omit?: string[] },
   ): Promise<WorkerHealth>;
   upload(
-    worker: RentalRecord,
+    worker: W,
     job: string,
     file: string,
     name: string,
   ): Promise<void>;
-  submit(worker: RentalRecord, body: Record<string, unknown>, options?: { beforePost?: () => void }): Promise<void>;
-  receipt(worker: RentalRecord, job: string): Promise<WorkerReceipt | null>;
-  cancel(worker: RentalRecord, job: string): Promise<void>;
+  submit(worker: W, body: Record<string, unknown>, options?: { beforePost?: () => void }): Promise<void>;
+  receipt(worker: W, job: string): Promise<WorkerReceipt | null>;
+  cancel(worker: W, job: string): Promise<void>;
   download(
-    worker: RentalRecord,
+    worker: W,
     job: string,
     output: WorkerOutput,
     target: string,
   ): Promise<void>;
-  acknowledge(worker: RentalRecord, job: string, digest: string): Promise<void>;
-  reconnect(worker: RentalRecord): Promise<void>;
-  disconnect(worker: RentalRecord): Promise<void>;
+  acknowledge(worker: W, job: string, digest: string): Promise<void>;
+  reconnect(worker: W): Promise<void>;
+  disconnect(worker: W): Promise<void>;
   close(): Promise<void>;
 }
 export type PoolDependencies = {

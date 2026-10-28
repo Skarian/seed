@@ -6,6 +6,13 @@ from aiohttp import web
 from worker.preparation import Preparation, manifest
 
 
+@pytest.fixture(autouse=True)
+def offline_fixture_sources(monkeypatch):
+    # These tests use fictional Hub assets and exercise preparation state, not
+    # provider networking. Child download processes inherit the offline flag.
+    monkeypatch.setenv('HF_HUB_OFFLINE', '1')
+
+
 def item(data=b'seed-model'):
     return {'path': 'diffusion_models/test.bin', 'url': 'https://huggingface.co/test/model/resolve/' + 'a'*40 + '/test.bin',
             'size': len(data), 'sha256': hashlib.sha256(data).hexdigest()}

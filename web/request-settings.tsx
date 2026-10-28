@@ -7,6 +7,7 @@ import { AspectPicker, BatchPicker, LengthPicker, SeedControl } from './request-
 import './request-settings.css';
 import { resolutionOptions, isResolutionSize, type Dimensions, type ResolutionSize } from '../shared/resolution.js';
 import { useGeneratePreferences } from './generate-preferences.js';
+import { VIDEO_STEPS, videoSteps, type VideoSteps } from '../shared/video-settings.js';
 
 type Props = {
   request: ImageRequest;
@@ -31,6 +32,11 @@ export function RequestSettings({ request, onChange, route, source, sourceError,
   };
   return (
     <div className="request-settings">
+      <label className="request-setting">Run on
+        <select aria-label="Run on" value={request.target??'auto'} onChange={event=>onChange({target:event.target.value as 'auto'|'local'|'cloud'})}>
+          <option value="auto">Auto</option><option value="local">This PC</option><option value="cloud">Cloud</option>
+        </select>
+      </label>
       {request.workflow==='image-to-image'?<p className="request-settings-hint">Output follows your source image’s shape.</p>:<div className="request-setting">
         <span>Orientation</span>
         <AspectPicker value={request.output.aspect} orientationOnly onChange={(aspect) => output({ aspect })} />
@@ -58,6 +64,12 @@ export function RequestSettings({ request, onChange, route, source, sourceError,
           />
         </label>
       )}
+      {video && <label className="request-setting">Sampling steps
+        <select aria-label="Sampling steps" value={videoSteps(request)} onChange={event=>onChange({steps:Number(event.target.value) as VideoSteps})}>
+          {VIDEO_STEPS.map(steps=><option key={steps} value={steps}>{steps}{steps===10?' — Fastest':steps===20?' — Balanced':steps===30?' — Most refinement':''}</option>)}
+        </select>
+        <small className="request-settings-hint">More steps take longer. Fewer steps can reduce detail, motion consistency, or audio clarity.</small>
+      </label>}
       {request.workflow!=='image-to-image'&&<LoraPicker
         route={route??loraRoute(request)}
         mode={request.mode}

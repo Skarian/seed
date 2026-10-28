@@ -18,6 +18,42 @@ beforeEach(async () => {
 afterEach(async () => { await app.close(); await new Promise(resolve => setTimeout(resolve, 30)); rmSync(root, { recursive: true, force: true }); });
 
 describe('local studio boundary', () => {
+  it('exposes job status without prompts, images, graphs or freeform errors',async()=>{
+    const headers={host,origin:`http://${host}`};
+    const accepted=await app.inject({method:'POST',url:'/api/v1/jobs',headers:{...headers,'idempotency-key':'private-status-fixture'},
+      payload:{workflow:'text-to-image',prompt:'PRIVATE_SYNTHETIC_FIXTURE',mode:'sfw',output:{aspect:'16:9',size:'1mp'},seed:'1',count:1}});
+    const id=accepted.json().jobs[0].id;
+    const response=await app.inject({url:`/api/v1/jobs/${id}/status`,headers});
+    expect(response.statusCode).toBe(200);expect(response.body).not.toContain('PRIVATE_SYNTHETIC_FIXTURE');
+    expect(Object.keys(response.json()).sort()).toEqual(['id','state','workflow','created_at','updated_at','output_count','has_error','executor','execution_id','selected_lora_count'].sort());
+    expect((await app.inject({url:'/api/v1/jobs/missing/status',headers})).statusCode).toBe(404);
+  });
+  it('clears finished activity with same-origin protection without deleting requests or cancelling queued work',async()=>{
+    const headers={host,origin:`http://${host}`};
+    const body={workflow:'text-to-image',prompt:'Keep this request',mode:'sfw',output:{aspect:'16:9',size:'1mp'},seed:'1',count:2};
+    const accepted=await app.inject({method:'POST',url:'/api/v1/jobs',headers:{...headers,'idempotency-key':'activity-test-submission'},payload:body});
+    expect(accepted.statusCode).toBe(202);
+    const [first,second]=accepted.json().jobs;
+    await app.inject({method:'POST',url:'/api/v1/jobs/'+first.id+'/cancel',headers,payload:{}});
+    expect((await app.inject({method:'POST',url:'/api/v1/activity/clear',headers:{host},payload:{mode:'sfw'}})).statusCode).toBe(403);
+    expect((await app.inject({method:'POST',url:'/api/v1/activity/clear',headers,payload:{mode:'bad'}})).statusCode).toBe(400);
+    const cleared=await app.inject({method:'POST',url:'/api/v1/activity/clear',headers,payload:{mode:'sfw'}});
+    expect(cleared.statusCode).toBe(200);expect(Object.keys(cleared.json().jobs)).toEqual([first.id]);
+    expect((await app.inject({url:'/api/v1/activity/cleared',headers})).json()).toEqual(cleared.json());
+    expect((await app.inject({url:'/api/v1/jobs/'+first.id,headers})).json().state).toBe('cancelled');
+    expect((await app.inject({url:'/api/v1/jobs/'+second.id,headers})).json().state).toBe('queued');
+  });
+  it('requires a same-origin request to delete a LoRA group and persists the deletion', async () => {
+    const file=path.join(resolvePaths(root).config,'loras.json');
+    writeFileSync(file,JSON.stringify(['fl','ref'].map(route=>({id:route,group_id:'adapter',name:'Adapter',revision:'sha',route}))));
+    const url='/api/v1/admin/loras/adapter';
+    expect((await app.inject({method:'DELETE',url,headers:{host}})).statusCode).toBe(403);
+    expect((await app.inject({method:'DELETE',url,headers:{host,origin:'https://other.test'}})).statusCode).toBe(403);
+    expect((await app.inject({url:'/api/v1/loras',headers:{host}})).json().items).toHaveLength(2);
+    for(let i=0;i<2;i++)expect((await app.inject({method:'DELETE',url,headers:{host,origin:`http://${host}`}})).json()).toEqual({deleted:true});
+    expect((await app.inject({url:'/api/v1/admin/loras',headers:{host}})).json().items).toEqual([]);
+    expect((await app.inject({url:'/api/v1/loras',headers:{host}})).json().items).toEqual([]);
+  });
   it('reads only the saved startup record and keeps internal collection fields private', async () => {
     const db=openDatabase(resolvePaths(root).data);
     try {

@@ -2,7 +2,7 @@
 
 [← Back to Seed](../README.md)
 
-Use Node.js 26.8.2 or later in the 26.x line.
+Use Node.js 24 or later.
 
 ```sh
 npm ci
@@ -32,3 +32,10 @@ not qualify GPU compatibility, generation speed, output quality, or provider
 availability. See the [operations guide](operations.md) for recovery and live
 qualification guidance, and the [worker guide](../worker/README.md) for
 container-specific validation.
+
+Native Windows GPU tests are documented in the [local worker guide](local-worker.md).
+They use real models and run serially; normal unit tests do not load a GPU.
+To run Python fixtures without public model downloads, set `HF_HUB_OFFLINE=1`.
+In a restricted workspace, pass a fresh `--basetemp` below `.local/tests` and
+`-p no:cacheprovider` to pytest. The missing-source preparation fixtures should
+fail immediately offline rather than waiting for network retries.

@@ -7,6 +7,7 @@ import type {InputReference} from '../media.js';
 import type {ChatMode,ChatWorkflow} from '../../shared/chat.js';
 import {inputLabels,promptBindings,promptReferencePattern} from '../../shared/reference-labels.js';
 import {defaultPreferences} from '../../shared/resolution.js';
+import {DEFAULT_VIDEO_STEPS, VIDEO_STEPS} from '../../shared/video-settings.js';
 
 export type ReferenceMode='direct'|'stable';
 export interface ToolAsset {handle:string;asset_id:string;kind:'image'|'video'|'audio';duration_seconds?:number}
@@ -41,6 +42,7 @@ export function requestToolSchemas(workflow:ChatWorkflow,mode:ChatMode,hasLoras=
     aspect_ratio:enumOf(editingImage?['source']:['16:9','9:16'],'16:9 is landscape; 9:16 is portrait.'),
     note:Type.String({maxLength:4000,description:'A note saved with generated assets. Empty text clears it.'}),
     ...(video?{
+      steps:Type.Integer({enum:[...VIDEO_STEPS],description:'Sampling steps: 10, 15, 20, or 30. New videos default to 20. More steps take longer; fewer can reduce detail, motion consistency, or audio clarity.'}),
       duration_seconds:Type.Integer({minimum:5,maximum:15,description:'Generated video length. Distinct from each input clip duration.'}),
       audio_output:enumOf(['generated','silent'],'Final output sound: silent means no audio; generated enables sound. For silence, set silent explicitly; do not omit this setting.')
     }:{}),
@@ -98,7 +100,7 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
   const add=(field:string,message:string,fix?:string)=>issues.push({field,message,...(fix?{fix}:{})});
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new ToolRequestError([{field:'request',message:'Provide request settings.'}]);
   const value=raw as Record<string,any>,video=isVideoWorkflow(context.workflow);
-  const allowed=['request_id',...(context.workflow==='image-to-image'?[]:['loras']),'prompt','batch_size','seed','aspect_ratio','note',...(video?['duration_seconds','audio_output']:[]),...(usesInputs(context.workflow)?['inputs']:[]),...(context.mode==='nsfw'?['mode']:[])];
+  const allowed=['request_id',...(context.workflow==='image-to-image'?[]:['loras']),'prompt','batch_size','seed','aspect_ratio','note',...(video?['duration_seconds','audio_output','steps']:[]),...(usesInputs(context.workflow)?['inputs']:[]),...(context.mode==='nsfw'?['mode']:[])];
   for(const key of Object.keys(value))if(!allowed.includes(key))add(key,'Unknown setting.','Remove this field. Use flat setting names from the tool schema.');
   if(value.request_id!==undefined&&!context.previous)add('request_id','No existing request was supplied for this edit.','Use create_request for a new card.');
   if(!context.previous&&value.prompt===undefined)add('prompt','Provide the generation prompt.');
@@ -106,9 +108,10 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
   const request:any=context.previous?structuredClone(context.previous):{
     workflow:context.workflow,mode:context.mode,
     prompt:'',count:1,seed:'random',output:{aspect:context.workflow==='image-to-image'?'source':'16:9',size:video?defaultPreferences.video:defaultPreferences.image,...(video?{duration_seconds:5,format:'video'}:{})},
-    ...(video?{audio:{output:'generated'},references:[]}:{})
+    ...(video?{steps:DEFAULT_VIDEO_STEPS,audio:{output:'generated'},references:[]}:{})
   };
   request.workflow=context.workflow;
+  if(Object.hasOwn(value,'steps'))request.steps=value.steps;
   for(const [from,to] of [['loras','loras'],['prompt','prompt'],['seed','seed'],['batch_size','count'],['note','note'],['mode','mode']])if(Object.hasOwn(value,from!))request[to!]=value[from!];
   for(const [from,to] of [['aspect_ratio','aspect'],['duration_seconds','duration_seconds']])if(Object.hasOwn(value,from!))request.output[to!]=value[from!];
   if(Object.hasOwn(value,'audio_output'))request.audio={...(request.audio??{}),output:value.audio_output};

@@ -213,7 +213,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
     if(scope==='review'&&!group?.submission_error)setReview(null);
     const previous=new Set(chat.jobs.map(j=>j.id));
     const admitted=result.jobs.filter(j=>jobActive(j)&&!previous.has(j.id)&&group?.cards.some(c=>c.revisions.at(-1)?.job_ids.includes(j.id)));
-    const needsWorker=admitted.find(j=>!pool.hasCapacity(workerClassFor(j.request.workflow),j.request.loras,j.request.workflow));
+    const needsWorker=admitted.find(j=>!pool.hasCapacity(workerClassFor(j.request.workflow),j.request.loras,j.request.workflow,j.request.target));
     if(needsWorker)pool.open(workerClassFor(needsWorker.request.workflow));
   }
   async function open(next:string){clearBranch();window.history.replaceState(null,'','/chat?chat='+next);onChooseChat();if(id)drafts.current[id]=text;remember('selected.'+mode,next);currentId.current=next;setId(next);setChat(null);setText(drafts.current[next]??remembered('draft.'+next));setSelected([]);refs.reset();setReview(null);void refreshCurrent.current();}
@@ -264,7 +264,7 @@ export function Chat({sidebarTarget,onChooseChat}:{sidebarTarget:HTMLElement|nul
     if(load!==previewLoad.current)return;
     const context=requestContext?structuredClone(requestContext):undefined,input=context?.references.find(ref=>ref.id===context.inputId);
     const inputLabel=input?(inputLabels(context!.references).get(input.id)?.slice(1,-1)??(input.role==='first_frame'?'First frame':input.role==='last_frame'?'Last frame':'Input')):undefined;
-    if(value)setPreview({id:assetId,gallery:[...new Set(gallery??currentReferences.map(r=>r.asset_id))],requestContext:context,referenceLabel:context?.label??inputLabel??referenceLabel??inputMentions.find(m=>m.id===assetId)?.label,name:value.name||'Conversation asset',url:'/api/v1/assets/'+assetId+'/content',kind:value.kind,type:value.mime_type??'',width:value.width,height:value.height,duration:value.duration,size:value.size,has_audio:value.has_audio});
+    if(value)setPreview({id:assetId,gallery:[...new Set(gallery??currentReferences.map(r=>r.asset_id))],requestContext:context,referenceLabel:context?.label??inputLabel??referenceLabel??inputMentions.find(m=>m.id===assetId)?.label,name:value.name||'Conversation asset',url:'/api/v1/assets/'+assetId+'/content',kind:value.kind,type:value.mime_type??'',width:value.width,height:value.height,duration:value.duration,size:value.size,has_audio:value.has_audio,executor:value.executor,execution_profile:value.execution_profile});
   }
   function showRequestInput(assetId:string,context?:RequestPreviewContext){void show(assetId,undefined,undefined,context);}
   const previewInput=preview?.requestContext?.references.find(ref=>ref.id===preview.requestContext!.inputId);

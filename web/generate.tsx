@@ -195,7 +195,7 @@ export function Generate({
     if (records?.length) {
       onSubmitted(records);
       feedback.submitted(records, workflow, mode);
-      if (!pool.hasCapacity(video ? 'video' : 'image',request.loras,workflow)) pool.open(video ? 'video' : 'image');
+      if (!pool.hasCapacity(video ? 'video' : 'image',request.loras,workflow,request.target)) pool.open(video ? 'video' : 'image');
     }
   }
   if (!active) return null;

@@ -8,7 +8,7 @@ history. Image and video workers run on GPUs you choose from Vast or RunPod.
 
 ## Run locally
 
-Use Node 26.8.2 or later in the 26.x line and an OpenSSH client:
+Use Node 24 or later and an OpenSSH client:
 
 ```sh
 npm ci
@@ -31,6 +31,9 @@ Use `seed setup --host <LAN IPv4>` while stopped to select a local-network
 address. Remote access requires an authenticated reverse proxy; see below.
 
 ## Remote access
+
+For this PC's boot service, active storage paths, shared Cloudflare connector,
+and lifecycle commands, see [Windows service operations](windows-service.md).
 
 In **Admin → Access**, save a **Remote URL**, for example
 `https://seed.example.com`. Seed accepts that exact HTTPS address in addition to
@@ -73,10 +76,10 @@ No chat agent or external provisioning script is involved.
 
 Each worker executes one output at a time. Quantity fans outputs across
 compatible workers, or runs them sequentially when only one worker fits.
-Image jobs never take over a Video worker. Requests can queue with no workers;
+Image jobs never take over a rented Video worker. Requests can queue with no workers;
 Seed never rents or replaces a GPU without an explicit launch.
 
-Workers stay up until you quit them. Every worker and the whole pool support:
+Rentals stay up until you quit them. Every rental and the cloud pool support:
 
 - **Finish jobs and quit:** drain compatible requests already queued when you
   click, save and acknowledge outputs, then terminate the rental.
@@ -90,6 +93,13 @@ provisioned disposable storage. Vast transfer charges are shown where supplied
 but are not included in elapsed-time spend. These are estimates, not invoice
 reconciliation. Charges remain visible while termination is unconfirmed.
 There are no per-generation cost estimates or approval price gates.
+
+**This PC** is a separate native Windows executor, off by default. Its one GPU
+reservation spans image/video role changes, saving, and acknowledgement. It
+unloads after 120 idle seconds. Auto / This PC / Cloud is saved per request;
+local-only work does not keep a draining rental alive. See the
+[local worker guide](local-worker.md) for setup, qualified combinations,
+process containment, recovery, and cleanup.
 
 ## Worker image releases
 

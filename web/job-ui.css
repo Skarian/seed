@@ -33,3 +33,7 @@
 }
 .job-recovery-actions{display:flex;flex-wrap:wrap;gap:8px;margin-top:14px}.job-output-detail .job-recovery-status{font-size:12px;margin:10px 0 0;color:#c4d0b8}@media(max-width:650px){.job-recovery-actions button{min-height:44px}}
 .job-record-columns>div>p[role=alert]{margin-top:12px}
+.shared-jobs>header{flex-wrap:wrap}
+.activity-header-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
+.activity-header-actions>button{min-height:44px;white-space:nowrap}
+.activity-header-actions>button:disabled{opacity:.45;cursor:default}

@@ -87,8 +87,8 @@ test.afterEach(async ({ request }) => reset(request));
 const shutdownCases = [
   { scope: 'single', action: 'finish', trigger: 'Finish jobs and quit', title: 'Finish jobs and quit?', confirm: 'Finish and quit' },
   { scope: 'single', action: 'quit', trigger: 'Cancel jobs and quit now', title: 'Quit this worker now?', confirm: 'Quit now' },
-  { scope: 'all', action: 'finish', trigger: 'Finish jobs and quit all', title: 'Finish jobs and quit all?', confirm: 'Finish and quit all' },
-  { scope: 'all', action: 'quit', trigger: 'Cancel jobs and quit all now', title: 'Quit all workers now?', confirm: 'Quit all now' },
+  { scope: 'all', action: 'finish', trigger: 'Finish jobs and quit cloud workers', title: 'Finish jobs and quit cloud workers?', confirm: 'Finish and quit cloud workers' },
+  { scope: 'all', action: 'quit', trigger: 'Cancel cloud jobs and quit now', title: 'Quit all cloud workers now?', confirm: 'Quit all cloud workers' },
 ] as const;
 
 for (const width of [390, 1280]) for (const scenario of shutdownCases) {
@@ -125,7 +125,7 @@ for (const width of [390, 1280]) for (const scenario of shutdownCases) {
     await expect(page.getByRole('dialog', {name: 'GPU workers', exact: true})).toBeVisible();
     expect(calls).toEqual([]);
     await trigger.click();
-    await expect(modal).toContainText(scenario.scope === 'all' ? 'all 2 workers' : workers[0].gpu);
+    await expect(modal).toContainText(scenario.scope === 'all' ? 'all 2 cloud workers' : workers[0].gpu);
     await expect(modal).toContainText('disk');
     expect(await modal.evaluate(el => el.scrollWidth <= el.clientWidth)).toBe(true);
     const bounds = await modal.boundingBox();
@@ -221,9 +221,9 @@ test("tablet launches from both providers, survives reload and releases explicit
   await expect(page.locator(".pool-worker")).toHaveCount(3);
   expect((await snapshot(request)).summary.active).toBe(3);
   await page
-    .getByRole("button", { name: "Cancel jobs and quit all now", exact: true })
+    .getByRole("button", { name: "Cancel cloud jobs and quit now", exact: true })
     .click();
-  await page.getByRole('dialog', {name: 'Quit all workers now?', exact: true}).getByRole('button', {name: 'Quit all now', exact: true}).click();
+  await page.getByRole('dialog', {name: 'Quit all cloud workers now?', exact: true}).getByRole('button', {name: 'Quit all cloud workers', exact: true}).click();
   await expect(page.locator(".pool-worker")).toHaveCount(0);
   await expect
     .poll(async () => (await snapshot(request)).summary.active)
@@ -245,9 +245,9 @@ test("optional adapter recovery supports retry and continuing without it", async
     .click();
   await expect(page.locator(".pool-worker .worker-state")).toHaveText("Ready");
   await page
-    .getByRole("button", { name: "Cancel jobs and quit all now", exact: true })
+    .getByRole("button", { name: "Cancel cloud jobs and quit now", exact: true })
     .click();
-  await page.getByRole('dialog', {name: 'Quit all workers now?', exact: true}).getByRole('button', {name: 'Quit all now', exact: true}).click();
+  await page.getByRole('dialog', {name: 'Quit all cloud workers now?', exact: true}).getByRole('button', {name: 'Quit all cloud workers', exact: true}).click();
   await expect
     .poll(async () => (await snapshot(request)).summary.active)
     .toBe(0);
