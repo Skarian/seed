@@ -1,0 +1,22 @@
+{
+  "revision": "seed-engine-v2",
+  "python": "3.12.14",
+  "uv": {
+    "version": "0.13.5",
+    "url": "https://github.com/astral-sh/uv/releases/download/0.13.5/uv-x86_64-pc-windows-msvc.zip",
+    "sha256": "a38b8d1902b7cfbc76b423ba1bb456f623f42064cdc72628b6075b89afd1019a"
+  },
+  "torch_index": "https://download.pytorch.org/whl/cu130",
+  "comfyui": {
+    "version": "v0.43.2",
+    "revision": "423cbd20511becb1f16122ab518e92e58bfa03d9",
+    "sha256": "1a2283aaa51fb40f8bd5a492611f57eee3c631bae0788dfcbf9fdba07270380b"
+  },
+  "packages": {
+    "torch": "2.14.1+cu130",
+    "torchvision": "0.29.1+cu130",
+    "comfy-kitchen": "0.2.40",
+    "comfy-aimdo": "0.6.0"
+  },
+  "flags": ["--disable-comfy-compiler"]
+}
