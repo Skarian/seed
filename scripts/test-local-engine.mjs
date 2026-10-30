@@ -6,7 +6,7 @@
  */
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {mkdtemp,mkdir} from 'node:fs/promises';
+import {mkdtemp,mkdir,readdir,readFile,stat} from 'node:fs/promises';
 import {createServer} from 'node:net';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -19,8 +19,13 @@ const gpu=()=>{
   const output=execFileSync('nvidia-smi',['--query-gpu=memory.used','--format=csv,noheader,nounits'],{encoding:'utf8',windowsHide:true});
   return Number(output.trim());
 };
-const engineApps=()=>execFileSync('nvidia-smi',['--query-compute-apps=pid,used_memory','--format=csv,noheader,nounits'],{encoding:'utf8',windowsHide:true})
-  .split(/\r?\n/).filter(line=>/\d/.test(line.split(',')[1]??'')).length;
+// nvidia-smi often reports no per-process memory, so the engine's own exit record is the proof.
+const lastExit=async()=>{
+  const instances=path.join(process.env.SEED_LOCAL_ROOT,'instances');
+  const named=await Promise.all((await readdir(instances)).map(async name=>({name,at:(await stat(path.join(instances,name))).mtimeMs})));
+  const latest=named.sort((a,b)=>b.at-a.at)[0].name;
+  return JSON.parse(await readFile(path.join(instances,latest,'engine-exit.json'),'utf8')).exit_code;
+};
 const port=await new Promise(resolve=>{const server=createServer();server.listen(0,'127.0.0.1',()=>{const value=server.address().port;server.close(()=>resolve(value));});});
 const origin='http://127.0.0.1:'+port;
 await mkdir('.local/tests',{recursive:true});
@@ -48,11 +53,11 @@ async function upload(bytes,filename){
   throw Error('Synthetic upload did not become ready.');
 }
 async function run(name,request){
-  const started=Date.now();let peak=0,peakDuring=0;
+  const started=Date.now();let peak=0;
   const {jobs:[job]}=await api('jobs',{mode:'sfw',target:'local',seed:'41729',count:1,...request},crypto.randomUUID());
   for(;;){
     const status=await api('jobs/'+job.id+'/status');
-    peak=Math.max(peak,gpu());peakDuring=Math.max(peakDuring,engineApps());
+    peak=Math.max(peak,gpu());
     if(['failed','cancelled'].includes(status.state)){log({name,state:status.state,has_error:status.has_error,error:(await api('jobs/'+job.id)).error});throw Error(name+' did not complete.');}
     if(status.state==='completed')break;
     await delay(2000);
@@ -62,7 +67,7 @@ async function run(name,request){
   const asset=await api('assets/'+saved.outputs[0]);
   assert.equal(asset.executor,'local');
   log({name,state:'completed',seconds:(Date.now()-started)/1000,peak_vram_mib:peak,width:asset.width,height:asset.height,duration:asset.duration,has_audio:asset.has_audio,
-    size:asset.size,profile:saved.worker.profile,telemetry_gpu_apps:peakDuring});
+    size:asset.size,profile:saved.worker.profile});
   return saved.outputs[0];
 }
 
@@ -84,6 +89,7 @@ try{
   const sound='integrated_multimodal_description: [Shot 1] A small stream flows over mossy stones in a green wood. The camera holds still.\noverall_soundscape: Water runs over stones.\nnon_diegetic_music: N/A';
   const video={output:{size:'768p',aspect:'16:9',duration_seconds:5},audio:{output:'generated'},steps:20};
   if(wanted('text-video'))await run('text-video',{...video,workflow:'text-to-video',prompt:sound});
+  if(wanted('full-video'))await run('full-video',{...video,detail:'full',workflow:'text-to-video',prompt:sound});
   if(wanted('reference-video')){
     const asset=await upload(source,'Synthetic reference.png');
     await run('reference-video',{...video,workflow:'reference-to-video',prompt:sound.replace('A small stream','<Picture 1> A small stream'),references:[{id:'reference',asset_id:asset,kind:'image',role:'reference',framing:'fit'}]});
@@ -95,7 +101,7 @@ try{
   await api('pool/local/actions',{action:'unload'});
   const after=(await api('pool/local')).worker;
   assert.equal(after.state,'sleeping');assert.equal(after.current_job_id,undefined);
-  log({unload_seconds:(Date.now()-started)/1000,vram_before_mib:loaded,vram_after_mib:gpu(),engine_gpu_apps_after:engineApps()});
+  log({unload_seconds:(Date.now()-started)/1000,vram_before_mib:loaded,vram_after_mib:gpu(),engine_exit_code:await lastExit()});
   await app.close();closed=true;
   console.log(JSON.stringify({passed:true,root}));
 }finally{if(!closed)await app.close();}

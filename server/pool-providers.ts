@@ -320,7 +320,7 @@ export function createProviders(
             ...offer,
             cloud: "secure",
             stock: g.availability,
-            min_ram_gb: role === "image" ? 48 : 128,
+            min_ram_gb: requiredRam(role, String(g.id)),
             locations: Array.isArray(g.dataCenters) ? g.dataCenters.flatMap((d: any) =>
               typeof d.id === "string" && ["HIGH", "MEDIUM", "LOW"].includes(d.availability)
                 ? [{id: d.id, name: typeof d.name === "string" ? d.name : d.id, stock: d.availability}] : []) : undefined,
