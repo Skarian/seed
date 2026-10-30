@@ -32,9 +32,6 @@ address. Remote access requires an authenticated reverse proxy; see below.
 
 ## Remote access
 
-For this PC's boot service, active storage paths, shared Cloudflare connector,
-and lifecycle commands, see [Windows service operations](windows-service.md).
-
 In **Admin → Access**, save a **Remote URL**, for example
 `https://seed.example.com`. Seed accepts that exact HTTPS address in addition to
 its existing local address. It is stored as `publicOrigin` in the normal user

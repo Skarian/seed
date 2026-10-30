@@ -31,6 +31,29 @@ stopping the local server does not terminate a provider rental.
   Image 2.1.
 - **Video** runs text-to-video and reference-to-video with MiniMax H3.
 
+A rented worker has one role. A local worker runs one engine process that serves
+both roles, and ComfyUI swaps models itself.
+
+## One engine
+
+One software spec, [`worker/engine.json`](../worker/engine.json), defines the
+engine for cloud and local, image and video, with one lockfile per OS generated
+from it. One entry point, `worker/run.py`, starts the gateway and engine on every
+host, and one builder, `server/worker-graphs.ts`, makes every graph. Host
+differences stay in configuration.
+
+Hardware profiles in [`worker/hardware.json`](../worker/hardware.json) are
+selected by the detected GPU. A profile picks model files and attention tuning.
+Only profiled GPUs run video: the RTX 5090, local or rented, and the rented
+RTX PRO 6000.
+
+## Stopping a local engine
+
+Seed asks the engine to stop through an authenticated route. The engine ends any
+job, unloads models through ComfyUI's model management, and exits normally, and
+Seed waits for that exit. A Windows Job Object held by a small supervisor ends the
+engine only if Seed itself dies. See [Use your own GPU](local-worker.md).
+
 The application pins the deployable images by digest in
 [`worker/releases.json`](../worker/releases.json). The worker protocol and
 container layout are documented in [`worker/README.md`](../worker/README.md).

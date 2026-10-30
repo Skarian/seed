@@ -74,13 +74,13 @@ Choose imported LoRAs in Generate or let the Chat agent select them. New workers
 
 ## Use this PC
 
-The native Windows local worker is opt-in under **GPU workers → This PC**.
-Setup downloads pinned models and a managed Python environment. An enabled
-worker loads models only for qualified requests and exits two minutes after
-its final output is saved. Each request can choose **Auto**, **This PC**, or
-**Cloud**. Auto uses an available compatible rental first and never rents one
-automatically. See [local setup, qualification, and recovery](docs/local-worker.md)
-for hardware limits and storage requirements.
+Local generation is opt-in under **GPU workers → This PC** on native Windows.
+Images need 32 GB of VRAM, and video runs on an RTX 5090. Setup downloads the
+pinned models and a managed Python environment. One engine serves images and
+video, loading models when a request needs them. It unloads 20 minutes after the
+last output is saved, or at once with **Unload now**. Each request can choose
+**Auto**, **This PC**, or **Cloud**. Auto uses an idle compatible rental first,
+and Seed never rents one by itself. See [Use your own GPU](docs/local-worker.md).
 
 ## Find cloud GPUs on RunPod or Vast
 
