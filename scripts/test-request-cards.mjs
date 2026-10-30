@@ -19,7 +19,7 @@ const compiled = await run(['node_modules/typescript/bin/tsc','-p','tsconfig.ser
 if(compiled)process.exit(compiled);
 await cp('prompting',path.join(serverRoot,'prompting'),{recursive:true});
 await mkdir(path.join(serverRoot,'worker'),{recursive:true});
-for(const name of ['models-image.json','models-video.json','releases.json'])await copyFile('worker/'+name,path.join(serverRoot,'worker',name));
+for(const name of ['models-image.json','models-video.json','releases.json','hardware.json','engine.json'])await copyFile('worker/'+name,path.join(serverRoot,'worker',name));
 const built = await run(['node_modules/vite/bin/vite.js','build','--outDir',webRoot]);
 if (built) process.exit(built);
 const tested = await run(['scripts/test-browser.mjs','request-card-atlas.spec.ts','chat-branch.spec.ts','chat-branch-lifecycle.spec.ts','chat-approval-lifecycle.spec.ts','chat-approval-refresh.spec.ts',...process.argv.slice(2)], {SEED_VISUAL_ATLAS:'0',SEED_QA_WEB_ROOT:webRoot,SEED_QA_SERVER_ROOT:serverRoot,SEED_CARDS_ROOT:root,SEED_ATLAS_RUN_ID:runId});

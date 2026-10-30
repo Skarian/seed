@@ -1,4 +1,4 @@
-// Builds a compact, blind A/B judging packet from two eval runs. Usage: node scripts/eval-judge-packet.cjs runA.json runB.json out.md key.json
+// Builds a compact, blind A/B judging packet from two eval runs. Usage: node scripts/eval/judge-packet.cjs runA.json runB.json out.md key.json
 const fs=require('fs'),path=require('path');
 const [a,b,out,keyFile]=process.argv.slice(2);
 const load=f=>Object.fromEntries(require(path.resolve(f)).results.map(s=>[s.id,s]));

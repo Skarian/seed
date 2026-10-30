@@ -12,7 +12,7 @@ function run(args){return new Promise((resolve,reject)=>{const child=spawn(proce
 let code=await run(['node_modules/typescript/bin/tsc','-p','tsconfig.server.json','--outDir',serverRoot]);if(code)process.exit(code);
 await cp('prompting',path.join(serverRoot,'prompting'),{recursive:true});
 await mkdir(path.join(serverRoot,'worker'),{recursive:true});
-for(const name of ['models-image.json','models-video.json','releases.json'])await copyFile('worker/'+name,path.join(serverRoot,'worker',name));
+for(const name of ['models-image.json','models-video.json','releases.json','hardware.json','engine.json'])await copyFile('worker/'+name,path.join(serverRoot,'worker',name));
 code=await run(['node_modules/vite/bin/vite.js','build','--outDir',webRoot]);if(code)process.exit(code);
 if(process.argv.includes('--live')){code=await run(['scripts/capture-worker-offers.mjs']);if(code)process.exit(code);}
 const spec=process.argv.includes('--gpu-filter')?'gpu-type-filter.spec.ts':'worker-offers-atlas.spec.ts';

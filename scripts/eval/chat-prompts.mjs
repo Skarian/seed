@@ -1,15 +1,15 @@
 // Runs Standard-mode Chat scenarios through the real Chat service and Gemma 4 (OpenRouter),
 // in a throwaway profile, and writes the resulting request cards for evaluation.
-// Usage: node scripts/eval-chat-prompts.mjs [--prompts DIR] [--out FILE] [--only 1,2] [--holdout] [--concurrency 4]
+// Usage: node scripts/eval/chat-prompts.mjs [--prompts DIR] [--out FILE] [--only 1,2] [--holdout] [--concurrency 4]
 // --prompts copies candidate prompt files (same relative names as prompting/) over the defaults.
 import {mkdirSync,mkdtempSync,readFileSync,writeFileSync,rmSync,cpSync,existsSync} from 'node:fs';
 import path from 'node:path';
-import {openDatabase} from '../dist/server/db.js';
-import {resolvePaths,prepareStorage} from '../dist/server/storage.js';
-import {Jobs} from '../dist/server/jobs.js';
-import {Chats} from '../dist/server/chat/service.js';
-import {initializeChatPrompts} from '../dist/server/chat/prompts.js';
-import {storedCredentials} from '../dist/server/credential-store.js';
+import {openDatabase} from '../../dist/server/db.js';
+import {resolvePaths,prepareStorage} from '../../dist/server/storage.js';
+import {Jobs} from '../../dist/server/jobs.js';
+import {Chats} from '../../dist/server/chat/service.js';
+import {initializeChatPrompts} from '../../dist/server/chat/prompts.js';
+import {storedCredentials} from '../../dist/server/credential-store.js';
 
 const arg=(name,fallback)=>{const i=process.argv.indexOf(name);return i>0?process.argv[i+1]:fallback;};
 const scenariosFile=arg('--scenarios','research/prompting/scenarios.json');

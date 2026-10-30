@@ -12,6 +12,7 @@ import ffmpeg from 'ffmpeg-static';
 import { PoolWorkerDriver } from '../dist/server/pool-worker.js';
 import { resolvePaths, prepareStorage } from '../dist/server/storage.js';
 import { graphFor } from '../dist/server/worker-graphs.js';
+import { hardwareProfile } from '../dist/server/hardware.js';
 
 const exec = promisify(execFile), token = randomUUID().slice(0, 8), network = `seed-qa-${token}`;
 const releases = JSON.parse(readFileSync('worker/releases.json', 'utf8'));
@@ -44,7 +45,7 @@ function pass(name, details = {}) { results.push({ name, passed: true, ...detail
 function body(w, id, refs = []) {
   const workflow = w.worker_class === 'image' ? 'text-to-image' : refs.length ? 'reference-to-video' : 'text-to-video';
   const request = { workflow, prompt: 'Local protocol fixture', mode: 'sfw', output: { aspect: '16:9', size: w.worker_class === 'image' ? '1mp' : '768p', duration_seconds: 5 }, audio: { output: 'generated' } };
-  return { prompt_id: id, prompt: graphFor(request, id, '42', [], refs), loras: [], route: w.worker_class === 'image' ? 'image' : refs.length ? 'ref' : 'fl', ...(w.worker_class === 'video' ? { video_profile: 'h3-high-v1' } : {}) };
+  return { prompt_id: id, prompt: graphFor(request, id, '42', [], refs, hardwareProfile('NVIDIA RTX PRO 6000 Blackwell')), loras: [], route: w.worker_class === 'image' ? 'image' : refs.length ? 'ref' : 'fl', ...(w.worker_class === 'video' ? { video_profile: 'h3-high-v1' } : {}) };
 }
 async function completed(w, id) { return eventually(async () => { const r = await driver.receipt(w, id); return r?.manifest && r; }, 'terminal receipt'); }
 async function bridgeFor(name) {
