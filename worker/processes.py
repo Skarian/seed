@@ -9,6 +9,8 @@ from pathlib import Path
 async def spawn_owned(*command, **options):
     if os.name == 'posix':
         command = (sys.executable, str(Path(__file__).with_name('owned_process.py').resolve()), str(os.getpid()), *command)
+    else:
+        options['creationflags'] = 0x08000000  # No console window.
     return await asyncio.create_subprocess_exec(*command, **options, start_new_session=os.name == 'posix')
 
 

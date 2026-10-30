@@ -1,30 +1,48 @@
-"""Early authenticated API, optional administration, then a prepared engine."""
+"""One worker entry point: authenticated gateway, then the ComfyUI engine.
+
+A cloud container configures it from its environment. Seed configures a local
+worker through a launch file it writes; nothing comes from an HTTP request.
+"""
+import argparse
 import asyncio
 import json
 import os
+from contextlib import suppress
 from pathlib import Path
+from urllib.parse import urlsplit
 from aiohttp import web
 from worker.app import PREPARATION, create_app
 from worker.spool import atomic
 from worker.preparation import MANAGER
 from worker.processes import child_environment, stop_process, spawn_owned
-from worker.profile import worker_class
+from worker.profile import engine_spec, worker_class
 
 
-def launch_config(workspace, runtime):
-    workspace, runtime = Path(workspace).resolve(), Path(runtime).resolve()
-    model_root = workspace / 'ComfyUI/models'
+def loopback(origin):
+    parsed = urlsplit(origin)
+    if (parsed.scheme != 'http' or parsed.hostname != '127.0.0.1' or
+        parsed.path or parsed.query or parsed.fragment or parsed.username or parsed.password or not parsed.port):
+        raise ValueError('Workers require an explicit IPv4 loopback origin.')
+    return parsed.port
+
+
+def launch_config(config):
+    workspace, runtime = Path(config['workspace']).resolve(), Path(config['runtime']).resolve()
     spool = workspace / '.seed/spool'
-    for directory in [spool/'inputs', spool/'outputs', runtime/'comfy-user']:
-        if directory != runtime/'comfy-user' and not directory.resolve().is_relative_to(workspace):
-            raise ValueError('Spool leaves the workspace.')
+    for directory in (spool/'inputs', spool/'outputs', runtime/'comfy-user'):
         directory.mkdir(parents=True, exist_ok=True)
-    config = runtime/'extra-model-paths.yaml'
-    paths = {'seed': {'base_path': str(model_root), 'diffusion_models': 'diffusion_models', 'text_encoders': 'text_encoders', 'vae': 'vae', 'loras': 'loras'}}
-    if worker_class() == 'image':
-        paths['qwen'] = {'base_path': '/opt/models/qwen-image-2.1', 'diffusion_models': 'diffusion_models', 'text_encoders': 'text_encoders', 'vae': 'vae'}
-    config.write_text(json.dumps(paths))
-    return ['/opt/venv/bin/python', '/ComfyUI/main.py', '--listen', '127.0.0.1', '--port', '8188', '--disable-auto-launch', '--extra-model-paths-config', str(config), '--input-directory', str(spool/'inputs'), '--output-directory', str(spool/'outputs'), '--user-directory', str(runtime/'comfy-user'), '--disable-all-custom-nodes', '--whitelist-custom-nodes', 'comfy_seed']
+    folders = {'diffusion_models': 'diffusion_models', 'text_encoders': 'text_encoders', 'vae': 'vae'}
+    paths = {'seed': {'base_path': str(config['models']), **folders, 'loras': 'loras'},
+             'seed_adapters': {'base_path': str(workspace/'ComfyUI/models'), 'loras': 'loras'}}
+    if config.get('qwen_models'):
+        paths['qwen'] = {'base_path': config['qwen_models'], **folders}
+    file = runtime/'extra-model-paths.yaml'
+    atomic(file, paths)
+    return [config['python'], str(Path(config['source'])/'main.py'), '--listen', '127.0.0.1', '--port', str(loopback(config['comfy_origin'])),
+            '--disable-auto-launch', '--extra-model-paths-config', str(file),
+            '--input-directory', str(spool/'inputs'), '--output-directory', str(spool/'outputs'),
+            '--user-directory', str(runtime/'comfy-user'), '--disable-all-custom-nodes',
+            '--whitelist-custom-nodes', 'comfy_seed', *engine_spec()['flags']]
 
 
 def startup_config(env):
@@ -37,59 +55,99 @@ def startup_config(env):
     return str(workspace), public, '127.0.0.1', True
 
 
-def main():
-    os.umask(0o077)
+def cloud_config(env):
     if worker_class() not in ('image', 'video'):
         raise ValueError('Start the Image or Video worker role image')
-    workspace, public, bind, local_http = startup_config(os.environ)
-    os.environ['SEED_WORKSPACE'] = workspace
-    # This directory belongs to the disposable rental, not the process invocation.
-    runtime = Path(os.environ.get('SEED_RUNTIME_DIR', '/var/lib/seed'))
-    runtime.mkdir(parents=True, exist_ok=True)
-    app = create_app(workspace, runtime, os.environ['SEED_PAIRING_SECRET'], public,
-                     development=local_http, managed_preparation=True)
+    workspace, public, _, _ = startup_config(env)
+    return {'workspace': workspace, 'runtime': env.get('SEED_RUNTIME_DIR', '/var/lib/seed'),
+            'models': str(Path(workspace)/'ComfyUI/models'), 'source': '/ComfyUI', 'python': '/opt/venv/bin/python',
+            'origin': public, 'comfy_origin': 'http://127.0.0.1:8188', 'pairing_secret': env['SEED_PAIRING_SECRET'],
+            'port': 8080, 'prepare_models': True, 'administration': True,
+            'qwen_models': '/opt/models/qwen-image-2.1' if worker_class() == 'image' else None}
 
-    async def services(app):
+
+def local_config(file):
+    config = json.loads(Path(file).read_text(encoding='utf8'))
+    if loopback(config['origin']) == loopback(config['comfy_origin']):
+        raise ValueError('Engine and gateway ports must differ.')
+    return {**config, 'port': loopback(config['origin'])}
+
+
+def services(config):
+    workspace, runtime = str(config['workspace']), Path(config['runtime'])
+
+    async def context(app):
         children, handles = [], []
+
+        def log(name):
+            handle = open(runtime/name, 'ab')
+            handles.append(handle)
+            return handle
+
         async def admin():
             token = os.environ.get('JUPYTER_TOKEN', '')
             if len(token) < 24: return
-            config = runtime/'jupyter_config.py'
-            config.write_text('c.IdentityProvider.token = '+repr(token)+'\n')
+            settings = runtime/'jupyter_config.py'
+            settings.write_text('c.IdentityProvider.token = '+repr(token)+'\n')
             try:
-                log = open(runtime/'jupyter.log', 'ab'); handles.append(log)
                 process = await spawn_owned('/opt/venv/bin/jupyter-lab',
                     '--ip=127.0.0.1', '--port=8888', '--ServerApp.port_retries=0', '--allow-root',
-                    '--no-browser', '--ServerApp.root_dir='+workspace, '--config='+str(config),
-                    env=child_environment(), stdout=log, stderr=asyncio.subprocess.STDOUT)
+                    '--no-browser', '--ServerApp.root_dir='+workspace, '--config='+str(settings),
+                    env=child_environment(), stdout=log('jupyter.log'), stderr=asyncio.subprocess.STDOUT)
                 children.append(process)
                 await process.wait()
             except OSError:
                 pass  # Optional administration must not gate preparation or generation.
+
         async def engine():
-            await app[MANAGER].ready.wait()
-            identity_file = runtime/'identity.json'
-            identity = json.loads(identity_file.read_text())
-            identity['engine_ever_started'] = True
-            atomic(identity_file, identity)
+            if config.get('prepare_models'):
+                await app[MANAGER].ready.wait()
+                identity_file = runtime/'identity.json'
+                identity = json.loads(identity_file.read_text())
+                identity['engine_ever_started'] = True
+                atomic(identity_file, identity)
+            token = config.get('engine_token')
             try:
-                log = open(runtime/'comfy.log', 'ab'); handles.append(log)
-                process = await spawn_owned(*launch_config(workspace, runtime),
-                    cwd='/ComfyUI', env=child_environment(), stdout=log, stderr=asyncio.subprocess.STDOUT)
+                process = await spawn_owned(*launch_config(config), cwd=config['source'],
+                    env={**child_environment(), **({'SEED_ENGINE_TOKEN': token} if token else {})},
+                    stdout=log('engine.log'), stderr=asyncio.subprocess.STDOUT)
                 children.append(process)
                 app[PREPARATION].update(phase='starting engine', error=None)
-                await process.wait()
+                code = await process.wait()
                 app[PREPARATION].update(phase='engine stopped', error={'message': 'ComfyUI stopped. Inspect the private engine log.'})
+                atomic(runtime/'engine-exit.json', {'exit_code': code})
             except OSError as exc:
                 app[PREPARATION].update(phase='engine stopped', error={'message': 'Engine startup failed ('+type(exc).__name__+').'})
-        tasks = [asyncio.create_task(admin()), asyncio.create_task(engine())]
+            # A local gateway serves one engine; Seed starts a new pair for the next job.
+            if not config.get('prepare_models'): raise web.GracefulExit()
+
+        tasks = []
+        if config.get('administration'): tasks.append(asyncio.create_task(admin()))
+        if config.get('start_engine', True): tasks.append(asyncio.create_task(engine()))
+        else: app[PREPARATION].update(phase='recovering saved output', error=None)
         yield
         for task in tasks: task.cancel()
         await asyncio.gather(*tasks, return_exceptions=True)
-        for child in children: await stop_process(child)
+        for child in children:
+            with suppress(ProcessLookupError): await stop_process(child)
         for handle in handles: handle.close()
-    app.cleanup_ctx.append(services)
-    web.run_app(app, host=bind, port=8080, access_log=None, print=None)
+    return context
+
+
+def main():
+    os.umask(0o077)
+    parser = argparse.ArgumentParser()
+    parser.add_argument('--config', type=Path)
+    file = parser.parse_args().config
+    config = local_config(file) if file else cloud_config(os.environ)
+    workspace, runtime = Path(config['workspace']), Path(config['runtime'])
+    runtime.mkdir(parents=True, exist_ok=True)
+    os.environ.update(SEED_WORKSPACE=str(workspace), SEED_COMFY_URL=config['comfy_origin'])
+    if file: os.environ['SEED_WORKER_CLASS'] = 'all'
+    app = create_app(workspace, runtime, config['pairing_secret'], config['origin'], comfy_url=config['comfy_origin'],
+                     development=True, managed_preparation=bool(config.get('prepare_models')))
+    app.cleanup_ctx.append(services(config))
+    web.run_app(app, host='127.0.0.1', port=config['port'], access_log=None, print=None, shutdown_timeout=1)
 
 
 if __name__ == '__main__': main()

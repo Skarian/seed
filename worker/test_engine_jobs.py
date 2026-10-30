@@ -103,10 +103,8 @@ HEADERS = {'X-Studio-Engine-Session': 'current-engine'}
 
 
 @pytest.mark.asyncio
-async def test_drain_during_validation_does_not_write_submission(tmp_path, monkeypatch):
+async def test_stop_during_validation_does_not_write_submission(tmp_path, monkeypatch):
     client, queue, _, _ = await engine(tmp_path, monkeypatch)
-    drain = types.SimpleNamespace(state='open')
-    queue.server.seed_drain = drain
     entered, resume = asyncio.Event(), asyncio.Event()
     original = sys.modules['execution'].validate_prompt
     async def validate(*args):
@@ -115,7 +113,7 @@ async def test_drain_during_validation_does_not_write_submission(tmp_path, monke
     job = str(uuid.uuid4())
     try:
         task = asyncio.create_task(client.post('/studio/prompt', json=request_for(job), headers=HEADERS))
-        await entered.wait(); drain.state = 'draining'; resume.set()
+        await entered.wait(); queue.server.seed_stopping = True; resume.set()
         assert (await task).status == 409
         assert not spool.job_directory(tmp_path/'volume',job).joinpath('submission.json').exists()
         assert queue.put_count == 0
@@ -123,19 +121,12 @@ async def test_drain_during_validation_does_not_write_submission(tmp_path, monke
 
 
 @pytest.mark.asyncio
-async def test_refused_put_after_submission_records_failed_manifest(tmp_path, monkeypatch):
-    client, queue, _, _ = await engine(tmp_path, monkeypatch)
-    drain = types.SimpleNamespace(state='open')
-    queue.server.seed_drain = drain
-    def refuse(item):
-        drain.state = 'draining'
-        raise RuntimeError('Admission closed')
-    queue.put = refuse
-    job = str(uuid.uuid4())
+async def test_stopping_engine_refuses_new_work(tmp_path, monkeypatch):
+    client, queue, calls, _ = await engine(tmp_path, monkeypatch)
+    queue.server.seed_stopping = True
     try:
-        assert (await client.post('/studio/prompt',json=request_for(job),headers=HEADERS)).status == 409
-        record = spool.read_record(spool.job_directory(tmp_path/'volume',job))
-        assert record['manifest']['state'] == 'failed'
+        assert (await client.post('/studio/prompt', json=request_for(str(uuid.uuid4())), headers=HEADERS)).status == 409
+        assert calls == [] and queue.put_count == 0
     finally: await client.close()
 
 
@@ -415,6 +406,7 @@ async def test_quality_readiness_does_not_require_turbo_for_high(tmp_path, monke
         video = (await (await client.get('/studio/capabilities')).json())['video']
         assert video['ready'] and video['quality'] == {'high': True}
         assert video['native_export'] and video['profile_revision'] == 'h3-quality-v1'
+        assert (await (await client.get('/studio/capabilities')).json())['hardware']['profile'] == 'RTX PRO 6000'
         models['loras'] = [f'minimax_h3_{route}2v_turbo_8step_v1.0_768p_comfyui_bf16.safetensors' for route in ('fl', 'ref')]
         ck.sol_attn_is_available = lambda device: False
         video = (await (await client.get('/studio/capabilities')).json())['video']
@@ -429,13 +421,7 @@ async def test_quality_readiness_does_not_require_turbo_for_high(tmp_path, monke
 def high_graph(job_id, adapters):
     graph = {
         '6': {'class_type': 'MiniMaxH3ImageToVideo', 'inputs': {'width': 1344, 'height': 768}},
-        '7': {'class_type': 'BasicGuider', 'inputs': {'model': ['19', 0]}},
-        '9': {'class_type': 'KSamplerSelect', 'inputs': {'sampler_name': 'res_multistep'}},
-        '10': {'class_type': 'BasicScheduler', 'inputs': {'model': ['19', 0], 'scheduler': 'simple', 'steps': 30, 'denoise': 1}},
         '14': {'class_type': 'SeedVideoSave', 'inputs': {'filename_prefix': f'seed/{job_id}/video', 'export_version': 'native-v1'}},
-        '16': {'class_type': 'MiniMaxH3SigmaShift', 'inputs': {'model': ['1', 0], 'shift_video': 12, 'shift_audio': 3}},
-        '17': {'class_type': 'ModelAttentionBackend', 'inputs': {'model': [str(29 + len(adapters)), 0] if adapters else ['16', 0], 'attention': 'comfy kitchen attention'}},
-        '19': {'class_type': 'BlockSparseAttention', 'inputs': {'model': ['17', 0], 'selection': 'sol-attn', 'selection.tau': 1.3, 'start_percent': 0.2, 'end_percent': 1, 'dense_blocks': '', 'min_tokens': 12288, 'extra_tokens': 256, 'sink_conditioning': 'exact_kv_and_rows'}},
     }
     for index, item in enumerate(adapters):
         graph[str(30 + index)] = {'class_type': 'LoraLoaderModelOnly', 'inputs': {
@@ -461,86 +447,39 @@ def install_adapters(tmp_path, count=1):
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('change', [None, 'no-profile', 'wrong-profile', 'strength', 'steps', 'turbo', 'filename', 'audio-protection', 'route', 'chain', 'unselected', 'changed-file', 'too-many', 'nan'])
-async def test_selected_loras_and_quality_profile_are_verified(tmp_path, monkeypatch, change):
+@pytest.mark.parametrize('change', [None, 'strength', 'filename', 'route', 'unselected', 'changed-file', 'too-many', 'nan', 'canvas'])
+async def test_selected_loras_and_canvas_are_verified(tmp_path, monkeypatch, change):
     client, queue, _, _ = await engine(tmp_path, monkeypatch)
     try:
         adapters = install_adapters(tmp_path, 4 if change == 'too-many' else 3)
         job_id = str(uuid.uuid4())
         graph = high_graph(job_id, adapters)
-        body = {'prompt_id': job_id, 'prompt': graph, 'loras': adapters, 'route': 'fl', 'video_profile': 'h3-high-v1'}
-        if change == 'no-profile': del body['video_profile']
-        if change == 'wrong-profile': body['video_profile'] = 'anything'
+        body = {'prompt_id': job_id, 'prompt': graph, 'loras': adapters, 'route': 'fl'}
         if change == 'strength': graph['30']['inputs']['strength_model'] = 0.7
-        if change == 'steps': graph['10']['inputs']['steps'] = 8
-        if change == 'turbo': graph['5'] = {'class_type': 'LoraLoaderModelOnly'}
         if change == 'filename': graph['30']['inputs']['lora_name'] = 'different.safetensors'
-        if change == 'audio-protection': graph['19']['inputs']['sink_conditioning'] = 'off'
         if change == 'route': body['route'] = 'image'
-        if change == 'chain': graph['31']['inputs']['model'] = ['16', 0]
         if change == 'unselected': body['loras'] = adapters[:2]
         if change == 'changed-file': (tmp_path / 'volume/ComfyUI/models/loras' / adapters[0]['filename']).write_bytes(b'changed')
         if change == 'nan': body['loras'][0]['strength_model'] = float('nan')
+        if change == 'canvas': graph['6']['inputs']['width'] = 1000
         response = await client.post('/studio/prompt', json=body, headers=HEADERS)
         assert response.status == (422 if change else 200)
         assert queue.put_count == (0 if change else 1)
         if not change:
             record = spool.read_record(spool.job_directory(tmp_path / 'volume', job_id))
-            assert record['submission']['video_profile'] == 'h3-high-v1'
             assert [x['strength_model'] for x in record['submission']['loras']] == [0, 1.5, 4]
     finally:
         await client.close()
 
 
 @pytest.mark.asyncio
-@pytest.mark.parametrize('steps', [10, 15, 20, 30])
-@pytest.mark.parametrize('mismatch', [False, True])
-async def test_video_step_profile_matches_graph(tmp_path, monkeypatch, steps, mismatch):
+@pytest.mark.parametrize('role,status', [('image', 422), ('video', 200), ('all', 200)])
+async def test_worker_class_decides_which_routes_run(tmp_path, monkeypatch, role, status):
+    monkeypatch.setenv('SEED_WORKER_CLASS', role)
     client, queue, _, _ = await engine(tmp_path, monkeypatch)
     try:
         job_id = str(uuid.uuid4())
-        graph = high_graph(job_id, [])
-        graph['10']['inputs']['steps'] = 8 if mismatch else steps
-        profile = 'h3-high-v1' if steps == 30 else f'h3-base-{steps}-v1'
-        response = await client.post('/studio/prompt', json={'prompt_id': job_id, 'prompt': graph, 'loras': [], 'route': 'fl', 'video_profile': profile}, headers=HEADERS)
-        assert response.status == (422 if mismatch else 200)
-        assert queue.put_count == (0 if mismatch else 1)
-    finally:
-        await client.close()
-
-
-@pytest.mark.asyncio
-async def test_worker_class_fences_video_on_image_worker(tmp_path, monkeypatch):
-    monkeypatch.setenv('SEED_WORKER_CLASS', 'image')
-    client, queue, _, _ = await engine(tmp_path, monkeypatch)
-    try:
-        job_id = str(uuid.uuid4())
-        response = await client.post('/studio/prompt', json={'prompt_id': job_id, 'prompt': high_graph(job_id, []), 'loras': [], 'route': 'fl', 'video_profile': 'h3-high-v1'}, headers=HEADERS)
-        assert response.status == 422 and queue.put_count == 0
-    finally:
-        await client.close()
-
-
-@pytest.mark.asyncio
-@pytest.mark.parametrize('steps', [10, 15, 20, 30])
-@pytest.mark.parametrize('mismatch', [None, 'encoder', 'vae', 'acceleration'])
-async def test_official_video_profile_validates_models_and_sampler(tmp_path, monkeypatch, steps, mismatch):
-    client, queue, _, _ = await engine(tmp_path, monkeypatch)
-    try:
-        job_id = str(uuid.uuid4())
-        graph = high_graph(job_id, [])
-        for key in ('16', '17', '19'):
-            del graph[key]
-        graph['2'] = {'class_type': 'CLIPLoader', 'inputs': {'clip_name': 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors', 'type': 'minimax', 'device': 'default'}}
-        graph['3'] = {'class_type': 'VAELoader', 'inputs': {'vae_name': 'minimax_h3_video_vae_int8_convrot.safetensors'}}
-        graph['4'] = {'class_type': 'VAELoader', 'inputs': {'vae_name': 'minimax_h3_audio_vae_fp32.safetensors'}}
-        graph['7']['inputs']['model'] = ['1', 0]
-        graph['10']['inputs'].update(model=['1', 0], steps=steps)
-        if mismatch == 'encoder': graph['2']['inputs']['clip_name'] = 'qwen3vl_32b_minimax_h3_int8_convrot.safetensors'
-        if mismatch == 'vae': graph['3']['inputs']['vae_name'] = 'minimax_h3_video_vae_fp16.safetensors'
-        if mismatch == 'acceleration': graph['19'] = {'class_type': 'BlockSparseAttention', 'inputs': {}}
-        response = await client.post('/studio/prompt', json={'prompt_id': job_id, 'prompt': graph, 'loras': [], 'route': 'fl', 'video_profile': f'h3-official-{steps}-v1'}, headers=HEADERS)
-        assert response.status == (422 if mismatch else 200)
-        assert queue.put_count == (0 if mismatch else 1)
+        response = await client.post('/studio/prompt', json={'prompt_id': job_id, 'prompt': high_graph(job_id, []), 'loras': [], 'route': 'fl'}, headers=HEADERS)
+        assert response.status == status
     finally:
         await client.close()

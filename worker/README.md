@@ -5,13 +5,28 @@ The complete base-image provenance and reproducible mirror procedure are in the
 mirror of the upstream Docker Hub image; the role-specific stages below are
 built from the tracked Dockerfile in this repository.
 
-The Video role uses its pinned H3 ComfyUI runtime.
-The Image role upgrades ComfyUI to the revision in qwen-model.json and shares
-one process between Krea and Qwen. It includes 17.28 GB of verified Qwen Image
-2.1 INT8 ConvRot model/encoder and BF16 VAE files, with the model license.
-No separate Diffusers environment remains. Qwen loads on the first editing job.
-Generate and Chat support image editing. Offline tests do not substitute for
-role-specific CUDA, performance, and output-quality qualification.
+## One engine
+
+`engine.json` is the one software spec for cloud and local, image and video:
+Python, ComfyUI, PyTorch, the native kernels, and the launch flags. To upgrade,
+edit that file, run `node scripts/lock-engine.mjs`, and test. The script writes
+one hashed lockfile per OS, `requirements-windows.lock` and
+`requirements-linux.lock`. `--disable-comfy-compiler` stays on every host.
+
+`run.py` is the one worker entry point. A cloud container configures it from its
+environment. Seed configures a local worker through a launch file.
+`install_engine.py` applies the spec to the worker image at build time.
+
+`hardware.json` holds hardware profiles, selected by the detected GPU rather than
+by cloud or local. A profile names the video model files, the attention tuning,
+and its VRAM and RAM needs. `5090` covers local and rented RTX 5090s;
+`RTX PRO 6000` covers rented 96 GB cards. Both use the same weights today, and
+they can diverge by editing that file. Only these two GPUs are offered for video.
+
+The Image image bakes in 17.28 GB of verified Qwen Image 2.1 INT8 ConvRot model,
+encoder, and BF16 VAE files, with the model license. Krea and Qwen share one
+process, and Qwen loads on the first editing job. Local workers download the same
+files during setup.
 
 Build locally (no cloud allocation or publishing):
 
@@ -44,10 +59,9 @@ protocol version is 2. Identity includes `worker_class`, `runtime_revision`,
 Pairing connection-code envelope version 1 is unchanged.
 
 Engine readiness also verifies the assigned CUDA hardware: exactly one visible
-GPU, at least 32 GB for Image or 96 GB for Video with 5% capacity tolerance for
-driver reservations, and RTX PRO 6000 Blackwell for Video. Capabilities include
-the actual device name and physical VRAM. Passing this check does not qualify
-throughput or image quality on cheaper Image GPUs.
+GPU and enough memory, with 5% tolerance for driver reservations. Image needs
+32 GB. Video needs a hardware profile and that profile's VRAM. Capabilities
+include the device name, physical VRAM, and the selected profile.
 
 Preparation PUT body is `{entries, credentials, revision}`. Credentials retain
 the transport field names `huggingFaceToken` and `civitaiApiToken`, are supplied
@@ -73,21 +87,29 @@ never handles LoRA files.
 
 Capabilities and status report `installed_loras` as
 `[{filename, sha256, routes}]`. New imports require later workers. Each job sends
-`{prompt_id, prompt, route, loras, video_profile?}`; `loras` contains up to three
-ordered `{filename, sha256, strength_model}` selections, strengths 0–4. Adapter
-nodes 30–32 form the same ordered chain from image node 1 or video node 16.
-The image sampler consumes the final chain; H3 node 17 consumes it before the
-unchanged Kitchen/Sol attention and 30-step `h3-high-v1` profile. No global preset
-or hidden strength override is applied.
+`{prompt_id, prompt, route, loras}`; `loras` contains up to three ordered
+`{filename, sha256, strength_model}` selections, strengths 0–4. Adapter nodes
+30–32 form the same ordered chain from image node 1 or video node 16. The worker
+checks the LoRA inventory, safe paths, and canvas sizes. Graphs come from one
+builder, `server/worker-graphs.ts`, and are the same on every host.
+
+Video settings are `steps` (10, 15, 20, 30) and `detail`. `standard` samples
+with Sol sparse attention. `full` drops the sparse node and uses dense Kitchen
+attention. Any steps value works with either detail.
+
+`POST /studio/stop` stops a local engine. It requires the launch token, refuses
+new work, interrupts any job and waits for it to end, unloads models through
+ComfyUI's model management, then leaves through ComfyUI's normal exit path.
+Cloud engines get no token, so the route refuses every call there.
 
 ## Validation
 
 Run `python -m pytest worker` using `requirements-test.txt`. The tests do not
-require a GPU. Local container checks validate startup, role assets and pinned
-packages. They do not qualify CUDA execution, generation performance or Qwen
-editing quality. Record actual image-build results separately from unit tests.
+need a GPU. Local container checks cover startup, role assets, and pinned
+packages. They do not cover CUDA execution, speed, or output quality, so record
+image-build results separately from unit tests.
 
 Keep private build logs outside the repository. Before changing `releases.json`,
-record and verify the source revision, resulting registry digest, anonymous pull,
-and role-specific test results. CUDA generation and provider startup still
-require an explicit rented-GPU qualification.
+record and verify the source revision, registry digest, anonymous pull, and
+role-specific test results. CUDA generation and provider startup still need a
+real rented GPU.

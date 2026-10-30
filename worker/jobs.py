@@ -86,7 +86,7 @@ def install(app, workspace, comfy_url, authenticated, preparation=None):
     async def relay(request):
         authorize(request)
         route = request.match_info['route']
-        allowed = {'session': ('GET', '/studio/session'), 'queue': ('GET', '/queue'), 'capabilities': ('GET', '/studio/capabilities'), 'prompt': ('POST', '/studio/prompt'), 'cancel': ('POST', '/studio/cancel'), 'quiesce': ('POST', '/studio/quiesce')}
+        allowed = {'session': ('GET', '/studio/session'), 'queue': ('GET', '/queue'), 'capabilities': ('GET', '/studio/capabilities'), 'prompt': ('POST', '/studio/prompt'), 'cancel': ('POST', '/studio/cancel')}
         if route not in allowed or request.method != allowed[route][0]: raise web.HTTPNotFound()
         payload = await request.read() if request.method == 'POST' else None
         # Ready is terminal for a preparation manifest: cancellation or mutation

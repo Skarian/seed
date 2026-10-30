@@ -6,7 +6,7 @@ import pytest
 from aiohttp import web
 from worker.preparation import Preparation, manifest
 from worker.model_files import activate, locations
-from worker.profile import hardware_capabilities, identity, role_models, installed_loras
+from worker.profile import engine_spec, hardware_capabilities, hardware_profile, identity, role_models, installed_loras
 from worker.download_process import prepare
 
 
@@ -152,7 +152,7 @@ def test_download_rejects_non_adapter_even_with_matching_hash(tmp_path):
 
 def test_qwen_lock_has_real_complete_weights_and_no_floating_revision():
     value = json.loads(Path(__file__).with_name('qwen-model.json').read_text())
-    assert len(value['revision']) == 40 and len(value['comfy_revision']) == 40
+    assert len(value['revision']) == 40
     assert value['total_bytes'] == sum(item['size'] for item in value['files'])
     assert 17_000_000_000 < value['total_bytes'] < 18_000_000_000
     for component in ('diffusion_models', 'text_encoders', 'vae'):
@@ -164,6 +164,11 @@ def test_qwen_lock_has_real_complete_weights_and_no_floating_revision():
     ('image', 'NVIDIA GeForce RTX 4090', 24, 1, False),
     ('image', 'NVIDIA RTX PRO 6000 Blackwell', 96, 2, False),
     ('video', 'NVIDIA RTX PRO 6000 Blackwell Server Edition', 92, 1, True),
+    ('video', 'NVIDIA GeForce RTX 5090', 31, 1, True),
+    ('video', 'NVIDIA GeForce RTX 5090', 24, 1, False),
+    ('all', 'NVIDIA GeForce RTX 5090', 31, 1, True),
+    ('all', 'NVIDIA RTX A6000', 48, 1, True),
+    ('all', 'NVIDIA GeForce RTX 4090', 24, 1, False),
     ('video', 'NVIDIA RTX PRO 6000 Blackwell', 90, 1, False),
     ('video', 'NVIDIA A100', 96, 1, False),
     ('image', '', 0, 0, False),
@@ -185,14 +190,26 @@ def test_cuda_initialization_error_is_safe_not_ready():
     assert not result['ready'] and 'private' not in result['error']
 
 
-@pytest.mark.parametrize('role,name,ready', [
-    ('image', 'NVIDIA GeForce RTX 5090', True),
-    ('video', 'NVIDIA GeForce RTX 5090', False),
-    ('image', 'Different GPU', False),
-])
-def test_local_images_are_enabled_without_enabling_experimental_video(monkeypatch, role, name, ready):
-    from types import SimpleNamespace
-    monkeypatch.setenv('SEED_EXECUTOR', 'local')
-    cuda = SimpleNamespace(is_available=lambda: True, device_count=lambda: 1,
-        get_device_properties=lambda index: SimpleNamespace(name=name, total_memory=32 * 1024**3))
-    assert hardware_capabilities(role, cuda)['ready'] is ready
+def test_hardware_profile_follows_the_detected_gpu():
+    assert hardware_profile('NVIDIA GeForce RTX 5090')['id'] == '5090'
+    assert hardware_profile('RTX 5090')['id'] == '5090'
+    assert hardware_profile('NVIDIA RTX PRO 6000 Blackwell Server Edition')['id'] == 'RTX PRO 6000'
+    assert hardware_profile('NVIDIA GeForce RTX 4090') is None
+
+
+def test_every_profile_names_files_in_its_manifest():
+    for profile in json.loads(Path(__file__).with_name('hardware.json').read_text()):
+        models = {Path(item['path']).name for item in json.loads(Path(__file__).with_name(profile['manifest']).read_text())}
+        names = [profile['models']['video'].format(route=route) for route in ('fl', 'ref')]
+        names += [profile['models'][key] for key in ('text_encoder', 'video_vae', 'audio_vae')]
+        assert set(names) == models
+
+
+def test_engine_spec_is_complete_and_keeps_the_compiler_off():
+    spec = engine_spec()
+    assert spec['flags'] == ['--disable-comfy-compiler']
+    assert len(spec['comfyui']['revision']) == 40
+    for name in ('windows', 'linux'):
+        lock = Path(__file__).with_name(f'requirements-{name}.lock').read_text()
+        for package, version in spec['packages'].items():
+            assert f'{package}=={version} ' in lock

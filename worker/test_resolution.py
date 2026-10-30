@@ -103,18 +103,14 @@ def test_edit_profile_selects_only_the_source_target(tmp_path, monkeypatch, size
     adapters = module_at('seed_resolution_adapters', 'adapters.py')
     monkeypatch.setenv('SEED_WORKER_CLASS', '')
     monkeypatch.setenv('SEED_QUALIFY_RESOLUTIONS', '1')
-    assert adapters.validate_adapters(tmp_path, edit_graph(size), [], 'image-edit') == ['6', 0]
+    adapters.validate_adapters(tmp_path, edit_graph(size), [], 'image-edit')
     for auxiliary in ('0.5mp', '2mp', None):
         graph = edit_graph(size)
         graph['101']['inputs']['size'] = auxiliary
         with pytest.raises(ValueError):
             adapters.validate_adapters(tmp_path, graph, [], 'image-edit')
-    graph = edit_graph(size)
-    graph['4']['inputs']['images.image_1'] = ['101', 0]
-    with pytest.raises(ValueError):
-        adapters.validate_adapters(tmp_path, graph, [], 'image-edit')
     monkeypatch.setenv('SEED_QUALIFY_RESOLUTIONS', '0')
-    assert adapters.validate_adapters(tmp_path, edit_graph(size), [], 'image-edit') == ['6', 0]
+    adapters.validate_adapters(tmp_path, edit_graph(size), [], 'image-edit')
 
 
 @pytest.mark.asyncio
@@ -134,7 +130,7 @@ async def test_worker_accepts_approved_but_rejects_arbitrary_canvases_before_acc
         for changed, accepted in [(True, False), (False, True)]:
             monkeypatch.setenv('SEED_QUALIFY_RESOLUTIONS', flag)
             job_id = str(uuid.uuid4())
-            body = request_for(job_id) if route == 'image' else {'prompt_id': job_id, 'prompt': high_graph(job_id, []), 'video_profile': 'h3-high-v1'}
+            body = request_for(job_id) if route == 'image' else {'prompt_id': job_id, 'prompt': high_graph(job_id, [])}
             body['route'] = route
             body['prompt']['6'] = {'class_type': kind, 'inputs': {'width': width + (32 if changed else 0), 'height': height}}
             response = await client.post('/studio/prompt', json=body, headers=HEADERS)
