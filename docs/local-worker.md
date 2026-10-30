@@ -11,7 +11,7 @@ means an RTX 5090.
 ## Set up
 
 1. Open **GPU workers → Workers → This PC** and choose **Set up local GPU**.
-2. Allow about 95 GiB for the models and 140 GiB free for the first setup.
+2. Allow about 104 GiB for the models and 140 GiB free for the first setup.
    Seed checks free space, verifies every download by hash, and resumes partial
    downloads when you retry.
 3. Choose **Enable This PC**. The card shows the GPU and its state.

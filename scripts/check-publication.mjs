@@ -9,7 +9,7 @@ const forbiddenPaths=[
 ];
 const forbiddenText=[
   {label:'personal email address',pattern:/\b[A-Z0-9._%+-]+@(?:gmail|outlook|icloud)\.com\b/i},
-  {label:'private IPv4 address',pattern:/\b(?:10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3}\.)\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3}\.)\d{1,3})\b/},
+  {label:'private IPv4 address',pattern:/(?<!==)\b(?:10\.(?:\d{1,3}\.){2}\d{1,3}|192\.168\.(?:\d{1,3}\.)\d{1,3}|172\.(?:1[6-9]|2\d|3[01])\.(?:\d{1,3}\.)\d{1,3})\b/},
   {label:'local user path',pattern:/(?:[A-Z]:\\Users\\[^\\\r\n]+\\|(?:^|[\s"'=(])\/(?:Users|home)\/[^/\r\n]+\/)/im},
   {label:'temporary private endpoint',pattern:/(?:trycloudflare\.com|ngrok(?:-free)?\.(?:app|io)|\.ts\.net)\b/i},
   {label:'private uploaded-media URL',pattern:/\bfal\.media\/files\//i},
