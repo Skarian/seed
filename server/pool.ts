@@ -1,5 +1,4 @@
 import type Database from "better-sqlite3";
-import {videoProfile} from '../shared/video-settings.js';
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
@@ -33,12 +32,13 @@ import type {ImageRequest} from './workflows.js';
 const stopped = (w: RentalRecord) => w.state === "released";
 export class WorkerPool {
   local?:LocalWorker;
-  async localAction(action:'enable'|'disable'|'pause'|'cancel'|'recover'|'force-stop'){
+  async localAction(action:'enable'|'disable'|'pause'|'cancel'|'recover'|'unload'){
     if(!this.local)throw Error('Local workers are unavailable.');
     if(action==='enable'||action==='disable')await this.local.enable(action==='enable');
     else if(action==='pause')await this.local.pause();
     else if(action==='recover')await this.local.recover();
-    else await this.local.cancelNow(id=>this.cancelJobs(id),action==='force-stop');
+    else if(action==='unload')await this.local.unload();
+    else await this.local.cancelNow(id=>this.cancelJobs(id));
     return this.snapshot();
   }
   executor(id:string):ExecutionWorker|null {const local=this.local?.get();return local?.id===id?local:this.get(id);}
@@ -47,13 +47,13 @@ export class WorkerPool {
     if(localExecutor(worker)){if(!this.local)throw Error('Local worker is unavailable.');return bindExecutor(new LocalTransport(this.local.runtime),worker);}
     return bindExecutor(this.dependencies.worker,worker);
   }
-  claimExecutor(job:string,request:ImageRequest,loras:LoraSelection[],created_at:string,dimensions?:{width:number;height:number}):ExecutionWorker|null {
+  claimExecutor(job:string,request:ImageRequest,loras:LoraSelection[],created_at:string):ExecutionWorker|null {
     if(request.target!=='local'){
       const video=request.workflow.endsWith('video');
-      const rented=this.claim(job,video?'video':'image',loras,created_at,request.workflow,video?videoProfile(request):undefined);
+      const rented=this.claim(job,video?'video':'image',loras,created_at,request.workflow);
       if(rented)return rented;
     }
-    return request.target==='cloud'?null:this.local?.claim(job,request,dimensions)??null;
+    return request.target==='cloud'?null:this.local?.claim(job,request)??null;
   }
   private timer?: ReturnType<typeof setInterval>;
   private closing = false;
@@ -223,7 +223,6 @@ export class WorkerPool {
       preparation: w.preparation,
       installed_loras: w.installed_loras,
       workflows: w.workflows,
-      video_profiles: w.video_profiles,
       actions,
       console_url: w.console_url,
     };
@@ -603,7 +602,6 @@ export class WorkerPool {
       if(current.current_job_id && health.active_job_id===current.current_job_id)current.current_activity=health.activity;
       else if(current.current_activity!=='Downloading base models through this PC')delete current.current_activity;
       current.workflows = health.workflows;
-      current.video_profiles = health.video_profiles;
       current.session_id = health.session_id;
       current.preparation_revision =
         health.revision ?? current.preparation_revision;
@@ -926,12 +924,10 @@ export class WorkerPool {
     loras: LoraSelection[],
     created_at: string,
     workflow?: string,
-    video_profile?: string,
   ) {
     return this.db.transaction(() => {
       const w = this.all().find(
-        (w) => !w.current_job_id && this.compatible(w, role, loras, created_at) && (workflow!=='image-to-image'||w.workflows?.includes(workflow)) &&
-          (!video_profile||(w.video_profiles??['h3-high-v1']).includes(video_profile)),
+        (w) => !w.current_job_id && this.compatible(w, role, loras, created_at) && (workflow!=='image-to-image'||w.workflows?.includes(workflow)),
       );
       if (!w) return null;
       const id = randomUUID();

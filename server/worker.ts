@@ -19,7 +19,7 @@ export type WorkerStatus = {
   terminal_error?: {job_id:string;message:string}|null;
   execution_activity?: {phase:string;percent?:number};
   active_prompt_id?: string | null;
-  worker_class: "image"|"video";
+  worker_class: "image"|"video"|"all";
   runtime_revision: string;
   installed_loras: Array<{filename:string;sha256:string;routes:string[]}>;
   protocol_version: 2;
@@ -255,7 +255,7 @@ export class WorkerConnection {
   ) {
     const connection = await this.requireVerified();
     if (
-      !/^\/(comfy\/(session|queue|capabilities|prompt|cancel|quiesce)|worker\/v1\/(jobs(?:[/?].*)?|preparation(?:\/omit)?|model-uploads\/[a-f0-9]{64}))$/.test(
+      !/^\/(comfy\/(session|queue|capabilities|prompt|cancel)|worker\/v1\/(jobs(?:[/?].*)?|preparation(?:\/omit)?|model-uploads\/[a-f0-9]{64}))$/.test(
         route,
       )
     )

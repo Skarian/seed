@@ -137,6 +137,19 @@ it('accepts Vast Blackwell WS/Server aliases only with corroborating compute cap
     ]}));
     expect((await providers.vast.offers('video',release)).map(r=>r.data.offer_id)).toEqual([1,2]);
   }));
+it('offers RTX 5090 and RTX PRO 6000 for video, naming the profile that applies, and nothing else', () =>
+  fixture(async (providers,requests,respond) => {
+    const consumer={...gpu,id:'NVIDIA GeForce RTX 5090',memory:32};
+    respond(()=>json({gpus:[gpu,consumer,{...gpu,id:'NVIDIA GeForce RTX 4090',memory:24},{...gpu,id:'NVIDIA A100',memory:96}]}));
+    const offers=await providers.runpod.offers('video',release);
+    expect(offers.map(r=>[r.offer.gpu,r.offer.hardware_profile,r.offer.min_ram_gb])).toEqual([
+      ['NVIDIA RTX PRO 6000 Blackwell Server Edition','RTX PRO 6000',128],['NVIDIA GeForce RTX 5090','RTX 5090',64]]);
+    await providers.runpod.create(record(offers[1]!),{public_key:'fixture',pairing_secret:'fixture'});
+    expect(requests.find(r=>r.method==='POST')!.body.gpu.minRamPerGpu).toBe(64);
+    respond(()=>json({offers:[{...vastOffer,id:1},{...vastOffer,id:2,gpu_name:'RTX 5090',gpu_ram:32000,cpu_ram:64000},{...vastOffer,id:3,gpu_name:'RTX 5090',gpu_ram:32000,cpu_ram:32000},{...vastOffer,id:4,gpu_name:'RTX 5080',gpu_ram:16000}]}));
+    expect((await providers.vast.offers('video',release)).map(r=>[r.data.offer_id,r.offer.hardware_profile])).toEqual([[1,'RTX PRO 6000'],[2,'RTX 5090']]);
+    expect(requests.at(-1)!.body.gpu_ram).toEqual({gte:32000});
+  }));
 it('replays observed RunPod startup, direct SSH readiness, and confirmed deletion', () =>
   fixture(async (providers, requests, respond) => {
     const observed=(name:string)=>JSON.parse(readFileSync(new URL('./fixtures/provider-synthetic/'+name+'.json',import.meta.url),'utf8'));

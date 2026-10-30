@@ -21,7 +21,7 @@ export class LocalTransport extends WorkerTransport<LocalWorkerRecord>{
   protected async connection(_worker:LocalWorkerRecord){return this.runtime.connection();}
   async probe(worker:LocalWorkerRecord):Promise<WorkerProbe>{
     const connection=await this.connection(worker),status=await connection.status({fresh:true});
-    if(!status||status.worker_class!==worker.worker_class)throw Error('The local engine identity could not be verified.');
+    if(status?.worker_class!=='all')throw Error('The local engine identity could not be verified.');
     return {state:status.state,session_id:status.engine_session_id,active_job_id:status.active_prompt_id??undefined,
       workspace_id:status.workspace_id,worker_instance_id:status.worker_instance_id};
   }

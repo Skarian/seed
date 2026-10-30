@@ -5,7 +5,7 @@ import path from 'node:path';
 import {fileURLToPath} from 'node:url';
 import type {StudioPaths} from './storage.js';
 import {localLease} from '../scripts/local-lock.mjs';
-import {localRuntimeManifest} from './local-runtime.js';
+import {engineSpec,hardwareProfile,hardwareProfiles} from './hardware.js';
 
 const packageRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 type Model={path:string;size:number;sha256:string};
@@ -22,28 +22,36 @@ export class LocalSetup {
     try{this.progress=JSON.parse(readFileSync(path.join(this.root,'setup-status.json'),'utf8'));}catch{}
     if(this.progress.state==='running')this.progress={state:'failed',phase:'Setup interrupted',error:'Resume setup to verify existing files and continue downloads.'};
   }
-  private async models(role?:'image'):Promise<Model[]>{
+  private async models():Promise<Model[]>{
     const read=async(name:string)=>JSON.parse(await readFile(path.join(packageRoot,'worker',name),'utf8'));
-    return [...await read('models-image.json'),...(role==='image'?[]:await read('models-local-video.json')),...(await read('qwen-model.json')).files];
+    // The detected GPU picks the profile once the runtime exists; until then show the first estimate.
+    let gpu:string|undefined;
+    try{gpu=JSON.parse(await readFile(path.join(this.root,'runtime-ready.json'),'utf8')).gpu;}catch{}
+    const profile=gpu===undefined?hardwareProfiles()[0]:hardwareProfile(gpu);
+    const files:Model[]=[...await read('models-image.json'),...(profile?await read(profile.manifest):[]),...(await read('qwen-model.json')).files];
+    return [...new Map(files.map(file=>[file.path,file])).values()];
   }
   private async persist(){
     const file=path.join(this.root,'setup-status.json');
     await writeFile(file+'.tmp',JSON.stringify(this.progress));await rename(file+'.tmp',file);
   }
   async status(){
-    const models=await this.models(),imageModels=await this.models('image');let bytes=0,complete=0;
-    const completePaths=new Set<string>();
+    const models=await this.models();let bytes=0,complete=0;
     for(const model of models){
       for(const suffix of ['','.part']){
         let file;
-        try{file=await open(path.join(this.root,'models',model.path+suffix));const stat=await file.stat();bytes+=Math.min(stat.size,model.size);if(!suffix&&stat.size===model.size){complete++;completePaths.add(model.path);}break;}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}finally{await file?.close();}
+        try{file=await open(path.join(this.root,'models',model.path+suffix));const stat=await file.stat();bytes+=Math.min(stat.size,model.size);if(!suffix&&stat.size===model.size)complete++;break;}catch(error){if((error as NodeJS.ErrnoException).code!=='ENOENT')throw error;}finally{await file?.close();}
       }
     }
-    let runtime=false,verified=false,imageInstalled=false;
-    try{const ready=JSON.parse(await readFile(path.join(this.root,'runtime-ready.json'),'utf8'));const current=ready.revision===localRuntimeManifest().revision;runtime=Boolean(current&&ready.roles?.image&&ready.roles?.video);const saved=JSON.parse(await readFile(path.join(this.root,'models-verified.json'),'utf8'));const matches=(model:Model)=>saved.files?.some((entry:Model)=>entry.path===model.path&&entry.sha256===model.sha256&&entry.size===model.size);verified=models.every(matches);imageInstalled=Boolean(current&&ready.roles?.image&&imageModels.every(model=>completePaths.has(model.path)&&matches(model)));}catch{}
+    let runtime=false,verified=false;
+    try{
+      runtime=JSON.parse(await readFile(path.join(this.root,'runtime-ready.json'),'utf8')).revision===engineSpec().revision;
+      const saved=JSON.parse(await readFile(path.join(this.root,'models-verified.json'),'utf8'));
+      verified=models.every(model=>saved.files?.some((entry:Model)=>entry.path===model.path&&entry.sha256===model.sha256&&entry.size===model.size));
+    }catch{}
     let disk:number|undefined,candidate=this.root;
     for(;;){try{const space=await statfs(candidate);disk=space.bavail*space.bsize;break;}catch{const parent=path.dirname(candidate);if(parent===candidate)break;candidate=parent;}}
-    return {supported:process.platform==='win32',installed:runtime&&verified&&complete===models.length,image_installed:imageInstalled,...this.progress,
+    return {supported:process.platform==='win32',installed:runtime&&verified&&complete===models.length,...this.progress,
       disk_free_bytes:disk,required_additional_bytes:Math.max(0,models.reduce((sum,file)=>sum+file.size,0)-bytes)+(runtime?2:36)*1024**3,
       bytes_done:bytes,bytes_total:models.reduce((sum,file)=>sum+file.size,0),files_done:complete,files_total:models.length};
   }
@@ -87,9 +95,9 @@ export class LocalSetup {
     await mkdir(this.root,{recursive:true});const release=await localLease(this.root);
     try{
       const root=await realpath(this.root);
-      const names=[...(kind!=='runtime'?['models','models-verified.json']:[]),...(kind!=='models'?['image','video','python','tools','cache','downloads','runtime-ready.json']:[])];
-      // A fixed allowlist excludes the durable workspace, Library, receipts,
-      // qualification results and diagnostic logs. Refuse redirected targets.
+      const names=[...(kind!=='runtime'?['models','models-verified.json']:[]),...(kind!=='models'?['engine','image','video','python','tools','cache','downloads','runtime-ready.json']:[])];
+      // A fixed allowlist excludes the durable workspace, Library, receipts and
+      // diagnostic logs. Refuse redirected targets.
       for(const name of names){
         const target=path.resolve(root,name);const relative=path.relative(root,target);
         if(!relative||relative.startsWith('..')||path.isAbsolute(relative))throw Error('Cleanup target leaves the managed installation.');

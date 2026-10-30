@@ -5,6 +5,7 @@ import path from 'node:path';
 import sharp from 'sharp';
 import {imageRequest} from '../server/workflows.js';
 import {graphFor} from '../server/worker-graphs.js';
+import {hardwareProfile} from '../server/hardware.js';
 import {editDimensions} from '../server/image-edit.js';
 import {Media,probe,transcode,type PreparedReference} from '../server/media.js';
 import {Jobs} from '../server/jobs.js';
@@ -55,7 +56,7 @@ describe('request and graph resolution contracts',()=>{
     for(const route of ['fl','ref'])for(const aspect of ['16:9','9:16']){
       const refs:InputReference[]=[{...source,role:'first_frame'},{...source,id:'last',role:'last_frame'},...(route==='ref'?[auxiliary]:[])];
       const prepared=refs.map(r=>({...r,file:r.id,filename:r.id+'.png',sha256:'fixture'}));
-      const graph=graphFor(imageRequest(requestFor('reference-to-video',size,aspect,refs)),'job','42',[],prepared);
+      const graph=graphFor(imageRequest(requestFor('reference-to-video',size,aspect,refs)),'job','42',[],prepared,hardwareProfile('RTX 5090'));
       expect(graph['6']!.class_type).toBe(route==='fl'?'MiniMaxH3ImageToVideo':'MiniMaxH3ReferenceToVideo');
       expect(graph['6']!.inputs).toMatchObject({width:aspect==='16:9'?width:height,height:aspect==='16:9'?height:width,length:124});
       expect(graph['14']!.inputs).toMatchObject({seconds:5,export_version:'native-v1'});

@@ -1,12 +1,12 @@
 import {localExecutor,type ExecutionWorker} from './executors.js';
-import {videoProfile} from '../shared/video-settings.js';
 import { Media, type PreparedReference, probe } from "./media.js";
-import { loraRoute, executionRoute, isVideoWorkflow, supportsWorkflow, QWEN_PROFILE, QWEN_SETTINGS } from "../shared/workflows.js";
+import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, supportsWorkflow, QWEN_PROFILE, QWEN_SETTINGS } from "../shared/workflows.js";
 import { workerClassFor } from "../shared/pool.js";
 import { Loras, digest, sourceReady, type LoraSelection } from "./loras.js";
 import { WorkerPool } from "./pool.js";
 import type { WorkerReceipt } from "./pool-contracts.js";
 import { graphFor, type GraphLora } from "./worker-graphs.js";
+import { hardwareProfile } from "./hardware.js";
 import { resolveDimensions } from "../shared/resolution.js";
 import {
   WorkerHttpError,
@@ -20,7 +20,7 @@ import { existsSync, statSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { StudioPaths } from "./storage.js";
 import { imageRequest, seeds, type ImageRequest } from "./workflows.js";
-type SubmissionMetadata = { route: string; loras: GraphLora[]; video_profile?: string };
+type SubmissionMetadata = { route: string; loras: GraphLora[] };
 export type Job = import("../shared/jobs.js").JobRecord & {
   worker?: {
     id?: string;
@@ -94,7 +94,7 @@ export class Jobs {
     const worker = job.worker.id ? this.pool.executor(job.worker.id) : null;
     if(worker&&localExecutor(worker)&&(worker.issue||worker.interrupted)){
       const reason=worker.issue?.code==='local_adapter_failed'?'local_preparation_failed':
-        worker.issue?.code==='local_stop_pending'||worker.issue?.code==='local_ownership_unknown'?'local_stop_pending':
+        worker.issue?.code==='local_stop_pending'?'local_stop_pending':
         worker.interrupted||job.worker.interruption?'engine_interrupted':'worker_unavailable';
       return {...job,recovery:{pending,reason,worker_id:worker.id,
         ...(!pending&&reason==='engine_interrupted'&&this.localRetryWorker(job.id)?{action:'retry_local' as const}:{})}};
@@ -202,8 +202,7 @@ export class Jobs {
     }
     const body = this.submission(current.job, current.worker);
     // Persist only the previously missing envelope, never rebuild graph, inputs, or seeds.
-    current.job.worker!.submission ??= { route: body.route, loras: body.loras,
-      ...(body.video_profile ? { video_profile: body.video_profile } : {}) };
+    current.job.worker!.submission ??= { route: body.route, loras: body.loras };
     current.job.submission_pending = true;
     this.save(current.job);
     current = this.recoveryWorker(id);
@@ -238,7 +237,7 @@ export class Jobs {
         loras.some((lora, i) => graph[String(30 + i)]?.class_type !== 'LoraLoaderModelOnly' ||
           graph[String(30 + i)]?.inputs?.lora_name !== lora.filename || graph[String(30 + i)]?.inputs?.strength_model !== lora.strength_model))
         throw Error('The saved adapter mapping is unavailable.');
-      metadata = { route, loras, ...(video ? { video_profile: videoProfile(job.request,localExecutor(worker)) } : {}) };
+      metadata = { route, loras };
     }
     return { prompt_id: executionId(job), prompt: job.worker.graph, ...metadata };
   }
@@ -538,23 +537,23 @@ export class Jobs {
       if (job.state === "queued") {
         const w =
           this.pool.assignedExecutor(job.id) ??
-          this.pool.claimExecutor(job.id,job.request,job.worker.loras,job.created_at,job.output_dimensions);
+          this.pool.claimExecutor(job.id,job.request,job.worker.loras,job.created_at);
         if (!w) {
           const local=this.pool.local, localWorker=local?.get();
-          const localSupported=job.request.target!=='cloud'&&localWorker?.enabled&&local?.supports(job.request,job.output_dimensions);
+          const localSupported=job.request.target!=='cloud'&&localWorker?.enabled&&local?.supports(job.request);
           job.waiting_reason = localSupported
             ? localWorker.issue?'This PC needs attention. Open Workers to review its status.':localWorker.paused?'Resume This PC in Workers to run this request.':job.worker.loras.length?'Waiting for This PC to finish its current output. Missing LoRAs download automatically when this request starts.':'Waiting for This PC to finish its current output.'
             : job.request.target==='local'
             ? !localWorker?.enabled?'Enable and set up This PC in Workers to run this request locally.':'These settings are unavailable on This PC. Check the workflow, output settings, and selected LoRA sources in Admin.'
             : job.worker.loras.length
             ? "Waiting for a ready worker with the selected LoRAs. Start a new worker to include recently added adapters."
-            : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : isVideoWorkflow(job.request.workflow)&&job.request.steps!==undefined&&job.request.steps!==30 ? 'Waiting for a Video worker that supports the selected sampling steps. Older workers support only 30 steps; use a worker built from the current release.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
+            : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
           this.save(job);
           continue;
         }
         job.worker.id = w.id;
         job.worker.executor=localExecutor(w)?'local':'cloud';
-        job.worker.profile=localExecutor(w)?w.profile:job.request.workflow==='image-to-image'?QWEN_PROFILE:isVideoWorkflow(job.request.workflow)?videoProfile(job.request):'krea-turbo-int8-v1';
+        job.worker.profile=executionProfile(job.request);
         if(localExecutor(w))job.worker.runtime_revision=w.runtime_revision;
         if(localExecutor(w))job.worker.execution_id=w.attempt_id;
         job.state = "uploading";
@@ -699,10 +698,9 @@ export class Jobs {
       job.seed,
       loras,
       job.prepared ?? [],
-      localExecutor(w),
+      hardwareProfile(w.gpu),
     );
-    job.worker!.submission = { route: executionRoute(job.request), loras,
-      ...(isVideoWorkflow(job.request.workflow) ? { video_profile: videoProfile(job.request,localExecutor(w)) } : {}) };
+    job.worker!.submission = { route: executionRoute(job.request), loras };
     job.state = "submitting";
     job.submission_pending = true;
     job.metrics!.submitted_at = new Date().toISOString();
@@ -878,7 +876,7 @@ export class Jobs {
       sha256: output.sha256,
       worker_id: w.id,
       executor:localExecutor(w)?'local':'cloud',
-      execution_profile:localExecutor(w)?w.profile:job.request.workflow==='image-to-image'?QWEN_PROFILE:isVideoWorkflow(job.request.workflow)?videoProfile(job.request):'krea-turbo-int8-v1',
+      execution_profile:executionProfile(job.request),
       runtime_revision:localExecutor(w)?w.runtime_revision:undefined,
       execution_id:executionId(job),
     });

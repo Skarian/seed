@@ -12,6 +12,7 @@ export type InputReference = {
 };
 type GenerationFields = {
   steps?: import('./video-settings.js').VideoSteps;
+  detail?: import('./video-settings.js').VideoDetail;
   target?:import('./local-worker.js').ExecutionTarget;
   loras?: LoraSelection[];
   note?: string;
@@ -39,8 +40,8 @@ export type ImageRequest = GenerationRequest;
 /** Form edits stay in their workflow; workflow changes create/restore a separate draft. */
 export function patchGeneration(request:GenerationRequest, patch:Partial<GenerationRequest>):GenerationRequest {
   const fields={...request,...patch};
-  if(request.workflow==='image-to-image')return {...fields,workflow:'image-to-image',output:{aspect:'source',size:(patch.output?.size??request.output.size) as ImageSize},loras:undefined,audio:undefined,steps:undefined};
-  if(request.workflow==='text-to-image')delete fields.steps;
+  if(request.workflow==='image-to-image')return {...fields,workflow:'image-to-image',output:{aspect:'source',size:(patch.output?.size??request.output.size) as ImageSize},loras:undefined,audio:undefined,steps:undefined,detail:undefined};
+  if(request.workflow==='text-to-image'){delete fields.steps;delete fields.detail;}
   const output=patch.output??request.output;
   return {...fields,workflow:request.workflow,output:{...output,aspect:output.aspect==='source'?request.output.aspect:output.aspect}};
 }

@@ -20,19 +20,16 @@ function catalog(paths:any,letters:string[]){
 async function fixture(run:(context:any)=>Promise<void>){
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/local-worker-'));
   const paths=resolvePaths(root);prepareStorage(paths);const db=openDatabase(paths.data);
-  let now=Date.now(),alive=false,role='image';
-  const connection={status:vi.fn(async()=>({state:'ready',engine_session_id:'engine',worker_class:role})),json:vi.fn(async()=>({ready:true,engine_session_id:'engine'}))};
+  let now=Date.now(),alive=false;
+  const connection={status:vi.fn(async()=>({state:'ready',engine_session_id:'engine',worker_class:'all'})),json:vi.fn(async()=>({ready:true,engine_session_id:'engine'}))};
   const runtime={
-    installation:vi.fn(async()=>({revision:'seed-local-v1',roles:{image:{gpu_uuid:'11111111-1111-1111-1111-111111111111',gpu:'Fixture GPU',vram_bytes:32*1024**3}}})),
-    start:vi.fn(async(next:string,recover=false)=>{alive=true;role=next;runtime.recovering=recover;return connection;}),stop:vi.fn(async()=>{alive=false;}),close:vi.fn(async()=>{alive=false;}),
-    connection:()=>connection,get alive(){return alive;},get role(){return role;},ownership:{owner_pid:2147483647,supervisor_pid:2147483646,engine_pid:2147483645},recovering:false,workspace:path.join(paths.data,'local-workspace'),
+    installation:vi.fn(async()=>({revision:'seed-engine-v2',gpu_uuid:'11111111-1111-1111-1111-111111111111',gpu:'NVIDIA GeForce RTX 5090',vram_bytes:32*1024**3})),
+    start:vi.fn(async(recover=false)=>{alive=true;runtime.recovering=recover;return connection;}),stop:vi.fn(async()=>{alive=false;return {outcome:'stopped'};}),close:vi.fn(async()=>{alive=false;return {outcome:'stopped'};}),
+    connection:()=>connection,get alive(){return alive;},recovering:false,workspace:path.join(paths.data,'local-workspace'),keepAwake:vi.fn(),
     prepareAdapters:vi.fn(async(sources:any[],progress:any)=>{progress({phase:'Downloading fixture LoRA',bytes_done:5,bytes_total:10});return sources.map(source=>({filename:`seed-${source.sha256}.safetensors`,sha256:source.sha256,routes:[source.route]}));}),
     cancelPreparation:vi.fn(async()=>{}),
-    forceStop:vi.fn(async()=>{alive=false;}),
-    rememberOwnership:vi.fn(),ownershipGone:vi.fn(async()=>true),prepareStop:vi.fn(),
   };
-  const local=new LocalWorker(db,paths,{runtime:runtime as any,now:()=>now,boundaries:[{workflow:'text-to-image',route:'image',size:'image-768',aspect:'16:9',max_references:0,profile:'krea-turbo-int8-v1'},
-    {workflow:'text-to-video',route:'fl',size:'480p',aspect:'16:9',duration_seconds:5,max_references:0,profile:'h3-official-30-v1'}]});
+  const local=new LocalWorker(db,paths,{runtime:runtime as any,now:()=>now});
   const request:ImageRequest={workflow:'text-to-image',prompt:'fixture',mode:'sfw',output:{size:'image-768',aspect:'16:9'},seed:'1',count:1};
   const insert=()=>{const id=randomUUID(),date=new Date(now).toISOString();db.prepare('INSERT INTO jobs(id,workflow,state,snapshot_json,created_at,updated_at,submission_id,submission_index) VALUES (?,?,?,?,?,?,?,?)').run(id,'text-to-image','queued','{}',date,date,id,0);return id;};
   try{await run({db,paths,local,runtime,request,job:insert,crash:()=>alive=false,advance:(ms:number)=>now+=ms});}
@@ -42,57 +39,52 @@ it('does not install, start, or reserve a device before explicit enablement',()=
   expect(local.get()).toBeNull();expect(local.claim(job(),request)).toBeNull();await local.tick();
   expect(runtime.start).not.toHaveBeenCalled();expect(runtime.installation).not.toHaveBeenCalled();
 }));
-it('finishes a receipt-less stop without ownership using the real runtime',()=>fixture(async({local,db,paths,request,job}:any)=>{
-  await local.enable(true);
-  const record=local.get();record.stop={stop_id:randomUUID(),reason:'service_stop',requested_at:new Date().toISOString()};
-  db.prepare('UPDATE pool_workers SET snapshot_json=? WHERE id=?').run(JSON.stringify(record),record.id);
-  const restored=new LocalWorker(db,paths,{boundaries:[{workflow:'text-to-image',route:'image',size:'image-768',aspect:'16:9',max_references:0,profile:'krea-turbo-int8-v1'}]});
-  await restored.tick();
-  expect(restored.get()?.stop).toMatchObject({outcome:'stopped',receipt:{result:'no_engine'}});
-  expect(restored.claim(job(),request)).not.toBeNull();
-  await restored.close();
+it('treats a job from a previous coordinator as interrupted without starting generation',()=>fixture(async({local,db,paths,runtime,request,job}:any)=>{
+  await local.enable(true);const id=job();local.claim(id,request);
+  const legacy=local.get();legacy.ownership={incarnation:'old'};legacy.stop={stop_id:'old'};legacy.issue={code:'local_ownership_unknown',message:'old',retryable:true};
+  db.prepare('UPDATE pool_workers SET snapshot_json=? WHERE id=?').run(JSON.stringify(legacy),legacy.id);
+  const restored=new LocalWorker(db,paths,{runtime});
+  expect(restored.get()).toMatchObject({current_job_id:id,interrupted:true,state:'recovering'});expect(restored.get()?.issue).toBeUndefined();
+  await restored.tick();expect(runtime.start).toHaveBeenLastCalledWith(true);
 }));
-it('rechecks previous ownership with identities and backs off pending recovery',()=>fixture(async({local,db,paths,runtime,advance}:any)=>{
-  await local.enable(true);const record=local.get();
-  record.ownership={owner_pid:process.ppid,supervisor_pid:process.pid,owner_created:'1',supervisor_created:'2',incarnation:randomUUID(),members:[],containment:'windows-nested-jobs-v2'};
-  db.prepare('UPDATE pool_workers SET snapshot_json=? WHERE id=?').run(JSON.stringify(record),record.id);
-  const restored=new LocalWorker(db,paths,{runtime,now:()=>Date.now(),boundaries:[]});
-  runtime.stop.mockResolvedValueOnce({outcome:'stop_pending',since:'fixture',phase:'termination_unconfirmed'});
-  await restored.tick();await restored.tick();
-  expect(runtime.stop).toHaveBeenCalledOnce();
-  await restored.recover();
-  expect(runtime.ownershipGone).toHaveBeenCalledWith(record.ownership);
-  expect(restored.get()?.issue).toBeUndefined();
-}));
-it('retains pending shutdown, blocks new claims, and converges without probing capabilities',()=>fixture(async({local,runtime,request,job}:any)=>{
+it('keeps a stopping engine reserved until its exit is confirmed',()=>fixture(async({local,runtime,request,job}:any)=>{
   await local.enable(true);
   const first=job();local.claim(first,request);await local.tick();local.complete(first);
-  runtime.stop.mockResolvedValueOnce({outcome:'stop_pending',since:'fixture',phase:'synchronizing'});
-  await expect(local.sleep()).rejects.toThrow('pending');
+  runtime.stop.mockResolvedValueOnce({outcome:'stop_pending'});
+  await expect(local.sleep()).rejects.toThrow('stopping');
   expect(local.get().issue.code).toBe('local_stop_pending');
   expect(local.claim(job(),request)).toBeNull();
   await expect(local.enable(true)).rejects.toThrow('shutdown');
-  const json=runtime.connection().json;json.mockClear();
-  await local.tick();
-  expect(json).not.toHaveBeenCalled();expect(local.get().issue).toBeUndefined();
-  expect(local.get().ownership).toBeUndefined();
+  await local.tick();expect(local.get().issue.code).toBe('local_stop_pending');
+  await runtime.stop();await local.tick();
+  expect(local.get().issue).toBeUndefined();expect(local.get().state).toBe('sleeping');
 }));
-it('requires local qualification for the selected video sampling profile',()=>fixture(async({local,request}:any)=>{
-  const video={...request,workflow:'text-to-video',output:{size:'480p',aspect:'16:9',duration_seconds:5}};
-  expect(local.supports(video)).toBe(true);
-  expect(local.supports({...video,steps:30})).toBe(true);
-  for(const steps of [10,15,20])expect(local.supports({...video,steps})).toBe(false);
+it('unloads through the normal stop only while no job runs',()=>fixture(async({local,runtime,request,job}:any)=>{
+  await local.enable(true);const id=job();local.claim(id,request);await local.tick();
+  await expect(local.unload()).rejects.toThrow('reserved');expect(runtime.stop).not.toHaveBeenCalled();
+  local.complete(id);expect(local.get().state).toBe('ready');
+  await local.unload();
+  expect(runtime.stop).toHaveBeenCalledOnce();expect(local.get()).toMatchObject({state:'sleeping',ready:false});expect(local.get().idle_deadline).toBeUndefined();
 }));
-it('enables installed image workflows independently of empty video qualification and refreshes saved capabilities',()=>fixture(async({db,paths,runtime,request,job}:any)=>{
-  runtime.installation.mockResolvedValue({revision:'seed-local-v1',roles:{image:{gpu_uuid:'11111111-1111-1111-1111-111111111111',gpu:'NVIDIA GeForce RTX 5090',vram_bytes:32*1024**3}}});
+it('keeps Windows awake only while a job is assigned',()=>fixture(async({local,runtime,request,job}:any)=>{
+  await local.enable(true);await local.tick();expect(runtime.keepAwake).toHaveBeenLastCalledWith(false);
+  const id=job();local.claim(id,request);await local.tick();expect(runtime.keepAwake).toHaveBeenLastCalledWith(true);
+  local.complete(id);await local.tick();expect(runtime.keepAwake).toHaveBeenLastCalledWith(false);
+}));
+it('runs every video setting on a GPU with a hardware profile',()=>fixture(async({local,request,job}:any)=>{
+  await local.enable(true);
+  const video={...request,workflow:'text-to-video',output:{size:'768p',aspect:'16:9',duration_seconds:15}};
+  for(const steps of [10,15,20,30])for(const detail of ['standard','full'])expect(local.supports({...video,steps,detail})).toBe(true);
+  expect(local.claim(job(),{...video,steps:15,detail:'full'})?.profile).toBe('h3-full-15');
+}));
+it('offers images only on a GPU without a hardware profile and refreshes saved capabilities',()=>fixture(async({db,paths,runtime,request,job}:any)=>{
+  runtime.installation.mockResolvedValue({revision:'seed-engine-v2',gpu_uuid:'11111111-1111-1111-1111-111111111111',gpu:'NVIDIA Fixture GPU',vram_bytes:48*1024**3});
   const local=new LocalWorker(db,paths,{runtime});
   await local.enable(true);
   expect(local.get()?.workflows).toEqual(['text-to-image','image-to-image']);
   for(const size of ['image-480','image-768','2mp','image-1440','0.5mp','1mp'])
     for(const aspect of ['16:9','9:16'])expect(local.supports({...request,output:{size,aspect}})).toBe(true);
-  const edit={...request,workflow:'image-to-image',output:{size:'image-768',aspect:'source'},references:[{id:'source',asset_id:'asset',kind:'image',role:'source'}]};
-  expect(local.supports(edit,{width:1024,height:1024})).toBe(true);
-  expect(local.supports(edit)).toBe(false);
+  expect(local.supports({...request,workflow:'image-to-image',output:{size:'image-768',aspect:'source'},references:[{id:'source',asset_id:'asset',kind:'image',role:'source'}]})).toBe(true);
   for(const workflow of ['text-to-video','reference-to-video'])
     expect(local.supports({...request,workflow,output:{size:'480p',aspect:'16:9',duration_seconds:5}})).toBe(false);
   expect(local.claim(job(),request)?.profile).toBe('krea-turbo-int8-v1');
@@ -162,15 +154,15 @@ it('cancels an active LoRA download before releasing its reservation and never s
   expect(f.jobs.get(job.id).state).toBe('cancelled');expect(f.local.get().current_job_id).toBeUndefined();
   expect(f.runtime.start).not.toHaveBeenCalled();expect(f.worker.submit).not.toHaveBeenCalled();
 }));
-it('retains ownership after a stop failure and only forces termination on an explicit action',()=>fixture(async f=>{
+it('never force-stops: cancellation keeps the job until the engine confirms its exit',()=>fixture(async f=>{
   await f.local.enable(true);const id=f.job();f.local.claim(id,f.request);await f.local.tick();
-  f.runtime.stop.mockRejectedValueOnce(Error('Engine state is unknown'));
+  f.runtime.stop.mockResolvedValueOnce({outcome:'stop_pending'});
   const cancel=vi.fn(()=>f.local.complete(id));
-  await expect(f.local.cancelNow(cancel)).rejects.toThrow('unknown');
+  await expect(f.local.cancelNow(cancel)).rejects.toThrow('stopping');
   expect(f.local.get()).toMatchObject({current_job_id:id,state:'needs_attention',issue:{code:'local_stop_pending'}});
-  expect(cancel).not.toHaveBeenCalled();expect(f.runtime.forceStop).not.toHaveBeenCalled();
-  await f.local.cancelNow(cancel,true);
-  expect(cancel).toHaveBeenCalledOnce();expect(f.runtime.forceStop).toHaveBeenCalled();
+  expect(cancel).not.toHaveBeenCalled();
+  await f.local.cancelNow(cancel);
+  expect(cancel).toHaveBeenCalledOnce();
   expect(f.local.get()).toMatchObject({paused:true,state:'disabled'});expect(f.local.get().current_job_id).toBeUndefined();
 }));
 it('recovers completed local output after engine death before considering replay',()=>jobsFixture(async f=>{
@@ -178,7 +170,7 @@ it('recovers completed local output after engine death before considering replay
   const {jobs:[job]}=await f.jobs.submit({...f.request,target:'local'},'local-completed-recovery');
   await f.jobs.reconcile();await f.local.tick();await f.jobs.reconcile();f.crash();await f.settle();
   expect(f.jobs.get(job.id)).toMatchObject({state:'completed',worker:{executor:'local'}});expect(f.worker.submit).toHaveBeenCalledOnce();expect(f.worker.acknowledge).toHaveBeenCalledOnce();
-  expect(f.local.get().current_job_id).toBeUndefined();expect(f.runtime.start.mock.calls.some((call:any[])=>call[1]===true)).toBe(true);
+  expect(f.local.get().current_job_id).toBeUndefined();expect(f.runtime.start.mock.calls.some((call:any[])=>call[0]===true)).toBe(true);
 }));
 it('requires an explicit retry after every interrupted local attempt and preserves its seed',()=>jobsFixture(async f=>{
   f.worker.submit.mockImplementation(async(_worker:any,body:any)=>{f.receipts.set(body.prompt_id,{submission:{engine_session_id:'engine'}});});
@@ -265,12 +257,12 @@ it('recovers a terminal receipt found during explicit local retry without genera
   expect(f.jobs.get(job.id).state).toBe('failed');expect(f.worker.submit).toHaveBeenCalledOnce();
   expect(f.jobs.get(job.id).worker.execution_id).toBe(attempt);
 }));
-it('schedules an older opposite-role output before new same-role work',()=>jobsFixture(async f=>{
+it('schedules an older video before a newer image',()=>jobsFixture(async f=>{
   f.worker.submit.mockImplementation(async(_worker:any,body:any)=>{f.receipts.set(body.prompt_id,{submission:{engine_session_id:'engine'}});});
   const {jobs:[first]}=await f.jobs.submit({...f.request,target:'local'},'local-fifo-first-image');await f.settle();
   const {jobs:[video]}=await f.jobs.submit({...f.request,target:'local',workflow:'text-to-video',audio:{output:'generated'},output:{size:'480p',aspect:'16:9',duration_seconds:5}},'local-fifo-older-video');
   await f.jobs.submit({...f.request,target:'local'},'local-fifo-newer-image');
-  f.jobs.stopJobs([first.id]);await f.settle();expect(f.local.get().current_job_id).toBe(video.id);expect(f.runtime.role).toBe('video');
+  f.jobs.stopJobs([first.id]);await f.settle();expect(f.local.get()).toMatchObject({current_job_id:video.id,worker_class:'video'});
 }));
 it('cloud-wide quit preserves the running local reservation and local-only queue',()=>jobsFixture(async f=>{
   f.worker.submit.mockImplementation(async(_worker:any,body:any)=>{f.receipts.set(body.prompt_id,{submission:{engine_session_id:'engine'}});});
@@ -314,14 +306,14 @@ it('ignores a late status error after the output has already completed',()=>fixt
   const polling=local.tick();local.complete(first);reject(Error('old request failed'));await polling;
   expect(local.get()).toMatchObject({state:'ready',ready:true});expect(local.get().issue).toBeUndefined();
 }));
-it('switches roles only after acknowledgement releases the one reservation',()=>fixture(async({local,runtime,request,job}:any)=>{
+it('serves image and video from one engine without a restart',()=>fixture(async({local,runtime,request,job}:any)=>{
   await local.enable(true);const first=job(),second=job();local.claim(first,request);await local.tick();
   const video={...request,workflow:'text-to-video',output:{size:'480p',aspect:'16:9',duration_seconds:5}};
-  expect(local.claim(second,video)).toBeNull();local.complete(first);expect(local.claim(second,video).state).toBe('starting');await local.tick();
-  expect(runtime.start.mock.calls.map((call:any)=>call[0])).toEqual(['image','video']);
+  expect(local.claim(second,video)).toBeNull();local.complete(first);expect(local.claim(second,video).state).toBe('generating');await local.tick();
+  expect(runtime.start).toHaveBeenCalledOnce();expect(runtime.stop).not.toHaveBeenCalled();
 }));
-it('pauses after the current output and rejects unqualified output envelopes',()=>fixture(async({local,runtime,request,job}:any)=>{
-  await local.enable(true);expect(local.claim(job(),{...request,output:{size:'image-1440',aspect:'16:9'}})).toBeNull();
+it('pauses after the current output',()=>fixture(async({local,runtime,request,job}:any)=>{
+  await local.enable(true);
   const first=job();local.claim(first,request);await local.tick();await local.pause();expect(runtime.stop).not.toHaveBeenCalled();
   local.complete(first);await local.tick();expect(local.get().state).toBe('disabled');expect(local.claim(job(),request)).toBeNull();
 }));

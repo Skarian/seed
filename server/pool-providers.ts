@@ -1,3 +1,4 @@
+import {hardwareProfile} from "./hardware.js";
 import { randomUUID } from "node:crypto";
 import type { StudioPaths } from "./storage.js";
 import { credential } from "./credential-store.js";
@@ -101,6 +102,7 @@ function quote(
     provider,
     worker_class: role,
     gpu,
+    ...(role === "video" ? { hardware_profile: hardwareProfile(gpu)?.label } : {}),
     vram_gb: vram,
     region,
     hourly: compute + storage,
@@ -155,6 +157,8 @@ async function beforeRental<T>(
 function unsupportedLegacyGpu(name: string) {
   return /\b(?:V100|P100|P40|P6000|M40|M60|K80|TITAN[ _]V)\b/i.test(name);
 }
+const requiredVram = (role: WorkerClass, gpu: string) => role === "image" ? 32 : hardwareProfile(gpu)?.vram_gb ?? Infinity;
+const requiredRam = (role: WorkerClass, gpu: string) => role === "image" ? 48 : hardwareProfile(gpu)?.ram_gb ?? Infinity;
 function runpodAvailable(g: any, role: WorkerClass) {
   const memory = Number(g?.memory ?? g?.memoryInGb);
   return (
@@ -162,18 +166,20 @@ function runpodAvailable(g: any, role: WorkerClass) {
     !unsupportedLegacyGpu(String(g.id)) &&
     ["HIGH", "MEDIUM", "LOW"].includes(g.availability) &&
     Number.isFinite(memory) &&
-    memory >= (role === "image" ? 32 : 96) &&
+    memory >= requiredVram(role, String(g.id)) &&
     Number.isFinite(g.price?.secure) &&
     g.price.secure > 0 &&
-    (role !== "video" || /RTX PRO 6000.*Blackwell/i.test(g.id))
+    (role !== "video" || hardwareProfile(String(g.id)) !== undefined)
   );
 }
 function nonnegative(value: unknown): number | undefined {
   return typeof value === "number" && Number.isFinite(value) && value >= 0 ? value : undefined;
 }
 function vastAvailable(g: any, role: WorkerClass, disk: number) {
-  const videoGpu = /RTX PRO 6000.*Blackwell/i.test(g?.gpu_name)
-    || (/^RTX PRO 6000(?: (?:WS|S))?$/i.test(g?.gpu_name) && Number(g?.compute_cap) === 1200);
+  // Vast can omit the generation from a PRO 6000 name; its compute cap identifies Blackwell.
+  const name = String(g?.gpu_name);
+  const videoGpu = hardwareProfile(name) !== undefined
+    && (!/^RTX PRO 6000(?: (?:WS|S))?$/i.test(name) || Number(g?.compute_cap) === 1200);
   return (
     g?.num_gpus === 1 &&
     !unsupportedLegacyGpu(String(g.gpu_name)) &&
@@ -181,8 +187,8 @@ function vastAvailable(g: any, role: WorkerClass, disk: number) {
     g.dph_total > 0 &&
     g.reliability2 >= 0.99 &&
     g.verification === "verified" &&
-    Number(g.gpu_ram) >= (role === "image" ? 32 : 96) * 1000 &&
-    Number(g.cpu_ram) >= (role === "image" ? 48 : 128) * 1000 &&
+    Number(g.gpu_ram) >= requiredVram(role, name) * 1000 &&
+    Number(g.cpu_ram) >= requiredRam(role, name) * 1000 &&
     Number(g.cuda_max_good) >= 13 &&
     Number(g.disk_space) >= disk &&
     Number(g.direct_port_count) >= 1 &&
@@ -351,7 +357,7 @@ export function createProviders(
               id: w.provider_data.gpu_id,
               count: 1,
               minCudaVersion: "13.0",
-              minRamPerGpu: w.worker_class === "image" ? 48 : 128,
+              minRamPerGpu: requiredRam(w.worker_class, w.gpu),
             },
             ports: ["22/tcp"],
             env: environment(w, auth),
@@ -410,7 +416,7 @@ export function createProviders(
           rentable: { eq: true },
           rented: { eq: false },
           num_gpus: { eq: 1 },
-          gpu_ram: { gte: (role === "image" ? 32 : 96) * 1000 },
+          gpu_ram: { gte: 32 * 1000 },
           cpu_ram: { gte: (role === "image" ? 48 : 128) * 1000 },
           cuda_max_good: { gte: 13 },
           direct_port_count: { gte: 1 },

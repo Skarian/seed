@@ -2,7 +2,8 @@ import type { ImageRequest } from "./workflows.js";
 import type { PreparedReference } from "./media.js";
 import { loraRoute } from "../shared/workflows.js";
 import { resolveDimensions } from "../shared/resolution.js";
-import { videoSteps } from '../shared/video-settings.js';
+import { videoDetail, videoSteps } from '../shared/video-settings.js';
+import type { HardwareProfile } from "./hardware.js";
 export type GraphLora = {
   filename: string;
   sha256: string;
@@ -34,11 +35,11 @@ export function graphFor(
   seed: string,
   loras: GraphLora[],
   references: PreparedReference[] = [],
-  local = false,
+  hardware?: HardwareProfile,
 ) {
   if(request.workflow==='image-to-image') return editGraph(request,id,seed,references);
   if (request.workflow !== "text-to-image")
-    return videoGraph(request, id, seed, loras, references, local);
+    return videoGraph(request, id, seed, loras, references, hardware);
   const {width, height} = resolveDimensions(request.workflow,request.output.size,request.output.aspect);
   const graph: Record<
     string,
@@ -125,11 +126,14 @@ export function videoGraph(
   seed: string,
   loras: GraphLora[],
   refs: PreparedReference[] = [],
-  local = false,
+  hardware?: HardwareProfile,
 ) {
+  if (!hardware) throw Error('Video needs a hardware profile.');
   const route = loraRoute(request);
   const seconds = request.output.duration_seconds!;
   const {width, height} = resolveDimensions(request.workflow,request.output.size,request.output.aspect);
+  const sparse = videoDetail(request) === "standard";
+  const model: [string, number] = [sparse ? "19" : "17", 0];
   const graph: Record<
     string,
     { class_type: string; inputs: Record<string, any> }
@@ -137,25 +141,25 @@ export function videoGraph(
     "1": {
       class_type: "UNETLoader",
       inputs: {
-        unet_name: `minimax_h3_${route}2va_pruned_int8_convrot.safetensors`,
+        unet_name: hardware.models.video.replace('{route}', route),
         weight_dtype: "default",
       },
     },
     "2": {
       class_type: "CLIPLoader",
       inputs: {
-        clip_name: "qwen3vl_32b_minimax_h3_int8_convrot.safetensors",
+        clip_name: hardware.models.text_encoder,
         type: "minimax",
         device: "default",
       },
     },
     "3": {
       class_type: "VAELoader",
-      inputs: { vae_name: "minimax_h3_video_vae_fp16.safetensors" },
+      inputs: { vae_name: hardware.models.video_vae },
     },
     "4": {
       class_type: "VAELoader",
-      inputs: { vae_name: "minimax_h3_audio_vae_fp32.safetensors" },
+      inputs: { vae_name: hardware.models.audio_vae },
     },
     "6": {
       class_type:
@@ -174,13 +178,13 @@ export function videoGraph(
     },
     "7": {
       class_type: "BasicGuider",
-      inputs: { model: ["19", 0], conditioning: ["6", 0] },
+      inputs: { model, conditioning: ["6", 0] },
     },
     "8": { class_type: "RandomNoise", inputs: { noise_seed: Number(seed) } },
-    "9": { class_type: "KSamplerSelect", inputs: { sampler_name: "euler" } },
+    "9": { class_type: "KSamplerSelect", inputs: { sampler_name: "res_multistep" } },
     "10": {
       class_type: "BasicScheduler",
-      inputs: { model: ["19", 0], scheduler: "simple", steps: 8, denoise: 1 },
+      inputs: { model, scheduler: "simple", steps: videoSteps(request), denoise: 1 },
     },
     "11": {
       class_type: "SamplerCustomAdvanced",
@@ -211,49 +215,25 @@ export function videoGraph(
         export_version: "native-v1",
       },
     },
-  };
-  if (local) {
-    // Official Comfy-Org model choices and ordinary dense sampling. Keep
-    // optional approximation/acceleration patches outside this baseline.
-    graph['2']!.inputs.clip_name = 'qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors';
-    graph['3']!.inputs.vae_name = 'minimax_h3_video_vae_int8_convrot.safetensors';
-    const model = withLoras(graph, loras, '1');
-    graph['7']!.inputs.model = model;
-    graph['10']!.inputs.model = model;
-    graph['9']!.inputs.sampler_name = 'res_multistep';
-    graph['10']!.inputs.steps = videoSteps(request);
-  } else {
-    graph["16"] = {
+    "16": {
       class_type: "MiniMaxH3SigmaShift",
       inputs: { model: ["1", 0], shift_video: 12, shift_audio: 3 },
-    };
-    graph["17"] = {
-      class_type: "ModelAttentionBackend",
-      inputs: {
-        model: withLoras(graph, loras, "16"),
-        attention: "comfy kitchen attention",
-      },
-    };
-    // v0.35.0 DynamicCombo inputs use the flat API form, not its normalized Python dictionary.
+    },
+  };
+  graph["17"] = {
+    class_type: "ModelAttentionBackend",
+    inputs: {
+      model: withLoras(graph, loras, "16"),
+      attention: "comfy kitchen attention",
+    },
+  };
+  if (sparse) {
+    const { tau, ...attention } = hardware.attention;
+    // DynamicCombo inputs use the flat API form, not its normalized Python dictionary.
     graph["19"] = {
       class_type: "BlockSparseAttention",
-      inputs: {
-        model: ["17", 0],
-        selection: "sol-attn",
-        "selection.tau": 1.3,
-        start_percent: 0.2,
-        end_percent: 1,
-        dense_blocks: "",
-        min_tokens: 12288,
-        extra_tokens: 256,
-        sink_conditioning: "exact_kv_and_rows",
-        verbose: true,
-      },
+      inputs: { model: ["17", 0], selection: "sol-attn", "selection.tau": tau, ...attention, verbose: false },
     };
-    graph["7"]!.inputs.model = ["19", 0];
-    graph["9"]!.inputs.sampler_name = "res_multistep";
-    graph["10"]!.inputs.model = ["19", 0];
-    graph["10"]!.inputs.steps = videoSteps(request);
   }
   let node = 40,
     image = 0,

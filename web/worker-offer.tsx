@@ -22,6 +22,7 @@ export function WorkerOfferCard({offer, quantity, onQuantity}: {
         onChange={e => onQuantity(e.target.checked ? 1 : 0)} />
       <span>
         <strong>{offer.gpu}</strong>
+        {offer.hardware_profile && <small>{offer.hardware_profile} video settings</small>}
         <small>{provider} · {Number(offer.vram_gb.toFixed(1))} GB VRAM · {offer.ram_gb !== undefined
           ? `${Math.round(offer.ram_gb)} GB RAM` : offer.min_ram_gb !== undefined
             ? `${offer.min_ram_gb} GB RAM minimum` : 'RAM not reported'}</small>

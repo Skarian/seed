@@ -64,7 +64,6 @@ export interface ProviderDriver {
 }
 export type WorkerHealth = {
   workflows?: string[];
-  video_profiles?: string[];
   busy?: boolean;
   active_job_id?: string;
   activity?: string;

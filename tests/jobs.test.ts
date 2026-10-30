@@ -202,7 +202,7 @@ it.each(['image','video'] as const)('retries the original %s envelope and seed o
   expect(f.worker.submit).toHaveBeenCalledTimes(2);
   expect(f.worker.submit.mock.calls[1]![0].id).toBe(worker.id);
   expect(f.worker.submit.mock.calls[1]![1]).toEqual(body);
-  expect(body).toMatchObject({prompt_id:job.id,route:role==='image'?'image':'fl',...(role==='video'?{video_profile:'h3-high-v1'}:{})});
+  expect(body).toMatchObject({prompt_id:job.id,route:role==='image'?'image':'fl'});expect(body).not.toHaveProperty('video_profile');
   expect(f.jobs.get(job.id)).toMatchObject({state:'running',seed:'42',submission_pending:false});
   expect(f.jobs.all()).toHaveLength(1);
   expect((f.db.prepare('SELECT COUNT(*) AS n FROM job_attempts WHERE job_id=?').get(job.id) as {n:number}).n).toBe(1);

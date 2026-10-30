@@ -32,6 +32,7 @@ export type WorkerOffer = {
   provider: Provider;
   worker_class: WorkerClass;
   gpu: string;
+  hardware_profile?: string;
   vram_gb: number;
   region: string;
   hourly: number;
@@ -80,7 +81,6 @@ export type PreparationFile = {
 };
 export type PoolWorker = {
   workflows?: string[];
-  video_profiles?: string[];
   id: string;
   launch_id: string;
   provider: Provider;

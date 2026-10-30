@@ -1,3 +1,4 @@
+import {videoDetail,videoSteps} from '../../shared/video-settings.js';
 import {bindChatMentions,agentMentionContext} from './mentions.js';
 
 import {loraRoute,isVideoWorkflow} from '../../shared/workflows.js';
@@ -26,7 +27,7 @@ function agentRequest(request:ImageRequest,assets:ToolAsset[]=[]){
   const prompt=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?request.prompt.replace(toolPromptReferencePattern,label=>bindings.get(label)??label):request.prompt;
   return {prompt,batch_size:request.count,seed:request.seed,aspect_ratio:request.output.aspect,loras:request.loras??[],
     ...(request.note?{note:request.note}:{}),...(request.mode==='nsfw'?{mode:request.mode}:{}),
-    ...(isVideoWorkflow(request.workflow)?{duration_seconds:request.output.duration_seconds,audio_output:request.audio?.output}:{}),
+    ...(isVideoWorkflow(request.workflow)?{duration_seconds:request.output.duration_seconds,audio_output:request.audio?.output,steps:videoSteps(request),detail:videoDetail(request)}:{}),
     ...(request.references?{inputs:request.references.map(ref=>({id:ref.id,asset:assets.find(a=>a.asset_id===ref.asset_id)?.handle??ref.asset_id,role:ref.role,
       ...(ref.framing?{framing:ref.framing}:{}),...(ref.range??{}),...(ref.kind==='video'?{include_audio:Boolean(ref.include_audio)}:{})}))}:{})};
 }

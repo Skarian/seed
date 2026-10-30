@@ -1,3 +1,4 @@
+import { videoProfile, type VideoDetail } from './video-settings.js';
 import type { WorkflowId } from './studio.js';
 export const workflows = {
   'text-to-image': { label: 'Text to image', worker: 'image', output: 'image', inputs: false, adapters: true },
@@ -11,6 +12,8 @@ export const supportsLoras = (workflow: string) => workflow !== 'image-to-image'
 export const QWEN_PROFILE = 'qwen-edit-int8-v1';
 export const QWEN_SETTINGS = {model:'Qwen-Image-2.1',dit_precision:'INT8 ConvRot',encoder_precision:'INT8 ConvRot',vae_precision:'BF16',sampler:'euler',scheduler:'simple',steps:25,cfg:1,denoise:1,cache:{node:'QwenImage21Cache',device:'auto',dtype:'default'},model_revision:'9a44dbdb47cefd046be9c0a13476192f34c8db8e',comfy_revision:'b5cc8830279eae909a59de030af1e50761c36751'} as const;
 export const MAX_EDIT_IMAGES = 10;
+export const executionProfile = (request: { workflow: string; steps?: number; detail?: VideoDetail }) =>
+  request.workflow === 'image-to-image' ? QWEN_PROFILE : isVideoWorkflow(request.workflow) ? videoProfile(request) : 'krea-turbo-int8-v1';
 export function supportsWorkflow(worker: { worker_class: string; workflows?: string[] }, workflow: string) {
   const definition = workflows[workflow as WorkflowId];
   return !!definition && worker.worker_class === definition.worker &&

@@ -379,7 +379,6 @@ export class PoolWorkerDriver extends WorkerTransport<RentalRecord> implements W
       data:{error:prep.error,files:prep.files?.filter((file:any)=>file.error),capabilities}});
     const health: WorkerHealth = {
       workflows: Array.isArray(capabilities?.workflows) ? capabilities.workflows.filter((w:unknown)=>typeof w==='string') : undefined,
-      video_profiles: Array.isArray(capabilities?.video_profiles) ? capabilities.video_profiles.filter((p:unknown)=>typeof p==='string') : undefined,
       activity: w.worker_class==='image' && status.execution_activity ? ({loading:'Loading image models',editing:'Generating',saving:'Saving'}[status.execution_activity.phase] ?? undefined) + (Number.isFinite(status.execution_activity.percent)?` · ${status.execution_activity.percent}%`:'') : undefined,
       busy: status.state === "busy",
       active_job_id: status.active_prompt_id ?? undefined,

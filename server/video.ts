@@ -1,6 +1,6 @@
 import type { ImageRequest } from './workflows.js';
 import { isResolutionSize } from '../shared/resolution.js';
-import { isVideoSteps } from '../shared/video-settings.js';
+import { isVideoDetail,isVideoSteps } from '../shared/video-settings.js';
 export interface RequestIssue {field:string;message:string;fix?:string}
 export class VideoRequestError extends Error {
   constructor(public issues:RequestIssue[]){super(issues.map(i=>`${i.field}: ${i.message}${i.fix?' '+i.fix:''}`).join('\n'));this.name='VideoRequestError';}
@@ -11,8 +11,9 @@ export function videoRequest(value:any):ImageRequest {
   const object=(v:any)=>v!==null&&typeof v==='object'&&!Array.isArray(v);
   if(!object(value))throw new VideoRequestError([{field:'request',message:'Provide a request object.'}]);
   const unknown=(v:any,allowed:string[],field:string)=>{for(const k of Object.keys(v))if(!allowed.includes(k))add(field?`${field}.${k}`:k,'Unknown setting.','Remove this field.');};
-  unknown(value,['workflow','prompt','mode','output','seed','count','references','audio','steps'],'');
+  unknown(value,['workflow','prompt','mode','output','seed','count','references','audio','steps','detail'],'');
   if(value.steps!==undefined&&!isVideoSteps(value.steps))add('steps','Choose 10, 15, 20, or 30 video steps.');
+  if(value.detail!==undefined&&!isVideoDetail(value.detail))add('detail','Choose standard or full detail.');
   if(!['text-to-video','reference-to-video'].includes(value.workflow))add('workflow','Choose text-to-video or reference-to-video.');
   if(typeof value.prompt!=='string'||!value.prompt.trim()||value.prompt.length>12000)add('prompt','Provide 1–12000 characters of prompt text.');
   if(!['sfw','nsfw'].includes(value.mode))add('mode','Check the request settings.');

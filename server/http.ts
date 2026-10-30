@@ -60,7 +60,8 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   sequences.recover(failure=>diagnostics.event({category:'server',operation:'media.sequence_cleanup',level:'warn',data:failure}));
   const sweepCaches=()=>sweepMediaCaches(db,options.paths,jobs,failure=>diagnostics.event({category:'server',operation:'media.cache_cleanup',level:'warn',data:failure}));
   await jobs.serialize(async()=>sweepCaches());
-  const app = Fastify({ logger: false, genReqId:()=>randomUUID(), bodyLimit: 16 * 1024, trustProxy: false, ajv: { customOptions: { removeAdditional: false } } });
+  // pluginTimeout also bounds preClose, which waits for the local engine to exit.
+  const app = Fastify({ logger: false, pluginTimeout: 150_000, genReqId:()=>randomUUID(), bodyLimit: 16 * 1024, trustProxy: false, ajv: { customOptions: { removeAdditional: false } } });
   app.decorate('seedPool',pool);
   const instanceId = randomUUID();
   const fail = (reply: import('fastify').FastifyReply, status: number, code: string, message: string, requestId: string) =>
@@ -112,8 +113,6 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   registerChats(app,chats,()=>Boolean(chatCredential(options.paths)));
   app.addHook('onReady', async () => { diagnostics.event({category:'server',operation:'started',data:{instance_id:instanceId}});pool.start();jobs.start(); });
   app.addHook('preClose', async () => {
-    const intentRecorded=pool.local?.recordServiceStop()??true;
-    if(!intentRecorded)try{diagnostics.event({category:'server',operation:'close.intent_unavailable',data:{stage:'local'}});}catch{}
     await closeService({local:async()=>pool.local?.close(),background:[()=>localSetup.close(),()=>imports.close(),()=>chats.close()],
       cloud:()=>pool.close({skipLocal:true}),jobs:()=>jobs.close(),
       failed:stage=>diagnostics.event({category:'server',operation:'close.incomplete',data:{stage}})});
@@ -137,8 +136,8 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     if(pool.local?.get()?.current_job_id)throw Error('Finish or cancel the current local output before removing local files.');
     await pool.local?.enable(false);return localSetup.cleanup(r.body.kind);
   }));
-  app.post('/api/v1/pool/local/actions',{schema:{body:{type:'object',additionalProperties:false,required:['action'],properties:{action:{enum:['enable','disable','pause','cancel','recover','force-stop']}}}}},poolResult(async r=>{
-    if(r.body.action==='enable'){const setup=await localSetup.status();if(!setup.installed&&!setup.image_installed)throw Error('Finish image setup before enabling This PC.');}
+  app.post('/api/v1/pool/local/actions',{schema:{body:{type:'object',additionalProperties:false,required:['action'],properties:{action:{enum:['enable','disable','pause','cancel','recover','unload']}}}}},poolResult(async r=>{
+    if(r.body.action==='enable'){const setup=await localSetup.status();if(!setup.installed)throw Error('Finish setup before enabling This PC.');}
     return pool.localAction(r.body.action);
   }));
   app.get('/api/v1/diagnostics',{schema:{querystring:{type:'object',additionalProperties:false,properties:{after:{type:'integer',minimum:0},level:{enum:['info','warn','error']}}}}},async request=>diagnostics.events((request.query as any).after,(request.query as any).level));

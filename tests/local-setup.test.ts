@@ -4,20 +4,37 @@ import path from 'node:path';
 import {LocalSetup} from '../server/local-setup.js';
 import {resolvePaths,prepareStorage} from '../server/storage.js';
 import {localLease} from '../scripts/local-lock.mjs';
+import {engineSpec} from '../server/hardware.js';
 
-it('reports installed images when video files are missing, but still requires verified image files',async()=>{
-  await mkdir('.local/tests',{recursive:true});const root=await mkdtemp(path.resolve('.local/tests/setup-images-'));
+it('reports installed only when the current runtime and every verified model are present',async()=>{
+  await mkdir('.local/tests',{recursive:true});const root=await mkdtemp(path.resolve('.local/tests/setup-models-'));
   const setup=new LocalSetup(resolvePaths(root),root);
   const image={path:'diffusion_models/image.bin',size:3,sha256:'image-hash'},video={path:'diffusion_models/video.bin',size:4,sha256:'video-hash'};
-  vi.spyOn(setup as any,'models').mockImplementation(async(...args:unknown[])=>args[0]==='image'?[image]:[image,video]);
+  vi.spyOn(setup as any,'models').mockImplementation(async()=>[image,video]);
   try{
     await mkdir(path.join(root,'models/diffusion_models'),{recursive:true});
     await writeFile(path.join(root,'models',image.path),'img');
-    await writeFile(path.join(root,'runtime-ready.json'),JSON.stringify({revision:'seed-local-v1',roles:{image:{}}}));
-    await writeFile(path.join(root,'models-verified.json'),JSON.stringify({files:[image]}));
-    expect(await setup.status()).toMatchObject({installed:false,image_installed:true,files_done:1,files_total:2});
-    await writeFile(path.join(root,'models-verified.json'),JSON.stringify({files:[]}));
-    expect((await setup.status()).image_installed).toBe(false);
+    await writeFile(path.join(root,'runtime-ready.json'),JSON.stringify({revision:engineSpec().revision}));
+    await writeFile(path.join(root,'models-verified.json'),JSON.stringify({files:[image,video]}));
+    expect(await setup.status()).toMatchObject({installed:false,files_done:1,files_total:2});
+    await writeFile(path.join(root,'models',video.path),'data');
+    expect((await setup.status()).installed).toBe(true);
+    await writeFile(path.join(root,'runtime-ready.json'),JSON.stringify({revision:'old'}));
+    expect((await setup.status()).installed).toBe(false);
+  }finally{await setup.close();await rm(root,{recursive:true,force:true});}
+});
+
+it('picks models for the detected GPU and removes duplicates',async()=>{
+  await mkdir('.local/tests',{recursive:true});const root=await mkdtemp(path.resolve('.local/tests/setup-profile-'));
+  const setup=new LocalSetup(resolvePaths(root),root);
+  try{
+    const video='text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors',image='diffusion_models/krea2_turbo_int8_convrot.safetensors';
+    await writeFile(path.join(root,'runtime-ready.json'),JSON.stringify({revision:engineSpec().revision,gpu:'NVIDIA GeForce RTX 5090'}));
+    const paths=(await (setup as any).models()).map((file:any)=>file.path);
+    expect(paths).toContain(video);expect(new Set(paths).size).toBe(paths.length);
+    await writeFile(path.join(root,'runtime-ready.json'),JSON.stringify({revision:engineSpec().revision,gpu:'Fixture GPU'}));
+    const imageOnly=(await (setup as any).models()).map((file:any)=>file.path);
+    expect(imageOnly).toContain(image);expect(imageOnly).not.toContain(video);
   }finally{await setup.close();await rm(root,{recursive:true,force:true});}
 });
 
