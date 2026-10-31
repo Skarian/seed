@@ -28,6 +28,7 @@ async function fixture(page:Page){
   if(pathname.endsWith('/recover'))return state.recover?state.recover(route):route.fulfill({status:409,json:{error:{message:'This request still needs a worker check.'}}});
   if(pathname==='/api/v1/jobs')return route.fulfill({status:req.method()==='POST'?202:200,json:req.method()==='POST'?{jobs:state.jobs}:{items:state.jobs}});
   if(pathname==='/api/v1/studio')return route.fulfill({json:{pool:{active:2,ready:1,busy:0,preparing:0,needs_attention:1,hourly:2,estimated_spend:.2,image:2,video:0},activity:{active:0,waiting:0,needs_attention:1},outputs:{pending:0}}});
+  if(pathname==='/api/v1/generate-preferences')return route.fulfill({json:{preferences:{image:'image-768',video:'768p'}}});
   if(pathname==='/api/v1/chat-config')return route.fulfill({json:{configured:true}});
   if(pathname.endsWith('/startup-logs'))return route.fulfill({json:{worker_id:pathname.split('/').at(-2),revision:1,phase:'complete',collection:'sealed',availability:'unavailable',sealed_at:created,sealed_reason:'legacy',truncated:false,sections:[]}});
   if(pathname==='/api/v1/pool')return route.fulfill({json:{server_time:created,workers:[worker('other-worker'),worker('original-worker',true)],summary:{active:2,ready:1,busy:0,preparing:0,needs_attention:1,hourly:2,estimated_spend:.2,image:2,video:0}}});

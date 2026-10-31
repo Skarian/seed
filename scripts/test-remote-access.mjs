@@ -15,6 +15,7 @@ let code=await run(['node_modules/typescript/bin/tsc','-p','tsconfig.server.json
 await cp('prompting',path.join(serverRoot,'prompting'),{recursive:true});
 await mkdir(path.join(serverRoot,'worker'),{recursive:true});
 for(const name of ['models-image.json','models-video.json','releases.json','hardware.json','engine.json'])await copyFile('worker/'+name,path.join(serverRoot,'worker',name));
+await mkdir(path.join(serverRoot,'scripts'),{recursive:true});await copyFile('scripts/local-lock.mjs',path.join(serverRoot,'scripts/local-lock.mjs'));
 code=await run(['node_modules/vite/bin/vite.js','build','--outDir',webRoot]);if(code)process.exit(code);
 const proxy=await run(['scripts/test-remote-proxy.mjs']);
 if(proxy)process.exit(proxy);

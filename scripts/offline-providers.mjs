@@ -198,7 +198,6 @@ export async function offlineProviders(paths) {
               prompt:
                 "A quiet watercolor mountain lake, soft washes and paper texture, watercolor",
               aspect_ratio: "16:9",
-              size: "1mp",
               seed: "42",
               batch_size: 1,
               loras: [{ id, revision: sha, scale: 0.8 }],
