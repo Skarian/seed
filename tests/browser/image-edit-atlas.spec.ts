@@ -18,7 +18,7 @@ for(const device of ['desktop','mobile'] as const)for(const [id,surface,title] o
  try{
   await page.addInitScript(()=>Object.defineProperty(Crypto.prototype,'randomUUID',{value:undefined}));await page.goto('/');await select(page,'Image to image');await expect(page.getByLabel('Prompt',{exact:true})).toBeVisible();await expect(page.getByRole('heading',{name:'LoRAs',exact:true})).toHaveCount(0);
   if(id==='101'){await expect(page.getByRole('button',{name:/^Create image/})).toBeDisabled();}
-  else if(id==='116'){await page.getByLabel('Choose reference files').setInputFiles({name:'broken.png',mimeType:'image/png',buffer:Buffer.from('not an image')});await expect(page.getByRole('alert')).toContainText('cannot preview');}
+  else if(id==='116'){await page.getByLabel('Choose reference files').setInputFiles({name:'broken.png',mimeType:'image/png',buffer:Buffer.from('not an image')});await expect(page.locator('.reference-errors')).toContainText('cannot preview');}
   else if(['113','114','115'].includes(id)){
    await page.goto('/chat');await page.locator('input[type=file]').setInputFiles(await source());await page.getByRole('button',{name:'Save',exact:true}).click();const composer=page.getByRole('combobox',{name:'Chat message'});await composer.fill('/image-to-image Make the sky pink, keeping the mountains.');await expect(page.getByRole('button',{name:'Send',exact:true})).toBeEnabled();await composer.press('Enter');await expect(page.getByRole('button',{name:'Approve',exact:true})).toBeEnabled({timeout:20000});
    if(id==='114'){await page.getByRole('button',{name:'Edit request',exact:true}).click();await expect(page.getByRole('button',{name:'+ Add input',exact:true})).toBeVisible();}
