@@ -165,7 +165,9 @@ export class LocalWorker {
         }
         this.unreachableSince=undefined;
         if(status.terminal_error)throw Error(status.terminal_error.message);
-        if(status.state==='preparing'&&!this.get()?.interrupted&&this.preparingSince!==undefined&&this.now()-this.preparingSince>180000){
+        if(status.state!=='preparing')this.preparingSince=undefined;
+        else this.preparingSince??=this.now();
+        if(status.state==='preparing'&&!this.get()?.interrupted&&this.now()-this.preparingSince!>180000){
           this.requireStopped(await this.runtime.stop());
           throw Error('The local engine did not become ready within three minutes. Inspect its engine log, then retry recovery.');
         }

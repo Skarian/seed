@@ -330,6 +330,14 @@ it('keeps the assignment during brief gateway loss and requires recovery after p
   advance(1000);await local.tick();expect(local.get().state).toBe('needs_attention');
   expect(local.get().current_job_id).toBe(id);expect(runtime.stop).not.toHaveBeenCalled();
 }));
+it('times only continuous preparation, so a ready engine survives a brief preparing status',()=>fixture(async({local,runtime,request,job,advance}:any)=>{
+  await local.enable(true);const id=job();local.claim(id,request);await local.tick();
+  advance(1200000);await local.tick();
+  runtime.connection().status.mockResolvedValue({state:'preparing',engine_session_id:null});await local.tick();
+  expect(runtime.stop).not.toHaveBeenCalled();expect(local.get().current_job_id).toBe(id);
+  advance(179000);await local.tick();expect(runtime.stop).not.toHaveBeenCalled();
+  advance(2000);await local.tick();expect(runtime.stop).toHaveBeenCalledOnce();
+}));
 it('stops an engine that never becomes ready while preserving its assignment for recovery',()=>fixture(async({local,runtime,request,job,advance}:any)=>{
   runtime.connection().status.mockResolvedValue({state:'preparing',engine_session_id:null});
   await local.enable(true);const id=job();local.claim(id,request);await local.tick();advance(180001);await local.tick();
