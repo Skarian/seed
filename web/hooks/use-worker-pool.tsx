@@ -185,7 +185,7 @@ export function WorkerPoolProvider({
       setWorkerClass: (workerClass) =>
         setDialog((value) => ({ ...value, workerClass })),
       hasCapacity: (role, loras = [], workflow,target='auto') =>
-        (target!=='cloud'&&!!snapshot?.local?.enabled&&!snapshot.local.paused&&(!loras.length||workflow==='text-to-image')&&!!workflow&&snapshot.local.workflows.includes(workflow))||
+        (target!=='cloud'&&!!snapshot?.local?.enabled&&!snapshot.local.paused&&(!loras.length||workflow!=='image-to-image')&&!!workflow&&snapshot.local.workflows.includes(workflow))||
         (target!=='local'&&!!snapshot?.workers.some(
           (worker) =>
             worker.worker_class === role &&

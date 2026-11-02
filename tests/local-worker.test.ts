@@ -77,6 +77,24 @@ it('runs every video setting on a GPU with a hardware profile',()=>fixture(async
   for(const steps of [10,15,20,30])for(const detail of ['standard','full'])expect(local.supports({...video,steps,detail})).toBe(true);
   expect(local.claim(job(),{...video,steps:15,detail:'full'})?.profile).toBe('h3-full-15');
 }));
+it('runs video LoRAs for their own route and never for image editing',()=>fixture(async({local,paths,request,job}:any)=>{
+  await local.enable(true);
+  const source=(id:string,route:string,sha:string)=>({id,name:id,revision:sha,route,format:'lora',compatibility:'untested',
+    source:{provider:'civitai',model_id:1,version_id:2,file_id:3,url:'https://civitai.com/api/download/models/2',sha256:sha,size_bytes:100}});
+  const fl=source('fl','fl','a'.repeat(64)),ref=source('ref','ref','b'.repeat(64));
+  writeFileSync(path.join(paths.config,'loras.json'),JSON.stringify([fl,ref]));
+  const select=(entry:any)=>[{id:entry.id,revision:entry.revision,scale:.8}];
+  const video={...request,workflow:'text-to-video',output:{size:'768p',aspect:'16:9',duration_seconds:5}};
+  const reference={...video,workflow:'reference-to-video',references:[{id:'r',asset_id:'asset',kind:'image',role:'reference'}]};
+  expect(local.supports({...video,loras:select(fl)})).toBe(true);
+  expect(local.supports({...reference,loras:select(ref)})).toBe(true);
+  expect(local.supports({...video,loras:select(ref)})).toBe(false);
+  expect(local.supports({...reference,loras:select(fl)})).toBe(false);
+  expect(local.supports({...request,workflow:'image-to-image',output:{size:'image-768',aspect:'source'},loras:select(fl)})).toBe(false);
+  const claimed=local.claim(job(),{...video,loras:select(fl)});
+  expect(claimed?.state).toBe('preparing');expect(claimed?.worker_class).toBe('video');
+  expect(claimed?.adapter_sources.map((item:any)=>item.route)).toEqual(['fl']);
+}));
 it('offers images only on a GPU without a hardware profile and refreshes saved capabilities',()=>fixture(async({db,paths,runtime,request,job}:any)=>{
   runtime.installation.mockResolvedValue({revision:'seed-engine-v2',gpu_uuid:'11111111-1111-1111-1111-111111111111',gpu:'NVIDIA Fixture GPU',vram_bytes:48*1024**3});
   const local=new LocalWorker(db,paths,{runtime});

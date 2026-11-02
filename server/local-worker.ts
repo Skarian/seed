@@ -7,7 +7,7 @@ import {LOCAL_MODEL_IDLE_MINUTES} from '../shared/local-worker.js';
 import {LocalRuntime,type StopOutcome} from './local-runtime.js';
 import {engineSpec,hardwareProfile} from './hardware.js';
 import type {ImageRequest} from './workflows.js';
-import {executionProfile} from '../shared/workflows.js';
+import {executionProfile,loraRoute} from '../shared/workflows.js';
 import {readdirSync} from 'node:fs';
 import path from 'node:path';
 import {Loras} from './loras.js';
@@ -62,10 +62,14 @@ export class LocalWorker {
       if(record.issue&&['local_stop_pending','local_runtime_failed'].includes(record.issue.code))delete record.issue;
       record.interrupted=Boolean(record.current_job_id);record.state=this.restingState(record);});
   }
+  private adapterSources(request:ImageRequest){
+    const route=loraRoute(request);
+    return this.loras.manifestSources(route==='image'?'image':'video').filter(source=>source.route===route);
+  }
   supports(request:ImageRequest){
     if(request.loras?.length){
-      if(request.workflow!=='text-to-image')return false;
-      const available=this.loras.manifestSources('image');
+      if(request.workflow==='image-to-image')return false;
+      const available=this.adapterSources(request);
       if(request.loras.some(selected=>!available.some(source=>source.id===selected.id&&source.revision===selected.revision)))return false;
     }
     return Boolean(this.get()?.workflows.includes(request.workflow));
@@ -92,7 +96,7 @@ export class LocalWorker {
     return this.db.transaction(()=>{
       const record=this.get();if(!record||!record.enabled||record.paused||record.current_job_id||!['sleeping','ready'].includes(record.state))return null;
       const role:WorkerClass=request.workflow.endsWith('image')?'image':'video';
-      const selected=request.loras??[],available=selected.length?this.loras.manifestSources('image'):[];
+      const selected=request.loras??[],available=selected.length?this.adapterSources(request):[];
       record.adapter_sources=selected.map(selection=>available.find(source=>source.id===selection.id&&source.revision===selection.revision)!);
       if(record.adapter_sources.some(source=>!source))throw Error('A selected LoRA source changed. Review the request before retrying.');
       record.adapters_ready=!record.adapter_sources.length;

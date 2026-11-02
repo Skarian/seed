@@ -17,16 +17,16 @@ export async function prepareLocalAdapters(options:Options, spawnProcess:Spawn=s
   signal?.throwIfAborted();
   const entries=new Map<string,{path:string;url:string;sha256:string;size:number;routes:string[]}>();
   for(const source of sources){
-    if(!/^[a-f0-9]{64}$/.test(source.sha256)||source.revision!==source.sha256||source.route!=='image'||
+    if(!/^[a-f0-9]{64}$/.test(source.sha256)||source.revision!==source.sha256||!['image','fl','ref'].includes(source.route)||
       source.path!==`loras/seed-${source.sha256}.safetensors`||!Number.isSafeInteger(source.size_bytes)||source.size_bytes<=0||source.size_bytes>8*1024**3)
-      throw Error('This LoRA needs a valid pinned image source. Update it in Admin.');
+      throw Error('This LoRA needs a valid pinned source. Update it in Admin.');
     const url=new URL(source.url);
     if(url.protocol!=='https:'||url.host!=='civitai.com'||url.username||url.password||url.hash||
       !/^\/api\/download\/models\/\d+$/.test(url.pathname)||[...url.searchParams.keys()].join(',')!=='fileId'||!/^\d+$/.test(url.searchParams.get('fileId')??''))
       throw Error('This LoRA needs an exact Civitai file source. Update it in Admin.');
     const prior=entries.get(source.path);
     if(prior&&(prior.url!==source.url||prior.size!==source.size_bytes))throw Error('Conflicting LoRA file sources. Update them in Admin.');
-    entries.set(source.path,{path:source.path,url:source.url,sha256:source.sha256,size:source.size_bytes,routes:['image']});
+    entries.set(source.path,{path:source.path,url:source.url,sha256:source.sha256,size:source.size_bytes,routes:[...new Set([...(prior?.routes??[]),source.route])]});
   }
   await mkdir(options.workspace,{recursive:true});
   const token=credential(options.paths,'civitaiKey');

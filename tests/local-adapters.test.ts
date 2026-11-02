@@ -30,6 +30,14 @@ it('passes credentials only through stdin, reports progress and verifies every s
   expect(result).toHaveLength(1);expect(progress.mock.calls.map(call=>call[0].bytes_done)).toContain(50);
   expect(progress.mock.lastCall![0].bytes_done).toBe(100);
 }));
+it('prepares one file for both video routes',()=>fixture(async options=>{
+  const fl={...options.sources[0],route:'fl' as const},ref={...fl,id:'b',route:'ref' as const};
+  const inventory=await prepareLocalAdapters({...options,sources:[fl,ref]},processFixture(`
+    const item=body.entries[0];if(body.entries.length!==1||item.routes.join()!=='fl,ref')process.exit(4);
+    emit({path:item.path,state:'ready',ready:true});
+    emit({complete:true,installed_loras:[{filename:item.path.slice(6),sha256:item.sha256,routes:item.routes}]});`));
+  expect(inventory[0]!.routes).toEqual(['fl','ref']);
+}));
 it('reports download failures without leaking provider diagnostics or accepting partial inventories',()=>fixture(async options=>{
   await expect(prepareLocalAdapters(options,processFixture(`emit({path:body.entries[0].path,state:'needs_source',http_status:401,diagnostic_error:'fixture-private-token'});`))).rejects.toThrow('HTTP 401');
   await expect(prepareLocalAdapters(options,processFixture(`emit({complete:true,installed_loras:[]});`))).rejects.toThrow('every selected LoRA');

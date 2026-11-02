@@ -33,6 +33,10 @@ moving between workflows does not restart anything. One output holds the GPU
 through generation, saving, and acknowledgement, and the oldest queued output
 runs next.
 
+LoRAs work for text to image, text to video, and reference to video. A selected
+LoRA downloads when its request starts, and later requests reuse the file. Image
+editing does not support LoRAs.
+
 Windows stays awake while a job is assigned. The display can still turn off.
 
 The engine stops 20 minutes after the last output is saved. **Unload now** on
