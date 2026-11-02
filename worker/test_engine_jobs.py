@@ -391,8 +391,8 @@ async def test_quality_readiness_does_not_require_turbo_for_high(tmp_path, monke
     try:
         models = {
             'diffusion_models': ['minimax_h3_fl2va_pruned_int8_convrot.safetensors', 'minimax_h3_ref2va_pruned_int8_convrot.safetensors'],
-            'text_encoders': ['qwen3vl_32b_minimax_h3_int8_convrot.safetensors'],
-            'vae': ['minimax_h3_video_vae_fp16.safetensors', 'minimax_h3_audio_vae_fp32.safetensors'],
+            'text_encoders': ['qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors'],
+            'vae': ['minimax_h3_video_vae_int8_convrot.safetensors', 'minimax_h3_audio_vae_fp32.safetensors'],
             'loras': [],
         }
         monkeypatch.setattr(sys.modules['folder_paths'], 'get_filename_list', lambda category: models.get(category, []))

@@ -72,7 +72,7 @@ async function run(name,request){
   for(;;){
     const status=await api('jobs/'+job.id+'/status');
     peak=Math.max(peak,gpu());
-    if(['failed','cancelled','needs_attention'].includes(status.state)){log({name,state:status.state,has_error:status.has_error,error:(await api('jobs/'+job.id)).error});throw Error(name+' did not complete.');}
+    if(['failed','cancelled'].includes(status.state)||(await api('pool/local')).worker?.issue){log({name,state:status.state,has_error:status.has_error,error:(await api('jobs/'+job.id)).error});throw Error(name+' did not complete.');}
     if(status.state==='completed')break;
     await delay(2000);
   }
@@ -103,6 +103,7 @@ try{
   const sound='integrated_multimodal_description: [Shot 1] A small stream flows over mossy stones in a green wood. The camera holds still.\noverall_soundscape: Water runs over stones.\nnon_diegetic_music: N/A';
   const video={output:{size:'768p',aspect:'16:9',duration_seconds:5},audio:{output:'generated'},steps:20};
   if(wanted('text-video'))await run('text-video',{...video,workflow:'text-to-video',prompt:sound});
+  if(wanted('long-video'))await run('long-video',{...video,output:{...video.output,duration_seconds:15},workflow:'text-to-video',prompt:sound});
   if(wanted('full-video'))await run('full-video',{...video,detail:'full',workflow:'text-to-video',prompt:sound});
   if(wanted('reference-video')){
     const asset=await upload(source,'Synthetic reference.png');

@@ -28,7 +28,7 @@ it('picks models for the detected GPU and removes duplicates',async()=>{
   await mkdir('.local/tests',{recursive:true});const root=await mkdtemp(path.resolve('.local/tests/setup-profile-'));
   const setup=new LocalSetup(resolvePaths(root),root);
   try{
-    const video='text_encoders/qwen3vl_32b_minimax_h3_int8_convrot.safetensors',image='diffusion_models/krea2_turbo_int8_convrot.safetensors';
+    const video='text_encoders/qwen3vl_32b_minimax_h3_nvfp4_awq.safetensors',image='diffusion_models/krea2_turbo_int8_convrot.safetensors';
     await writeFile(path.join(root,'runtime-ready.json'),JSON.stringify({revision:engineSpec().revision,gpu:'NVIDIA GeForce RTX 5090'}));
     const paths=(await (setup as any).models()).map((file:any)=>file.path);
     expect(paths).toContain(video);expect(new Set(paths).size).toBe(paths.length);

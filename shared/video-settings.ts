@@ -10,11 +10,11 @@ export function videoSteps(request: { steps?: number }): VideoSteps {
   return request.steps;
 }
 
-/** Standard samples sparse attention; Full samples every token. Works with any steps. */
+/** Full uses Comfy's default attention; Fast (`standard`) uses sparse INT8 attention. Works with any steps. */
 export const VIDEO_DETAILS = ['standard', 'full'] as const;
 export type VideoDetail = typeof VIDEO_DETAILS[number];
-export const DEFAULT_VIDEO_DETAIL: VideoDetail = 'standard';
-export const VIDEO_DETAIL_LABELS: Record<VideoDetail, string> = { standard: 'Standard', full: 'Full' };
+export const DEFAULT_VIDEO_DETAIL: VideoDetail = 'full';
+export const VIDEO_DETAIL_LABELS: Record<VideoDetail, string> = { standard: 'Fast', full: 'Full' };
 export const isVideoDetail = (value: unknown): value is VideoDetail => VIDEO_DETAILS.some(detail => detail === value);
 export const videoDetail = (request: { detail?: VideoDetail }): VideoDetail => request.detail ?? DEFAULT_VIDEO_DETAIL;
 

@@ -132,8 +132,6 @@ export function videoGraph(
   const route = loraRoute(request);
   const seconds = request.output.duration_seconds!;
   const {width, height} = resolveDimensions(request.workflow,request.output.size,request.output.aspect);
-  const sparse = videoDetail(request) === "standard";
-  const model: [string, number] = [sparse ? "19" : "17", 0];
   const graph: Record<
     string,
     { class_type: string; inputs: Record<string, any> }
@@ -178,13 +176,13 @@ export function videoGraph(
     },
     "7": {
       class_type: "BasicGuider",
-      inputs: { model, conditioning: ["6", 0] },
+      inputs: { model: ["1", 0], conditioning: ["6", 0] },
     },
     "8": { class_type: "RandomNoise", inputs: { noise_seed: Number(seed) } },
     "9": { class_type: "KSamplerSelect", inputs: { sampler_name: "res_multistep" } },
     "10": {
       class_type: "BasicScheduler",
-      inputs: { model, scheduler: "simple", steps: videoSteps(request), denoise: 1 },
+      inputs: { model: ["1", 0], scheduler: "simple", steps: videoSteps(request), denoise: 1 },
     },
     "11": {
       class_type: "SamplerCustomAdvanced",
@@ -215,27 +213,23 @@ export function videoGraph(
         export_version: "native-v1",
       },
     },
-    "16": {
-      class_type: "MiniMaxH3SigmaShift",
-      inputs: { model: ["1", 0], shift_video: 12, shift_audio: 3 },
-    },
   };
-  graph["16"]!.inputs.model = withLoras(graph, loras, "1");
-  graph["17"] = {
-    class_type: "ModelAttentionBackend",
-    inputs: {
-      model: ["16", 0],
-      attention: "comfy kitchen attention",
-    },
-  };
-  if (sparse) {
+  let sampled = withLoras(graph, loras, "1");
+  // Full is Comfy's template: default attention. Fast trades accuracy for speed.
+  if (videoDetail(request) === "standard") {
     const { tau, ...attention } = hardware.attention;
+    graph["17"] = {
+      class_type: "ModelAttentionBackend",
+      inputs: { model: sampled, attention: "comfy kitchen attention" },
+    };
     // DynamicCombo inputs use the flat API form, not its normalized Python dictionary.
     graph["19"] = {
       class_type: "BlockSparseAttention",
       inputs: { model: ["17", 0], selection: "sol-attn", "selection.tau": tau, ...attention, verbose: false },
     };
+    sampled = ["19", 0];
   }
+  graph["7"]!.inputs.model = graph["10"]!.inputs.model = sampled;
   let node = 40,
     image = 0,
     video = 0,

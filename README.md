@@ -42,8 +42,6 @@ Start with an image and describe the change. Adjust the camera angle, replace a 
 
 ### Text to video · MiniMax H3 (pruned INT8 ConvRot)
 
-*Kitchen + Sol attention.*
-
 Describe the scene, movement, and sound. Make a 5–15 second clip with optional generated audio.
 
 [![The actual puppy video prompt beside a frame from the generated result.](docs/assets/readme/text-to-video.webp)](docs/assets/readme/text-to-video.mp4)
@@ -51,8 +49,6 @@ Describe the scene, movement, and sound. Make a 5–15 second clip with optional
 [Watch the 5-second result with audio →](docs/assets/readme/text-to-video.mp4)
 
 ### Reference to video · MiniMax H3 (pruned INT8 ConvRot)
-
-*Kitchen + Sol attention.*
 
 Reference images, videos, or audio files as part of your video request. To extend an existing video, use its last frame as the new clip's first frame. To generate a clip that leads into it, use its first frame as the new clip's last frame.
 
