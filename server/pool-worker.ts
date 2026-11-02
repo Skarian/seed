@@ -23,6 +23,7 @@ import { credential } from "./credential-store.js";
 import { PoolError, WorkerStarting } from "./pool-errors.js";
 import { downloadAndRelayBaseModel } from "./base-model-transfer.js";
 import type {Diagnostics} from './diagnostics.js';
+import {enginePhase,workerPhaseLabel} from '../shared/generation-progress.js';
 
 const exec = promisify(execFile);
 type Session = {
@@ -379,7 +380,8 @@ export class PoolWorkerDriver extends WorkerTransport<RentalRecord> implements W
       data:{error:prep.error,files:prep.files?.filter((file:any)=>file.error),capabilities}});
     const health: WorkerHealth = {
       workflows: Array.isArray(capabilities?.workflows) ? capabilities.workflows.filter((w:unknown)=>typeof w==='string') : undefined,
-      activity: w.worker_class==='image' && status.execution_activity ? ({loading:'Loading image models',editing:'Generating',saving:'Saving'}[status.execution_activity.phase] ?? undefined) + (Number.isFinite(status.execution_activity.percent)?` · ${status.execution_activity.percent}%`:'') : undefined,
+      phase: enginePhase(status.execution_activity),
+      activity: workerPhaseLabel(enginePhase(status.execution_activity)),
       busy: status.state === "busy",
       active_job_id: status.active_prompt_id ?? undefined,
       ready:

@@ -1,3 +1,4 @@
+import type { GenerationProgress } from "./generation-progress.js";
 import type { ImageRequest, LoraSelection } from "./generation.js";
 import type {
   HistoricalProviderIssue as ProviderIssue,
@@ -13,7 +14,9 @@ export type JobRecord = {
     reason: 'submission_unknown' | 'worker_unavailable' | 'submission_unavailable' | 'engine_interrupted' | 'local_preparation_failed' | 'local_stop_pending' | 'cancelled';
     worker_id?: string;
   };
+  /** Older records only. Replaced by progress. */
   activity?: string;
+  progress?: GenerationProgress;
   waiting_reason?: string;
   estimate?: Estimate;
   provider_issue?: ProviderIssue;

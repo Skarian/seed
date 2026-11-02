@@ -599,8 +599,8 @@ export class WorkerPool {
     if (stopped(w) || w.quit_mode === "now") return;
     this.update(id, (current) => {
       current.preparation = health.preparation;
-      if(current.current_job_id && health.active_job_id===current.current_job_id)current.current_activity=health.activity;
-      else if(current.current_activity!=='Downloading base models through this PC')delete current.current_activity;
+      if(current.current_job_id && health.active_job_id===current.current_job_id){current.current_activity=health.activity;if(health.phase)current.current_phase=health.phase;else delete current.current_phase;}
+      else{delete current.current_phase;if(current.current_activity!=='Downloading base models through this PC')delete current.current_activity;}
       current.workflows = health.workflows;
       current.session_id = health.session_id;
       current.preparation_revision =
@@ -783,8 +783,8 @@ export class WorkerPool {
         this.update(id, (current) => {
           if (stopped(current) || current.quit_mode === "now") return;
           current.preparation = health.preparation;
-      if(current.current_job_id && health.active_job_id===current.current_job_id)current.current_activity=health.activity;
-      else if(current.current_activity!=='Downloading base models through this PC')delete current.current_activity;
+      if(current.current_job_id && health.active_job_id===current.current_job_id){current.current_activity=health.activity;if(health.phase)current.current_phase=health.phase;else delete current.current_phase;}
+      else{delete current.current_phase;if(current.current_activity!=='Downloading base models through this PC')delete current.current_activity;}
           current.preparation_revision = health.revision ?? current.preparation_revision;
           current.state = "preparing";
           current.issue = undefined;
@@ -892,6 +892,7 @@ export class WorkerPool {
       w.released_at = this.date();
       w.ready = false;
       delete w.current_activity;
+      delete w.current_phase;
       w.issue = message
         ? { code: "rental_gone", message, retryable: false }
         : undefined;

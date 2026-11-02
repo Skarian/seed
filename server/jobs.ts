@@ -8,6 +8,8 @@ import type { WorkerReceipt } from "./pool-contracts.js";
 import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { hardwareProfile } from "./hardware.js";
 import { resolveDimensions } from "../shared/resolution.js";
+import { nextProgress } from "../shared/generation-progress.js";
+import { jobState } from "../shared/jobs.js";
 import {
   WorkerHttpError,
   TransferIntegrityError,
@@ -329,6 +331,16 @@ export class Jobs {
         1000;
     }
     delete job.recovery; // Recovery activity belongs to the current process, never restart intent.
+    delete job.activity; // Replaced by progress; older records may still carry it.
+    const shown = jobState(job);
+    if (shown === 'starting') {
+      const assigned = job.worker?.id ? this.pool.executor(job.worker.id) : null;
+      const loras = Boolean(assigned && localExecutor(assigned) && assigned.state === 'preparing' && assigned.adapter_download);
+      const next = nextProgress(job.progress?.preparing_loras === loras ? job.progress : undefined, 'starting', undefined, new Date());
+      job.progress = loras ? { ...next, preparing_loras: true } : next;
+    }
+    else if (shown === 'saving') job.progress = nextProgress(job.progress, 'finishing', undefined, new Date());
+    else if (shown !== 'running') delete job.progress;
     job.updated_at = new Date(Math.max(Date.now(), Date.parse(latest?.updated_at ?? '') + 1 || 0)).toISOString();
     if(latest?.state!==job.state||latest?.error!==job.error) this.pool.diagnostics?.event({
       category:'job',operation:'state_changed',worker_id:job.worker?.id,level:job.error?'warn':'info',
@@ -770,7 +782,7 @@ export class Jobs {
         return;
       }
       job.state = this.cancelled(job.id) ? "cancel_requested" : "running";
-      job.activity = job.request.workflow==='image-to-image' ? w.current_activity?.replace('Loading image models','Loading image editor').replace('Generating','Editing') : undefined;
+      if(job.state==='running'){const phase=w.current_phase;job.progress=nextProgress(job.progress,phase?.phase??'loading',phase?.percent,new Date());}
       job.error = null;
       this.save(job);
       return;

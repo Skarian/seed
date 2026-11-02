@@ -1,3 +1,4 @@
+import type {EnginePhase} from './generation-progress.js';
 export type WorkerClass = "image" | "video";
 export type Provider = "vast" | "runpod";
 export type WorkerState =
@@ -104,6 +105,8 @@ export type PoolWorker = {
   provider_id?: string;
   current_job_id?: string;
   current_activity?: string;
+  /** Engine phase of the current output. Phase and percent only. */
+  current_phase?: EnginePhase;
   quit_mode?: "finish" | "now";
   issue?: PoolIssue;
   preparation?: {

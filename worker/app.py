@@ -178,7 +178,7 @@ def create_app(workspace, runtime, pairing_secret, public_url, comfy_url='http:/
             if active and event.get('prompt_id') == active:
                 activity = {'phase': event.get('phase')}
                 progress = confirmed.get('sampling_progress') or {}
-                if event.get('phase') == 'editing' and progress.get('prompt_id') == active:
+                if event.get('phase') in ('generating', 'editing') and progress.get('prompt_id') == active:
                     activity['percent'] = progress.get('percent')
         except Exception:
             state, engine_session_id, active = 'preparing', None, None

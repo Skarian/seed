@@ -1,3 +1,4 @@
+import type {EnginePhase} from '../shared/generation-progress.js';
 import type {
   PoolWorker,
   WorkerClass,
@@ -67,6 +68,7 @@ export type WorkerHealth = {
   busy?: boolean;
   active_job_id?: string;
   activity?: string;
+  phase?: EnginePhase;
   ready: boolean;
   session_id?: string;
   installed_loras: Array<{

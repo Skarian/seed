@@ -4,6 +4,7 @@ import type {StudioPaths} from './storage.js';
 import type {WorkerClass} from '../shared/pool.js';
 import type {LocalWorkerView} from '../shared/local-worker.js';
 import {LOCAL_MODEL_IDLE_MINUTES} from '../shared/local-worker.js';
+import {enginePhase,workerPhaseLabel} from '../shared/generation-progress.js';
 import {LocalRuntime,type StopOutcome} from './local-runtime.js';
 import {engineSpec,hardwareProfile} from './hardware.js';
 import type {ImageRequest} from './workflows.js';
@@ -185,8 +186,9 @@ export class LocalWorker {
           value.session_id=status.engine_session_id??undefined;
           value.ready=status.state!=='preparing';
           value.state=value.interrupted?'recovering':value.ready?(value.state==='saving'?'saving':'generating'):'preparing';
-          const activity=status.execution_activity;
-          value.current_activity=activity?({loading:'Loading models',editing:'Generating',saving:'Saving output'}[activity.phase]??activity.phase)+(Number.isFinite(activity.percent)?` · ${activity.percent}%`:''):undefined;
+          const phase=status.active_prompt_id===value.attempt_id?enginePhase(status.execution_activity):undefined;
+          value.current_activity=workerPhaseLabel(phase);
+          if(phase)value.current_phase=phase;else delete value.current_phase;
           if(value.ready)value.ready_at??=new Date(this.now()).toISOString();
         });
       }else if(record.state==='ready'&&!this.runtime.alive||this.runtime.alive&&(!record.enabled||record.paused||(record.idle_deadline&&Date.parse(record.idle_deadline)<=this.now())))await this.sleep();
@@ -213,7 +215,7 @@ export class LocalWorker {
     this.db.transaction(()=>{
       this.db.prepare("UPDATE job_attempts SET state='finished' WHERE job_id=? AND state='active'").run(job);
       delete record.current_job_id;delete record.attempt_id;delete record.interrupted;
-      delete record.adapter_sources;delete record.adapters_ready;delete record.adapter_download;delete record.current_activity;
+      delete record.adapter_sources;delete record.adapters_ready;delete record.adapter_download;delete record.current_activity;delete record.current_phase;
       if(record.issue?.code==='local_adapter_failed')delete record.issue;
       record.state=this.runtime.alive?'ready':record.enabled&&!record.paused?'sleeping':'disabled';
       record.idle_deadline=new Date(this.now()+LOCAL_MODEL_IDLE_MINUTES*60_000).toISOString();this.save(record);

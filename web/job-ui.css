@@ -37,3 +37,4 @@
 .activity-header-actions{display:flex;align-items:center;gap:8px;margin-left:auto}
 .activity-header-actions>button{min-height:44px;white-space:nowrap}
 .activity-header-actions>button:disabled{opacity:.45;cursor:default}
+.job-progress{text-align:center;padding:0 4px}.job-progress-detail{font-variant-numeric:tabular-nums;color:#a8cdea}

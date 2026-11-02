@@ -361,3 +361,17 @@ it('stops an engine that never becomes ready while preserving its assignment for
   await local.enable(true);const id=job();local.claim(id,request);await local.tick();advance(180001);await local.tick();
   expect(runtime.stop).toHaveBeenCalledOnce();expect(local.get()).toMatchObject({state:'needs_attention',current_job_id:id,ready:false});
 }));
+
+it('shows the engine phase of its own attempt only',()=>fixture(async({local,runtime,request,job}:any)=>{
+  await local.enable(true);const id=job();local.claim(id,request);const attempt=local.get().attempt_id;
+  const status=runtime.connection().status;
+  status.mockResolvedValue({state:'busy',active_prompt_id:attempt,engine_session_id:'engine',execution_activity:{phase:'generating',percent:42}});
+  await local.tick();
+  expect(local.get()).toMatchObject({current_phase:{phase:'generating',percent:42},current_activity:'Generating · 42%'});
+  status.mockResolvedValue({state:'busy',active_prompt_id:attempt,engine_session_id:'engine',execution_activity:{phase:'finishing'}});
+  await local.tick();
+  expect(local.get()).toMatchObject({current_phase:{phase:'finishing'},current_activity:'Finishing'});
+  status.mockResolvedValue({state:'busy',active_prompt_id:'another-attempt',engine_session_id:'engine',execution_activity:{phase:'generating',percent:99}});
+  await local.tick();
+  expect(local.get().current_phase).toBeUndefined();expect(local.get().current_activity).toBeUndefined();
+}));
