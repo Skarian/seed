@@ -62,7 +62,8 @@ describe('request and graph resolution contracts',()=>{
       expect(graph['14']!.inputs).toMatchObject({seconds:5,export_version:'native-v1'});
       expect(graph['10']!.inputs.steps).toBe(30);
       const guides=Object.values(graph).filter(n=>n.class_type==='MiniMaxH3AddGuide');
-      expect(guides.map(n=>n.inputs.frame_idx)).toEqual(route==='fl'?[119]:[0,119]);
+      expect(guides.map(n=>n.inputs.frame_idx)).toEqual(route==='fl'?[]:[0,-1]);
+      if(route==='fl')expect(graph['6']!.inputs).toMatchObject({first_frame:expect.anything(),last_frame:expect.anything()});
       if(route==='ref')expect(graph['6']!.inputs.ref_image_size).toBe('match');
     }
   });

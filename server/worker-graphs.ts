@@ -220,10 +220,11 @@ export function videoGraph(
       inputs: { model: ["1", 0], shift_video: 12, shift_audio: 3 },
     },
   };
+  graph["16"]!.inputs.model = withLoras(graph, loras, "1");
   graph["17"] = {
     class_type: "ModelAttentionBackend",
     inputs: {
-      model: withLoras(graph, loras, "16"),
+      model: ["16", 0],
       attention: "comfy kitchen attention",
     },
   };
@@ -259,8 +260,8 @@ export function videoGraph(
       },
     };
     if (ref.role === "first_frame" || ref.role === "last_frame") {
-      if (route === "fl" && ref.role === "first_frame") {
-        graph["6"]!.inputs.first_frame = [key, 0];
+      if (route === "fl") {
+        graph["6"]!.inputs[ref.role] = [key, 0];
         continue;
       }
       const guide = String(node++);
@@ -270,8 +271,9 @@ export function videoGraph(
           positive,
           latent: ["6", 1],
           vae: ["3", 0],
+          audio_vae: ["4", 0],
           image: [key, 0],
-          frame_idx: ref.role === "first_frame" ? 0 : seconds * 24 - 1,
+          frame_idx: ref.role === "first_frame" ? 0 : -1,
         },
       };
       positive = [guide, 0];

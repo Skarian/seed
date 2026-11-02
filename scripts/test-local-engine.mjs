@@ -32,10 +32,10 @@ const origin='http://127.0.0.1:'+port;
 await mkdir('.local/tests',{recursive:true});
 const root=await mkdtemp(path.resolve('.local/tests/local-engine-'));
 const paths=resolvePaths(root);
-// One unused tensor: proves the adapter path without any real LoRA or download.
-const header=Buffer.from(JSON.stringify({'fixture.weight':{dtype:'F32',shape:[1],data_offsets:[0,4]}}));
+// One unused LoRA pair: proves the adapter path without any real LoRA or download.
+const header=Buffer.from(JSON.stringify({'fixture.lora_A.weight':{dtype:'F32',shape:[1],data_offsets:[0,4]},'fixture.lora_B.weight':{dtype:'F32',shape:[1],data_offsets:[4,8]}}));
 const length=Buffer.alloc(8);length.writeBigUInt64LE(BigInt(header.length));
-const adapter=Buffer.concat([length,header,Buffer.alloc(4)]);
+const adapter=Buffer.concat([length,header,Buffer.alloc(8)]);
 const sha256=createHash('sha256').update(adapter).digest('hex');
 const adapterEntry=(id,route)=>({id,name:'Synthetic '+route,revision:sha256,route,format:'lora',compatibility:'untested',
   source:{provider:'civitai',model_id:1,version_id:2,file_id:3,url:'https://civitai.com/api/download/models/2',sha256,size_bytes:adapter.length}});
@@ -72,7 +72,7 @@ async function run(name,request){
   for(;;){
     const status=await api('jobs/'+job.id+'/status');
     peak=Math.max(peak,gpu());
-    if(['failed','cancelled'].includes(status.state)){log({name,state:status.state,has_error:status.has_error,error:(await api('jobs/'+job.id)).error});throw Error(name+' did not complete.');}
+    if(['failed','cancelled','needs_attention'].includes(status.state)){log({name,state:status.state,has_error:status.has_error,error:(await api('jobs/'+job.id)).error});throw Error(name+' did not complete.');}
     if(status.state==='completed')break;
     await delay(2000);
   }
@@ -107,6 +107,10 @@ try{
   if(wanted('reference-video')){
     const asset=await upload(source,'Synthetic reference.png');
     await run('reference-video',{...video,workflow:'reference-to-video',prompt:sound.replace('A small stream','<Picture 1> A small stream'),references:[{id:'reference',asset_id:asset,kind:'image',role:'reference',framing:'fit'}]});
+  }
+  if(wanted('first-last')){
+    const first=await upload(source,'Synthetic first.png'),last=await upload(source,'Synthetic last.png');
+    await run('first-last',{...video,workflow:'reference-to-video',prompt:sound,references:[{id:'first',asset_id:first,kind:'image',role:'first_frame'},{id:'last',asset_id:last,kind:'image',role:'last_frame'}]});
   }
   if(wanted('lora-video'))await run('lora-video',{...video,workflow:'text-to-video',prompt:sound,loras:selected('synthetic-fl')});
   if(wanted('lora-reference')){

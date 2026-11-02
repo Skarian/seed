@@ -36,7 +36,7 @@ it.each([10,15,20,30] as const)('runs Full detail at %i steps as dense Kitchen a
   expect(videoProfile(request)).toBe(`h3-full-${steps}`);
   const loras=[{filename:'style.safetensors',sha256:'a'.repeat(64),strength_model:1}];
   const styled=graphFor(request,'job','42',loras,[],hardware);
-  expect(styled['30']!.inputs.model).toEqual(['16',0]);expect(styled['17']!.inputs.model).toEqual(['30',0]);
+  expect(styled['30']!.inputs.model).toEqual(['1',0]);expect(styled['16']!.inputs.model).toEqual(['30',0]);expect(styled['17']!.inputs.model).toEqual(['16',0]);
 });
 it('keeps 30 steps and Standard detail for saved requests without those settings',()=>{
   const graph=graphFor(imageRequest(base),'job','42',[],[],hardware);
@@ -54,12 +54,12 @@ it('supports mixed references and last-frame guides without colliding with adapt
   const loras=[.2,1.3,4].map((strength_model,i)=>({filename:'adapter-'+i+'.safetensors',sha256:String(i).repeat(64),strength_model}));
   const graph=graphFor(request,'job','42',loras,refs,hardware);
   expect(graph['1']!.inputs.unet_name).toContain('ref2va');
-  expect(graph['17']!.inputs.model).toEqual(['32',0]);
-  expect(graph['30']!.inputs).toMatchObject({model:['16',0],strength_model:.2});
+  expect(graph['16']!.inputs.model).toEqual(['32',0]);expect(graph['17']!.inputs.model).toEqual(['16',0]);
+  expect(graph['30']!.inputs).toMatchObject({model:['1',0],strength_model:.2});
   expect(graph['31']!.inputs).toMatchObject({model:['30',0],strength_model:1.3});
   expect(graph['32']!.inputs).toMatchObject({model:['31',0],strength_model:4});
   expect(graph['6']!.inputs['ref_images.ref_image_0']).toEqual(['40',0]);
-  expect(graph['42']!.inputs.frame_idx).toBe(359);expect(graph['7']!.inputs.conditioning).toEqual(['42',0]);
+  expect(graph['42']!.inputs).toMatchObject({frame_idx:-1,audio_vae:['4',0]});expect(graph['7']!.inputs.conditioning).toEqual(['42',0]);
 });
 it('keeps native reference video soundtracks attached to their corresponding clip',()=>{
   const refs=[prepared('sound','audio'),{...prepared('motion','video'),audio_file:'motion.wav',audio_filename:'motion.wav'}];
