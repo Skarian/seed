@@ -93,10 +93,10 @@ Capabilities and status report `installed_loras` as
 checks the LoRA inventory, safe paths, and canvas sizes. Graphs come from one
 builder, `server/worker-graphs.ts`, and are the same on every host.
 
-Video settings are `steps` (10, 15, 20, 30) and `detail`. `full`, the default,
-is Comfy's H3 template with its default attention. `standard` is labelled Fast
-and adds Kitchen INT8 and Sol sparse attention, which trades accuracy for speed.
-Any steps value works with either detail.
+Video settings are `steps` (10, 15, 20, 30) and `detail`. `standard`, labelled
+Fast and the default, adds Kitchen INT8 and Sol sparse attention. `full` is
+Comfy's H3 template with its default attention. Any steps value works with
+either detail.
 
 `POST /studio/stop` stops a local engine. It requires the launch token, refuses
 new work, interrupts any job and waits for it to end, unloads models through

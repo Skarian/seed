@@ -10,7 +10,7 @@ const prepared=(id:string,kind:'image'|'video'|'audio',role:'reference'|'last_fr
 it.each([10,15,20,30] as const)('preserves %i steps through validation, sampling, and profile selection',steps=>{
   const request=imageRequest({...base,steps});
   expect(graphFor(request,'job','42',[],[],hardware)['10']!.inputs.steps).toBe(steps);
-  expect(videoProfile(request)).toBe(`h3-full-${steps}`);
+  expect(videoProfile(request)).toBe(`h3-standard-${steps}`);
 });
 it.each([8,0,25,31,'20',null])('rejects an unsupported step count %s',steps=>{
   expect(()=>imageRequest({...base,steps})).toThrow(/steps/);
@@ -45,12 +45,12 @@ it('runs Fast detail through Kitchen and Sol after any LoRAs',()=>{
   expect(graph['19']!.inputs).toMatchObject({model:['17',0],selection:'sol-attn','selection.tau':1.3,start_percent:.2,end_percent:1,dense_blocks:'',min_tokens:12288,extra_tokens:256,sink_conditioning:'exact_kv_and_rows'});
   expect(graph['7']!.inputs.model).toEqual(['19',0]);expect(graph['10']!.inputs.model).toEqual(['19',0]);
 });
-it('keeps 30 steps and uses Full detail for saved requests without those settings',()=>{
+it('keeps 30 steps and uses Fast detail for saved requests without those settings',()=>{
   const graph=graphFor(imageRequest(base),'job','42',[],[],hardware);
   expect(graph['1']!.inputs.unet_name).toBe('minimax_h3_fl2va_pruned_int8_convrot.safetensors');
   expect(graph['5']).toBeUndefined();expect(graph['9']!.inputs.sampler_name).toBe('res_multistep');
   expect(graph['10']!.inputs.steps).toBe(30);
-  expect(graph['7']!.inputs.model).toEqual(['1',0]);
+  expect(graph['7']!.inputs.model).toEqual(['19',0]);
   expect(graph['6']!.inputs).toMatchObject({width:1344,height:768,length:362});
   expect(graph['14']!.inputs).toMatchObject({seconds:15,export_version:'native-v1',audio_mode:'generated'});
 });
@@ -60,7 +60,7 @@ it('supports mixed references and last-frame guides without colliding with adapt
   const loras=[.2,1.3,4].map((strength_model,i)=>({filename:'adapter-'+i+'.safetensors',sha256:String(i).repeat(64),strength_model}));
   const graph=graphFor(request,'job','42',loras,refs,hardware);
   expect(graph['1']!.inputs.unet_name).toContain('ref2va');
-  expect(graph['7']!.inputs.model).toEqual(['32',0]);
+  expect(graph['17']!.inputs.model).toEqual(['32',0]);expect(graph['7']!.inputs.model).toEqual(['19',0]);
   expect(graph['30']!.inputs).toMatchObject({model:['1',0],strength_model:.2});
   expect(graph['31']!.inputs).toMatchObject({model:['30',0],strength_model:1.3});
   expect(graph['32']!.inputs).toMatchObject({model:['31',0],strength_model:4});

@@ -215,7 +215,7 @@ export function videoGraph(
     },
   };
   let sampled = withLoras(graph, loras, "1");
-  // Full is Comfy's template: default attention. Fast trades accuracy for speed.
+  // Full is Comfy's template with default attention. Fast adds Kitchen and Sol.
   if (videoDetail(request) === "standard") {
     const { tau, ...attention } = hardware.attention;
     graph["17"] = {
