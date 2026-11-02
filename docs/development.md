@@ -2,7 +2,17 @@
 
 [← Back to Seed](../README.md)
 
-Use Node.js 24 or later.
+Use Node.js 24 or later. On Windows, `npm ci` also needs Python and the C++
+build tools, because npm runs node-gyp for `better-sqlite3`:
+
+```powershell
+winget install --id astral-sh.uv --exact --scope machine
+uv python install 3.12 --default
+uv python update-shell
+winget install --id Microsoft.VisualStudio.2022.BuildTools --exact --override "--quiet --wait --norestart --nocache --add Microsoft.VisualStudio.Workload.VCTools --includeRecommended"
+```
+
+Open a new terminal afterwards so the updated PATH applies.
 
 ```sh
 npm ci

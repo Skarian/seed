@@ -119,7 +119,8 @@ Seed sends each request to a compatible worker, then downloads the finished imag
 
 ## Get started
 
-Install **Node.js 24 or newer**, Git, and an OpenSSH client, then run:
+Install **Node.js 24 or newer**, Git, and an OpenSSH client. On Windows, also
+install Python and the C++ build tools ([commands](docs/development.md)). Then run:
 
 ~~~sh
 git clone https://github.com/Skarian/seed.git
@@ -138,8 +139,8 @@ node dist/server/cli.js start
 When you're done, choose **Finish jobs and quit** in the GPU panel. Seed saves the queued results and releases the rentals. Closing the browser alone leaves workers running.
 
 For more detail, see the [architecture](docs/architecture.md),
-[operations](docs/operations.md), [development](docs/development.md), and
-[release](docs/releases.md) guides.
+[operations](docs/operations.md), [development](docs/development.md),
+[Windows service](docs/windows-service.md), and [release](docs/releases.md) guides.
 
 ## License
 

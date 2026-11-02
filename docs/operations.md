@@ -8,7 +8,8 @@ history. Image and video workers run on GPUs you choose from Vast or RunPod.
 
 ## Run locally
 
-Use Node 24 or later and an OpenSSH client:
+Use Node 24 or later and an OpenSSH client. On Windows, `npm ci` also needs
+Python and the Visual Studio C++ build tools; see [Development](development.md).
 
 ```sh
 npm ci
@@ -29,6 +30,8 @@ connected. `seed stop` stops the coordinator, not your rentals: restart Seed to
 resume reconciliation, or explicitly quit workers before stopping the server.
 Use `seed setup --host <LAN IPv4>` while stopped to select a local-network
 address. Remote access requires an authenticated reverse proxy; see below.
+To start Seed at boot without signing in, see the
+[Windows service guide](windows-service.md).
 
 ## Remote access
 
@@ -93,7 +96,7 @@ There are no per-generation cost estimates or approval price gates.
 
 **This PC** is a separate native Windows executor, off by default. Its one GPU
 reservation spans image/video role changes, saving, and acknowledgement. It
-unloads after 120 idle seconds. Auto / This PC / Cloud is saved per request;
+unloads 20 minutes after the last output is saved. Auto / This PC / Cloud is saved per request;
 local-only work does not keep a draining rental alive. See the
 [local worker guide](local-worker.md) for setup, qualified combinations,
 process containment, recovery, and cleanup.
@@ -113,8 +116,8 @@ access before enabling it for live rentals.
 
 ## Generate and Chat
 
-- Images: 1280×720 or 720×1280 PNG.
-- Video: native 1344×768 or 768×1344, 5–15 seconds, generated audio or silent.
+- Images: 864×480, 1344×768, 1920×1080, or 2560×1440 PNG, in either orientation.
+- Video: 864×480 or 1344×768 in either orientation, 5–15 seconds, generated audio or silent.
 - Text to video, reference to video, and first/last-frame image guides.
   General references and frame guides can be combined.
 - Quantity 1–16, with persisted output seeds.
