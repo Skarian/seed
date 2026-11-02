@@ -45,7 +45,7 @@ jobs:
           ROLE: ${{ matrix.role }}
         run: |
           image="ghcr.io/skarian/seed-worker-$ROLE:pool-$GITHUB_SHA"
-          docker run --rm --network none --entrypoint /opt/venv/bin/python "$image" -c "from worker.profile import engine_spec,identity,role_models; value=identity(); assert value['protocol_version']==2; assert value['worker_class']=='$ROLE'; assert role_models(); assert engine_spec()['flags']==['--disable-comfy-compiler']; print(value)"
+          docker run --rm --network none --entrypoint /opt/venv/bin/python "$image" -c "from worker.profile import engine_spec,identity,role_models; value=identity(); assert value['protocol_version']==2; assert value['worker_class']=='$ROLE'; assert role_models(); assert engine_spec()['flags']==['--disable-comfy-compiler']; import torch,torchvision,comfy_kitchen; assert torch.__version__==engine_spec()['packages']['torch']; print(value)"
           if [ "$ROLE" = image ]; then docker run --rm --network none --entrypoint /opt/venv/bin/python "$image" -m worker.bake_qwen --verify-only; fi
       - name: Check registry layer sizes
         env:

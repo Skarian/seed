@@ -6,7 +6,8 @@
  */
 import assert from 'node:assert/strict';
 import {execFileSync} from 'node:child_process';
-import {mkdtemp,mkdir,readdir,readFile,stat} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
+import {mkdtemp,mkdir,readdir,readFile,stat,writeFile} from 'node:fs/promises';
 import {createServer} from 'node:net';
 import path from 'node:path';
 import {setTimeout as delay} from 'node:timers/promises';
@@ -30,7 +31,20 @@ const port=await new Promise(resolve=>{const server=createServer();server.listen
 const origin='http://127.0.0.1:'+port;
 await mkdir('.local/tests',{recursive:true});
 const root=await mkdtemp(path.resolve('.local/tests/local-engine-'));
-const app=await createApp({paths:resolvePaths(root),port,webRoot:path.resolve('dist/web')});
+const paths=resolvePaths(root);
+// One unused tensor: proves the adapter path without any real LoRA or download.
+const header=Buffer.from(JSON.stringify({'fixture.weight':{dtype:'F32',shape:[1],data_offsets:[0,4]}}));
+const length=Buffer.alloc(8);length.writeBigUInt64LE(BigInt(header.length));
+const adapter=Buffer.concat([length,header,Buffer.alloc(4)]);
+const sha256=createHash('sha256').update(adapter).digest('hex');
+const adapterEntry=(id,route)=>({id,name:'Synthetic '+route,revision:sha256,route,format:'lora',compatibility:'untested',
+  source:{provider:'civitai',model_id:1,version_id:2,file_id:3,url:'https://civitai.com/api/download/models/2',sha256,size_bytes:adapter.length}});
+const adapterFolder=path.join(paths.data,'local-workspace/ComfyUI/models/loras');
+await mkdir(adapterFolder,{recursive:true});await mkdir(paths.config,{recursive:true});
+await writeFile(path.join(adapterFolder,`seed-${sha256}.safetensors`),adapter);
+await writeFile(path.join(paths.config,'loras.json'),JSON.stringify([adapterEntry('synthetic-fl','fl'),adapterEntry('synthetic-ref','ref')]));
+const selected=id=>[{id,revision:sha256,scale:.5}];
+const app=await createApp({paths,port,webRoot:path.resolve('dist/web')});
 await app.listen({host:'127.0.0.1',port});
 
 const api=async(route,body,key)=>{
@@ -78,8 +92,8 @@ try{
   await api('pool/local/actions',{action:'enable'});
   log({workflows:(await api('pool/local')).worker.workflows,idle_vram_mib:gpu()});
   const prompt='A blue ceramic teapot on a wooden table in soft morning light.';
-  const selected=process.argv.slice(2);
-  const wanted=name=>!selected.length||selected.includes(name);
+  const chosen=process.argv.slice(2);
+  const wanted=name=>!chosen.length||chosen.includes(name);
   if(wanted('krea'))await run('krea',{workflow:'text-to-image',prompt,output:{size:'image-768',aspect:'16:9'}});
   const source=await sharp({create:{width:1024,height:768,channels:3,background:'#6c906e'}}).png().toBuffer();
   if(wanted('qwen')){
@@ -93,6 +107,11 @@ try{
   if(wanted('reference-video')){
     const asset=await upload(source,'Synthetic reference.png');
     await run('reference-video',{...video,workflow:'reference-to-video',prompt:sound.replace('A small stream','<Picture 1> A small stream'),references:[{id:'reference',asset_id:asset,kind:'image',role:'reference',framing:'fit'}]});
+  }
+  if(wanted('lora-video'))await run('lora-video',{...video,workflow:'text-to-video',prompt:sound,loras:selected('synthetic-fl')});
+  if(wanted('lora-reference')){
+    const asset=await upload(source,'Synthetic LoRA reference.png');
+    await run('lora-reference',{...video,workflow:'reference-to-video',prompt:sound.replace('A small stream','<Picture 1> A small stream'),references:[{id:'reference',asset_id:asset,kind:'image',role:'reference',framing:'fit'}],loras:selected('synthetic-ref')});
   }
   const loaded=gpu();
   const before=(await api('pool/local')).worker;

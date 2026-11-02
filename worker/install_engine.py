@@ -14,7 +14,8 @@ def main():
     revision = spec['comfyui']['revision']
     subprocess.run(['git', '-C', COMFY, 'fetch', '--depth', '1', 'origin', revision], check=True)
     subprocess.run(['git', '-C', COMFY, 'checkout', '--detach', revision], check=True)
-    subprocess.run([sys.executable, '-m', 'pip', 'install', '--no-cache-dir', '--require-hashes', '--no-deps',
+    # --isolated keeps the base image's pip constraints from overriding the lockfile.
+    subprocess.run([sys.executable, '-m', 'pip', '--isolated', 'install', '--no-cache-dir', '--require-hashes', '--no-deps',
                     '--extra-index-url', spec['torch_index'], '-r', str(here/'requirements-linux.lock')], check=True)
     installed = subprocess.run(['git', '-C', COMFY, 'rev-parse', 'HEAD'], check=True, capture_output=True, text=True).stdout.strip()
     if installed != revision:
