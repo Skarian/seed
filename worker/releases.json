@@ -1,6 +1,6 @@
 {
   "image": {
-    "image": "ghcr.io/skarian/seed-worker-image@sha256:201b82fba01c47dfa464b75b6c5085f6726b1d845d3a156a638cebfdaa5f86d8",
+    "image": "ghcr.io/skarian/seed-worker-image@sha256:333c959cdb254c5baa9e51c9f36122f4c2d9d1297d25139bedf1f35e36967d6c",
     "disk_gb": 160,
     "protocol_version": 2,
     "runtime_revision": "seed-pool-v1",
@@ -9,7 +9,7 @@
     "status": "published"
   },
   "video": {
-    "image": "ghcr.io/skarian/seed-worker-video@sha256:d1fd0e581e3de0f77b771e866ff793f4e10aa95cb609aa59f03811ff6765cb19",
+    "image": "ghcr.io/skarian/seed-worker-video@sha256:3b92082dc01a3314530a04667e8e98ba2628eb43fc32d48c65d5777a3c22b879",
     "disk_gb": 180,
     "protocol_version": 2,
     "runtime_revision": "seed-pool-v1",
