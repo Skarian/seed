@@ -26,10 +26,16 @@ jobs:
         role: [image, video]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803
+      - name: Free hosted runner disk
+        if: runner.environment == 'github-hosted'
+        run: |
+          sudo rm -rf /usr/local/lib/android /usr/share/dotnet /opt/ghc /usr/local/.ghcup /opt/hostedtoolcache /usr/share/swift /usr/local/share/powershell /usr/local/share/chromium /usr/lib/jvm
+          docker image prune --all --force
+          df -h / /mnt
       - name: Check build disk
         run: |
           available=$(df -PB1 . | awk 'NR==2 {print $4}')
-          test "$available" -ge 100000000000 || { echo 'Choose a builder with at least 100 GB free for image layers and export; no files are deleted automatically.'; exit 1; }
+          test "$available" -ge 100000000000 || { echo 'Choose a builder with at least 100 GB free for image layers and export; self-hosted builders are not cleaned automatically.'; exit 1; }
       - name: Build role candidate
         env:
           ROLE: ${{ matrix.role }}
