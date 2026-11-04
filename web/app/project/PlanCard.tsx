@@ -7,7 +7,7 @@ import { useApp } from '../data.js';
 import { latest, titleOf, settingChips, changesBetween, outputNoun, assetName } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
-import { checkDraft, readablePrompt, type Check } from './checks.js';
+import { checkDraft, readablePrompt, editablePrompt, type Check } from './checks.js';
 
 export type Selection = Record<string, boolean>;
 type Props = {
@@ -103,8 +103,8 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
       ]}><Icon.More /></MenuButton>
     </div>
     {!current && <p className="changed">Showing version {view + 1}. <button className="link" onClick={() => setView(card.revisions.length - 1)}>Back to latest</button></p>}
-    {editing && current && split && <Dialog title={'Edit ' + titleOf(r)} wide onClose={() => setEditing(false)}><DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} /></Dialog>}
-    {editing && current && !split ? <DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
+    {editing && current && split && <Dialog title={'Edit ' + titleOf(r)} wide onClose={() => setEditing(false)}><DraftEditor card={card} project={project} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} /></Dialog>}
+    {editing && current && !split ? <DraftEditor card={card} project={project} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
       : <>
         <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project, tasks)}</p>
         {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
@@ -120,9 +120,12 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
 }
 
 /** Inline editor for one draft. Saving keeps the draft selected; it never approves anything. Kind stays fixed. */
-function DraftEditor({ card, styles, busy, onCancel, onSave }: { card: ChatCard; styles: StyleEntry[]; busy: boolean; onCancel: () => void; onSave: (r: Record<string, unknown>) => Promise<void> }) {
-  const r = latest(card).request, kind = kindOf[r.workflow], video = isVideoKind(kind);
-  const [f, setF] = useState<EditableFields>(() => editableFields(r));
+function DraftEditor({ card, project, styles, busy, onCancel, onSave }: { card: ChatCard; project: Project; styles: StyleEntry[]; busy: boolean; onCancel: () => void; onSave: (r: Record<string, unknown>) => Promise<void> }) {
+  const r = latest(card).request, kind = kindOf[r.workflow], video = isVideoKind(kind), { tasks } = useApp();
+  // Structured video prompts are edited as readable sections and converted back on save.
+  const [readable] = useState(() => editablePrompt(r, project, tasks));
+  const [f, setF] = useState<EditableFields>(() => ({ ...editableFields(r), prompt: readable?.text ?? r.prompt }));
+  const engine = settingChips(r, id => id).find(([k]) => k === 'engine')?.[1];
   const [saving, setSaving] = useState(false);
   const set = (patch: Partial<EditableFields>) => setF(v => ({ ...v, ...patch }));
   const route = routeOf(r);
@@ -130,7 +133,7 @@ function DraftEditor({ card, styles, busy, onCancel, onSave }: { card: ChatCard;
   const style = f.loras[0];
   const form = React.useRef<HTMLFormElement>(null);
   useEffect(() => { form.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); form.current?.querySelector<HTMLElement>('textarea, input')?.focus({ preventScroll: true }); }, []);
-  return <form ref={form} className="editor" onSubmit={async e => { e.preventDefault(); setSaving(true); try { await onSave(revisedRequest(r, f)); } finally { setSaving(false); } }}>
+  return <form ref={form} className="editor" onSubmit={async e => { e.preventDefault(); setSaving(true); try { await onSave(revisedRequest(r, { ...f, prompt: readable ? readable.back(f.prompt) : f.prompt })); } finally { setSaving(false); } }}>
     <label className="field"><span>Title</span><input className="input" value={f.title} maxLength={80} onChange={e => set({ title: e.target.value })} placeholder={titleOf(r)} /></label>
     <label className="field"><span>Prompt</span><textarea className="textarea" value={f.prompt} onChange={e => set({ prompt: e.target.value })} rows={Math.min(10, Math.max(3, Math.ceil(f.prompt.length / 70)))} /></label>
     <div className="row">
@@ -144,7 +147,8 @@ function DraftEditor({ card, styles, busy, onCancel, onSave }: { card: ChatCard;
       {style && <label className="field"><span>Style strength</span><input className="input" type="number" min={0} max={4} step={0.1} value={style.scale} onChange={e => set({ loras: [{ ...style, scale: Number(e.target.value) }] })} /></label>}
       <label className="field"><span>Runs on</span><select className="select" value={f.target} onChange={e => set({ target: e.target.value as 'auto' | 'local' | 'cloud' })}><option value="auto">Auto</option><option value="local">Seed PC</option><option value="cloud">Cloud GPU</option></select></label>
     </div>
-    <details><summary className="faint">Advanced</summary><label className="field" style={{ marginTop: 8 }}><span>Seed (random, or a number to repeat a result)</span><input className="input" value={f.seed} onChange={e => set({ seed: e.target.value })} /></label></details>
+    {engine && <p className="faint" style={{ margin: 0, fontSize: 13 }}>Engine: {engine}. Seed uses it for every {kindLabels[kind].toLowerCase()} draft, so there is nothing to choose here. To make a different kind of thing, ask Seed.</p>}
+    <details><summary className="faint">Advanced</summary>{readable && <div className="field" style={{ marginTop: 8 }}><span>Prompt as the model receives it</span><div className="prompt" style={{ whiteSpace: 'pre-wrap', fontSize: 12.5 }}>{readable.back(f.prompt)}</div></div>}<label className="field" style={{ marginTop: 8 }}><span>Seed (random, or a number to repeat a result)</span><input className="input" value={f.seed} onChange={e => set({ seed: e.target.value })} /></label></details>
     <div className="buttons"><button type="button" className="btn" onClick={onCancel}>Cancel</button><button className="btn primary" disabled={busy || saving || !f.prompt.trim()}>{saving ? 'Saving…' : 'Save edit'}</button></div>
   </form>;
 }

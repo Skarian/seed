@@ -126,7 +126,11 @@ export function StatusControl() {
   const ready = projectList.filter(p => p.ready_to_review && !(route.name === 'project' && route.id === p.id));
   const short = (t: string) => '“' + (t.length > 22 ? t.slice(0, 21) + '…' : t) + '”';
   const hourly = pool?.summary.hourly ?? 0, attention = (pool?.summary.needs_attention ?? 0) + tasks.filter(j => ['failed', 'needs_attention'].includes(j.state) && !j.uncertainty_acknowledged && Date.now() - Date.parse(j.updated_at) < 3600_000).length;
-  const words = [planning === 1 ? 'Planning ' + short(planningIn[0]!.title) : planning ? `Seed planning in ${planning} projects` : '', ready.length === 1 ? short(ready[0]!.title) + ' ready to review' : ready.length ? ready.length + ' plans to review' : '', making ? making + ' making' : '', waiting ? waiting + ' waiting for GPU' : ''].filter(Boolean).join(' · ');
+  // One state reads in full; several become short counts so the header never overflows. The panel has the details.
+  const states = [planning, ready.length, making, waiting].filter(Boolean).length;
+  const words = states > 1
+    ? [planning ? `${planning} planning` : '', ready.length ? `${ready.length} to review` : '', making ? `${making} making` : '', waiting ? `${waiting} waiting` : ''].filter(Boolean).join(' · ')
+    : planning === 1 ? 'Planning ' + short(planningIn[0]!.title) : planning ? `Seed planning in ${planning} projects` : ready.length === 1 ? short(ready[0]!.title) + ' ready to review' : ready.length ? ready.length + ' plans to review' : making ? making + ' making' : waiting ? waiting + ' waiting for GPU' : '';
   const label = [words, hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
   return <button className="status" onClick={() => openStatus(active.length || ready.length || planning || !hourly ? 'tasks' : 'gpus')} aria-label={'Activity and GPUs: ' + label} aria-haspopup="dialog">
     <span className={`dot ${making || planning ? 'live' : ready.length ? 'amber' : waiting ? 'amber' : attention ? 'amber' : hourly ? '' : 'off'}`} />

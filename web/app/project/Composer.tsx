@@ -21,7 +21,7 @@ type Props = {
   text: string; onText: (t: string) => void;
   attachments: Attachment[]; onAttachments: (a: Attachment[] | ((a: Attachment[]) => Attachment[])) => void;
   settings: MakeSettings; onSettings: (s: MakeSettings) => void; styles: StyleEntry[];
-  replying: boolean; disabled?: string; onSend: () => void; onMake: () => void; onStopReply: () => void; onSetAside: () => void;
+  replying: boolean; disabled?: string; queued?: boolean; onQueue?: () => void; onSend: () => void; onMake: () => void; onStopReply: () => void; onSetAside: () => void;
   focusToken?: number;
 };
 
@@ -91,7 +91,7 @@ export function Composer(p: Props) {
         <button aria-pressed={p.mode === 'ask'} onClick={() => p.onMode('ask')} title="Talk it through; Seed prepares drafts you approve">Plan with Seed</button>
         <button aria-pressed={p.mode === 'make'} onClick={() => p.onMode('make')} title="Write the prompt and settings yourself; it runs when you press Make">Make now</button>
       </span>
-      {p.replying && p.mode === 'ask' ? <button className="btn" onClick={p.onStopReply}><Icon.Stop />Stop reply</button>
+      {p.replying && p.mode === 'ask' ? <>{p.text.trim() && p.onQueue && !p.queued && <button className="btn" onClick={p.onQueue} title="Sends as soon as Seed finishes this reply">Send next</button>}<button className="btn" onClick={p.onStopReply}><Icon.Stop />Stop reply</button></>
         : p.mode === 'make' ? <>{p.replying && <button className="btn quiet" onClick={p.onStopReply}><Icon.Stop />Stop reply</button>}<button className="btn primary" disabled={!canSend} onClick={submit} title={touch ? undefined : 'Ctrl+Enter'}>{narrow ? makeLabel.replace(' from this prompt', '') : makeLabel}{!touch && !narrow && <span className="kbd">Ctrl ↵</span>}</button></>
           : <button className="send" disabled={!canSend} onClick={submit} aria-label="Send to Seed"><Icon.Send /></button>}
     </div>

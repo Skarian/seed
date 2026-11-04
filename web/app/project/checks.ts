@@ -82,3 +82,31 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   text = text.replace(/^(\s*)([a-z]+(?:_[a-z]+)+)\s*:\s*/gm, (_m, space: string, key: string) => space + (headings[key] ?? key.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())) + ': ');
   return text.replace(/\[Shot (\d+)\]/g, 'Shot $1:');
 }
+
+const sections: Array<[string, string]> = [['integrated_multimodal_description', 'Scene'], ['subject_definitions', 'Subjects'], ['scene_anchor', 'Setting'], ['action_timeline', 'Action'], ['camera_path', 'Camera'], ['overall_soundscape', 'Sound'], ['non_diegetic_music', 'Music'], ['retention_analysis', 'Keep'], ['detailed_description', 'Detail']];
+const naLine = /^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i;
+
+/**
+ * An editable, person-readable form of a prompt that converts back exactly: known sections become headings,
+ * [Shot N] becomes "Shot N:", input tokens become quoted names, and N/A lines are set aside and restored.
+ * Returns null when the prompt cannot be round-tripped safely (then the raw prompt is edited instead).
+ */
+export function editablePrompt(r: ImageRequest, project: Project, everywhere: JobRecord[] = []) {
+  const labels = inputLabels(r.references ?? []);
+  const named = (r.references ?? []).map(ref => ({ token: labels.get(ref.id) ?? '', name: '“' + assetName(project, ref.asset_id, everywhere) + '”' })).filter(x => x.token);
+  if (new Set(named.map(x => x.name)).size !== named.length) return null;
+  const lines = r.prompt.split('\n'), hidden = lines.filter(l => naLine.test(l));
+  let text = lines.filter(l => !naLine.test(l)).join('\n');
+  for (const [key, label] of sections) text = text.replace(new RegExp('^(\\s*)' + key + '\\s*:\\s*', 'gm'), '$1' + label + ': ');
+  text = text.replace(/\[Shot (\d+)\]/g, 'Shot $1:');
+  for (const { token, name } of named) text = text.split(token).join(name);
+  const back = (edited: string) => {
+    if (edited === text) return r.prompt;
+    let out = edited;
+    for (const { token, name } of named) out = out.split(name).join(token);
+    out = out.replace(/^(\s*)Shot (\d+):/gm, '$1[Shot $2]');
+    for (const [key, label] of sections) out = out.replace(new RegExp('^(\\s*)' + label + ':\\s*', 'gm'), '$1' + key + ': ');
+    return hidden.length ? out.replace(/\s+$/, '') + '\n' + hidden.join('\n') : out;
+  };
+  return text === r.prompt ? null : { text, back };
+}

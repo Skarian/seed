@@ -24,6 +24,13 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
   // Opened from a collection chip: show just that collection.
   useEffect(() => { if (collection) { setF({ ...none, collection }); app.go({ name: 'library' }, true); } }, [collection]);
   useEffect(() => { void collectionsApi.list(app.mode).then(setCols).catch(() => {}); }, [app.mode, toCollection]);
+  // Membership changed elsewhere (a result's Details): refresh counts here too.
+  useEffect(() => { const again = () => { void collectionsApi.list(app.mode).then(setCols).catch(() => {}); list.refresh(); }; addEventListener('seed:collections', again); return () => removeEventListener('seed:collections', again); }, [app.mode]);
+  // Picking items to put into a collection: browse everything, then add the selection in one step.
+  const [filling, setFilling] = useState<AssetCollection | null>(null);
+  function startFilling(c: AssetCollection) { setFilling(c); setQ(''); setF(none); setSelecting(true); setSelected([]); }
+  async function finishFilling() { const c = filling!; await bulk(id => assetsApi.inCollection(id, c.id, true), `Added to ${c.name}:`); setFilling(null); setSelecting(false); setF({ ...none, collection: c.id }); }
+  const current = cols.find(c => c.id === f.collection);
   const list = useAssets({ mode: app.mode, q: query || undefined, kind: f.kind || undefined, source: f.source || undefined, favorites: f.favorites || undefined, collection_id: f.collection || undefined, chat_id: f.project || undefined, order: f.order });
   const items: ViewerItem[] = list.items.map(a => ({ asset: a.id, kind: a.kind, title: assetTitle(a), project: a.chat_id }));
   const groups = useMemo(() => { const out: Array<[string, LibraryAsset[]]> = []; for (const a of list.items) { const d = dayLabel(a.created_at); const g = out.find(([k]) => k === d); if (g) g[1].push(a); else out.push([d, [a]]); } return out; }, [list.items]);
@@ -53,16 +60,17 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
         <button className={'chip' + (!f.favorites && !f.collection ? ' on' : '')} onClick={() => setF({ ...f, favorites: false, collection: '' })}>Everything</button>
         <button className={'chip' + (f.favorites ? ' on' : '')} onClick={() => setF({ ...f, favorites: !f.favorites, collection: '' })}><Icon.Heart width={13} height={13} />Favorites</button>
         {cols.map(c => <button key={c.id} className={'chip' + (f.collection === c.id ? ' on' : '')} onClick={() => setF({ ...f, collection: f.collection === c.id ? '' : c.id, favorites: false })}>{c.name} <span className="faint">{c.count}</span></button>)}
-        <NewShelf onCreate={async name => { const c = await collectionsApi.create(app.mode, name); setCols(x => [...x, c]); setF({ ...f, collection: c.id, favorites: false }); }} />
+        <NewShelf onCreate={async name => { const c = await collectionsApi.create(app.mode, name); setCols(x => [...x, c]); startFilling(c); }} />
       </nav>
       {active.length > 0 && <div className="chips" style={{ flexBasis: '100%' }}>{active.map(([label, clear]) => <button key={label} className="chip on" onClick={clear} aria-label={'Remove filter ' + label}>{label} <Icon.Close width={12} height={12} /></button>)}<button className="chip" onClick={() => setF(none)}>Clear filters</button></div>}
     </div>
     <div className="scroll"><div className="col" style={{ maxWidth: 1400, paddingBottom: 24 }}>
       {list.error && <div className="notice error" style={{ marginTop: 16 }}>{list.error} <button className="link" onClick={list.refresh}>Try again</button></div>}
       {list.loaded && !list.items.length && <div className="empty" style={{ minHeight: 320 }}><div>
-        <h2 className="serif" style={{ fontSize: 26 }}>{anyFilter ? 'Nothing matches' : 'Your Library is empty'}</h2>
-        <p>{anyFilter ? (query ? `No results for “${query}”` : 'No media match these filters') + '.' : 'Everything you make or upload appears here.'}</p>
-        {anyFilter && <button className="btn" onClick={() => { setF(none); setQ(''); }}>Clear search and filters</button>}
+        {current && current.count === 0 ? <><h2 className="serif" style={{ fontSize: 26 }}>“{current.name}” is empty</h2><p>Pick results from your Library to put in it.</p><button className="btn primary" onClick={() => startFilling(current)}>Add items</button></>
+          : <><h2 className="serif" style={{ fontSize: 26 }}>{anyFilter ? 'Nothing matches' : 'Your Library is empty'}</h2>
+        <p>{anyFilter ? (query ? `No results for “${query}”` : 'No media match these filters') + (current ? ` in “${current.name}”` : '') + '.' : 'Everything you make or upload appears here.'}</p>
+        {anyFilter && <button className="btn" onClick={() => { setF(none); setQ(''); }}>Clear search and filters</button>}</>}
       </div></div>}
       {groups.map(([day, list2]) => <section key={day}><div className="day">{day}</div><div className={'grid' + (dense ? ' dense' : '')}>
         {list2.map(a => { const it = items.find(i => i.asset === a.id)!, on = selected.includes(a.id); return <figure key={a.id} className="cell"><div className={'tile' + (on ? ' selected' : '')}>
@@ -76,7 +84,9 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
       {list.cursor && <div style={{ textAlign: 'center', padding: 16 }}><button className="btn" disabled={list.loading} onClick={() => void list.more()}>{list.loading ? 'Loading…' : 'Load more'}</button></div>}
     </div></div>
     {selecting && <div className="selectbar" role="toolbar" aria-label="Selected items">
-      <b>{selected.length} selected</b>{list.cursor ? <span className="faint">(loaded items)</span> : null}
+      <b>{filling ? `Pick items for “${filling.name}” · ${selected.length} selected` : `${selected.length} selected`}</b>{list.cursor ? <span className="faint">(loaded items)</span> : null}
+      {filling && <><span style={{ flex: 1 }} /><button className="btn" onClick={() => { const c = filling; setFilling(null); setSelecting(false); setF({ ...none, collection: c.id }); }}>Cancel</button><button className="btn primary" disabled={!selected.length} onClick={() => void finishFilling()}>Add {selected.length || ''} to “{filling.name}”</button></>}
+      {!filling && <>
       <span style={{ flex: 1 }} />
       <button className="btn" onClick={() => setSelected(selected.length === list.items.length ? [] : list.items.map(a => a.id))}>{selected.length === list.items.length ? 'Select none' : 'Select all loaded'}</button>
       <button className="btn" disabled={!selected.length} onClick={() => void bulk(id => assetsApi.favorite(id, true), 'Added to favorites:')}><Icon.Heart />Favorite</button>
@@ -85,6 +95,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
       <button className="btn" disabled={!selected.length} onClick={() => setToCollection(true)}>Add to collection</button>
       {f.collection && <button className="btn" disabled={!selected.length} onClick={() => void bulk(id => assetsApi.inCollection(id, f.collection, false), 'Removed from collection:')}>Remove from collection</button>}
       <button className="btn danger" disabled={!selected.length} onClick={() => setConfirm(true)}><Icon.Trash />Delete</button>
+      </>}
     </div>}
     {filtersOpen && <Dialog title="Filters" onClose={() => setFiltersOpen(false)} footer={<><button className="btn" onClick={() => setF(none)}>Clear</button><button className="btn primary" onClick={() => setFiltersOpen(false)}>Show results</button></>}>
       <div className="field"><span>Kind</span><div className="seg">{([['', 'All'], ['image', 'Images'], ['video', 'Videos'], ['audio', 'Audio']] as const).map(([k, l]) => <button key={k} aria-pressed={f.kind === k} onClick={() => setF({ ...f, kind: k })}>{l}</button>)}</div></div>

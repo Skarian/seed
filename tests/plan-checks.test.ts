@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { askedFor, checkDraft, readablePrompt } from '../web/app/project/checks.js';
+import { askedFor, checkDraft, readablePrompt, editablePrompt } from '../web/app/project/checks.js';
 
 // Synthetic fixtures only.
 const message = (role: 'user' | 'assistant', text: string, id = Math.random().toString(36), assets: string[] = []) => ({ id, role, text, assets, created_at: '2026-11-04T00:00:00Z' });
@@ -49,4 +49,14 @@ it('turns an unsupported ratio such as 3:2 into a visible choice with a crop pat
   const checks = checkDraft(card({ workflow: 'text-to-image', prompt: 'cafe', output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' }) as any, p);
   expect(checks[0]!.text).toBe("You asked for 3:2, which Seed can't make directly. This draft is landscape 16:9. After it's made, Crop turns it into 3:2 on this device, no GPU.");
   expect(checks[0]!.fixes.map(f => f.label)).toEqual(['Keep landscape 16:9, crop to 3:2 after']);
+});
+
+it('edits a structured video prompt in readable form and converts it back exactly', () => {
+  const p = project([], { asset_manifest: [{ id: 'asset-a', name: 'Lantern', kind: 'image', note: '' }] });
+  const r = { workflow: 'reference-to-video', prompt: 'integrated_multimodal_description: <Picture 1> sways.\n[Shot 1] Slow push.\nnon_diegetic_music: N/A', references: [{ id: 'input1', asset_id: 'asset-a', kind: 'image', role: 'first_frame' }] } as any;
+  const e = editablePrompt(r, p)!;
+  expect(e.text).toBe('Scene: “Lantern” sways.\nShot 1: Slow push.');
+  expect(e.back(e.text)).toBe(r.prompt);
+  expect(e.back('Scene: “Lantern” sways gently.\nShot 1: Slow push.')).toBe('integrated_multimodal_description: <Picture 1> sways gently.\n[Shot 1] Slow push.\nnon_diegetic_music: N/A');
+  expect(editablePrompt({ workflow: 'text-to-image', prompt: 'A plain prompt' } as any, p)).toBeNull();
 });

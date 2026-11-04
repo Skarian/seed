@@ -5,7 +5,7 @@ import { rate, money, estimateText } from '../format.js';
 import { useApp, useStoredState } from '../data.js';
 import type { WorkerOffer } from '../../../shared/pool.js';
 
-export const capChoices = [[60, '1 hour'], [120, '2 hours'], [240, '4 hours'], [480, '8 hours'], [0, 'No limit']] as const;
+export const capChoices = [[15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [120, '2 hours'], [240, '4 hours'], [480, '8 hours'], [0, 'No limit']] as const;
 export const idleChoices = [[5, '5 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [0, 'Never (I release it myself)']] as const;
 const gb = (bytes?: number) => bytes ? (bytes / 1024 ** 3).toFixed(0) + ' GB' : '';
 
@@ -54,6 +54,7 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
     <button className="btn" onClick={onClose}>{voluntary ? 'Cancel' : 'Back to plan'}</button>
     <button className="btn primary" disabled={!selected || busy || expired} onClick={() => void start()}>{busy ? 'Starting…' : voluntary ? `Start ${noun.replace(/^an? /, '')}` : `Start GPU and ${action}`}</button>
   </>}>
+    {selected && <div className="notice" style={{ fontSize: 13.5 }}><b>{voluntary ? 'Starts' : 'To ' + action + ', Seed starts'} {noun} at {rate(selected.hourly)}.</b> It stops {cap ? `within ${capChoices.find(([v]) => v === cap)?.[1] ?? cap + ' minutes'} (about ${money(selected.hourly * cap / 60)})` : 'when you release it'}{idle ? ` or after ${idle} idle minutes` : ''}. Startup time and transfer charges are not known in advance.</div>}
     <p className="muted" style={{ margin: 0 }}>Nothing is rented until you press Start. Prices are the provider's current quote.</p>
     {selected && !voluntary && <p style={{ margin: 0, fontSize: 13.5 }}><b>This task:</b> {seconds == null ? 'no estimate yet, because nothing like it has finished in this project. The first result sets one.' : <>{estimateText(seconds)} of making once the GPU is ready, about <b>{money(selected.hourly * seconds / 3600)}</b> at this rate.</>} Start-up and model download come first and are billed too.</p>}
     {loading && <Spinner label="Finding available machines…" />}
@@ -73,8 +74,8 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
     {others.length > 0 && selected && <div className="notice" style={{ fontSize: 13.5 }}>This adds a second rental: you already rent {others.map(w => (w.worker_class === 'video' ? 'a video' : 'an image') + ' GPU at ' + rate(w.hourly) + (w.state === 'ready' && !w.current_job_id ? ' (idle)' : '')).join(' and ')}. Image and video need different GPUs. Total while both run: <b>{rate(othersRate + selected.hourly)}</b>.
       {idleOthers.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}><input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} /> Release the idle {idleOthers[0]!.worker_class} GPU when this starts</label>}</div>}
     <label className="field"><span>Stop renting after (even if busy, it finishes the current output first)</span>
-      <select className="select" value={cap} onChange={e => setCap(Number(e.target.value))}>{capChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-    {selected && cap > 0 && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>Estimated compute and storage if it runs to this limit: about <b>{money(selected.hourly * cap / 60)}</b> ({rate(selected.hourly)} for {cap / 60} {cap === 60 ? 'hour' : 'hours'}). An output already running can finish past the limit, and transfer charges are not quoted.</p>}
+      <select className="select" value={cap} onChange={e => setCap(Number(e.target.value))}>{capChoices.map(([v, l]) => <option key={v} value={v}>{l}{selected && v ? ` · about ${money(selected.hourly * v / 60)}` : ''}</option>)}</select></label>
+    {selected && cap > 0 && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>Estimated compute and storage if it runs to this limit: about <b>{money(selected.hourly * cap / 60)}</b> ({rate(selected.hourly)} for {capChoices.find(([v]) => v === cap)?.[1] ?? cap + ' minutes'}). An output already running can finish past the limit, and transfer charges are not quoted.</p>}
     <label className="field"><span>Release it automatically when idle for</span>
       <select className="select" value={idle} onChange={e => setIdle(Number(e.target.value))}>{idleChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
     {selected && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>Billing starts when the provider accepts the rental. {idle ? `If it then sits idle until release, that idle time costs about ${money(selected.hourly * idle / 60)}` : 'With no idle release it bills until you release it'}, plus the time to start, download models and make.</p>}

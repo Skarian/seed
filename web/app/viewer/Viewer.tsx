@@ -83,7 +83,7 @@ export function AssetPanel({ item, compact = false, actionsOnly = false, onClose
     </div>}
     {crop && <CropDialog asset={item.asset} title={item.title} onClose={() => setCrop(false)} />}
     {colDialog && <Dialog title="Add to collection" onClose={() => setColDialog(false)} footer={<button className="btn primary" onClick={() => setColDialog(false)}>Done</button>}>
-      {!cols ? <p className="muted">Loading…</p> : <CollectionChoices asset={item.asset} cols={cols} detail={detail} onChanged={refresh} />}
+      {!cols ? <p className="muted">Loading…</p> : <CollectionChoices asset={item.asset} cols={cols} detail={detail} onChanged={() => { refresh(); dispatchEvent(new Event('seed:collections')); }} />}
     </Dialog>}
     {del && <Confirm title="Delete this result?" danger action="Delete permanently" onClose={() => setDel(false)} body={<p style={{ margin: 0 }}>“{item.title}” is removed from the Library and from its project. This can't be undone.</p>}
       onConfirm={() => void assetsApi.remove(item.asset).then(() => { setDel(false); app.toast('Deleted'); onClosed?.(); }).catch(e => { setDel(false); app.toast((e as Error).message); })} />}
@@ -208,7 +208,8 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   const keys = [...new Set([...ca.keys(), ...cb.keys()])].filter(k => ca.get(k) !== cb.get(k));
   const rows: Array<[string, string]> = keys.map(k => [k.startsWith('style') ? 'Style' : k[0]!.toUpperCase() + k.slice(1), `${ca.get(k) ?? '—'} → ${cb.get(k) ?? '—'}`]);
   // What changed creatively comes first; seeds are technical detail.
-  if (ja.request.prompt !== jb.request.prompt) rows.unshift(['Prompt', promptChanges(ja.request.prompt, jb.request.prompt).join('; ')]);
+  // Variations of one idea get a phrase diff; two different requests (members of a set) are named instead.
+  if (ja.request.prompt !== jb.request.prompt) { const changes = promptChanges(ja.request.prompt, jb.request.prompt); const set = changes.length > 3 || changes[0] === 'prompt rewritten'; rows.unshift(set ? ['Request', `Two different requests: “${titleOf(ja.request)}” and “${titleOf(jb.request)}”. Shared settings are those not listed here.`] : ['Prompt', changes.join('; ')]); }
   if (ja.seed !== jb.seed) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
   const lineage = jb.request.references?.some(r => r.asset_id === a.asset) ? 'B was made from A' : ja.request.references?.some(r => r.asset_id === b.asset) ? 'A was made from B' : '';
   return <div className="diffbar" aria-label="Differences between A and B">

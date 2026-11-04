@@ -75,6 +75,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   }
   const setAside = (g: ChatGroup = plan!) => run('Setting the plan aside', () => projectsApi.decide(id, g.id, g.cards.map(c => ({ card: c.id, revision: latest(c).number, decision: 'denied' as const }))));
 
+  // A message written while Seed replies waits and sends itself when the reply ends.
+  const [queued, setQueued] = useState(false);
+  useEffect(() => { if (queued && !replying && project?.activity === 'idle') { setQueued(false); if (text.trim()) void send(); } }, [queued, replying, project?.activity]);
   async function send() {
     if (!project) return;
     const assets = attachments.filter(a => a.asset_id).map(a => a.asset_id!);
@@ -201,7 +204,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const timeline = useMemo(() => project ? buildTimeline(project) : [], [project]);
   const finishedGroups = project ? project.groups.filter(g => g.state === 'released' && g.cards.every(c => latest(c).decision !== 'approved' || latest(c).job_ids.every(j => project.jobs.find(x => x.id === j)?.state === 'completed'))) : [];
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const collapsedIds = new Set(finishedGroups.slice(0, Math.max(0, finishedGroups.length - 2)).map(g => g.id).filter(g => !expanded.has(g)));
+  const collapsedIds = new Set(finishedGroups.slice(0, Math.max(0, finishedGroups.length - 6)).map(g => g.id).filter(g => !expanded.has(g)));
 
   const selectedCards = plan ? plan.cards.filter(c => (selection[c.id] ?? true) && !readiness(latest(c).request, app.pool, styles).blocked) : [];
   const outputs = selectedCards.reduce((n, c) => n + latest(c).request.count, 0);
@@ -220,7 +223,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     ? (lastReply.split(/(?<=[.!])\s+/).filter(s => s.includes('?')).at(-1) ?? '').replace(/[*_`#]/g, '').trim().slice(0, 220) : '';
   const planNeed = selectedCards.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs || r.billing);
   // On wide screens the board sits beside the conversation once there are results, unless the person turned that off.
-  const [beside, setBeside] = useStoredState('seed.board.beside', true);
+  const [beside, setBeside] = useStoredState('seed.board.beside', false);
   const canSplit = app.split && Boolean(project?.jobs.length), split = canSplit && beside;
 
   if (error && !project) return <><Header project={null} view={view} split={false} canSplit={false} onBeside={() => {}} onRename={() => {}} onDelete={() => {}} /><div className="scroll"><div className="col"><div className="notice error" style={{ marginTop: 24 }}>This project could not be opened: {error} <div className="actions"><button className="btn small" onClick={() => app.go({ name: 'home' })}>Go to your latest project</button></div></div></div></div></>;
@@ -251,10 +254,11 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           </button>
           <button className={planStale || question || unresolved ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : question ? 'Make as it is' : unresolved ? 'Make anyway' : 'Make selected'}</button>
         </div>}
+        {queued && <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>Your message below sends as soon as Seed finishes this reply. <button className="link" onClick={() => setQueued(false)}>Don't send it</button></div>}
         <Composer context={context} onContext={setContext} planOpen={Boolean(plan)} mode={mode} onMode={m => { setMode(m); if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' }); if (m === 'make' && context.type === 'using' && context.intent !== 'input') setSettings({ ...settings, kind: context.intent === 'animate' ? 'animate' : 'edit' }); }}
           text={text} onText={setText} attachments={attachments} onAttachments={setAttachments} settings={settings} onSettings={setSettings} styles={styles}
           replying={replying} disabled={!project ? 'Opening…' : replying && mode === 'make' ? 'Seed is still replying. Stop reply to make this now.' : undefined} focusToken={focusToken}
-          onSend={() => void send()} onMake={() => void makeDirect()} onStopReply={() => void run('', () => projectsApi.stopReply(id))} onSetAside={() => void setAside()} />
+          queued={queued} onQueue={() => setQueued(true)} onSend={() => void send()} onMake={() => void makeDirect()} onStopReply={() => void run('', () => projectsApi.stopReply(id))} onSetAside={() => void setAside()} />
       </div></div>
     </div>{split && project && <ResultsView project={project} embedded />}</div>}
     {compute && <ComputeSheet role={compute.role} action={compute.action} seconds={compute.seconds} onClose={() => setCompute(null)} onStarted={() => { const then = compute.then; setCompute(null); void then(); }} />}
@@ -275,7 +279,7 @@ function Header({ project, view, split, canSplit, onBeside, onRename, onDelete }
   return <header className="head">
     <button className="icon-btn back" aria-label="All projects" onClick={() => app.go({ name: 'projects' })}><Icon.Back /></button>
     <h1 className="serif"><button onClick={onRename} title="Rename project" disabled={!project}>{project?.title ?? ' '}</button></h1>
-    {canSplit && <button className="btn small quiet" aria-pressed={split} onClick={() => onBeside(!split)} title={split ? 'Show the conversation alone, with Results as a tab' : 'Show the board beside the conversation'}>{split ? 'Board beside chat' : 'Show board beside chat'}</button>}
+    {canSplit && <button className="btn small quiet" aria-pressed={split} onClick={() => onBeside(!split)} title={split ? 'Show the conversation alone, with Results as a tab' : 'Show the board beside the conversation'}>{split ? 'Close side board' : 'Results beside chat'}</button>}
     {project && !split && <div className="seg views" role="tablist" aria-label="Project view">
       <button role="tab" aria-selected={view === 'conversation'} onClick={() => app.go({ name: 'project', id: project.id, view: 'conversation' })}>Conversation</button>
       <button role="tab" aria-selected={view === 'results'} onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })}>Results</button>
