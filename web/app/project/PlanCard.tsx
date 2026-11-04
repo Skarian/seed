@@ -94,7 +94,7 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
     {editing && current ? <DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
       : <>
         <p className={'excerpt' + (full ? ' full' : '')}>{r.prompt.replace(/\[\[([^\]]+)\]\]/g, '$1')}</p>
-        {r.prompt.length > 200 && <button className="link" style={{ justifySelf: 'start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
+        {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
         {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const a = names.get(ref.asset_id); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={a?.name ?? 'Input'} /><span><b>{roleLabels[ref.role] ?? ref.role}</b>{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
         {own.length > 0 && <div className="chips">{own.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</div>}
         {current && changed.length > 0 && <p className="changed">What changed: {changed.join(' · ')}</p>}
