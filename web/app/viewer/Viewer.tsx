@@ -45,6 +45,7 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
   }
   const more = [
     { label: 'Use as input', hint: 'Attach it to the composer.', onSelect: () => app.useResult({ ...item, job }, 'input') },
+    ...(source?.card_id ? [{ label: 'Reuse settings', hint: 'Load its prompt and settings into Make.', onSelect: () => { onClosed?.(); app.useResult({ ...item, job }, 'reuse'); } }] : []),
     { label: fav ? 'Remove from favorites' : 'Add to favorites', onSelect: () => void assetsApi.favorite(item.asset, !fav).then(refresh) },
     { label: 'Add to collection…', onSelect: () => { setColDialog(true); void collectionsApi.list(app.mode).then(setCols); } },
     { label: 'Download', onSelect: () => { const a = document.createElement('a'); a.href = media.content(item.asset); a.download = ''; a.click(); } },
@@ -55,7 +56,7 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
   return <>
     <div className="acts">
       <button className="btn primary" onClick={() => app.useResult({ ...item, job }, 'refine')}><Icon.Pencil />Refine</button>
-      {source?.card_id && <button className="btn" onClick={() => void variations()}>More like this</button>}
+      {source?.card_id && <button className="btn" onClick={() => { onClosed?.(); app.useResult({ ...item, job }, 'more'); }}>More like this</button>}
       {!video && <button className="btn" onClick={() => app.useResult({ ...item, job }, 'animate')}><Icon.Film />Animate</button>}
       <button className="btn" aria-pressed={fav} aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>
       <MenuButton label="More actions" className="btn" items={more}><Icon.More /></MenuButton>

@@ -3,7 +3,7 @@ import { projects as projectsApi, randomKey, kindOf, workflowOf, isVideoKind, ty
 import { useApp, useNow, useProject, useStoredState } from '../data.js';
 import { Icon } from '../icons.js';
 import { Markdown, MenuButton, Confirm, Dialog, Thumb, cleanReply } from '../ui.js';
-import { latest, titleOf, outputNoun, duration } from '../format.js';
+import { latest, titleOf, outputNoun, duration, cardJobs, isFailed } from '../format.js';
 import { StatusControl } from '../App.js';
 import { PlanCard, type Selection } from './PlanCard.js';
 import { ResultGroup } from './ResultGroup.js';
@@ -45,7 +45,13 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   useEffect(() => {
     const use = app.pendingUse; if (!use || !project) return;
     if (use.item.project && use.item.project !== id) return;
-    app.clearPendingUse(); setMode('ask'); setContext({ type: 'using', item: use.item, intent: use.intent }); setFocusToken(t => t + 1);
+    app.clearPendingUse();
+    if (use.intent === 'more' || use.intent === 'reuse') {
+      const card = project.groups.flatMap(g => g.cards).find(c => c.id === use.item.job?.source?.card_id);
+      if (card) { if (use.intent === 'more') void remake(card, 'more'); else reuse(card); }
+      return;
+    }
+    setMode('ask'); setContext({ type: 'using', item: use.item, intent: use.intent }); setFocusToken(t => t + 1);
   }, [app.pendingUse, project?.id]);
 
   async function run(label: string, fn: () => Promise<Project | void>) {
@@ -79,9 +85,11 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     await go();
   }
   async function retry() { const last = lastSent.current ?? lastUserMessage(project); if (!project || !last) return; await run('', () => projectsApi.send(project, { text: last.text, assets: last.assets })); }
-  function makeItMyself() {
-    const last = lastUserMessage(project); if (!last) return;
-    setMode('make'); setText(last.text.replace(/^(Edit this image|Animate this image|Use) [^:]*: /, ''));
+  function makeItMyself(fromTurn?: ChatMessage) {
+    const last = substantialRequest(project); if (!last) return;
+    // If the model wrote its request as text, its prompt is the best starting point.
+    const leaked = fromTurn?.text.match(/prompt\s*[:=]\s*"((?:[^"\\]|\\.){12,})"/)?.[1]?.replace(/\\"/g, '"');
+    setMode('make'); setText(leaked ?? last.text.replace(/^(Edit this image|Animate this image|Use) [^:]*: /, ''));
     const kind: Kind = last.assets.length ? (project!.asset_manifest?.find(a => a.id === last.assets[0])?.kind === 'image' && /animat|move|video|clip/i.test(last.text) ? 'animate' : 'edit') : (/video|clip|animat/i.test(last.text) ? 'video' : 'image');
     setSettings({ ...settings, kind });
     setAttachments(defaultRoles(kind, last.assets.map(a => { const m = project!.asset_manifest?.find(x => x.id === a); return { key: a, asset_id: a, name: m?.name ?? 'Input', kind: m?.kind ?? 'image' }; })));
@@ -113,10 +121,33 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     if (need?.needs) setCompute({ role: need.needs, action: 'make ' + outputNoun(latest(chosen[0]!).request, outputs), then: go }); else await go();
   }
 
+  /** More like this, Retry and Make again run at once as direct makes: no new plan, no extra Make, no conflict with an open plan. */
+  async function remake(card: ChatCard, how: 'more' | 'retry' | 'again') {
+    if (!project) return;
+    const r = latest(card).request;
+    const failed = cardJobs(project, card).filter(isFailed);
+    const { mode: _m, resolved_seeds, ...rest } = r;
+    const count = how === 'retry' ? Math.max(1, failed.length) : r.count;
+    const seedsFor = how === 'retry' ? failed.map(j => j.seed) : how === 'again' ? resolved_seeds : undefined;
+    const request = { ...rest, count, title: titleOf(r) + (how === 'more' ? ' · more' : ''), seed: how === 'more' ? 'random' : (seedsFor?.[0] ?? r.seed), ...(seedsFor && seedsFor.length === count ? { resolved_seeds: seedsFor } : {}) };
+    const go = async () => { await run('Starting', () => projectsApi.makeDirect(id, request, randomKey())); };
+    const need = readiness(r, app.pool, styles);
+    if (need.blocked) { setProblem(need.label); return; }
+    if (need.needs) setCompute({ role: need.needs, action: 'make ' + outputNoun(r, count), then: go }); else await go();
+  }
+  /** Load a result's exact prompt and settings into Make, to change one thing and run it. */
+  function reuse(card: ChatCard) {
+    const r = latest(card).request, kind = kindOf[r.workflow];
+    setMode('make'); setText(r.prompt);
+    setSettings({ ...settings, kind, aspect: r.output.aspect === '9:16' ? '9:16' : '16:9', count: r.count, ...(isVideoKind(kind) ? { videoSize: r.output.size, duration: r.output.duration_seconds ?? 5, sound: r.audio?.output ?? 'generated', detail: r.detail ?? 'standard' } : { imageSize: r.output.size }), style: r.loras?.[0], target: r.target ?? 'auto' });
+    setAttachments((r.references ?? []).map(ref => ({ key: ref.id, asset_id: ref.asset_id, name: project?.asset_manifest?.find(a => a.id === ref.asset_id)?.name ?? 'Input', kind: ref.kind, role: ref.role, framing: ref.framing, start: ref.range?.start_seconds, length: ref.range?.duration_seconds, include_audio: ref.include_audio })));
+    setFocusToken(t => t + 1);
+  }
   const actions = {
-    onVariations: (card: ChatCard) => needsNewPlan('More like this', async () => { await run('', () => projectsApi.repeat(id, card.id, latest(card).number, { fresh: true })); }),
-    onRetryFailed: (card: ChatCard) => needsNewPlan('Retry', async () => { await run('', () => projectsApi.repeat(id, card.id, latest(card).number, { fresh: false, failed_only: true })); }),
-    onMakeAgain: (card: ChatCard) => needsNewPlan('Make again', async () => { await run('', () => projectsApi.repeat(id, card.id, latest(card).number, { fresh: false })); }),
+    onVariations: (card: ChatCard) => void remake(card, 'more'),
+    onRetryFailed: (card: ChatCard) => void remake(card, 'retry'),
+    onMakeAgain: (card: ChatCard) => void remake(card, 'again'),
+    onReuse: reuse,
     onBringBack: (card: ChatCard) => needsNewPlan('Bring back', async () => { const { workflow: _w, mode: _m, resolved_seeds: _s, ...request } = latest(card).request as never as Record<string, unknown>; await run('', () => projectsApi.restore(id, card.id, latest(card).number, request)); }),
   };
 
@@ -155,7 +186,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           {!project ? <div className="stream"><span className="statusline"><span className="dot live" />Opening…</span></div>
             : !timeline.length ? <EmptyProject onStarter={t => { setText(t); setFocusToken(n => n + 1); }} />
               : <div className="stream">
-                {timeline.map(item => item.type === 'message' ? <Message key={item.message.id} message={item.message} project={project} planAfter={item.groupsAfter.some(isOpenPlan)} onRetry={() => void retry()} onMakeItMyself={makeItMyself} />
+                {timeline.map(item => item.type === 'message' ? <Message key={item.message.id} message={item.message} project={project} planAfter={item.groupsAfter.some(isOpenPlan)} onRetry={() => void retry()} onMakeItMyself={() => makeItMyself(item.message)} />
                   : isOpenPlan(item.group) ? <PlanCard key={item.group.id} project={project} group={item.group} snapshot={app.pool} styles={styles} busy={Boolean(busy) || replying} selection={selection} onSelection={setSelection} flash={flash}
                     onRevise={async (card, request) => run('Saving', () => projectsApi.revise(id, card.id, latest(card).number, request))}
                     onAskAbout={card => { setMode('ask'); setContext({ type: 'draft', card: card.id, revision: latest(card).number, title: titleOf(latest(card).request) }); setFocusToken(t => t + 1); }}
@@ -282,6 +313,12 @@ function buildTimeline(project: Project): TimelineItem[] {
   flush();
   for (const g of project.groups) if (!placed.has(g.id)) out.push({ type: 'group', group: g });
   return out;
+}
+/** The user's last message that asked for something, skipping short follow-ups such as "go ahead". */
+function substantialRequest(project: Project | null) {
+  const users = project ? [...project.messages].reverse().filter(x => x.role === 'user') : [];
+  const m = users.find(x => x.text.trim().split(/\s+/).length >= 8 || x.assets.length) ?? users[0];
+  return m ? { text: m.text, assets: m.assets } : null;
 }
 function lastUserMessage(project: Project | null) {
   const m = project ? [...project.messages].reverse().find(x => x.role === 'user') : undefined;

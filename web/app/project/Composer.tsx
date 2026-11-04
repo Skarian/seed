@@ -13,7 +13,7 @@ export type ComposerContext =
   | { type: 'plan' }
   | { type: 'keep' }
   | { type: 'draft'; card: string; revision: number; title: string }
-  | { type: 'using'; item: ViewerItem; intent: 'refine' | 'animate' | 'input' };
+  | { type: 'using'; item: ViewerItem; intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse' };
 
 type Props = {
   context: ComposerContext; onContext: (c: ComposerContext) => void; planOpen: boolean;

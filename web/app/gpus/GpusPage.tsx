@@ -11,6 +11,17 @@ import type { LocalWorkerView } from '../../../shared/local-worker.js';
 
 const workerLabel: Record<string, string> = { starting: 'Starting', preparing: 'Loading models', ready: 'Ready · idle', generating: 'Making', saving: 'Saving', reconnecting: 'Reconnecting', finishing: 'Finishing current work, then releasing', releasing: 'Releasing', released: 'Released', needs_attention: 'Needs attention' };
 
+function idleNote(w: PoolWorker) {
+  if (!w.idle_release_minutes) return ' · no idle release';
+  if (!w.idle_since) return ` · releases after ${w.idle_release_minutes} idle min`;
+  const left = Math.max(0, Math.ceil(w.idle_release_minutes - (Date.now() - Date.parse(w.idle_since)) / 60000));
+  return ` · idle, releases in ${left} min unless used`;
+}
+function startupNote(w: PoolWorker) {
+  const p = w.preparation; if (!p || !p.bytes_total || !['starting', 'preparing'].includes(w.state)) return '';
+  return ` · models ${Math.round(p.bytes_done / p.bytes_total * 100)}%${p.eta_seconds ? ' · about ' + Math.max(1, Math.round(p.eta_seconds / 60)) + ' min left' : ''}`;
+}
+
 export function GpusPage() {
   return <>
     <header className="head"><h1 className="serif">GPUs</h1><span className="spacer" /><StatusControl /></header>
@@ -39,7 +50,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
         <span className="grow"><b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>{w.provider === 'vast' ? 'Vast' : 'RunPod'} · {rate(w.hourly)} · up {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} so far</span></span>
         {w.actions.includes('finish') && <button className="btn" onClick={() => setRelease(w)}>Release…</button>}
       </div>
-      <div className="muted" style={{ fontSize: 13.5 }}>{w.current_activity ?? workerLabel[w.state] ?? w.state}{w.idle_release_minutes ? ` · releases after ${w.idle_release_minutes} idle min` : ' · no idle release'}</div>
+      <div className="muted" style={{ fontSize: 13.5 }}>{w.current_activity ?? workerLabel[w.state] ?? w.state}{startupNote(w)}{w.state === 'ready' ? idleNote(w) : ''}</div>
       {w.preparation && !w.preparation.error && w.state === 'preparing' && w.preparation.bytes_total > 0 && <div className="meter" aria-label="Model download progress"><i style={{ width: Math.round(w.preparation.bytes_done / w.preparation.bytes_total * 100) + '%' }} /></div>}
       {(w.issue || w.preparation?.error) && <div className="notice error">{w.issue?.message ?? w.preparation?.error}
         <div className="actions">{w.actions.filter(a => ['reconnect', 'retry_preparation', 'omit_loras', 'local_fallback', 'dismiss_launch_failure'].includes(a)).map(a => <button key={a} className="btn small" onClick={() => void poolApi.act(w.id, a).then(refreshPool)}>{{ reconnect: 'Reconnect', retry_preparation: 'Retry setup', omit_loras: 'Continue without styles', local_fallback: 'Use fallback models', dismiss_launch_failure: 'Dismiss' }[a as string]}</button>)}</div></div>}

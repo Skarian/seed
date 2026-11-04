@@ -186,8 +186,8 @@ export type AppContextValue = {
   view: (item: ViewerItem, siblings?: ViewerItem[]) => void;
   compare: (a: ViewerItem, b: ViewerItem) => void;
   /** Hand a result to the composer of its project (Refine, Animate, Use as input). */
-  useResult: (item: ViewerItem, intent: 'refine' | 'animate' | 'input') => void;
-  pendingUse: { item: ViewerItem; intent: 'refine' | 'animate' | 'input'; nonce: number } | null;
+  useResult: (item: ViewerItem, intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse') => void;
+  pendingUse: { item: ViewerItem; intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse'; nonce: number } | null;
   clearPendingUse: () => void;
   wide: boolean; narrow: boolean;
 };
