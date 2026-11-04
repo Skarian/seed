@@ -15,6 +15,8 @@ type GenerationFields = {
   detail?: import('./video-settings.js').VideoDetail;
   target?:import('./local-worker.js').ExecutionTarget;
   loras?: LoraSelection[];
+  /** A short name for the draft in the user's words, e.g. "Cat on the sill". */
+  title?: string;
   note?: string;
   resolved_seeds?: string[];
   prompt: string;

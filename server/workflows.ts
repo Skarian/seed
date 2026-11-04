@@ -12,14 +12,15 @@ export function imageRequest(value: unknown): ImageRequest {
     if(!['auto','local','cloud'].includes(target as string))throw Error('Choose Auto, This PC, or Cloud.');
     return {...imageRequest(rest),target};
   }
-  if(value && typeof value==='object' && ('note' in value || 'resolved_seeds' in value || 'loras' in value)) {
-    const {note,resolved_seeds,loras,...rest}=value as ImageRequest;
+  if(value && typeof value==='object' && ('note' in value || 'title' in value || 'resolved_seeds' in value || 'loras' in value)) {
+    const {note,title,resolved_seeds,loras,...rest}=value as ImageRequest;
     const request=imageRequest(rest);
     if(request.workflow==='image-to-image' && loras?.length)throw Error('Image editing does not support LoRAs.');
     if(loras!==undefined&&(!Array.isArray(loras)||loras.length>3||loras.some(l=>!l||Object.keys(l).some(k=>!['id','revision','scale'].includes(k))||typeof l.id!=='string'||typeof l.revision!=='string'||!Number.isFinite(l.scale)||l.scale<0||l.scale>4)))throw Error('Check the LoRA selection.');
     if(note!==undefined&&(typeof note!=='string'||note.length>4000))throw Error('Keep the note under 4000 characters.');
+    if(title!==undefined&&(typeof title!=='string'||title.length>80))throw Error('Keep the title under 80 characters.');
     if(resolved_seeds!==undefined&&(!Array.isArray(resolved_seeds)||resolved_seeds.length!==request.count||resolved_seeds.some(seed=>typeof seed!=='string'||! /^(0|[1-9][0-9]{0,15})$/.test(seed)||BigInt(seed)>9007199254740991n)))throw Error('Check the output seeds.');
-    return {...request,...(loras?{loras}:{}),...(note?.trim()?{note:note.trim()}:{}),...(resolved_seeds?{resolved_seeds}: {})};
+    return {...request,...(loras?{loras}:{}),...(note?.trim()?{note:note.trim()}:{}),...(title?.trim()?{title:title.trim().replace(/\s+/g,' ')}:{}),...(resolved_seeds?{resolved_seeds}: {})};
   }
   const v = value as ImageRequest;
   if(v?.workflow==='image-to-image')return editRequest(v);

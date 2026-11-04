@@ -40,6 +40,7 @@ export function requestToolSchemas(workflow:ChatWorkflow,mode:ChatMode,hasLoras=
     batch_size:Type.Integer({minimum:1,maximum:16}),
     seed:Type.String({pattern:'^(random|0|[1-9][0-9]{0,15})$',description:'random, or the starting seed as a string; last batch seed must be <=9007199254740991.'}),
     aspect_ratio:enumOf(editingImage?['source']:['16:9','9:16'],'16:9 is landscape; 9:16 is portrait.'),
+    title:Type.String({minLength:1,maxLength:80,description:'A short name for this draft in the user’s own words, 2-6 words, e.g. "Cat on the sill". Always include it; it is shown on the draft and its results.'}),
     note:Type.String({maxLength:4000,description:'A note saved with generated assets. Empty text clears it.'}),
     ...(video?{
       steps:Type.Integer({enum:[...VIDEO_STEPS],description:'Sampling steps: 10, 15, 20, or 30. New videos default to 20. More steps take longer; fewer can reduce detail, motion consistency, or audio clarity.'}),
@@ -101,7 +102,7 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
   const add=(field:string,message:string,fix?:string)=>issues.push({field,message,...(fix?{fix}:{})});
   if(!raw||typeof raw!=='object'||Array.isArray(raw))throw new ToolRequestError([{field:'request',message:'Provide request settings.'}]);
   const value=raw as Record<string,any>,video=isVideoWorkflow(context.workflow);
-  const allowed=['request_id',...(context.workflow==='image-to-image'?[]:['loras']),'prompt','batch_size','seed','aspect_ratio','note',...(video?['duration_seconds','audio_output','steps','detail']:[]),...(usesInputs(context.workflow)?['inputs']:[]),...(context.mode==='nsfw'?['mode']:[])];
+  const allowed=['request_id',...(context.workflow==='image-to-image'?[]:['loras']),'prompt','title','batch_size','seed','aspect_ratio','note',...(video?['duration_seconds','audio_output','steps','detail']:[]),...(usesInputs(context.workflow)?['inputs']:[]),...(context.mode==='nsfw'?['mode']:[])];
   for(const key of Object.keys(value))if(!allowed.includes(key))add(key,'Unknown setting.','Remove this field. Use flat setting names from the tool schema.');
   if(value.request_id!==undefined&&!context.previous)add('request_id','No existing request was supplied for this edit.','Use create_request for a new card.');
   if(!context.previous&&value.prompt===undefined)add('prompt','Provide the generation prompt.');
@@ -114,7 +115,7 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
   request.workflow=context.workflow;
   if(Object.hasOwn(value,'steps'))request.steps=value.steps;
   if(Object.hasOwn(value,'detail'))request.detail=value.detail;
-  for(const [from,to] of [['loras','loras'],['prompt','prompt'],['seed','seed'],['batch_size','count'],['note','note'],['mode','mode']])if(Object.hasOwn(value,from!))request[to!]=value[from!];
+  for(const [from,to] of [['loras','loras'],['prompt','prompt'],['seed','seed'],['batch_size','count'],['note','note'],['title','title'],['mode','mode']])if(Object.hasOwn(value,from!))request[to!]=value[from!];
   for(const [from,to] of [['aspect_ratio','aspect'],['duration_seconds','duration_seconds']])if(Object.hasOwn(value,from!))request.output[to!]=value[from!];
   if(Object.hasOwn(value,'audio_output'))request.audio={...(request.audio??{}),output:value.audio_output};
   // Resolved output seeds belong to the source job, not a changed batch or starting seed.
