@@ -108,6 +108,12 @@ export type PoolWorker = {
   /** Engine phase of the current output. Phase and percent only. */
   current_phase?: EnginePhase;
   quit_mode?: "finish" | "now";
+  /** Release automatically after this many idle minutes; 0 or absent never releases on idle. */
+  idle_release_minutes?: number;
+  /** When the worker last became ready with nothing to do. */
+  idle_since?: string;
+  /** Why the worker was released, when the server released it on its own. */
+  released_reason?: "idle";
   issue?: PoolIssue;
   preparation?: {
     error?: string;
@@ -137,6 +143,8 @@ export type PoolSnapshot = {
     needs_attention: number;
     hourly: number;
     estimated_spend: number;
+    /** Estimated spend of active workers plus workers released in the last 24 hours. */
+    spend_24h: number;
     image: number;
     video: number;
   };
@@ -149,6 +157,8 @@ export type OffersResponse = {
 export type LaunchRequest = {
   selections: Array<{ offer_id: string; quantity: number }>;
   max_hourly: number;
+  /** Release each launched worker after this many idle minutes (0 = never). */
+  idle_release_minutes?: number;
 };
 export const workerStateLabels: Record<WorkerState, string> = {
   starting: "Starting",

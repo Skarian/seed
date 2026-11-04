@@ -149,6 +149,7 @@ export class WorkerPool {
           0,
         ),
         estimated_spend: active.reduce((n, w) => n + w.estimated_spend, 0),
+        spend_24h: workers.filter((w) => w.state !== "released" || Date.parse(w.released_at ?? "") >= this.now() - 86_400_000).reduce((n, w) => n + w.estimated_spend, 0),
         image: active.filter((w) => w.worker_class === "image").length,
         video: active.filter((w) => w.worker_class === "video").length,
       },
@@ -219,6 +220,9 @@ export class WorkerPool {
       current_job_id: w.current_job_id,
       current_activity: w.current_activity,
       quit_mode: w.quit_mode,
+      idle_release_minutes: w.idle_release_minutes,
+      idle_since: w.idle_since,
+      released_reason: w.released_reason,
       issue: w.issue,
       preparation: w.preparation,
       installed_loras: w.installed_loras,
@@ -334,7 +338,8 @@ export class WorkerPool {
       !input.selections.length ||
       input.selections.length > 16 ||
       !Number.isFinite(input.max_hourly) ||
-      input.max_hourly < 0
+      input.max_hourly < 0 ||
+      (input.idle_release_minutes !== undefined && (!Number.isInteger(input.idle_release_minutes) || input.idle_release_minutes < 0 || input.idle_release_minutes > 1440))
     )
       throw Error("Choose workers and review the total hourly rate.");
     const body = JSON.stringify(input),
@@ -425,6 +430,7 @@ export class WorkerPool {
           manifest,
           submit_key: key,
           preparation_revision: 0,
+          ...(input.idle_release_minutes ? { idle_release_minutes: input.idle_release_minutes } : {}),
         });
     }
     if (total > input.max_hourly + 0.000001)
@@ -473,6 +479,7 @@ export class WorkerPool {
         this.releaseNow(w.id);
         continue;
       }
+      if (this.releaseIfIdle(w.id)) continue;
       if (this.inFlight.has(w.id) || this.quitting.has(w.id)) continue;
       const task = this.advance(w.id)
         .catch((error) => {
@@ -492,6 +499,27 @@ export class WorkerPool {
       this.inFlight.set(w.id, task);
     }
     await Promise.allSettled(this.inFlight.values());
+  }
+  /** Track idle time and finish a worker that stayed idle past its policy. Server-side, so it works with no browser open. */
+  private releaseIfIdle(id: string) {
+    const w = this.get(id);
+    if (!w || stopped(w) || w.quit_mode) return false;
+    const idle = w.state === "ready" && !w.current_job_id;
+    if (!idle) {
+      if (w.idle_since) this.update(id, (current) => { delete current.idle_since; });
+      return false;
+    }
+    if (!w.idle_since) { this.update(id, (current) => { current.idle_since = this.date(); }); return false; }
+    const limit = w.idle_release_minutes ?? 0;
+    if (!limit || this.now() - Date.parse(w.idle_since) < limit * 60_000) return false;
+    this.diagnostics?.event({ category: "worker", operation: "worker.idle_release", worker_id: id, provider: w.provider, data: { idle_minutes: limit } });
+    this.update(id, (current) => {
+      current.quit_mode = "finish";
+      current.finish_before ??= this.date();
+      current.state = "finishing";
+      current.released_reason = "idle";
+    });
+    return false;
   }
   private async advance(id: string) {
     let w = this.get(id)!;
