@@ -39,6 +39,11 @@ import {HttpAccess} from './http-access.js';
 import {LocalWorker} from './local-worker.js';
 import {LocalSetup} from './local-setup.js';
 
+/** HTML entry pages of the web app. Project pages carry the project id in the path. */
+export function isAppPage(pathname: string) {
+  return ['/', '/index.html', '/library', '/chat', '/admin', '/projects', '/gpus', '/settings'].includes(pathname)
+    || /^\/projects\/[\w-]{1,64}$/.test(pathname);
+}
 export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; poolDependencies?: PoolDependencies; providerFetch?:typeof fetch; chatFetch?:typeof fetch }) {
   const access = new HttpAccess(options.paths, options.host ?? '127.0.0.1', options.port);
   prepareStorage(options.paths);
@@ -75,7 +80,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     // Identity-provider redirects retain cross-site metadata on the return navigation.
     // Allow only the HTML entry pages; API/media reads and all writes remain isolated.
     const pageNavigation = ['GET', 'HEAD'].includes(request.method)
-      && ['/', '/index.html', '/library', '/chat', '/admin'].includes(request.url.split('?')[0]!)
+      && isAppPage(request.url.split('?')[0]!)
       && request.headers['sec-fetch-mode'] === 'navigate'
       && request.headers['sec-fetch-dest'] === 'document';
     if (site && site !== 'same-origin' && site !== 'none' && !pageNavigation) return fail(reply, 403, 'untrusted_origin', 'Cross-site access is not allowed.', request.id);
@@ -308,9 +313,9 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     await app.register(fastifyStatic, { root: webRoot, dotfiles: 'deny', index: ['index.html'], preCompressed: true, cacheControl: false, setHeaders(response,file) {
       response.header('Cache-Control',path.relative(webRoot,file).startsWith('assets'+path.sep)?'public, max-age=31536000, immutable':'no-cache');
     } });
-    app.get('/library', async (_request, reply) => reply.sendFile('index.html'));
-    app.get('/chat', async (_request, reply) => reply.sendFile('index.html'));
-    app.get('/admin', async (_request, reply) => reply.sendFile('index.html'));
+    // App pages. /chat and /admin stay as aliases so older bookmarks still open Seed.
+    for (const page of ['/library', '/chat', '/admin', '/projects', '/projects/:id', '/gpus', '/settings'])
+      app.get(page, async (_request, reply) => reply.sendFile('index.html'));
   }
   app.setNotFoundHandler((request, reply) => fail(reply, 404, 'not_found', 'This page or operation is not available.', request.id));
   return app;
