@@ -183,6 +183,7 @@ export type AppContextValue = {
   toast: (text: string, action?: Toast['action']) => void;
   openStatus: (tab?: 'tasks' | 'gpus') => void;
   inspect: (item: ViewerItem | null, siblings?: ViewerItem[]) => void;
+  syncSiblings: (list: ViewerItem[]) => void;
   view: (item: ViewerItem, siblings?: ViewerItem[]) => void;
   compare: (a: ViewerItem, b: ViewerItem) => void;
   /** Hand a result to the composer of its project (Refine, Animate, Use as input). */

@@ -44,7 +44,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     const ok = asked.aspect === 'portrait' ? portrait : asked.aspect === 'landscape' ? aspect === '16:9' : asked.aspect === aspect;
     if (!ok) {
       const want = asked.aspect === 'portrait' ? (video ? '9:16' : '4:5') : asked.aspect === 'landscape' ? '16:9' : asked.aspect;
-      if (video && (want === '1:1' || want === '4:5')) out.push({ text: `You asked for ${names[want]}, which video can't make. This draft is ${names[aspect]}.`, fixes: (['16:9', '9:16'] as const).filter(a => a !== aspect).map((a): Fix => ({ label: 'Use ' + names[a], patch: withAspect(a) })).concat([{ label: 'Keep ' + names[aspect], patch: () => ({}) }]) });
+      if (video && (want === '1:1' || want === '4:5')) out.push({ text: `You asked for ${names[want]}, which video can't make, and Seed can't crop a video afterwards. This draft is ${names[aspect]}.`, fixes: (['16:9', '9:16'] as const).filter(a => a !== aspect).map((a): Fix => ({ label: 'Use ' + names[a], patch: withAspect(a) })).concat([{ label: 'Keep ' + names[aspect], patch: () => ({}) }]) });
       else out.push({ text: `You asked for ${names[want]}; this draft is ${names[aspect]}.`, fixes: [{ label: 'Make it ' + names[want], patch: withAspect(want as Aspect) }] });
     }
   }

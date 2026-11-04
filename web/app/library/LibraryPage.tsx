@@ -33,6 +33,8 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
   const current = cols.find(c => c.id === f.collection);
   const list = useAssets({ mode: app.mode, q: query || undefined, kind: f.kind || undefined, source: f.source || undefined, favorites: f.favorites || undefined, collection_id: f.collection || undefined, chat_id: f.project || undefined, order: f.order });
   const items: ViewerItem[] = list.items.map(a => ({ asset: a.id, kind: a.kind, title: assetTitle(a), project: a.chat_id }));
+  const shownKey = items.map(x => x.asset).join();
+  useEffect(() => { app.syncSiblings(items); }, [shownKey]);
   const groups = useMemo(() => { const out: Array<[string, LibraryAsset[]]> = []; for (const a of list.items) { const d = dayLabel(a.created_at); const g = out.find(([k]) => k === d); if (g) g[1].push(a); else out.push([d, [a]]); } return out; }, [list.items]);
   const active: Array<[string, () => void]> = [
     ...(f.kind ? [[{ image: 'Images', video: 'Videos', audio: 'Audio' }[f.kind], () => setF({ ...f, kind: '' })] as [string, () => void]] : []),

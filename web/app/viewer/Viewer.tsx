@@ -77,7 +77,7 @@ export function AssetPanel({ item, compact = false, actionsOnly = false, onClose
       {job && <><span>Seed</span><div>{job.seed}</div></>}
       {job && <><span>Ran on</span><div>{job.worker?.executor === 'local' ? 'Seed PC' : job.worker?.executor === 'cloud' ? 'Cloud GPU' : targetLabel(r?.target)}{job.metrics?.elapsed_to_saved_seconds ? ' · ' + duration(job.metrics.elapsed_to_saved_seconds) : ''}</div></>}
       {source?.chat_id && <><span>Project</span><div><button className="link" onClick={() => { onClosed?.(); app.go({ name: 'project', id: source.chat_id!, view: 'conversation', focus: source.card_id }); }}>{app.projectList.find(p => p.id === source.chat_id)?.title ?? 'Open project'} · show in conversation</button></div></>}
-      {r && <><span>Prompt</span><div><details open={!app.narrow && r.prompt.length < 600}><summary className="link" style={{ cursor: 'pointer' }}>{r.prompt.length < 600 && !app.narrow ? 'Prompt' : `Show prompt (${r.prompt.split(/\s+/).length} words)`}</summary><div className="prompt">{r.prompt}</div></details></div></>}
+      {r && <><span>Prompt</span><div><details open={!app.narrow && r.prompt.length < 600}><summary className="link" style={{ cursor: 'pointer' }}>{`${r.prompt.split(/\s+/).length} words`}</summary><div className="prompt">{r.prompt.replace(/\[\[input(\d+)\]\]|<(?:Picture|Video|Audio) (\d+)>/g, (m, x?: string, y?: string) => { const p = parents[Number(x ?? y) - 1]; return p ? '“' + p.title + '”' : m; })}</div></details></div></>}
       <><span>Collections</span><div className="chips">{memberOf.map(c => <button key={c.id} className="chip" aria-label={'Open collection ' + c.name} onClick={() => { onClosed?.(); app.go({ name: 'library', collection: c.id }); }}>{c.name}</button>)}<button className="chip" onClick={() => { setColDialog(true); void collectionsApi.list(app.mode).then(setCols); }}><Icon.Plus />{memberOf.length ? 'Change' : 'Add to collection'}</button></div></>
       {<><span>Note</span><div><NoteField asset={item.asset} note={note} onSaved={setNote} /></div></>}
     </div>}
@@ -209,12 +209,16 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   const rows: Array<[string, string]> = keys.map(k => [k.startsWith('style') ? 'Style' : k[0]!.toUpperCase() + k.slice(1), `${ca.get(k) ?? '—'} → ${cb.get(k) ?? '—'}`]);
   // What changed creatively comes first; seeds are technical detail.
   // Variations of one idea get a phrase diff; two different requests (members of a set) are named instead.
-  if (ja.request.prompt !== jb.request.prompt) { const changes = promptChanges(ja.request.prompt, jb.request.prompt); const set = changes.length > 3 || changes[0] === 'prompt rewritten'; rows.unshift(set ? ['Request', `Two different requests: “${titleOf(ja.request)}” and “${titleOf(jb.request)}”. Shared settings are those not listed here.`] : ['Prompt', changes.join('; ')]); }
+  const childJob = jb.request.references?.some(r => r.asset_id === a.asset) ? jb : ja.request.references?.some(r => r.asset_id === b.asset) ? ja : null;
+  const technical = rows.length;
+  // An edit of the other one: the change that was asked for leads, ahead of engine and size.
+  if (childJob) rows.unshift(['Change asked', '“' + (childJob.request.prompt.length > 180 ? childJob.request.prompt.slice(0, 179) + '…' : childJob.request.prompt) + '”']);
+  else if (ja.request.prompt !== jb.request.prompt) { const changes = promptChanges(ja.request.prompt, jb.request.prompt); const set = changes.length > 3 || changes[0] === 'prompt rewritten'; rows.unshift(set ? ['Request', `Two different requests: “${titleOf(ja.request)}” and “${titleOf(jb.request)}”. Shared settings are those not listed here.`] : ['Prompt', changes.join('; ')]); }
   if (ja.seed !== jb.seed) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
   const lineage = jb.request.references?.some(r => r.asset_id === a.asset) ? 'B was made from A' : ja.request.references?.some(r => r.asset_id === b.asset) ? 'A was made from B' : '';
   return <div className="diffbar" aria-label="Differences between A and B">
     {lineage && <span className="chip on">{lineage}</span>}
     {!rows.length && !lineage && <span className="faint">Same prompt and settings{ja.seed === jb.seed ? ' and seed' : ''}.</span>}
-    {rows.map(([k, v]) => <span key={k} className="chip"><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
+    {rows.map(([k, v], n) => <span key={k} className={'chip' + (n >= rows.length - technical - (ja.seed !== jb.seed ? 1 : 0) ? ' faint' : '')}><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
   </div>;
 }

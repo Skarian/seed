@@ -71,6 +71,8 @@ export function App() {
     openStatus: tab => setStatus(tab ?? 'tasks'),
     inspect: (item, siblings = []) => item ? (wide ? setInspected({ item, siblings }) : setViewing({ item, siblings, opener: document.activeElement })) : setInspected(null),
     view: (item, siblings = []) => setViewing({ item, siblings, opener: document.activeElement }),
+    // The list behind an open result changed (a search settled): browse only what is shown now.
+    syncSiblings: list => { const fit = <T extends { item: ViewerItem; siblings: ViewerItem[] }>(s: T | null) => s && ({ ...s, siblings: list.some(x => x.asset === s.item.asset) ? list : [s.item] }); setInspected(fit); setViewing(fit); },
     compare: (a, b) => setComparing({ a, b }),
     useResult: (item, intent) => {
       setViewing(null); setComparing(null);
@@ -118,7 +120,7 @@ export function App() {
 
 /** The status control: active work and the running rental rate, in every header. */
 export function StatusControl() {
-  const { tasks, pool, openStatus, projectList, route } = useApp();
+  const { tasks, pool, openStatus, projectList, route, narrow } = useApp();
   const active = tasks.filter(jobActive), waiting = active.filter(j => j.state === 'queued' || (!j.progress && j.state !== 'running' && j.state !== 'copying')).length, making = active.length - waiting;
   // Two lanes: Seed planning (agent replies) and making (renders on GPUs).
   const planningIn = projectList.filter(p => p.activity === 'thinking' || p.activity === 'preparing'), planning = planningIn.length;
@@ -130,7 +132,7 @@ export function StatusControl() {
   const states = [planning, ready.length, making, waiting].filter(Boolean).length;
   const words = states > 1
     ? [planning ? `${planning} planning` : '', ready.length ? `${ready.length} to review` : '', making ? `${making} making` : '', waiting ? `${waiting} waiting` : ''].filter(Boolean).join(' · ')
-    : planning === 1 ? 'Planning ' + short(planningIn[0]!.title) : planning ? `Seed planning in ${planning} projects` : ready.length === 1 ? short(ready[0]!.title) + ' ready to review' : ready.length ? ready.length + ' plans to review' : making ? making + ' making' : waiting ? waiting + ' waiting for GPU' : '';
+    : narrow && planning ? 'Planning' : narrow && ready.length ? `${ready.length} to review` : planning === 1 ? 'Planning ' + short(planningIn[0]!.title) : planning ? `Seed planning in ${planning} projects` : ready.length === 1 ? short(ready[0]!.title) + ' ready to review' : ready.length ? ready.length + ' plans to review' : making ? making + ' making' : waiting ? waiting + ' waiting for GPU' : '';
   const label = [words, hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
   return <button className="status" onClick={() => openStatus(active.length || ready.length || planning || !hourly ? 'tasks' : 'gpus')} aria-label={'Activity and GPUs: ' + label} aria-haspopup="dialog">
     <span className={`dot ${making || planning ? 'live' : ready.length ? 'amber' : waiting ? 'amber' : attention ? 'amber' : hourly ? '' : 'off'}`} />

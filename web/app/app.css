@@ -60,7 +60,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 
 /* App shell */
 .shell { display: grid; grid-template-columns: var(--rail) minmax(0, 1fr); height: 100%; }
-.shell.with-inspector { grid-template-columns: var(--rail) minmax(0, 1fr) 360px; }
+.shell.with-inspector { grid-template-columns: var(--rail) minmax(0, 1fr) clamp(380px, 30vw, 480px); }
 .rail { background: var(--s1); border-right: 1px solid var(--line); display: flex; flex-direction: column; padding: 12px 10px; gap: 2px; min-height: 0; }
 .brand { display: flex; align-items: center; gap: 9px; padding: 6px 10px 14px; font-size: 21px; }
 .brand svg { width: 22px; height: 22px; color: var(--accent); }
@@ -135,7 +135,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .draft.flash { animation: flashbg 1.6s ease-out; }
 @keyframes flashbg { 0% { background: #c5e88a1c; } 100% { background: var(--s1); } }
 .draft .top { display: flex; align-items: center; gap: 10px; min-height: 28px; }
-.draft .name { font-weight: 600; flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.draft .name { font-weight: 600; flex: 1; min-width: 0; overflow-wrap: anywhere; line-height: 1.3; }
 .draft .excerpt { margin: 0; color: var(--muted); font-size: 13.5px; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; cursor: text; }
 .draft .excerpt.full { display: block; -webkit-line-clamp: unset; white-space: pre-wrap; }
 .changed { font-size: 13px; color: var(--amber); }
@@ -268,7 +268,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .lineage img, .lineage .ph, .lineage video { width: 28px; height: 28px; border-radius: 5px; object-fit: cover; background: var(--s3); flex: none; }
 .lineage button { max-width: 100%; text-align: left; } .lineage button span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .viewer { position: fixed; inset: 0; z-index: 48; background: #0b0c0b; display: flex; flex-direction: column; }
-.viewer .stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 12px; position: relative; overflow: hidden; touch-action: none; }
+.viewer .stage { flex: 1; min-height: 0; display: grid; place-items: center; padding: 12px; position: relative; overflow: hidden; grid-template: minmax(0, 1fr) / minmax(0, 1fr); touch-action: none; }
 .viewer .stage img, .viewer .stage video { max-width: 100%; max-height: 100%; object-fit: contain; border-radius: 6px; }
 .viewer .nav-arrow { position: absolute; top: 50%; transform: translateY(-50%); width: 44px; height: 44px; border-radius: 50%; background: #1a1c19cc; display: grid; place-items: center; }
 .viewer .nav-arrow.prev { left: 12px; } .viewer .nav-arrow.next { right: 12px; }
@@ -416,7 +416,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .stream .results.two { grid-template-columns: repeat(2, minmax(0, 340px)); justify-content: start; } .stream .results.two .tile { max-height: 400px; }
 .stream .tile.pending { max-height: 150px; }
 .check-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--amber); background: var(--amber-soft); border-radius: 8px; padding: 6px 8px; }
-.check.big { width: 32px; height: 32px; }
+.check.big { width: 32px; height: 32px; } .check.big::after { content: ""; position: absolute; inset: -6px; }
 @media (hover: hover) { .tile:not(:hover):not(.selected) .check.big[aria-checked="false"] { opacity: 0; } .tile .check.big:focus-visible { opacity: 1; } }
 .card-head .title { flex: 0 1 auto; min-width: 7em; }
 .card-head .meta { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
@@ -464,3 +464,4 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 @media (min-width: 700px) { .head h1 { min-width: 96px; flex: 0 1 auto; } }
 .head .status { min-width: 0; max-width: min(46%, 420px); flex: 0 1 auto; overflow: hidden; }
 .head .status > span:not(.dot) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.head .status > span.rate { flex: none; overflow: visible; }

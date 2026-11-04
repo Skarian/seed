@@ -66,7 +66,7 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
             {warnings[i]!.map(c => <span className="warn-line" key={c.text}>⚠ {c.text}</span>)}</span>
           {changed.length > 0 && <span className="dot amber" aria-label="Changed" />}
         </button>;
-        return <Draft key={card.id + ':' + rev.number} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
+        return <Draft key={card.id + ':' + rev.number} label={short(card)} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
           ready={sharedReady ? undefined : ready[i]} styles={styles} flash={flash === card.id}
           onRevise={request => onRevise(card, request)} onAskAbout={() => onAskAbout(card)} onCollapse={compact ? () => setOpen(null) : undefined} kindLabel={kindLabels[kind]}
           checks={warnings[i]!} onAcknowledge={text => onAcknowledge(card.id + ':' + text)} onEditMyself={assets => onEditMyself(card, assets)} />;
@@ -75,8 +75,8 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   </section>;
 }
 
-function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge, onEditMyself }: {
-  project: Project; card: ChatCard; on: boolean; blocked: boolean; busy: boolean; onToggle: () => void; own: Array<[string, string]>; changed: string[];
+function Draft({ label, project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge, onEditMyself }: {
+  label: string; project: Project; card: ChatCard; on: boolean; blocked: boolean; busy: boolean; onToggle: () => void; own: Array<[string, string]>; changed: string[];
   ready?: ReturnType<typeof readiness>; styles: StyleEntry[]; flash: boolean; onRevise: (r: Record<string, unknown>) => Promise<boolean>; onAskAbout: () => void; onCollapse?: () => void; kindLabel: string;
   checks: Check[]; onAcknowledge: (text: string) => void; onEditMyself: (assets: string[]) => void;
 }) {
@@ -94,7 +94,7 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
   return <div className={'draft' + (on ? '' : ' off') + (flash ? ' flash' : '')} id={'draft-' + card.id}>
     <div className="top">
       <span className="check" role="checkbox" tabIndex={blocked ? -1 : 0} aria-checked={on} aria-disabled={blocked} aria-label={'Include ' + titleOf(r)} onClick={onToggle} onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onToggle(); } }}>{on && <Icon.Check />}</span>
-      <span className="name">{titleOf(r)}</span>
+      <span className="name" title={titleOf(r)}>{label || titleOf(r)}</span>
       {card.revisions.length > 1 && <span className="history" aria-label="Draft history">
         <button aria-label="Earlier version" disabled={view === 0} onClick={() => setView(v => v - 1)}><Icon.Back /></button>
         {view + 1}/{card.revisions.length}
@@ -143,15 +143,15 @@ function DraftEditor({ card, project, styles, busy, onCancel, onSave }: { card: 
     <label className="field"><span>Title</span><input className="input" value={f.title} maxLength={80} onChange={e => set({ title: e.target.value })} placeholder={titleOf(r)} /></label>
     <label className="field"><span>Prompt</span><textarea className="textarea" value={f.prompt} onChange={e => set({ prompt: e.target.value })} rows={Math.min(10, Math.max(3, Math.ceil(f.prompt.length / 70)))} /></label>
     <div className="row">
-      {r.output.aspect !== 'source' && <label className="field"><span>Shape</span><select className="select" value={f.aspect} onChange={e => set({ aspect: e.target.value as never })}>{r.workflow === 'text-to-image' ? <><option value="16:9">Landscape 16:9</option><option value="1:1">Square 1:1</option><option value="4:5">Portrait 4:5</option><option value="9:16">Tall portrait 9:16</option></> : <><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option></>}</select></label>}
-      <label className="field"><span>Size</span><select className="select" value={f.size} onChange={e => set({ size: e.target.value as never })}>{sizeOptions(r.workflow, f.aspect).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
-      <label className="field"><span>How many</span><select className="select" value={f.count} onChange={e => set({ count: Number(e.target.value) })}>{[1, 2, 3, 4, 6, 8].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
-      {video && <label className="field"><span>Length</span><select className="select" value={f.duration} onChange={e => set({ duration: Number(e.target.value) })}>{[5, 6, 8, 10, 12, 15].map(n => <option key={n} value={n}>{n} seconds</option>)}</select></label>}
-      {video && <label className="field"><span>Sound</span><select className="select" value={f.sound} onChange={e => set({ sound: e.target.value as 'generated' | 'silent' })}><option value="generated">With sound</option><option value="silent">Silent</option></select></label>}
-      {video && <label className="field"><span>Detail</span><select className="select" value={f.detail} onChange={e => set({ detail: e.target.value as 'standard' | 'full' })}><option value="standard">Fast</option><option value="full">Full (slower)</option></select></label>}
-      {kind !== 'edit' && <label className="field"><span>Style</span><select className="select" value={style?.id ?? ''} onChange={e => { const s = available.find(x => x.id === e.target.value); set({ loras: s ? [{ id: s.id, revision: s.revision, scale: s.default_scale ?? 1 }] : [] }); }}><option value="">No style</option>{available.map(s => <option key={s.id} value={s.id} disabled={s.source_status === 'needs_source'}>{s.name}{s.source_status === 'needs_source' ? ' (needs source)' : ''}</option>)}</select></label>}
+      {r.output.aspect !== 'source' && <label className="field"><span>Shape</span><select aria-label="Shape" className="select" value={f.aspect} onChange={e => set({ aspect: e.target.value as never })}>{r.workflow === 'text-to-image' ? <><option value="16:9">Landscape 16:9</option><option value="1:1">Square 1:1</option><option value="4:5">Portrait 4:5</option><option value="9:16">Tall portrait 9:16</option></> : <><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option></>}</select></label>}
+      <label className="field"><span>Size</span><select aria-label="Size" className="select" value={f.size} onChange={e => set({ size: e.target.value as never })}>{sizeOptions(r.workflow, f.aspect).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
+      <label className="field"><span>How many</span><select aria-label="How many" className="select" value={f.count} onChange={e => set({ count: Number(e.target.value) })}>{[1, 2, 3, 4, 6, 8].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
+      {video && <label className="field"><span>Length</span><select aria-label="Length" className="select" value={f.duration} onChange={e => set({ duration: Number(e.target.value) })}>{[5, 6, 8, 10, 12, 15].map(n => <option key={n} value={n}>{n} seconds</option>)}</select></label>}
+      {video && <label className="field"><span>Sound</span><select aria-label="Sound" className="select" value={f.sound} onChange={e => set({ sound: e.target.value as 'generated' | 'silent' })}><option value="generated">With sound</option><option value="silent">Silent</option></select></label>}
+      {video && <label className="field"><span>Detail</span><select aria-label="Detail" className="select" value={f.detail} onChange={e => set({ detail: e.target.value as 'standard' | 'full' })}><option value="standard">Fast</option><option value="full">Full (slower)</option></select></label>}
+      {kind !== 'edit' && <label className="field"><span>Style</span><select aria-label="Style" className="select" value={style?.id ?? ''} onChange={e => { const s = available.find(x => x.id === e.target.value); set({ loras: s ? [{ id: s.id, revision: s.revision, scale: s.default_scale ?? 1 }] : [] }); }}><option value="">No style</option>{available.map(s => <option key={s.id} value={s.id} disabled={s.source_status === 'needs_source'}>{s.name}{s.source_status === 'needs_source' ? ' (needs source)' : ''}</option>)}</select></label>}
       {style && <label className="field"><span>Style strength</span><input className="input" type="number" min={0} max={4} step={0.1} value={style.scale} onChange={e => set({ loras: [{ ...style, scale: Number(e.target.value) }] })} /></label>}
-      <label className="field"><span>Runs on</span><select className="select" value={f.target} onChange={e => set({ target: e.target.value as 'auto' | 'local' | 'cloud' })}><option value="auto">Auto</option><option value="local">Seed PC</option><option value="cloud">Cloud GPU</option></select></label>
+      <label className="field"><span>Runs on</span><select aria-label="Runs on" className="select" value={f.target} onChange={e => set({ target: e.target.value as 'auto' | 'local' | 'cloud' })}><option value="auto">Auto</option><option value="local">Seed PC</option><option value="cloud">Cloud GPU</option></select></label>
     </div>
     {engine && <p className="faint" style={{ margin: 0, fontSize: 13 }}>Engine: {engine}. Seed uses it for every {kindLabels[kind].toLowerCase()} draft, so there is nothing to choose here. To make a different kind of thing, ask Seed.</p>}
     <details><summary className="faint">Advanced</summary>{readable && <div className="field" style={{ marginTop: 8 }}><span>Prompt as the model receives it</span><div className="prompt" style={{ whiteSpace: 'pre-wrap', fontSize: 12.5 }}>{readable.back(f.prompt)}</div></div>}<label className="field" style={{ marginTop: 8 }}><span>Seed (random, or a number to repeat a result)</span><input className="input" value={f.seed} onChange={e => set({ seed: e.target.value })} /></label></details>
