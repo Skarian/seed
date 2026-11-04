@@ -191,7 +191,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
     <div className="vtop">
       <button className="btn small close" onClick={onClose} autoFocus><Icon.Close />Close</button><b className="compare-title">Compare</b>
       <div className="seg phone-only" role="group" aria-label="Show A or B"><button aria-pressed={side === 'A'} onClick={() => setSide('A')}>A</button><button aria-pressed={side === 'B'} onClick={() => setSide('B')}>B</button></div>
-      <span className="faint no-phone" style={{ fontSize: 13 }}>Click to zoom both · A/B keys</span>
+      <span className="faint no-phone no-touch" style={{ fontSize: 13 }}>Click to zoom both · A/B keys</span>
       <span style={{ flex: 1 }} />
       <button className="btn small" aria-pressed={diff} onClick={() => setDiff(d => !d)}>Differences</button>
     </div>

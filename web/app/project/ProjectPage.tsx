@@ -34,7 +34,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const [context, setContext] = useState<ComposerContext>({ type: 'talk' });
   const [selection, setSelection] = useState<Selection>({});
   const [compute, setCompute] = useState<null | { role: 'image' | 'video'; action: string; seconds?: number | null; then: () => Promise<void> }>(null);
-  const [conflict, setConflict] = useState<null | { label: string; run: () => Promise<void>; add?: () => Promise<void> }>(null);
+  const [conflict, setConflict] = useState<null | { label: string; run: () => Promise<void>; subject?: string }>(null);
   const [confirmDelete, setConfirmDelete] = useState(false), [renaming, setRenaming] = useState(false);
   const [busy, setBusy] = useState(''), [problem, setProblem] = useState(''), [typing, setTyping] = useState(false);
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
@@ -100,11 +100,14 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       });
       if (ok) { setText(''); setAttachments([]); setContext(c => c.type === 'using' || c.type === 'draft' || c.type === 'keep' ? { type: plan && addToPlan ? 'plan' : 'talk' } : c); }
     };
+    // A plan holds one kind of work. If the waiting plan is already that kind, the change joins it with the image;
+    // otherwise the waiting drafts are kept for later (never folded into a words-only draft that drops the image).
     if (context.type === 'using' && plan) {
+      if (!kind || plan.workflow === kind) { await go(true); return; }
       setConflict({
         label: context.intent === 'animate' ? 'Animate' : 'Refine',
+        subject: `${context.intent === 'animate' ? 'An animation of' : 'An edit of'} “${context.item.title}”`,
         run: async () => { await setAside(); await go(); },
-        add: async () => { await go(true); },
       });
       return;
     }
@@ -240,7 +243,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                     onRevise={async (card, request) => run('Saving', () => projectsApi.revise(id, card.id, latest(card).number, request))}
                     onAskAbout={card => { setMode('ask'); setContext({ type: 'draft', card: card.id, revision: latest(card).number, title: titleOf(latest(card).request) }); setFocusToken(t => t + 1); }}
                     onSetAside={() => void setAside(item.group)} acknowledged={acknowledged} onAcknowledge={key => setAcknowledged(s => new Set([...s, key]))}
-                    onEditMyself={(card, ids) => { setMode('make'); setText(latest(card).request.prompt); setSettings({ ...settings, kind: 'edit' }); setAttachments(ids.map((a, i) => { const m = project.asset_manifest?.find(x => x.id === a); return { key: a, asset_id: a, name: m?.name ?? 'Image', kind: m?.kind ?? 'image', role: i === 0 ? 'source' as const : 'reference' as const }; })); setFocusToken(t => t + 1); }} />
+                    onEditMyself={(card, ids) => { setSelection(s => ({ ...s, [card.id]: false })); app.toast(`“${titleOf(latest(card).request)}” is left out of the plan. Its edit is ready in Make now below.`); setMode('make'); setText(latest(card).request.prompt); setSettings({ ...settings, kind: 'edit' }); setAttachments(ids.map((a, i) => { const m = project.asset_manifest?.find(x => x.id === a); return { key: a, asset_id: a, name: assetName(project, a, app.tasks), kind: m?.kind ?? 'image', role: i === 0 ? 'source' as const : 'reference' as const }; })); setFocusToken(t => t + 1); }} />
                     : <ResultGroup key={item.group.id} project={project} group={item.group} styles={styles} collapsed={collapsedIds.has(item.group.id)} onExpand={() => setExpanded(s => new Set([...s, item.group.id]))} actions={actions} flash={flash} />}</LocalBoundary>)}
                 {problem && <div className="notice error" role="alert">{problem} <button className="link" onClick={() => setProblem('')}>Dismiss</button></div>}
               </div>}
@@ -262,11 +265,10 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       </div></div>
     </div>{split && project && <ResultsView project={project} embedded />}</div>}
     {compute && <ComputeSheet role={compute.role} action={compute.action} seconds={compute.seconds} onClose={() => setCompute(null)} onStarted={() => { const then = compute.then; setCompute(null); void then(); }} />}
-    {conflict && <Dialog title="A plan is waiting" onClose={() => setConflict(null)} footer={<>
+    {conflict && <Dialog title={plan ? `Keep ${plan.cards.length === 1 ? '“' + titleOf(latest(plan.cards[0]!).request) + '”' : 'your ' + plan.cards.length + ' waiting drafts'} for later?` : 'A plan is waiting'} onClose={() => setConflict(null)} footer={<>
       <button className="btn" onClick={() => setConflict(null)}>Cancel</button>
-      {conflict.add && <button className="btn" onClick={() => { const c = conflict; setConflict(null); void c.add!(); }}>Add it to the waiting plan</button>}
-      <button className="btn primary" onClick={() => { const c = conflict; setConflict(null); void c.run(); }}>Set the plan aside and start a new one</button>
-    </>}><p style={{ margin: 0 }}>{conflict.add ? <>You can add this to the plan that is waiting, so Seed revises it with the image attached, or set that plan aside and start a new one. </> : <>{conflict.label} starts a new plan. </>}Setting a plan aside moves its drafts to Not now, where you can bring them back. Nothing is made or deleted, and your message is kept.</p></Dialog>}
+      <button className="btn primary" onClick={() => { const c = conflict; setConflict(null); void c.run(); }}>Keep them and continue</button>
+    </>}><p style={{ margin: 0 }}>{conflict.subject ? <>{conflict.subject} is a different kind of work from the drafts that are waiting, so it can't share their plan. </> : <>{conflict.label} starts a new plan. </>}The waiting drafts stay listed under “Not made yet” with their settings, and Bring back returns any of them. Nothing is made or deleted, and your message is kept.</p></Dialog>}
     {renaming && project && <RenameDialog project={project} onClose={() => setRenaming(false)} onSaved={p => { setProject(p); app.refreshProjects(); setRenaming(false); }} />}
     {confirmDelete && project && <Confirm title={`Delete “${project.title}”?`} danger action="Delete project" busy={Boolean(busy)} onClose={() => setConfirmDelete(false)}
       body={<><p style={{ margin: 0 }}>The conversation and its plans are removed. Its results stay in your Library.</p>{(replying || project.jobs.some(j => !['completed', 'failed', 'cancelled'].includes(j.state))) && <p className="changed">This project is still working. Stop the reply and wait for its results to finish before deleting.</p>}</>}

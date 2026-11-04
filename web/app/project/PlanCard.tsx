@@ -34,12 +34,17 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   const lastRun = cards.flatMap(c => c.revisions).filter(r => r.number > 1).map(r => r.run_id).filter(Boolean).at(-1);
   const revisedCount = lastRun ? cards.filter(c => latest(c).run_id === lastRun && latest(c).number > 1).length : 0;
   const working = group.state === 'revising' || group.state === 'assembling';
+  // Compact rows lead with what tells drafts apart: words every title starts with are dropped.
+  const words = cards.map(c => titleOf(latest(c).request).split(' '));
+  let common = 0; while (cards.length > 1 && words.every(w => w.length > common + 1 && w[common] === words[0]![common])) common++;
+  const warnings = cards.map(card => checkDraft(card, project, cards.length).filter(x => !acknowledged.has(card.id + ':' + x.text)));
+  const short = (r: ChatCard) => titleOf(latest(r).request).split(' ').slice(common).join(' ');
   return <section className={'card' + (flash === group.id ? ' flash' : '')} aria-label={`Plan, ${cards.length} ${cards.length === 1 ? 'draft' : 'drafts'}`} id={'group-' + group.id}>
     <div className="card-head">
       <b>Plan</b><span className="meta">{cards.length} {cards.length === 1 ? 'draft' : 'drafts'}{working ? ' · Seed is updating it…' : revisedCount ? ` · ${revisedCount} changed, ${cards.length - revisedCount} unchanged in the last revision` : ''}</span>
       <span className="end">
         {cards.length > 2 && <button className="btn quiet small" onClick={() => setCompact(c => !c)} aria-pressed={compact}>{compact ? 'Show details' : 'Compact'}</button>}
-        <MenuButton label="Plan options" items={[{ label: 'Set this plan aside', hint: 'Drafts move to Not now; you can bring them back.', onSelect: onSetAside, disabled: busy }]}><Icon.More /></MenuButton>
+        <MenuButton label="Plan options" items={[{ label: 'Set this plan aside', hint: 'Drafts are kept under Not made yet; Bring back returns them.', onSelect: onSetAside, disabled: busy }]}><Icon.More /></MenuButton>
       </span>
     </div>
     {(shared.length > 0 || sharedReady) && <div className="shared">
@@ -56,14 +61,15 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
         const toggle = () => !blocked && onSelection({ ...selection, [card.id]: !on });
         if (compact && open !== card.id) return <button key={card.id} className="compact-row" onClick={() => setOpen(card.id)} aria-label={`${titleOf(r)}, ${on && !blocked ? 'selected' : 'not selected'}. Show details`}>
           <span className="check" role="checkbox" aria-checked={on && !blocked} aria-label={'Include ' + titleOf(r)} onClick={e => { e.stopPropagation(); toggle(); }}>{on && !blocked && <Icon.Check />}</span>
-          <span className="name">{titleOf(r)}</span>
-          <span className="faint">{own.map(([, v]) => v).join(' · ')}</span>
+          <span className="lines"><span className="name">{short(card)}</span>
+            {own.length > 0 && <span className="faint">{own.map(([, v]) => v).join(' · ')}</span>}
+            {warnings[i]!.map(c => <span className="warn-line" key={c.text}>⚠ {c.text}</span>)}</span>
           {changed.length > 0 && <span className="dot amber" aria-label="Changed" />}
         </button>;
         return <Draft key={card.id + ':' + rev.number} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
           ready={sharedReady ? undefined : ready[i]} styles={styles} flash={flash === card.id}
           onRevise={request => onRevise(card, request)} onAskAbout={() => onAskAbout(card)} onCollapse={compact ? () => setOpen(null) : undefined} kindLabel={kindLabels[kind]}
-          checks={checkDraft(card, project, cards.length).filter(x => !acknowledged.has(card.id + ':' + x.text))} onAcknowledge={text => onAcknowledge(card.id + ':' + text)} onEditMyself={assets => onEditMyself(card, assets)} />;
+          checks={warnings[i]!} onAcknowledge={text => onAcknowledge(card.id + ':' + text)} onEditMyself={assets => onEditMyself(card, assets)} />;
       })}
     </div>
   </section>;

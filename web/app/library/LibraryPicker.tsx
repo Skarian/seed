@@ -3,7 +3,7 @@ import { collections as collectionsApi, type AssetCollection, type LibraryAsset 
 import { useApp, useAssets } from '../data.js';
 import { Icon } from '../icons.js';
 import { Dialog, Media } from '../ui.js';
-import { assetTitle } from './LibraryPage.js';
+import { assetTitle, Caption } from './LibraryPage.js';
 
 /** Attach from the Library without leaving the composer. Same shelves and filters as the Library; unsent text stays put. */
 export function LibraryPicker({ onClose, onPick }: { onClose: () => void; onPick: (items: Array<LibraryAsset & { title?: string }>) => void }) {
@@ -35,7 +35,7 @@ export function LibraryPicker({ onClose, onPick }: { onClose: () => void; onPick
         <button className="open" role="checkbox" aria-checked={on} aria-label={assetTitle(a)} onClick={() => toggle(a)} />
         {on && <span className="check sel" aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, background: 'var(--accent)' }}><Icon.Check /></span>}
         {a.kind !== 'image' && <span className="badge pill" aria-hidden="true">{a.kind === 'video' ? 'Video' : 'Audio'}</span>}
-      </div><figcaption><span>{assetTitle(a)}</span><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small></figcaption></figure>; })}
+      </div><figcaption title={assetTitle(a)}><Caption title={assetTitle(a)} /><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small></figcaption></figure>; })}
     </div>
     {list.cursor && <button className="btn" disabled={list.loading} onClick={() => void list.more()}>Load more</button>}
   </Dialog>;

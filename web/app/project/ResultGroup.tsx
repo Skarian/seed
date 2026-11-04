@@ -21,7 +21,7 @@ export function ResultGroup({ project, group, styles, collapsed, onExpand, actio
     <div className="actions"><button className="btn small" onClick={() => actions.onMakeAgain(group.cards[0]!)}>Try again</button></div>
   </section>;
   if (!made.length || group.state === 'stopped') return <section className="card" id={'group-' + group.id}>
-    <div className="notnow"><span>{group.state === 'stopped' ? 'Stopped' : 'Set aside'}:</span>{group.cards.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b> <button className="link" onClick={() => actions.onBringBack(c)}>Bring back</button></span>)}</div>
+    <div className="notnow"><span>{group.state === 'stopped' ? 'Stopped, not made' : 'Not made yet'}:</span>{group.cards.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b> <button className="link" onClick={() => actions.onBringBack(c)}>Bring back</button></span>)}</div>
   </section>;
   return <>{made.map((card, i) => <CardResults key={card.id} project={project} group={group} card={card} styles={styles} collapsed={collapsed} onExpand={onExpand} actions={actions} flash={flash === card.id || flash === group.id} notNow={i === made.length - 1 ? notNow : []} />)}</>;
 }
@@ -48,16 +48,18 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
       ]}><Icon.More /></MenuButton>
     </span>
   </div>;
-  if (list.length && list.every(j => j.state === 'cancelled')) return <section className="card" id={'card-' + card.id} data-group={group.id}><div className="notnow"><span><b>{title}</b> · cancelled before it was made</span><button className="link" onClick={() => actions.onMakeAgain(card)}>Make again</button></div><IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show /></section>;
-  if (collapsed) return <section className="card" id={'card-' + card.id}>{head}<div className="strip">{items.map(it => <button key={it.asset} className={'tile ' + shapeClass(r)} onClick={() => app.inspect(it, items)} aria-label={'Open ' + it.title}><Media id={it.asset} kind={it.kind} alt={it.title} /></button>)}</div></section>;
+  // Drafts left out of this make stay reachable whatever happens to the made ones (done, failed or cancelled).
+  const notNowRow = notNow.length > 0 && <div className="notnow"><span>Not made yet:</span>{notNow.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b> <button className="link" onClick={() => actions.onBringBack(c)}>Bring back</button></span>)}</div>;
+  if (list.length && list.every(j => j.state === 'cancelled')) return <section className="card" id={'card-' + card.id} data-group={group.id}><div className="notnow"><span><b>{title}</b> · cancelled before it was made</span><button className="link" onClick={() => actions.onMakeAgain(card)}>Make again</button></div>{notNowRow}<IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show /></section>;
+  if (collapsed) return <section className="card" id={'card-' + card.id}>{head}<div className="strip">{items.map(it => <button key={it.asset} className={'tile ' + shapeClass(r)} onClick={() => app.inspect(it, items)} aria-label={'Open ' + it.title}><Media id={it.asset} kind={it.kind} alt={it.title} /></button>)}</div>{notNowRow}</section>;
   return <section className={'card' + (flash ? ' flash' : '')} id={'card-' + card.id} data-group={group.id} aria-label={title}>
     {head}
     {how && <HowItWasMade project={project} card={card} styles={styles} />}
-    <div className={'results' + (list.length === 1 ? ' one' : '') + (r.output.aspect === '9:16' && list.length > 2 ? ' tall' : '')} style={r.output.aspect === '9:16' && list.length > 2 ? { ['--cols' as string]: String(Math.min(list.length, 4)) } : undefined}>
+    <div className={'results' + (list.length === 1 ? ' one' : list.length === 2 ? ' two' : '') + (r.output.aspect === '9:16' && list.length > 2 ? ' tall' : '')} style={r.output.aspect === '9:16' && list.length > 2 ? { ['--cols' as string]: String(Math.min(list.length, 4)) } : undefined}>
       {list.filter(j => j.state !== 'cancelled' || running.length).map((job, n) => <ResultTile key={job.id} job={job} project={project} title={`${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`} siblings={items} card={card} actions={actions} />)}
     </div>
     {!running.length && cancelled.length > 0 && done.length > 0 && <div className="notnow"><span>{cancelled.length} cancelled before they were made</span><button className="link" onClick={() => actions.onMakeAgain(card)}>Make them again</button></div>}
-    {notNow.length > 0 && <div className="notnow"><span>Not now:</span>{notNow.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b> <button className="link" onClick={() => actions.onBringBack(c)}>Bring back</button></span>)}</div>}
+    {notNowRow}
     <IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show={!running.length && list.some(j => j.state === 'cancelled')} />
   </section>;
 }
@@ -101,8 +103,8 @@ function ResultTile({ job, project, title, siblings, card, actions }: { job: Job
   const state = base.label === 'Waiting for GPU' || base.label === 'Queued' ? { ...base, label: gpuWait(app.pool, video ? 'video' : 'image') ?? base.label } : base;
   const asset = job.outputs[0];
   if (job.state !== 'completed' || !asset) return <div className={`tile pending ${shape} ${state.tone === 'bad' ? 'failed' : ''} ${state.tone === 'live' || state.tone === 'wait' ? 'shimmer' : ''}`} role="group" aria-label={title + ': ' + state.label}>
-    <span className="state pill"><span className={'dot ' + (state.tone === 'live' ? 'live' : state.tone === 'bad' ? 'red' : state.tone === 'wait' ? 'amber' : 'off')} />{state.tone === 'bad' ? state.label.split(' · ')[0] : state.label}</span>
-    <div className="placeholder">{state.tone === 'bad' ? <span>{state.label.replace(/^Failed · /, '')}<br /><button className="btn small" style={{ marginTop: 8 }} onClick={() => job.state === 'needs_attention' ? void jobsApi.recover(job.id) : actions.onRetryFailed(card)}>{job.state === 'needs_attention' ? 'Check again' : 'Retry'}</button></span> : state.tone === 'off' ? <span>Cancelled<br /><button className="btn small" style={{ marginTop: 8 }} onClick={() => actions.onMakeAgain(card)}>Make again</button></span> : null}</div>
+    {state.tone === 'bad' && <span className="state pill"><span className="dot red" />{state.label.split(' · ')[0]}</span>}
+    <div className="placeholder">{state.tone === 'live' || state.tone === 'wait' ? <span className="wait-text"><span className={'dot ' + (state.tone === 'live' ? 'live' : 'amber')} />{state.label}</span> : state.tone === 'bad' ? <span>{state.label.replace(/^Failed · /, '')}<br /><button className="btn small" style={{ marginTop: 8 }} onClick={() => job.state === 'needs_attention' ? void jobsApi.recover(job.id) : actions.onRetryFailed(card)}>{job.state === 'needs_attention' ? 'Check again' : 'Retry'}</button></span> : state.tone === 'off' ? <span>Cancelled<br /><button className="btn small" style={{ marginTop: 8 }} onClick={() => actions.onMakeAgain(card)}>Make again</button></span> : null}</div>
     {state.cancellable && <span className="corner"><button className="pill" onClick={() => void jobsApi.cancel(job.id).then(() => { app.refreshTasks(); app.toast('Cancelled · the GPU keeps running for other work'); })} aria-label={'Cancel ' + title}>Cancel</button></span>}
     {state.percent !== undefined && <div className="prog"><i style={{ width: state.percent + '%' }} /></div>}
   </div>;

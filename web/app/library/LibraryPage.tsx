@@ -130,7 +130,7 @@ function NewCollection({ onCreate }: { onCreate: (name: string) => Promise<void>
 }
 
 /** A tile title whose version or batch place never truncates away. */
-function Caption({ title }: { title: string }) {
+export function Caption({ title }: { title: string }) {
   const m = title.match(/^(.*?)((?: · v\d+)?(?: · \d+ of \d+)?)$/);
   const base = m?.[1] || title, badge = (m?.[2] ?? '').replace(/^ · /, '').trim();
   return <span className="cap"><span>{base}</span>{badge && <b>{badge}</b>}</span>;

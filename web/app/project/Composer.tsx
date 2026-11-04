@@ -57,7 +57,7 @@ export function Composer(p: Props) {
       { label: 'Revise this plan', hint: 'Your message can change the open plan.', checked: p.context.type === 'plan', onSelect: () => p.onContext({ type: 'plan' }) },
       { label: 'Talk without changing this plan', hint: 'Seed answers; the plan stays exactly as it is.', checked: p.context.type === 'keep', onSelect: () => p.onContext({ type: 'keep' }) },
       'divider' as const,
-      { label: 'Set this plan aside', hint: 'Drafts move to Not now and can be brought back.', onSelect: p.onSetAside },
+      { label: 'Set this plan aside', hint: 'Drafts are kept under Not made yet; Bring back returns them.', onSelect: p.onSetAside },
     ] : [{ label: 'Talking with Seed', checked: p.context.type === 'talk', onSelect: () => p.onContext({ type: 'talk' }) }]),
   ];
   const submit = () => { if (!canSend) return; p.mode === 'make' ? p.onMake() : p.onSend(); };
