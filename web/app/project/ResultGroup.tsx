@@ -1,8 +1,8 @@
 import React, { useState } from 'react';
 import type { ChatCard, ChatGroup, JobRecord, Project } from '../api.js';
-import { jobs as jobsApi, kindOf, isVideoKind } from '../api.js';
+import { jobs as jobsApi, pool as poolApi, kindOf, isVideoKind } from '../api.js';
 import { Icon } from '../icons.js';
-import { Media, MenuButton } from '../ui.js';
+import { Media, MenuButton, downloadAsset } from '../ui.js';
 import { latest, titleOf, tileState, shapeClass, isFailed, cardJobs, outputNoun, settingChips } from '../format.js';
 import { useApp, type ViewerItem } from '../data.js';
 import { styleName, type StyleEntry } from './readiness.js';
@@ -54,7 +54,21 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
       {list.map((job, n) => <ResultTile key={job.id} job={job} project={project} title={`${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`} siblings={items} card={card} actions={actions} />)}
     </div>
     {notNow.length > 0 && <div className="notnow"><span>Not now:</span>{notNow.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b> <button className="link" onClick={() => actions.onBringBack(c)}>Bring back</button></span>)}</div>}
+    <IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show={!running.length && list.some(j => j.state === 'cancelled')} />
   </section>;
+}
+
+/** After a cancel, say plainly whether a GPU is still billing, and offer to release it right here. */
+function IdleAfterCancel({ role, show }: { role: 'image' | 'video'; show: boolean }) {
+  const app = useApp();
+  const [done, setDone] = useState(false);
+  const w = app.pool?.workers.find(x => x.worker_class === role && x.state === 'ready' && !x.current_job_id && !x.quit_mode);
+  const busyElsewhere = app.tasks.some(j => ['queued', 'running', 'submitting', 'uploading'].includes(j.state));
+  if (!show || !w || done || busyElsewhere) return null;
+  return <div className="notnow" role="status"><span>The {role} GPU is still rented ({`$${w.hourly.toFixed(2)}/h`}){w.idle_release_minutes ? `, and releases after ${w.idle_release_minutes} idle minutes` : ''}.</span>
+    <button className="link" onClick={() => { void poolApi.act(w.id, 'finish').then(() => { app.refreshPool(); app.toast('Releasing the GPU'); }); setDone(true); }}>Release it now</button>
+    <button className="link" onClick={() => setDone(true)}>Keep it for the next make</button>
+  </div>;
 }
 
 /** What a waiting output is waiting for: a GPU starting up, with its download progress and time left when known. */
@@ -101,7 +115,7 @@ function ResultTile({ job, project, title, siblings, card, actions }: { job: Job
         { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },
         { label: 'Reuse settings', onSelect: () => actions.onReuse(card) },
         { label: 'Open full screen', onSelect: () => app.view(item, siblings) },
-        { label: 'Download', onSelect: () => { const a = document.createElement('a'); a.href = '/api/v1/assets/' + asset + '/content'; a.download = ''; a.click(); } },
+        { label: 'Download', onSelect: () => void downloadAsset(asset, title.replace(/, (\d+) of \d+$/, ' $1')) },
       ]}><Icon.More width={14} height={14} /></MenuButton>
     </div>
   </div>;

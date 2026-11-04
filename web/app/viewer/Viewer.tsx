@@ -2,7 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { assets as assetsApi, collections as collectionsApi, jobs as jobsApi, projects as projectsApi, media, kindOf, isVideoKind, type AssetDetail, type JobRecord, type AssetCollection } from '../api.js';
 import { useApp, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
-import { Media, MenuButton, Thumb, Confirm, Dialog } from '../ui.js';
+import { Media, MenuButton, Thumb, Confirm, Dialog, downloadAsset } from '../ui.js';
 import { titleOf, settingChips, duration, targetLabel, promptChanges } from '../format.js';
 import { roleLabels } from '../project/requests.js';
 import { StatusControl } from '../App.js';
@@ -23,7 +23,7 @@ function useDetail(item: ViewerItem) {
 
 function useFamily(item: ViewerItem, job?: JobRecord) {
   const { tasks } = useApp();
-  const parents = (job?.request.references ?? []).map(r => ({ asset: r.asset_id, kind: r.kind, role: r.role }));
+  const parents = (job?.request.references ?? []).map(r => { const made = tasks.find(j => j.outputs.includes(r.asset_id)); return { asset: r.asset_id, kind: r.kind, role: r.role, title: made ? titleOf(made.request) : 'Uploaded ' + r.kind, job: made }; });
   const children = tasks.filter(j => j.state === 'completed' && j.request.references?.some(r => r.asset_id === item.asset)).flatMap(j => j.outputs.map(o => ({ asset: o, job: j })));
   return { parents, children };
 }
@@ -48,7 +48,7 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
     ...(source?.card_id ? [{ label: 'Reuse settings', hint: 'Load its prompt and settings into Make.', onSelect: () => { onClosed?.(); app.useResult({ ...item, job }, 'reuse'); } }] : []),
     { label: fav ? 'Remove from favorites' : 'Add to favorites', onSelect: () => void assetsApi.favorite(item.asset, !fav).then(refresh) },
     { label: 'Add to collection…', onSelect: () => { setColDialog(true); void collectionsApi.list(app.mode).then(setCols); } },
-    { label: 'Download', onSelect: () => { const a = document.createElement('a'); a.href = media.content(item.asset); a.download = ''; a.click(); } },
+    { label: 'Download', onSelect: () => void downloadAsset(item.asset, job ? titleOf(job.request) + (job.request.count > 1 ? ' ' + (job.submission_index + 1) : '') : item.title) },
     ...(source?.chat_id ? [{ label: 'Show in conversation', onSelect: () => { onClosed?.(); app.go({ name: 'project', id: source.chat_id!, view: 'conversation', focus: source.card_id }); } }] : []),
     'divider' as const,
     { label: 'Delete…', danger: true, onSelect: () => setDel(true) },
@@ -62,7 +62,7 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
       <MenuButton label="More actions" className="btn" items={more}><Icon.More /></MenuButton>
     </div>
     <div className="kv">
-      <span>Made from</span><div>{parents.length ? <span className="lineage">{parents.map(p => <button key={p.asset} onClick={() => app.inspect({ asset: p.asset, kind: p.kind, title: roleLabels[p.role] ?? 'Input' })}><Thumb id={p.asset} kind={p.kind} alt="" />{roleLabels[p.role] ?? p.role}</button>)}</span> : <span className="faint">{job ? 'Words only' : detail && !detail.job_id ? 'Uploaded' : '—'}</span>}</div>
+      <span>Made from</span><div>{parents.length ? <span className="lineage">{parents.map(p => <button key={p.asset} onClick={() => app.inspect({ asset: p.asset, kind: p.kind, title: p.title, job: p.job, project: p.job?.source?.chat_id })}><Thumb id={p.asset} kind={p.kind} alt="" /><span><b style={{ fontWeight: 500 }}>{p.title}</b> · {roleLabels[p.role] ?? p.role}</span></button>)}</span> : <span className="faint">{job ? 'Words only' : detail && !detail.job_id ? 'Uploaded' : '—'}</span>}</div>
       {children.length > 0 && <><span>Made from this</span><div className="lineage">{children.slice(0, 8).map(c => <button key={c.asset} onClick={() => app.inspect({ asset: c.asset, kind: isVideoKind(kindOf[c.job.request.workflow]) ? 'video' : 'image', title: titleOf(c.job.request), job: c.job, project: c.job.source?.chat_id })}><Thumb id={c.asset} kind={isVideoKind(kindOf[c.job.request.workflow]) ? 'video' : 'image'} alt="" />{titleOf(c.job.request)}</button>)}</div></>}
       {r && <><span>Settings</span><div>{settingChips(r, id => id).filter(([k]) => !k.startsWith('style') && k !== 'target').map(([, v]) => v).join(' · ')}{detail?.width ? ` · saved at ${detail.width}×${detail.height}` : ''}</div></>}
       {r?.loras?.length ? <><span>Style</span><div>{r.loras.map(l => `${styles.find(s => s.id === l.id)?.name ?? 'Style'} · strength ${l.scale}`).join(', ')}</div></> : null}
@@ -70,7 +70,7 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
       {job && <><span>Ran on</span><div>{job.worker?.executor === 'local' ? 'Seed PC' : job.worker?.executor === 'cloud' ? 'Cloud GPU' : targetLabel(r?.target)}{job.metrics?.elapsed_to_saved_seconds ? ' · ' + duration(job.metrics.elapsed_to_saved_seconds) : ''}</div></>}
       {source?.chat_id && <><span>Project</span><div><button className="link" onClick={() => { onClosed?.(); app.go({ name: 'project', id: source.chat_id!, view: 'conversation', focus: source.card_id }); }}>{app.projectList.find(p => p.id === source.chat_id)?.title ?? 'Open project'} · show in conversation</button></div></>}
       {r && <><span>Prompt</span><div><details open={!app.narrow && r.prompt.length < 600}><summary className="link" style={{ cursor: 'pointer' }}>{r.prompt.length < 600 && !app.narrow ? 'Prompt' : `Show prompt (${r.prompt.split(/\s+/).length} words)`}</summary><div className="prompt">{r.prompt}</div></details></div></>}
-      {!compact && <><span>Note</span><div><NoteField asset={item.asset} note={note} onSaved={setNote} /></div></>}
+      {<><span>Note</span><div><NoteField asset={item.asset} note={note} onSaved={setNote} /></div></>}
     </div>
     {colDialog && <Dialog title="Add to collection" onClose={() => setColDialog(false)} footer={<button className="btn primary" onClick={() => setColDialog(false)}>Done</button>}>
       {!cols ? <p className="muted">Loading…</p> : <CollectionChoices asset={item.asset} cols={cols} detail={detail} onChanged={refresh} />}

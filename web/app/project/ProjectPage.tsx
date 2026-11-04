@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useSta
 import { projects as projectsApi, randomKey, kindOf, workflowOf, isVideoKind, type ChatCard, type ChatGroup, type ChatMessage, type Project, type Kind } from '../api.js';
 import { useApp, useNow, useProject, useStoredState } from '../data.js';
 import { Icon } from '../icons.js';
-import { Markdown, MenuButton, Confirm, Dialog, Thumb, cleanReply } from '../ui.js';
+import { Markdown, MenuButton, Confirm, Dialog, Thumb, cleanReply, LocalBoundary } from '../ui.js';
 import { latest, titleOf, outputNoun, duration, cardJobs, isFailed } from '../format.js';
 import { StatusControl } from '../App.js';
 import { PlanCard, type Selection } from './PlanCard.js';
@@ -182,6 +182,11 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const lastAsk = project ? [...project.messages].reverse().find(m => m.role === 'user') : undefined;
   const planStale = Boolean(plan && lastTurn && lastAsk && Date.parse(lastAsk.created_at) <= Date.parse(lastTurn.created_at) && lastTurn.transcript?.state === 'completed'
     && plan.cards.every(c => !c.revisions.some(r => r.run_id === lastTurn.id)) && /\?\s*$/.test(cleanReply(lastTurn.text)));
+  // Seed changed the plan and also asked something (often about an unsupported setting): quote it next to Make.
+  const lastReply = lastTurn?.transcript?.state === 'completed' ? cleanReply(lastTurn.text) : '';
+  // Only for a real decision (a substitution or limit), not a polite "anything else?".
+  const question = plan && !planStale && /\?\s*$/.test(lastReply) && /support|instead|can.?t|cannot|not available|only (offer|support|do)|unable|which (one|option|format)|would you (prefer|like)/i.test(lastReply) && plan.cards.some(c => c.revisions.some(r => r.run_id === lastTurn!.id))
+    ? (lastReply.split(/(?<=[.!])\s+/).filter(s => s.includes('?')).at(-1) ?? '').replace(/[*_`#]/g, '').trim().slice(0, 220) : '';
   const planNeed = selectedCards.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs || r.billing);
 
   if (error && !project) return <><Header project={null} view={view} onRename={() => {}} onDelete={() => {}} /><div className="scroll"><div className="col"><div className="notice error" style={{ marginTop: 24 }}>This project could not be opened: {error} <div className="actions"><button className="btn small" onClick={() => app.go({ name: 'home' })}>Go to your latest project</button></div></div></div></div></>;
@@ -193,23 +198,23 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           {!project ? <div className="stream"><span className="statusline"><span className="dot live" />Opening…</span></div>
             : !timeline.length ? <EmptyProject onStarter={t => { setText(t); setFocusToken(n => n + 1); }} />
               : <div className="stream">
-                {timeline.map(item => item.type === 'message' ? <Message key={item.message.id} message={item.message} project={project} planAfter={item.groupsAfter.some(isOpenPlan)} onRetry={() => void retry()} onMakeItMyself={() => makeItMyself(item.message)} />
+                {timeline.map(item => <LocalBoundary key={item.type === 'message' ? item.message.id : item.group.id} label={item.type === 'message' ? 'This message' : 'This plan or result'}>{item.type === 'message' ? <Message key={item.message.id} message={item.message} project={project} planAfter={item.groupsAfter.some(isOpenPlan)} onRetry={() => void retry()} onMakeItMyself={() => makeItMyself(item.message)} />
                   : isOpenPlan(item.group) ? <PlanCard key={item.group.id} project={project} group={item.group} snapshot={app.pool} styles={styles} busy={Boolean(busy) || replying} selection={selection} onSelection={setSelection} flash={flash}
                     onRevise={async (card, request) => run('Saving', () => projectsApi.revise(id, card.id, latest(card).number, request))}
                     onAskAbout={card => { setMode('ask'); setContext({ type: 'draft', card: card.id, revision: latest(card).number, title: titleOf(latest(card).request) }); setFocusToken(t => t + 1); }}
                     onSetAside={() => void setAside(item.group)} />
-                    : <ResultGroup key={item.group.id} project={project} group={item.group} styles={styles} collapsed={collapsedIds.has(item.group.id)} onExpand={() => setExpanded(s => new Set([...s, item.group.id]))} actions={actions} flash={flash} />)}
+                    : <ResultGroup key={item.group.id} project={project} group={item.group} styles={styles} collapsed={collapsedIds.has(item.group.id)} onExpand={() => setExpanded(s => new Set([...s, item.group.id]))} actions={actions} flash={flash} />}</LocalBoundary>)}
                 {problem && <div className="notice error" role="alert">{problem} <button className="link" onClick={() => setProblem('')}>Dismiss</button></div>}
               </div>}
         </div>
       </div>
       <div className="dock" onFocus={e => { if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(true); }} onBlur={e => { if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(false); }}><div className="col">
-        {plan && planStale && <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>Seed asked a question before changing the plan. The plan shows the earlier version until you answer.</div>}
+        {plan && (planStale || question) && <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>{planStale ? 'Seed asked a question before changing the plan. The plan shows the earlier version until you answer.' : <>Seed asked: “{question}” Answer below, or make the plan as it is.</>}</div>}
         {plan && !(app.narrow && typing) && <div className="makebar">
           <button className="sum" onClick={() => { const first = selectedCards[0]; if (first) setFlash(first.id); }} aria-label="Show the selected drafts">
             <b>Make selected · {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}</b> · {selectedCards.length} of {plan.cards.length} drafts{planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
           </button>
-          <button className={planStale ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : 'Make selected'}</button>
+          <button className={planStale || question ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : question ? 'Make as it is' : 'Make selected'}</button>
         </div>}
         <Composer context={context} onContext={setContext} planOpen={Boolean(plan)} mode={mode} onMode={m => { setMode(m); if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' }); }}
           text={text} onText={setText} attachments={attachments} onAttachments={setAttachments} settings={settings} onSettings={setSettings} styles={styles}
@@ -269,6 +274,7 @@ function EmptyProject({ onStarter }: { onStarter: (t: string) => void }) {
 /** One message in the stream. Seed's turns show a live stage, never tool syntax, and recover when nothing was made. */
 function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { message: ChatMessage; project: Project; planAfter: boolean; onRetry: () => void; onMakeItMyself: () => void }) {
   const turn = message.transcript, running = turn?.state === 'running';
+  const [open, setOpen] = useState(false);
   const now = useNow(1000, running);
   if (message.role === 'event') return <div className="sys">{message.text}</div>;
   if (message.role === 'user') {
@@ -284,10 +290,12 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
   const askedToMake = !madePlan && (leaked || toolFailed || (!text && turn?.state === 'completed'));
   const stage = running ? stageOf(turn!) : '';
   const reasoning = message.reasoning_text || turn?.steps.filter(s => s.kind === 'reasoning').map(s => s.text).join('\n');
-  return <div className={'msg-seed' + (planAfter && text.length > 220 ? ' clamped' : '')}>
+  const long = planAfter && text.length > 220;
+  return <div className={'msg-seed' + (long && !open ? ' clamped' : '')}>
     <div className="who">Seed{running && <span className="statusline"><span className="dot live" />{stage} · {duration((now - Date.parse(turn!.started_at)) / 1000)}</span>}</div>
     {running && !text && reasoning && <p className="thought" aria-live="off">{(reasoning.trim().split(/(?<=[.!?])\s+/).at(-1) ?? '').replace(/[`*_#]/g, '').slice(-140)}</p>}
     {text && <Markdown text={text} streaming={running} />}
+    {long && <button className="link" style={{ fontSize: 13 }} aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Show less' : 'Show more'}</button>}
     {!running && turn?.state === 'failed' && <div className="notice error">{turn.error ?? 'Seed stopped with an error.'}<div className="actions"><button className="btn small" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}
     {!running && turn?.state === 'stopped' && <p className="faint" style={{ margin: '4px 0 0', fontSize: 13 }}>Stopped.</p>}
     {!running && turn?.state === 'completed' && askedToMake && <div className="notice"><b>Seed couldn't prepare that.</b> Your message and attachments are kept.<div className="actions"><button className="btn small primary" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}

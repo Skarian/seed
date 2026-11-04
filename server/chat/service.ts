@@ -167,7 +167,7 @@ export class Chats {
           latest(saved).run_id=runId;snapshots.set(saved.id,latest(saved).number);if(target===saved.id)target=undefined;
           delete group.submission_error;
           this.save(current);
-          const result={ok:true,saved:true,request_id:saved.id,revision:latest(saved).number,request:agentRequest(request,assets),reference_labels:Object.fromEntries(toolInputLabels(request.references??[]))};
+          const result={ok:true,saved:true,status:'draft saved for review; nothing has been generated yet',next_action:'Tell the user the draft is ready to review and that nothing has been made yet. Do not describe the image or video as changed or finished.',request_id:saved.id,revision:latest(saved).number,request:agentRequest(request,assets),reference_labels:Object.fromEntries(toolInputLabels(request.references??[]))};
           return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
         }catch(error){throw Error(JSON.stringify(requestToolResultError(error,operation)));}
       }

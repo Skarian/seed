@@ -21,17 +21,18 @@ export type MenuItem = { label: string; hint?: string; onSelect: () => void; dan
 export function MenuButton({ label, items, children, className = 'icon-btn', align = 'end', placement = 'below' }: { label: string; items: MenuItem[]; children: React.ReactNode; className?: string; align?: 'start' | 'end'; placement?: 'below' | 'above' }) {
   const [open, setOpen] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<React.CSSProperties>({});
+  const [pos, setPos] = useState<React.CSSProperties>({ position: 'fixed', top: 0, left: 0, visibility: 'hidden' });
   useLayoutEffect(() => {
+    if (!open) setPos({ position: 'fixed', top: 0, left: 0, visibility: 'hidden' });
     if (!open || !anchor.current) return;
     const r = anchor.current.getBoundingClientRect(), w = Math.min(280, innerWidth - 16);
     const left = align === 'end' ? Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) : Math.max(8, Math.min(r.left, innerWidth - w - 8));
     const above = placement === 'above' || r.bottom + 320 > innerHeight;
-    setPos({ position: 'fixed', left, width: w, ...(above ? { bottom: innerHeight - r.top + 6 } : { top: r.bottom + 6 }) });
+    setPos({ position: 'fixed', left, width: w, maxHeight: Math.max(160, above ? r.top - 16 : innerHeight - r.bottom - 16), overflowY: 'auto', ...(above ? { bottom: innerHeight - r.top + 6 } : { top: r.bottom + 6 }) });
   }, [open, align, placement]);
   useEffect(() => {
     if (!open) return;
-    const first = menu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)'); first?.focus();
+    const first = menu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)'); requestAnimationFrame(() => first?.focus({ preventScroll: true }));
     const close = (e: Event) => { if (!menu.current?.contains(e.target as Node) && !anchor.current?.contains(e.target as Node)) setOpen(false); };
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { setOpen(false); anchor.current?.focus(); }
@@ -58,7 +59,7 @@ export function Dialog({ title, onClose, children, footer, wide = false, sheet =
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null;
-    const node = ref.current; node?.querySelector<HTMLElement>('[autofocus], input, textarea, select, button:not(.close)')?.focus();
+    const node = ref.current; node?.querySelector<HTMLElement>('[autofocus], input, textarea, select, button:not(.close)')?.focus({ preventScroll: true });
     const key = (e: KeyboardEvent) => {
       if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
       if (e.key === 'Tab' && node) {
@@ -96,3 +97,22 @@ export function Thumb({ id, kind, alt }: { id: string; kind: 'image' | 'video' |
 }
 
 export function Spinner({ label = 'Loading' }: { label?: string }) { return <span className="statusline" role="status"><span className="dot live" />{label}</span>; }
+
+/** Keeps a failure inside one card: the rest of the project, navigation and GPUs stay usable. */
+export class LocalBoundary extends React.Component<{ label: string; children: React.ReactNode }, { failed: boolean }> {
+  state = { failed: false };
+  static getDerivedStateFromError() { return { failed: true }; }
+  componentDidCatch(error: unknown) { void import('../client-failure.js').then(m => m.reportClientFailure(error, 'render')).catch(() => {}); }
+  render() {
+    if (!this.state.failed) return this.props.children;
+    return <div className="notice error" role="alert">{this.props.label} couldn't be shown. Everything else is fine. <button className="link" onClick={() => this.setState({ failed: false })}>Try again</button></div>;
+  }
+}
+
+/** Downloads a result under a readable name ("moss-and-kettle-storefront-2.png") instead of its storage id. */
+export async function downloadAsset(id: string, title: string) {
+  let ext = '';
+  try { const head = await fetch(media.content(id), { method: 'HEAD' }); const type = head.headers.get('content-type') ?? ''; ext = ({ 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'video/mp4': '.mp4', 'video/webm': '.webm', 'audio/mpeg': '.mp3', 'audio/wav': '.wav', 'audio/x-wav': '.wav' } as Record<string, string>)[type.split(';')[0]!.trim()] ?? ''; } catch { /* keep the server's name */ }
+  const slug = title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'seed-result';
+  const a = document.createElement('a'); a.href = media.content(id); a.download = slug + ext; document.body.append(a); a.click(); a.remove();
+}

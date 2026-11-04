@@ -28,4 +28,5 @@ export function readiness(r: ImageRequest, snapshot: PoolSnapshot | null, styles
 }
 
 export function styleName(styles: StyleEntry[], id: string) { return styles.find(s => s.id === id)?.name ?? 'Style'; }
-export const routeOf = (r: ImageRequest) => loraRoute(r);
+/** The style route for a request; edits take no styles, so they have none. */
+export const routeOf = (r: ImageRequest) => r.workflow === 'image-to-image' ? null : loraRoute(r);
