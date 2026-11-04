@@ -95,20 +95,22 @@ export function useProject(id: string | null) {
   const [project, setProject] = useState<Project | null>(null);
   const [error, setError] = useState('');
   const [live, setLive] = useState<Live>({});
-  const version = useRef(-1), current = useRef(id), pending = useRef<ReturnType<typeof setTimeout>>(undefined), lastActivity = useRef<string | undefined>(undefined);
+  const version = useRef(-1), seen = useRef(0), current = useRef(id), pending = useRef<ReturnType<typeof setTimeout>>(undefined), lastActivity = useRef<string | undefined>(undefined);
   current.current = id;
   const accept = useCallback((value: Project) => {
     if (value.id !== current.current) return;
-    if (value.version < version.current && value.activity === 'idle') return;
-    version.current = value.version; setProject(value); setError('');
+    // Responses can arrive out of order (a background read started before a send). Never go back in time.
+    const at = Date.parse(value.updated_at) || 0;
+    if (value.version < version.current || (value.version === version.current && at < seen.current)) return;
+    version.current = value.version; seen.current = at; setProject(value); setError('');
   }, []);
   const reload = useCallback(async () => {
     const target = current.current; if (!target) return;
-    try { const value = await projects.get(target); if (target === current.current) { version.current = -1; accept(value); } }
+    try { const value = await projects.get(target); if (target === current.current) accept(value); }
     catch (e) { if (target === current.current) setError((e as Error).message); }
   }, [accept]);
   useEffect(() => {
-    setProject(null); setLive({}); setError(''); version.current = -1;
+    setProject(null); setLive({}); setError(''); version.current = -1; seen.current = 0;
     if (!id) return;
     let closed = false;
     void reload();
