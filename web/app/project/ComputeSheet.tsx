@@ -14,6 +14,8 @@ export function ComputeSheet({ role, action, onClose, onStarted }: { role: Worke
   const [offers, setOffers] = useState<OffersResponse | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(true);
   const [choice, setChoice] = useState<string>(''), [more, setMore] = useState(false), [busy, setBusy] = useState(false);
   const [idle, setIdle] = useStoredState('seed.idleRelease', 15);
+  const [cap, setCap] = useStoredState('seed.rentalCap', 120);
+  const [releaseIdle, setReleaseIdle] = useState(true);
   const voluntary = action === 'keep it ready';
   const [key] = useState(randomKey);
   async function load() {
@@ -31,11 +33,15 @@ export function ComputeSheet({ role, action, onClose, onStarted }: { role: Worke
   const selected = items.find(o => o.id === choice);
   const expired = selected && Date.parse(selected.expires_at) <= Date.now();
   const local = pool?.local;
+  const others = (pool?.workers ?? []).filter(w => w.state !== 'released' && !w.quit_mode);
+  const idleOthers = others.filter(w => w.worker_class !== role && w.state === 'ready' && !w.current_job_id);
+  const othersRate = others.reduce((n, w) => n + w.hourly, 0);
   async function start() {
     if (!selected) return;
     setBusy(true); setError('');
     try {
-      await poolApi.launch({ selections: [{ offer_id: selected.id, quantity: 1 }], max_hourly: selected.hourly, idle_release_minutes: idle }, key);
+      await poolApi.launch({ selections: [{ offer_id: selected.id, quantity: 1 }], max_hourly: selected.hourly, idle_release_minutes: idle, max_minutes: cap }, key);
+      if (releaseIdle) for (const w of idleOthers) void poolApi.act(w.id, 'finish');
       refreshPool(); onStarted();
     } catch (e) { setError((e as Error).message + ' Nothing was rented.'); void load(); }
     finally { setBusy(false); }
@@ -60,6 +66,11 @@ export function ComputeSheet({ role, action, onClose, onStarted }: { role: Worke
       {!local?.enabled && <button className="option" role="radio" aria-checked={false} onClick={() => go({ name: 'gpus' })}><span className="radio" /><span><b>Seed PC</b> — no rental fee<small>{local ? 'Turned off. Turn it on in GPUs.' : 'Not set up yet (large one-time download). Set it up in GPUs.'}</small></span></button>}
     </div>
     {items.length > 2 && <button className="link" style={{ justifySelf: 'start' }} onClick={() => setMore(m => !m)}>{more ? 'Show recommended only' : `More machines (${items.length})`}</button>}
+    {others.length > 0 && selected && <div className="notice" style={{ fontSize: 13.5 }}>This adds a second rental: you already rent {others.map(w => (w.worker_class === 'video' ? 'a video' : 'an image') + ' GPU at ' + rate(w.hourly) + (w.state === 'ready' && !w.current_job_id ? ' (idle)' : '')).join(' and ')}. Image and video need different GPUs. Total while both run: <b>{rate(othersRate + selected.hourly)}</b>.
+      {idleOthers.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}><input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} /> Release the idle {idleOthers[0]!.worker_class} GPU when this starts</label>}</div>}
+    <label className="field"><span>Stop renting after (even if busy, it finishes the current output first)</span>
+      <select className="select" value={cap} onChange={e => setCap(Number(e.target.value))}>{[[60, '1 hour'], [120, '2 hours'], [240, '4 hours'], [480, '8 hours'], [0, 'No limit']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+    {selected && cap > 0 && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>The most this rental can cost is about <b>{money(selected.hourly * cap / 60)}</b> ({rate(selected.hourly)} for {cap / 60} {cap === 60 ? 'hour' : 'hours'}), plus any transfer charges the provider adds.</p>}
     <label className="field"><span>Release it automatically when idle for</span>
       <select className="select" value={idle} onChange={e => setIdle(Number(e.target.value))}>{idleChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
     {selected && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>Billing starts when the provider accepts the rental. {idle ? `If it then sits idle until release, that idle time costs about ${money(selected.hourly * idle / 60)}` : 'With no idle release it bills until you release it'}, plus the time to start, download models and make.</p>}

@@ -12,10 +12,11 @@ import type { LocalWorkerView } from '../../../shared/local-worker.js';
 const workerLabel: Record<string, string> = { starting: 'Starting', preparing: 'Loading models', ready: 'Ready · idle', generating: 'Making', saving: 'Saving', reconnecting: 'Reconnecting', finishing: 'Finishing current work, then releasing', releasing: 'Releasing', released: 'Released', needs_attention: 'Needs attention' };
 
 function idleNote(w: PoolWorker) {
-  if (!w.idle_release_minutes) return ' · no idle release';
-  if (!w.idle_since) return ` · releases after ${w.idle_release_minutes} idle min`;
+  const cap = w.max_minutes && w.allocated_at ? ` · stops by ${new Date(Date.parse(w.allocated_at) + w.max_minutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '';
+  if (!w.idle_release_minutes) return ' · no idle release' + cap;
+  if (!w.idle_since) return ` · releases after ${w.idle_release_minutes} idle min` + cap;
   const left = Math.max(0, Math.ceil(w.idle_release_minutes - (Date.now() - Date.parse(w.idle_since)) / 60000));
-  return ` · idle, releases in ${left} min unless used`;
+  return ` · idle, releases in ${left} min unless used` + cap;
 }
 function startupNote(w: PoolWorker) {
   const p = w.preparation; if (!p || !p.bytes_total || !['starting', 'preparing'].includes(w.state)) return '';
@@ -55,7 +56,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
       {(w.issue || w.preparation?.error) && <div className="notice error">{w.issue?.message ?? w.preparation?.error}
         <div className="actions">{w.actions.filter(a => ['reconnect', 'retry_preparation', 'omit_loras', 'local_fallback', 'dismiss_launch_failure'].includes(a)).map(a => <button key={a} className="btn small" onClick={() => void poolApi.act(w.id, a).then(refreshPool)}>{{ reconnect: 'Reconnect', retry_preparation: 'Retry setup', omit_loras: 'Continue without styles', local_fallback: 'Use fallback models', dismiss_launch_failure: 'Dismiss' }[a as string]}</button>)}</div></div>}
     </div>)}
-    {recent.length > 0 && <><h2 className="subhead">Released recently</h2>{recent.map(w => <div className="box" key={w.id}><div className="row"><span className="grow">{w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}<br /><span className="muted" style={{ fontSize: 13.5 }}>{duration(w.elapsed_seconds)} · {money(w.estimated_spend)} estimated{w.released_reason === 'idle' ? ' · released when idle' : ''}</span></span></div></div>)}</>}
+    {recent.length > 0 && <><h2 className="subhead">Released recently</h2>{recent.map(w => <div className="box" key={w.id}><div className="row"><span className="grow">{w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}<br /><span className="muted" style={{ fontSize: 13.5 }}>{duration(w.elapsed_seconds)} · {money(w.estimated_spend)} estimated{w.released_reason === 'idle' ? ' · released when idle' : w.released_reason === 'limit' ? ' · released at its time limit' : ''}</span></span></div></div>)}</>}
     {start && <ComputeSheet role={start} action="keep it ready" onClose={() => setStart(null)} onStarted={() => setStart(null)} />}
     {release && <Confirm title={`Release the ${release.gpu}?`} action="Finish current work, then release" onClose={() => setRelease(null)}
       body={<><p style={{ margin: 0 }}>Work already running on it finishes and saves first, then the rental ends. Results stay in your Library. Billing stops when the provider confirms the release.</p>

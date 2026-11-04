@@ -114,5 +114,8 @@ export async function downloadAsset(id: string, title: string) {
   let ext = '';
   try { const head = await fetch(media.content(id), { method: 'HEAD' }); const type = head.headers.get('content-type') ?? ''; ext = ({ 'image/png': '.png', 'image/jpeg': '.jpg', 'image/webp': '.webp', 'video/mp4': '.mp4', 'video/webm': '.webm', 'audio/mpeg': '.mp3', 'audio/wav': '.wav', 'audio/x-wav': '.wav' } as Record<string, string>)[type.split(';')[0]!.trim()] ?? ''; } catch { /* keep the server's name */ }
   const slug = title.toLowerCase().normalize('NFKD').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '').slice(0, 80) || 'seed-result';
-  const a = document.createElement('a'); a.href = media.content(id); a.download = slug + ext; document.body.append(a); a.click(); a.remove();
+  // The server names files by id in its response headers; fetching the bytes lets the readable name win.
+  const blob = await (await fetch(media.content(id))).blob();
+  const url = URL.createObjectURL(blob), a = document.createElement('a'); a.href = url; a.download = slug + ext; document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }

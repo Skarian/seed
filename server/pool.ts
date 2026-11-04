@@ -221,6 +221,7 @@ export class WorkerPool {
       current_activity: w.current_activity,
       quit_mode: w.quit_mode,
       idle_release_minutes: w.idle_release_minutes,
+      max_minutes: w.max_minutes,
       idle_since: w.idle_since,
       released_reason: w.released_reason,
       issue: w.issue,
@@ -339,7 +340,8 @@ export class WorkerPool {
       input.selections.length > 16 ||
       !Number.isFinite(input.max_hourly) ||
       input.max_hourly < 0 ||
-      (input.idle_release_minutes !== undefined && (!Number.isInteger(input.idle_release_minutes) || input.idle_release_minutes < 0 || input.idle_release_minutes > 1440))
+      (input.idle_release_minutes !== undefined && (!Number.isInteger(input.idle_release_minutes) || input.idle_release_minutes < 0 || input.idle_release_minutes > 1440)) ||
+      (input.max_minutes !== undefined && (!Number.isInteger(input.max_minutes) || input.max_minutes < 0 || input.max_minutes > 10080))
     )
       throw Error("Choose workers and review the total hourly rate.");
     const body = JSON.stringify(input),
@@ -431,6 +433,7 @@ export class WorkerPool {
           submit_key: key,
           preparation_revision: 0,
           ...(input.idle_release_minutes ? { idle_release_minutes: input.idle_release_minutes } : {}),
+          ...(input.max_minutes ? { max_minutes: input.max_minutes } : {}),
         });
     }
     if (total > input.max_hourly + 0.000001)
@@ -504,6 +507,12 @@ export class WorkerPool {
   private releaseIfIdle(id: string) {
     const w = this.get(id);
     if (!w || stopped(w) || w.quit_mode) return false;
+    // A rental time cap: finish current work, then release, so a forgotten GPU cannot bill indefinitely.
+    if (w.max_minutes && w.allocated_at && this.now() - Date.parse(w.allocated_at) >= w.max_minutes * 60_000) {
+      this.diagnostics?.event({ category: "worker", operation: "worker.limit_release", worker_id: id, provider: w.provider, data: { max_minutes: w.max_minutes } });
+      this.update(id, (current) => { current.quit_mode = "finish"; current.finish_before ??= this.date(); current.state = "finishing"; current.released_reason = "limit"; });
+      return false;
+    }
     const idle = w.state === "ready" && !w.current_job_id;
     if (!idle) {
       if (w.idle_since) this.update(id, (current) => { delete current.idle_since; });

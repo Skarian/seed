@@ -56,7 +56,7 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
   return <>
     <div className="acts">
       <button className="btn primary" onClick={() => app.useResult({ ...item, job }, 'refine')}><Icon.Pencil />Refine</button>
-      {source?.card_id && <button className="btn" onClick={() => { onClosed?.(); app.useResult({ ...item, job }, 'more'); }}>More like this</button>}
+      {source?.card_id && <button className="btn" onClick={() => { onClosed?.(); app.useResult({ ...item, job }, 'more'); }}>Make another now</button>}
       {!video && <button className="btn" onClick={() => app.useResult({ ...item, job }, 'animate')}><Icon.Film />Animate</button>}
       <button className="btn" aria-pressed={fav} aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>
       <MenuButton label="More actions" className="btn" items={more}><Icon.More /></MenuButton>

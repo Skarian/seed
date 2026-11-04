@@ -189,13 +189,13 @@ export type AppContextValue = {
   useResult: (item: ViewerItem, intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse') => void;
   pendingUse: { item: ViewerItem; intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse'; nonce: number } | null;
   clearPendingUse: () => void;
-  wide: boolean; narrow: boolean;
+  wide: boolean; narrow: boolean; /** Room for the conversation and the project board side by side. */ split: boolean;
 };
 export const AppContext = createContext<AppContextValue | null>(null);
 export const useApp = () => { const value = useContext(AppContext); if (!value) throw Error('Seed app context is missing.'); return value; };
 
 export function useViewport() {
-  const read = () => ({ wide: innerWidth >= 1100, narrow: innerWidth < 700 });
+  const read = () => ({ wide: innerWidth >= 1100, narrow: innerWidth < 700, split: innerWidth >= 1280 });
   const [size, setSize] = useState(read);
   useEffect(() => { const update = () => setSize(read()); addEventListener('resize', update); return () => removeEventListener('resize', update); }, []);
   return size;

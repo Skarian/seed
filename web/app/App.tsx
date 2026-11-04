@@ -16,7 +16,7 @@ import { Dialog } from './ui.js';
 export function App() {
   const { route, go } = useRouter();
   const { mode, setMode } = useModeState();
-  const { wide, narrow } = useViewport();
+  const { wide, narrow, split } = useViewport();
   const pool = usePoolSnapshot();
   const tasks = useTasks(mode);
   const list = useProjectList(mode);
@@ -81,7 +81,7 @@ export function App() {
       else setDestination({ item, intent });
     },
     pendingUse, clearPendingUse: () => setPendingUse(null),
-    wide, narrow,
+    wide, narrow, split,
   };
   function handTo(item: ViewerItem, intent: NonNullable<AppContextValue['pendingUse']>['intent'], projectId: string) {
     setPendingUse({ item: { ...item, project: projectId }, intent, nonce: Date.now() });

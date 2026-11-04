@@ -2,7 +2,7 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { assets as assetsApi, collections as collectionsApi, type AssetCollection, type LibraryAsset } from '../api.js';
 import { useApp, useAssets, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
-import { Media, MenuButton, Confirm, Dialog } from '../ui.js';
+import { Media, MenuButton, Confirm, Dialog, downloadAsset } from '../ui.js';
 import { dayLabel } from '../format.js';
 import { StatusControl } from '../App.js';
 
@@ -38,7 +38,7 @@ export function LibraryPage() {
     const ids = [...selected]; let failed = 0;
     for (const id of ids) { try { await fn(id); } catch { failed++; } }
     app.toast(failed ? `${done} ${ids.length - failed}; ${failed} could not be changed (still saving or in use)` : `${done} ${ids.length}`);
-    setSelected([]); list.refresh();
+    setSelected([]); list.refresh(); void collectionsApi.list(app.mode).then(setCols).catch(() => {});
   }
   return <>
     <header className="head"><h1 className="serif">Library</h1><span className="spacer" /><StatusControl /></header>
@@ -78,6 +78,7 @@ export function LibraryPage() {
       <span style={{ flex: 1 }} />
       <button className="btn" onClick={() => setSelected(selected.length === list.items.length ? [] : list.items.map(a => a.id))}>{selected.length === list.items.length ? 'Select none' : 'Select all loaded'}</button>
       <button className="btn" disabled={!selected.length} onClick={() => void bulk(id => assetsApi.favorite(id, true), 'Added to favorites:')}><Icon.Heart />Favorite</button>
+      <button className="btn" disabled={!selected.length} onClick={() => void (async () => { for (const id of selected) { const a = list.items.find(x => x.id === id); if (a) await downloadAsset(id, assetTitle(a)); } app.toast(`Downloaded ${selected.length}`); })()}><Icon.Download />Download {selected.length || ''}</button>
       <button className="btn" disabled={!selected.length} onClick={() => setToCollection(true)}>Add to collection</button>
       {f.collection && <button className="btn" disabled={!selected.length} onClick={() => void bulk(id => assetsApi.inCollection(id, f.collection, false), 'Removed from collection:')}>Remove from collection</button>}
       <button className="btn danger" disabled={!selected.length} onClick={() => setConfirm(true)}><Icon.Trash />Delete</button>
@@ -102,8 +103,11 @@ export function LibraryPage() {
 /** A one-line way to start a new collection from the shelf row. */
 function NewShelf({ onCreate }: { onCreate: (name: string) => Promise<void> }) {
   const [open, setOpen] = useState(false), [name, setName] = useState('');
-  if (!open) return <button className="chip" onClick={() => setOpen(true)}><Icon.Plus width={13} height={13} />New collection</button>;
-  return <form style={{ display: 'inline-flex', gap: 6 }} onSubmit={e => { e.preventDefault(); if (name.trim()) void onCreate(name.trim()).then(() => { setOpen(false); setName(''); }); }}><input className="input" style={{ minHeight: 30, padding: '4px 10px', width: 180 }} autoFocus placeholder="Collection name" aria-label="New collection name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Escape' && setOpen(false)} /><button className="chip on" disabled={!name.trim()}>Create</button></form>;
+  const create = () => { if (name.trim()) void onCreate(name.trim()).then(() => { setOpen(false); setName(''); }); };
+  return <><button className="chip" onClick={() => setOpen(true)}><Icon.Plus width={13} height={13} />New collection</button>
+    {open && <Dialog title="New collection" onClose={() => setOpen(false)} footer={<><button className="btn" onClick={() => setOpen(false)}>Cancel</button><button className="btn primary" disabled={!name.trim()} onClick={create}>Create</button></>}>
+      <input className="input" autoFocus placeholder="For example: Postcard shortlist" aria-label="New collection name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') create(); }} />
+    </Dialog>}</>;
 }
 
 function NewCollection({ onCreate }: { onCreate: (name: string) => Promise<void> }) {

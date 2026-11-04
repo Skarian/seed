@@ -62,7 +62,6 @@ export function settingChips(r: ImageRequest, styleName: (id: string) => string)
   const chips: Array<[string, string]> = [['kind', kindLabels[kind]], ['shape', shapeLabel(r)], ['size', sizeLabel(r)], ['count', (video ? plural(r.count, 'clip') : plural(r.count, 'image'))]];
   if (video) chips.push(['length', (r.output.duration_seconds ?? 5) + ' s'], ['sound', r.audio?.output === 'silent' ? 'Silent' : 'With sound'], ['detail', r.detail === 'full' ? 'Full detail' : 'Fast']);
   for (const l of r.loras ?? []) chips.push(['style:' + l.id, styleName(l.id) + (l.scale !== 1 ? ' · ' + l.scale : '')]);
-  if (!r.loras?.length && kind !== 'edit') chips.push(['style', 'No style']);
   chips.push(['target', targetLabel(r.target)]);
   return chips;
 }

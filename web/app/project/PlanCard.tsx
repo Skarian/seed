@@ -6,6 +6,7 @@ import { MenuButton, Thumb } from '../ui.js';
 import { latest, titleOf, settingChips, changesBetween, outputNoun } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
+import { checkDraft, readablePrompt, type Check } from './checks.js';
 
 export type Selection = Record<string, boolean>;
 type Props = {
@@ -13,10 +14,11 @@ type Props = {
   selection: Selection; onSelection: (s: Selection) => void;
   onRevise: (card: ChatCard, request: Record<string, unknown>) => Promise<boolean>;
   onAskAbout: (card: ChatCard) => void; onSetAside: () => void; flash?: string;
+  acknowledged: Set<string>; onAcknowledge: (key: string) => void;
 };
 
 /** The one open plan: drafts waiting for the user's go-ahead. Shared settings show once; drafts show what differs. */
-export function PlanCard({ project, group, snapshot, styles, busy, selection, onSelection, onRevise, onAskAbout, onSetAside, flash }: Props) {
+export function PlanCard({ project, group, snapshot, styles, busy, selection, onSelection, onRevise, onAskAbout, onSetAside, flash, acknowledged, onAcknowledge }: Props) {
   const cards = group.cards;
   const name = (id: string) => styleName(styles, id);
   const chips = cards.map(c => settingChips(latest(c).request, name));
@@ -59,15 +61,17 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
         </button>;
         return <Draft key={card.id + ':' + rev.number} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
           ready={sharedReady ? undefined : ready[i]} styles={styles} flash={flash === card.id}
-          onRevise={request => onRevise(card, request)} onAskAbout={() => onAskAbout(card)} onCollapse={compact ? () => setOpen(null) : undefined} kindLabel={kindLabels[kind]} />;
+          onRevise={request => onRevise(card, request)} onAskAbout={() => onAskAbout(card)} onCollapse={compact ? () => setOpen(null) : undefined} kindLabel={kindLabels[kind]}
+          checks={checkDraft(card, project, cards.length).filter(x => !acknowledged.has(card.id + ':' + x.text))} onAcknowledge={text => onAcknowledge(card.id + ':' + text)} />;
       })}
     </div>
   </section>;
 }
 
-function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel }: {
+function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge }: {
   project: Project; card: ChatCard; on: boolean; blocked: boolean; busy: boolean; onToggle: () => void; own: Array<[string, string]>; changed: string[];
   ready?: ReturnType<typeof readiness>; styles: StyleEntry[]; flash: boolean; onRevise: (r: Record<string, unknown>) => Promise<boolean>; onAskAbout: () => void; onCollapse?: () => void; kindLabel: string;
+  checks: Check[]; onAcknowledge: (text: string) => void;
 }) {
   const [view, setView] = useState(card.revisions.length - 1);
   const shown = card.revisions[view] ?? latest(card), r = shown.request, current = view === card.revisions.length - 1;
@@ -84,6 +88,7 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
         <button aria-label="Later version" disabled={current} onClick={() => setView(v => v + 1)}><Icon.Next /></button>
       </span>}
       {onCollapse && <button className="icon-btn" aria-label="Collapse" onClick={onCollapse}><Icon.Back style={{ transform: 'rotate(90deg)' }} /></button>}
+      {!editing && <button className="btn small quiet" disabled={busy} onClick={() => { setView(card.revisions.length - 1); setEditing(true); }} aria-label={'Edit ' + titleOf(r)}><Icon.Pencil />Edit</button>}
       <MenuButton label={'Options for ' + titleOf(r)} items={[
         { label: 'Edit', hint: 'Change settings here, directly.', onSelect: () => { setView(card.revisions.length - 1); setEditing(true); }, disabled: busy },
         { label: 'Edit with Seed', hint: 'Describe a change to just this draft.', onSelect: onAskAbout, disabled: busy },
@@ -93,11 +98,12 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
     {!current && <p className="changed">Showing version {view + 1}. <button className="link" onClick={() => setView(card.revisions.length - 1)}>Back to latest</button></p>}
     {editing && current ? <DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
       : <>
-        <p className={'excerpt' + (full ? ' full' : '')}>{r.prompt.replace(/\[\[([^\]]+)\]\]/g, '$1')}</p>
+        <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project)}</p>
         {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
         {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const a = names.get(ref.asset_id); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={a?.name ?? 'Input'} /><span><b>{roleLabels[ref.role] ?? ref.role}</b>{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
         {own.length > 0 && <div className="chips">{own.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</div>}
         {current && changed.length > 0 && <p className="changed">What changed: {changed.join(' · ')}</p>}
+        {current && checks.map(c => <div className="check-note" role="status" key={c.text}><span>⚠ {c.text}</span>{c.fixes.map(f => <button key={f.label} className="btn small" disabled={busy} onClick={() => { const patch = f.patch(r); if (Object.keys(patch).length) void onRevise(patch); else onAcknowledge(c.text); }}>{f.label}</button>)}</div>)}
         {ready && <span className={'ready ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'warn' : 'bad')}><span className={'dot ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'amber' : 'red')} />{ready.label}</span>}
       </>}
     <span className="sr-only">{kindLabel} · {outputNoun(r, r.count)}</span>
@@ -113,7 +119,9 @@ function DraftEditor({ card, styles, busy, onCancel, onSave }: { card: ChatCard;
   const route = routeOf(r);
   const available = useMemo(() => styles.filter(s => s.route === route), [styles, route]);
   const style = f.loras[0];
-  return <form className="editor" onSubmit={async e => { e.preventDefault(); setSaving(true); try { await onSave(revisedRequest(r, f)); } finally { setSaving(false); } }}>
+  const form = React.useRef<HTMLFormElement>(null);
+  useEffect(() => { form.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' }); form.current?.querySelector<HTMLElement>('textarea, input')?.focus({ preventScroll: true }); }, []);
+  return <form ref={form} className="editor" onSubmit={async e => { e.preventDefault(); setSaving(true); try { await onSave(revisedRequest(r, f)); } finally { setSaving(false); } }}>
     <label className="field"><span>Title</span><input className="input" value={f.title} maxLength={80} onChange={e => set({ title: e.target.value })} placeholder={titleOf(r)} /></label>
     <label className="field"><span>Prompt</span><textarea className="textarea" value={f.prompt} onChange={e => set({ prompt: e.target.value })} rows={Math.min(10, Math.max(3, Math.ceil(f.prompt.length / 70)))} /></label>
     <div className="row">

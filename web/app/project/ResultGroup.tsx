@@ -9,7 +9,7 @@ import { styleName, type StyleEntry } from './readiness.js';
 
 type Actions = {
   onVariations: (card: ChatCard) => void; onRetryFailed: (card: ChatCard) => void; onBringBack: (card: ChatCard) => void;
-  onMakeAgain: (card: ChatCard) => void; onReuse: (card: ChatCard) => void;
+  onMakeAgain: (card: ChatCard) => void; onReuse: (card: ChatCard) => void; onPrepare: (card: ChatCard) => void;
 };
 
 /** What a plan becomes after Make: each made draft with its results, plus drafts that were set aside. */
@@ -39,13 +39,15 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
       {running.length > 1 && <button className="btn small" onClick={() => { void Promise.all(running.map(j => jobsApi.cancel(j.id))).then(() => app.refreshTasks()); app.toast(`Cancelled ${running.length} · finished results are kept, the GPU keeps running`); }}>Cancel remaining {running.length}</button>}
       {collapsed ? <button className="btn quiet small" onClick={onExpand}>Show</button> : <button className="btn quiet small" aria-expanded={how} onClick={() => setHow(h => !h)}>How it was made</button>}
       <MenuButton label={'Options for ' + title} items={[
-        { label: 'More like this', hint: 'Same settings, new seeds. Starts now.', onSelect: () => actions.onVariations(card) },
+        { label: 'Make another now', hint: 'Same settings, a new seed. Starts right away on the GPU.', onSelect: () => actions.onVariations(card) },
+        { label: 'Prepare a variation', hint: 'A new draft with the same settings, to review before making.', onSelect: () => actions.onPrepare(card) },
         { label: 'Reuse settings', hint: 'Load this prompt and settings into Make, to change one thing.', onSelect: () => actions.onReuse(card) },
         ...(failed.length ? [{ label: `Retry ${failed.length} failed`, hint: 'Only the failed outputs, same settings.', onSelect: () => actions.onRetryFailed(card) }] : []),
         ...(running.length ? [{ label: 'Cancel what is still making', danger: true, onSelect: () => { for (const j of running) void jobsApi.cancel(j.id).then(() => app.refreshTasks()); } }] : []),
       ]}><Icon.More /></MenuButton>
     </span>
   </div>;
+  if (list.length && list.every(j => j.state === 'cancelled')) return <section className="card" id={'card-' + card.id} data-group={group.id}><div className="notnow"><span><b>{title}</b> · cancelled before it was made</span><button className="link" onClick={() => actions.onMakeAgain(card)}>Make again</button></div><IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show /></section>;
   if (collapsed) return <section className="card" id={'card-' + card.id}>{head}<div className="strip">{items.map(it => <button key={it.asset} className={'tile ' + shapeClass(r)} onClick={() => app.inspect(it, items)} aria-label={'Open ' + it.title}><Media id={it.asset} kind={it.kind} alt={it.title} /></button>)}</div></section>;
   return <section className={'card' + (flash ? ' flash' : '')} id={'card-' + card.id} data-group={group.id} aria-label={title}>
     {head}
@@ -109,7 +111,7 @@ function ResultTile({ job, project, title, siblings, card, actions }: { job: Job
     {video && <span className="state pill" aria-hidden="true"><Icon.Play width={12} height={12} />{r.output.duration_seconds ?? 5} s</span>}
     <div className="bar">
       <button className="pill" onClick={() => app.useResult(item, 'refine')}><Icon.Pencil width={14} height={14} />Refine</button>
-      <button className="pill" onClick={() => actions.onVariations(card)}>More like this</button>
+      <button className="pill" onClick={() => actions.onVariations(card)} title="Same settings, a new seed. Starts right away.">Make another now</button>
       {!video && <button className="pill" onClick={() => app.useResult(item, 'animate')}><Icon.Film width={14} height={14} />Animate</button>}
       <MenuButton label={'More for ' + title} className="pill" placement="above" items={[
         { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },

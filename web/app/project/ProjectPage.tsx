@@ -13,6 +13,7 @@ import { ResultsView } from './ResultsView.js';
 import { readiness, type StyleEntry } from './readiness.js';
 import { buildRequest, defaultMake, defaultRoles, type Attachment, type MakeSettings } from './requests.js';
 import { useStyles } from './styles.js';
+import { checkDraft } from './checks.js';
 
 const openStates = ['reviewing', 'revising', 'assembling'];
 const isOpenPlan = (g: ChatGroup) => openStates.includes(g.state) && !g.direct;
@@ -35,6 +36,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const [conflict, setConflict] = useState<null | { label: string; run: () => Promise<void> }>(null);
   const [confirmDelete, setConfirmDelete] = useState(false), [renaming, setRenaming] = useState(false);
   const [busy, setBusy] = useState(''), [problem, setProblem] = useState(''), [typing, setTyping] = useState(false);
+  const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
   const [focusToken, setFocusToken] = useState(0), [flash, setFlash] = useState<string | undefined>(focus);
   const lastSent = useRef<{ text: string; assets: string[] } | null>(null);
 
@@ -52,7 +54,10 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       return;
     }
     setMode('ask'); setContext({ type: 'using', item: use.item, intent: use.intent }); setFocusToken(t => t + 1);
-    follow.current = true; requestAnimationFrame(() => { const el = scroller.current; if (el) el.scrollTop = el.scrollHeight; });
+    // Keep the chosen source visibly anchored: highlight it where it lives in the stream.
+    const source = use.item.job?.source?.card_id;
+    if (source && use.item.job?.source?.chat_id === id) setFlash(source);
+    else { follow.current = true; requestAnimationFrame(() => { const el = scroller.current; if (el) el.scrollTop = el.scrollHeight; }); }
   }, [app.pendingUse, project?.id]);
 
   async function run(label: string, fn: () => Promise<Project | void>) {
@@ -130,7 +135,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     const { mode: _m, resolved_seeds, ...rest } = r;
     const count = how === 'retry' ? Math.max(1, failed.length) : r.count;
     const seedsFor = how === 'retry' ? failed.map(j => j.seed) : how === 'again' ? resolved_seeds : undefined;
-    const request = { ...rest, count, title: titleOf(r) + (how === 'more' ? ' · more' : ''), seed: how === 'more' ? 'random' : (seedsFor?.[0] ?? r.seed), ...(seedsFor && seedsFor.length === count ? { resolved_seeds: seedsFor } : {}) };
+    const request = { ...rest, count, title: how === 'more' ? nextVersion(project, titleOf(r)) : titleOf(r), seed: how === 'more' ? 'random' : (seedsFor?.[0] ?? r.seed), ...(seedsFor && seedsFor.length === count ? { resolved_seeds: seedsFor } : {}) };
     const go = async () => { await run('Starting', () => projectsApi.makeDirect(id, request, randomKey())); };
     const need = readiness(r, app.pool, styles);
     if (need.blocked) { setProblem(need.label); return; }
@@ -149,6 +154,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     onRetryFailed: (card: ChatCard) => void remake(card, 'retry'),
     onMakeAgain: (card: ChatCard) => void remake(card, 'again'),
     onReuse: reuse,
+    onPrepare: (card: ChatCard) => needsNewPlan('Prepare a variation', async () => { await run('', () => projectsApi.repeat(id, card.id, latest(card).number, { fresh: true })); }),
     onBringBack: (card: ChatCard) => needsNewPlan('Bring back', async () => { const { workflow: _w, mode: _m, resolved_seeds: _s, ...request } = latest(card).request as never as Record<string, unknown>; await run('', () => projectsApi.restore(id, card.id, latest(card).number, request)); }),
   };
 
@@ -176,6 +182,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const selectedCards = plan ? plan.cards.filter(c => (selection[c.id] ?? true) && !readiness(latest(c).request, app.pool, styles).blocked) : [];
   const outputs = selectedCards.reduce((n, c) => n + latest(c).request.count, 0);
   const planReady = plan && plan.state === 'reviewing' && !replying;
+  const unresolved = plan ? selectedCards.flatMap(c => checkDraft(c, project!, plan.cards.length).filter(x => x.fixes.length && !acknowledged.has(c.id + ':' + x.text))).length : 0;
   // Seed answered the latest message without changing the plan (often a clarifying question):
   // the plan still shows the earlier version, so running it is a secondary, clearly named choice.
   const lastTurn = project ? [...project.messages].reverse().find(m => m.role === 'assistant' && m.transcript) : undefined;
@@ -192,7 +199,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   if (error && !project) return <><Header project={null} view={view} onRename={() => {}} onDelete={() => {}} /><div className="scroll"><div className="col"><div className="notice error" style={{ marginTop: 24 }}>This project could not be opened: {error} <div className="actions"><button className="btn small" onClick={() => app.go({ name: 'home' })}>Go to your latest project</button></div></div></div></div></>;
   return <>
     <Header project={project} view={view} onRename={() => setRenaming(true)} onDelete={() => setConfirmDelete(true)} />
-    {view === 'results' && project ? <ResultsView project={project} /> : <>
+    {view === 'results' && project && !app.split ? <ResultsView project={project} /> : <div className={app.split ? 'split' : 'single'}><div className="convo">
       <div className="scroll" ref={scroller} onScroll={e => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div className="col">
           {!project ? <div className="stream"><span className="statusline"><span className="dot live" />Opening…</span></div>
@@ -202,7 +209,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                   : isOpenPlan(item.group) ? <PlanCard key={item.group.id} project={project} group={item.group} snapshot={app.pool} styles={styles} busy={Boolean(busy) || replying} selection={selection} onSelection={setSelection} flash={flash}
                     onRevise={async (card, request) => run('Saving', () => projectsApi.revise(id, card.id, latest(card).number, request))}
                     onAskAbout={card => { setMode('ask'); setContext({ type: 'draft', card: card.id, revision: latest(card).number, title: titleOf(latest(card).request) }); setFocusToken(t => t + 1); }}
-                    onSetAside={() => void setAside(item.group)} />
+                    onSetAside={() => void setAside(item.group)} acknowledged={acknowledged} onAcknowledge={key => setAcknowledged(s => new Set([...s, key]))} />
                     : <ResultGroup key={item.group.id} project={project} group={item.group} styles={styles} collapsed={collapsedIds.has(item.group.id)} onExpand={() => setExpanded(s => new Set([...s, item.group.id]))} actions={actions} flash={flash} />}</LocalBoundary>)}
                 {problem && <div className="notice error" role="alert">{problem} <button className="link" onClick={() => setProblem('')}>Dismiss</button></div>}
               </div>}
@@ -214,14 +221,14 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           <button className="sum" onClick={() => { const first = selectedCards[0]; if (first) setFlash(first.id); }} aria-label="Show the selected drafts">
             <b>Make selected · {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}</b> · {selectedCards.length} of {plan.cards.length} drafts{planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
           </button>
-          <button className={planStale || question ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : question ? 'Make as it is' : 'Make selected'}</button>
+          <button className={planStale || question || unresolved ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : question ? 'Make as it is' : unresolved ? 'Make anyway' : 'Make selected'}</button>
         </div>}
         <Composer context={context} onContext={setContext} planOpen={Boolean(plan)} mode={mode} onMode={m => { setMode(m); if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' }); }}
           text={text} onText={setText} attachments={attachments} onAttachments={setAttachments} settings={settings} onSettings={setSettings} styles={styles}
           replying={replying} disabled={!project ? 'Opening…' : replying && mode === 'make' ? 'Seed is still replying. Stop reply to make this now.' : undefined} focusToken={focusToken}
           onSend={() => void send()} onMake={() => void makeDirect()} onStopReply={() => void run('', () => projectsApi.stopReply(id))} onSetAside={() => void setAside()} />
       </div></div>
-    </>}
+    </div>{app.split && project && <ResultsView project={project} embedded />}</div>}
     {compute && <ComputeSheet role={compute.role} action={compute.action} onClose={() => setCompute(null)} onStarted={() => { const then = compute.then; setCompute(null); void then(); }} />}
     {conflict && <Dialog title="A plan is waiting" onClose={() => setConflict(null)} footer={<>
       <button className="btn" onClick={() => setConflict(null)}>Keep the plan, cancel this</button>
@@ -239,7 +246,7 @@ function Header({ project, view, onRename, onDelete }: { project: Project | null
   return <header className="head">
     <button className="icon-btn back" aria-label="All projects" onClick={() => app.go({ name: 'projects' })}><Icon.Back /></button>
     <h1 className="serif"><button onClick={onRename} title="Rename project" disabled={!project}>{project?.title ?? ' '}</button></h1>
-    {project && <div className="seg views" role="tablist" aria-label="Project view">
+    {project && !app.split && <div className="seg views" role="tablist" aria-label="Project view">
       <button role="tab" aria-selected={view === 'conversation'} onClick={() => app.go({ name: 'project', id: project.id, view: 'conversation' })}>Conversation</button>
       <button role="tab" aria-selected={view === 'results'} onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })}>Results</button>
     </div>}
@@ -342,6 +349,13 @@ function buildTimeline(project: Project): TimelineItem[] {
   const keyed = out.map((item, index) => ({ item, index, t: at(item, index) }));
   keyed.sort((a, b) => a.t - b.t || a.index - b.index);
   return keyed.map(k => k.item);
+}
+/** "Fox" → "Fox · v2", then v3: variants get numbers instead of piling up suffixes. */
+function nextVersion(project: Project, title: string) {
+  const base = title.replace(/( · (v\d+|more))+$/g, '');
+  const taken = project.groups.flatMap(g => g.cards).map(c => titleOf(latest(c).request)).filter(t => t === base || t.startsWith(base + ' · v'));
+  const n = Math.max(1, ...taken.map(t => Number(t.match(/ · v(\d+)$/)?.[1] ?? 1)));
+  return `${base} · v${n + 1}`;
 }
 /** The user's last message that asked for something, skipping short follow-ups such as "go ahead". */
 function substantialRequest(project: Project | null) {
