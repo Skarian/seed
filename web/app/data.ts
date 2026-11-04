@@ -7,7 +7,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'projects' }
   | { name: 'project'; id: string; view: 'conversation' | 'results'; focus?: string }
-  | { name: 'library' }
+  | { name: 'library'; collection?: string }
   | { name: 'gpus' }
   | { name: 'settings'; section?: string };
 
@@ -17,7 +17,7 @@ export function parseRoute(loc: { pathname: string; search: string } = location)
   if (project) return { name: 'project', id: project[1]!, view: params.get('view') === 'results' ? 'results' : 'conversation', ...(params.get('focus') ? { focus: params.get('focus')! } : {}) };
   if (path === '/chat' && params.get('chat')) return { name: 'project', id: params.get('chat')!, view: 'conversation' };
   if (path === '/projects' || path === '/chat') return { name: 'projects' };
-  if (path === '/library') return { name: 'library' };
+  if (path === '/library') return { name: 'library', ...(params.get('collection') ? { collection: params.get('collection')! } : {}) };
   if (path === '/gpus') return { name: 'gpus' };
   if (path === '/settings' || path === '/admin') return { name: 'settings', ...(params.get('section') ? { section: params.get('section')! } : {}) };
   return { name: 'home' };
@@ -27,7 +27,7 @@ export function routePath(route: Route) {
     case 'home': return '/';
     case 'projects': return '/projects';
     case 'project': { const q = new URLSearchParams(); if (route.view === 'results') q.set('view', 'results'); if (route.focus) q.set('focus', route.focus); return '/projects/' + route.id + (q.size ? '?' + q : ''); }
-    case 'library': return '/library';
+    case 'library': return '/library' + (route.collection ? '?collection=' + encodeURIComponent(route.collection) : '');
     case 'gpus': return '/gpus';
     case 'settings': return '/settings' + (route.section ? '?section=' + route.section : '');
   }

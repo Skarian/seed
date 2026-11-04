@@ -32,7 +32,8 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
   const done = list.filter(j => j.state === 'completed'), failed = list.filter(isFailed), running = list.filter(j => !['completed', 'failed', 'cancelled'].includes(j.state) && !isFailed(j));
   const [how, setHow] = useState(false);
   const items: ViewerItem[] = done.flatMap((j, n) => j.outputs.map(asset => ({ asset, kind: isVideoKind(kindOf[r.workflow]) ? 'video' as const : 'image' as const, title: `${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`, job: j, project: project.id })));
-  const status = running.length ? `${done.length} of ${list.length} done · making` : failed.length ? `${done.length} of ${list.length} done · ${failed.length} failed` : list.some(j => j.state === 'cancelled') && !done.length ? 'Cancelled' : `${outputNoun(r, done.length)} · done`;
+  const cancelled = list.filter(j => j.state === 'cancelled');
+  const status = running.length ? `${done.length} of ${list.length} done · making` : [done.length ? `${done.length} completed` : '', failed.length ? `${failed.length} failed` : '', cancelled.length ? `${cancelled.length} cancelled` : ''].filter(Boolean).join(' · ') || `${outputNoun(r, done.length)} · done`;
   const head = <div className="card-head">
     <span className="title">{title}</span><span className="meta">{status}{group.direct ? ' · made directly' : ''}</span>
     <span className="end">
@@ -53,8 +54,9 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
     {head}
     {how && <HowItWasMade project={project} card={card} styles={styles} />}
     <div className={'results' + (list.length === 1 ? ' one' : '') + (r.output.aspect === '9:16' && list.length > 2 ? ' tall' : '')} style={r.output.aspect === '9:16' && list.length > 2 ? { ['--cols' as string]: String(Math.min(list.length, 4)) } : undefined}>
-      {list.map((job, n) => <ResultTile key={job.id} job={job} project={project} title={`${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`} siblings={items} card={card} actions={actions} />)}
+      {list.filter(j => j.state !== 'cancelled' || running.length).map((job, n) => <ResultTile key={job.id} job={job} project={project} title={`${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`} siblings={items} card={card} actions={actions} />)}
     </div>
+    {!running.length && cancelled.length > 0 && done.length > 0 && <div className="notnow"><span>{cancelled.length} cancelled before they were made</span><button className="link" onClick={() => actions.onMakeAgain(card)}>Make them again</button></div>}
     {notNow.length > 0 && <div className="notnow"><span>Not now:</span>{notNow.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b> <button className="link" onClick={() => actions.onBringBack(c)}>Bring back</button></span>)}</div>}
     <IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show={!running.length && list.some(j => j.state === 'cancelled')} />
   </section>;

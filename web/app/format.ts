@@ -59,7 +59,7 @@ export function countLabel(r: ImageRequest) {
 /** Settings chips for a request, as [key, label] so a plan can show shared ones once. */
 export function settingChips(r: ImageRequest, styleName: (id: string) => string): Array<[string, string]> {
   const kind = kindOfRequest(r), video = isVideoKind(kind);
-  const chips: Array<[string, string]> = [['kind', kindLabels[kind]], ['shape', shapeLabel(r)], ['size', sizeLabel(r)], ['count', (video ? plural(r.count, 'clip') : plural(r.count, 'image'))]];
+  const chips: Array<[string, string]> = [['kind', kindLabels[kind]], ['engine', ({ image: 'Krea 2', edit: 'Qwen Image Edit', video: 'MiniMax H3', animate: 'MiniMax H3' } as const)[kind]], ['shape', shapeLabel(r)], ['size', sizeLabel(r)], ['count', (video ? plural(r.count, 'clip') : plural(r.count, 'image'))]];
   if (video) chips.push(['length', (r.output.duration_seconds ?? 5) + ' s'], ['sound', r.audio?.output === 'silent' ? 'Silent' : 'With sound'], ['detail', r.detail === 'full' ? 'Full detail' : 'Fast']);
   for (const l of r.loras ?? []) chips.push(['style:' + l.id, styleName(l.id) + (l.scale !== 1 ? ' · ' + l.scale : '')]);
   chips.push(['target', targetLabel(r.target)]);
@@ -127,3 +127,11 @@ export function groupJobs(project: Project, group: ChatGroup) {
 export function cardJobs(project: Project, card: ChatCard) {
   return latest(card).job_ids.map(id => project.jobs.find(j => j.id === id)).filter((j): j is JobRecord => Boolean(j));
 }
+
+/** GPU time for some outputs of one workflow, from this project's recent saved jobs. Null until something comparable has run. */
+export function estimateSeconds(jobs: JobRecord[], workflow: string, outputs: number): number | null {
+  const per = jobs.filter(j => j.request.workflow === workflow && j.state === 'completed' && j.metrics?.elapsed_to_saved_seconds)
+    .slice(-10).map(j => j.metrics!.elapsed_to_saved_seconds! / Math.max(1, j.outputs.length || j.request.count)).sort((a, b) => a - b);
+  return per.length ? per[Math.floor(per.length / 2)]! * outputs : null;
+}
+export const estimateText = (seconds: number | null) => seconds === null ? 'time not known until the first result' : 'about ' + duration(Math.max(5, Math.round(seconds / 5) * 5));

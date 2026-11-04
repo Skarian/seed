@@ -2,10 +2,10 @@ import React, { useEffect, useState } from 'react';
 import { pool as poolApi, type LocalSetupStatus, type WorkerClass } from '../api.js';
 import { useApp } from '../data.js';
 import { Icon } from '../icons.js';
-import { Confirm } from '../ui.js';
+import { Confirm, Dialog } from '../ui.js';
 import { money, rate, duration } from '../format.js';
 import { StatusControl } from '../App.js';
-import { ComputeSheet } from '../project/ComputeSheet.js';
+import { ComputeSheet, capChoices, idleChoices } from '../project/ComputeSheet.js';
 import type { PoolWorker } from '../../../shared/pool.js';
 import type { LocalWorkerView } from '../../../shared/local-worker.js';
 
@@ -23,6 +23,23 @@ function startupNote(w: PoolWorker) {
   return ` · models ${Math.round(p.bytes_done / p.bytes_total * 100)}%${p.eta_seconds ? ' · about ' + Math.max(1, Math.round(p.eta_seconds / 60)) + ' min left' : ''}`;
 }
 
+/** Change when a running rental releases itself. */
+function LimitsDialog({ worker, onClose }: { worker: PoolWorker; onClose: () => void }) {
+  const { refreshPool } = useApp();
+  const [idle, setIdle] = useState(worker.idle_release_minutes ?? 0), [cap, setCap] = useState(worker.max_minutes ?? 0), [error, setError] = useState('');
+  const start = worker.allocated_at ? Date.parse(worker.allocated_at) : Date.now();
+  const at = (minutes: number) => new Date(start + minutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' });
+  const caps = [...capChoices.map(([v]) => v as number), ...(worker.max_minutes && !capChoices.some(([v]) => v === worker.max_minutes) ? [worker.max_minutes] : [])].sort((a, b) => (a || 1e9) - (b || 1e9));
+  const past = cap > 0 && start + cap * 60000 <= Date.now();
+  async function save() { try { await poolApi.limits(worker.id, { idle_release_minutes: idle, max_minutes: cap }); refreshPool(); onClose(); } catch (e) { setError((e as Error).message); } }
+  return <Dialog title={'Limits for the ' + worker.gpu} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" onClick={() => void save()}>Save limits</button></>}>
+    <label className="field"><span>Release when idle for</span><select className="select" value={idle} onChange={e => setIdle(Number(e.target.value))}>{idleChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+    <label className="field"><span>Stop the rental</span><select className="select" value={cap} onChange={e => setCap(Number(e.target.value))}>{caps.map(v => <option key={v} value={v}>{v ? `At ${at(v)} (${v / 60} ${v === 60 ? 'hour' : 'hours'} after it started)` : 'No time limit'}</option>)}</select></label>
+    {past && <p className="notice" style={{ margin: 0 }}>That time has passed. The GPU finishes its current work, then releases.</p>}
+    {error && <p className="notice error" style={{ margin: 0 }}>{error}</p>}
+  </Dialog>;
+}
+
 export function GpusPage() {
   return <>
     <header className="head"><h1 className="serif">GPUs</h1><span className="spacer" /><StatusControl /></header>
@@ -34,7 +51,7 @@ export function GpusPage() {
 export function GpuOverview({ compact = false }: { compact?: boolean }) {
   const { pool, refreshPool } = useApp();
   const [start, setStart] = useState<WorkerClass | null>(null);
-  const [release, setRelease] = useState<PoolWorker | null>(null);
+  const [release, setRelease] = useState<PoolWorker | null>(null), [limits, setLimits] = useState<PoolWorker | null>(null);
   const active = (pool?.workers ?? []).filter(w => w.state !== 'released');
   const recent = (pool?.workers ?? []).filter(w => w.state === 'released' && w.released_at && Date.now() - Date.parse(w.released_at) < 86_400_000 && w.estimated_spend > 0).slice(0, compact ? 3 : 10);
   const hourly = pool?.summary.hourly ?? 0;
@@ -49,6 +66,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
       <div className="row">
         <span className={'dot ' + (w.state === 'needs_attention' ? 'amber' : ['generating', 'saving', 'preparing', 'starting'].includes(w.state) ? 'live' : '')} />
         <span className="grow"><b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>{w.provider === 'vast' ? 'Vast' : 'RunPod'} · {rate(w.hourly)} · up {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} so far</span></span>
+        {w.actions.includes('finish') && !w.quit_mode && <button className="btn quiet" onClick={() => setLimits(w)}>Limits…</button>}
         {w.actions.includes('finish') && <button className="btn" onClick={() => setRelease(w)}>Release…</button>}
       </div>
       <div className="muted" style={{ fontSize: 13.5 }}>{w.current_activity ?? workerLabel[w.state] ?? w.state}{startupNote(w)}{w.state === 'ready' ? idleNote(w) : ''}</div>
@@ -58,10 +76,14 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
     </div>)}
     {recent.length > 0 && <><h2 className="subhead">Released recently</h2>{recent.map(w => <div className="box" key={w.id}><div className="row"><span className="grow">{w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}<br /><span className="muted" style={{ fontSize: 13.5 }}>{duration(w.elapsed_seconds)} · {money(w.estimated_spend)} estimated{w.released_reason === 'idle' ? ' · released when idle' : w.released_reason === 'limit' ? ' · released at its time limit' : ''}</span></span></div></div>)}</>}
     {start && <ComputeSheet role={start} action="keep it ready" onClose={() => setStart(null)} onStarted={() => setStart(null)} />}
-    {release && <Confirm title={`Release the ${release.gpu}?`} action="Finish current work, then release" onClose={() => setRelease(null)}
+    {limits && <LimitsDialog worker={limits} onClose={() => setLimits(null)} />}
+    {release && (release.state === 'ready' && !release.current_job_id ? <Confirm title={`Release the ${release.gpu}?`} action="Release" onClose={() => setRelease(null)}
+      body={<p style={{ margin: 0 }}>It is idle, so nothing is cancelled. Results stay in your Library. Billing stops when the provider confirms the release.</p>}
+      onConfirm={() => { void poolApi.act(release.id, 'finish').then(refreshPool); setRelease(null); }} />
+      : <Confirm title={`Release the ${release.gpu}?`} action="Finish current work, then release" onClose={() => setRelease(null)}
       body={<><p style={{ margin: 0 }}>Work already running on it finishes and saves first, then the rental ends. Results stay in your Library. Billing stops when the provider confirms the release.</p>
         <p style={{ margin: '10px 0 0' }}><button className="link" style={{ color: 'var(--red)' }} onClick={() => { void poolApi.act(release.id, 'quit').then(refreshPool); setRelease(null); }}>Release now and cancel its running work</button></p></>}
-      onConfirm={() => { void poolApi.act(release.id, 'finish').then(refreshPool); setRelease(null); }} />}
+      onConfirm={() => { void poolApi.act(release.id, 'finish').then(refreshPool); setRelease(null); }} />)}
   </>;
 }
 

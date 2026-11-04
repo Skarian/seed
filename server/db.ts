@@ -99,6 +99,8 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
       j.id AS job_id,
       json_extract(j.snapshot_json, '$.request.title') AS title,
       json_extract(j.snapshot_json, '$.source.chat_id') AS chat_id,
+      json_extract(j.snapshot_json, '$.submission_index') AS submission_index,
+      json_extract(j.snapshot_json, '$.request.count') AS batch_count,
       lower(COALESCE(json_extract(j.snapshot_json, '$.request.prompt'), '') || ' ' || COALESCE(json_extract(j.snapshot_json, '$.request.title'), '') || ' ' || COALESCE((SELECT note FROM asset_notes WHERE id=a.id), '') || ' ' || a.name) AS haystack,
       json_extract(a.metadata_json, '$.executor') AS executor,
       json_extract(a.metadata_json, '$.execution_profile') AS execution_profile,
@@ -117,7 +119,7 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
     AND (? IS NULL OR (?='made' AND job_id IS NOT NULL) OR (?='uploaded' AND job_id IS NULL))
     AND (? IS NULL OR chat_id=?)
     AND (? = '' OR (created_at,id) ${oldest ? '>' : '<'} (SELECT created_at,id FROM items WHERE id=?))
-    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;title:string|null;chat_id:string|null}>;
-  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,title,chat_id,...row})=>({...row,favorite:Boolean(row.favorite),...(job_id?{job_id}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
+    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null}>;
+  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,title,chat_id,submission_index,batch_count,...row})=>({...row,favorite:Boolean(row.favorite),...(Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id?{job_id}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
     ...(executor==='local'||executor==='cloud'?{executor}:{}),...(typeof execution_profile==='string'?{execution_profile}:{})}));
 }

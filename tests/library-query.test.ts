@@ -29,4 +29,8 @@ it('searches prompts, titles and notes, and filters by source and project',()=>f
   expect(ids({order:'oldest'})).toEqual(['a-lake','a-ridge','a-upload']);
   expect(listAssets(db,'a-lake',50,'sfw',undefined,{order:'oldest'}).map(a=>a.id)).toEqual(['a-ridge','a-upload']);
   expect(listAssets(db,'',50,'sfw')[1]).toMatchObject({id:'a-ridge',job_id:'job-ridge',title:'Misty ridge',chat_id:'chat-b'});
+  expect(listAssets(db,'',50,'sfw')[1]!.variant).toBeUndefined();
+  db.prepare("INSERT INTO jobs VALUES (?,'text-to-image','completed',?,?,?,?,1)").run('job-dune',JSON.stringify({submission_index:1,request:{prompt:'Dunes',title:'Dunes',count:3,mode:'sfw'},source:{chat_id:'chat-a'}}),'2026-11-01T00:00:00Z','2026-11-01T00:00:00Z','sub-dune');
+  db.prepare("INSERT INTO assets VALUES (?,'image',?,?,?,?)").run('a-dune','Generated image','files/a-dune.png',JSON.stringify({mode:'sfw',job_id:'job-dune'}),'2026-11-01T04:00:00Z');
+  expect(listAssets(db,'',50,'sfw')[0]).toMatchObject({id:'a-dune',variant:2,variants:3});
 }));

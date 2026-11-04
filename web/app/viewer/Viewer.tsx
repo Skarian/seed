@@ -35,6 +35,9 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
   const styles = useStyles(app.mode);
   const [cols, setCols] = useState<AssetCollection[] | null>(null), [colDialog, setColDialog] = useState(false), [del, setDel] = useState(false), [note, setNote] = useState<{ note: string; revision: number } | null>(null);
   useEffect(() => { void assetsApi.note(item.asset).then(setNote).catch(() => setNote({ note: '', revision: 0 })); }, [item.asset]);
+  const [allCols, setAllCols] = useState<AssetCollection[]>([]);
+  useEffect(() => { void collectionsApi.list(app.mode).then(setAllCols).catch(() => {}); }, [app.mode, detail?.collection_ids?.join()]);
+  const memberOf = allCols.filter(c => detail?.collection_ids?.includes(c.id));
   const r = job?.request, video = item.kind === 'video';
   const fav = Boolean(detail?.favorite);
   const source = job?.source;
@@ -70,6 +73,7 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
       {job && <><span>Ran on</span><div>{job.worker?.executor === 'local' ? 'Seed PC' : job.worker?.executor === 'cloud' ? 'Cloud GPU' : targetLabel(r?.target)}{job.metrics?.elapsed_to_saved_seconds ? ' · ' + duration(job.metrics.elapsed_to_saved_seconds) : ''}</div></>}
       {source?.chat_id && <><span>Project</span><div><button className="link" onClick={() => { onClosed?.(); app.go({ name: 'project', id: source.chat_id!, view: 'conversation', focus: source.card_id }); }}>{app.projectList.find(p => p.id === source.chat_id)?.title ?? 'Open project'} · show in conversation</button></div></>}
       {r && <><span>Prompt</span><div><details open={!app.narrow && r.prompt.length < 600}><summary className="link" style={{ cursor: 'pointer' }}>{r.prompt.length < 600 && !app.narrow ? 'Prompt' : `Show prompt (${r.prompt.split(/\s+/).length} words)`}</summary><div className="prompt">{r.prompt}</div></details></div></>}
+      {memberOf.length > 0 && <><span>Collections</span><div className="chips">{memberOf.map(c => <button key={c.id} className="chip" onClick={() => { onClosed?.(); app.go({ name: 'library', collection: c.id }); }}>{c.name}</button>)}</div></>}
       {<><span>Note</span><div><NoteField asset={item.asset} note={note} onSaved={setNote} /></div></>}
     </div>
     {colDialog && <Dialog title="Add to collection" onClose={() => setColDialog(false)} footer={<button className="btn primary" onClick={() => setColDialog(false)}>Done</button>}>
@@ -179,7 +183,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
   </figure>;
   return <div className="viewer" role="dialog" aria-modal="true" aria-label="Compare two results">
     <div className="vtop">
-      <button className="btn small close" onClick={onClose} autoFocus><Icon.Close />Close</button><b>Compare</b>
+      <button className="btn small close" onClick={onClose} autoFocus><Icon.Close />Close</button><b className="compare-title">Compare</b>
       <div className="seg phone-only" role="group" aria-label="Show A or B"><button aria-pressed={side === 'A'} onClick={() => setSide('A')}>A</button><button aria-pressed={side === 'B'} onClick={() => setSide('B')}>B</button></div>
       <span className="faint no-phone" style={{ fontSize: 13 }}>Click to zoom both · A/B keys</span>
       <span style={{ flex: 1 }} />

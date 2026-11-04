@@ -2,7 +2,8 @@ import React, { useEffect, useMemo, useState } from 'react';
 import type { ChatCard, ChatGroup, Project, PoolSnapshot } from '../api.js';
 import { kindOf, kindLabels, isVideoKind } from '../api.js';
 import { Icon } from '../icons.js';
-import { MenuButton, Thumb } from '../ui.js';
+import { MenuButton, Thumb, Dialog } from '../ui.js';
+import { useApp } from '../data.js';
 import { latest, titleOf, settingChips, changesBetween, outputNoun } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
@@ -14,11 +15,11 @@ type Props = {
   selection: Selection; onSelection: (s: Selection) => void;
   onRevise: (card: ChatCard, request: Record<string, unknown>) => Promise<boolean>;
   onAskAbout: (card: ChatCard) => void; onSetAside: () => void; flash?: string;
-  acknowledged: Set<string>; onAcknowledge: (key: string) => void;
+  acknowledged: Set<string>; onAcknowledge: (key: string) => void; onEditMyself: (card: ChatCard, assets: string[]) => void;
 };
 
 /** The one open plan: drafts waiting for the user's go-ahead. Shared settings show once; drafts show what differs. */
-export function PlanCard({ project, group, snapshot, styles, busy, selection, onSelection, onRevise, onAskAbout, onSetAside, flash, acknowledged, onAcknowledge }: Props) {
+export function PlanCard({ project, group, snapshot, styles, busy, selection, onSelection, onRevise, onAskAbout, onSetAside, flash, acknowledged, onAcknowledge, onEditMyself }: Props) {
   const cards = group.cards;
   const name = (id: string) => styleName(styles, id);
   const chips = cards.map(c => settingChips(latest(c).request, name));
@@ -62,20 +63,20 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
         return <Draft key={card.id + ':' + rev.number} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
           ready={sharedReady ? undefined : ready[i]} styles={styles} flash={flash === card.id}
           onRevise={request => onRevise(card, request)} onAskAbout={() => onAskAbout(card)} onCollapse={compact ? () => setOpen(null) : undefined} kindLabel={kindLabels[kind]}
-          checks={checkDraft(card, project, cards.length).filter(x => !acknowledged.has(card.id + ':' + x.text))} onAcknowledge={text => onAcknowledge(card.id + ':' + text)} />;
+          checks={checkDraft(card, project, cards.length).filter(x => !acknowledged.has(card.id + ':' + x.text))} onAcknowledge={text => onAcknowledge(card.id + ':' + text)} onEditMyself={assets => onEditMyself(card, assets)} />;
       })}
     </div>
   </section>;
 }
 
-function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge }: {
+function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge, onEditMyself }: {
   project: Project; card: ChatCard; on: boolean; blocked: boolean; busy: boolean; onToggle: () => void; own: Array<[string, string]>; changed: string[];
   ready?: ReturnType<typeof readiness>; styles: StyleEntry[]; flash: boolean; onRevise: (r: Record<string, unknown>) => Promise<boolean>; onAskAbout: () => void; onCollapse?: () => void; kindLabel: string;
-  checks: Check[]; onAcknowledge: (text: string) => void;
+  checks: Check[]; onAcknowledge: (text: string) => void; onEditMyself: (assets: string[]) => void;
 }) {
   const [view, setView] = useState(card.revisions.length - 1);
   const shown = card.revisions[view] ?? latest(card), r = shown.request, current = view === card.revisions.length - 1;
-  const [editing, setEditing] = useState(false), [full, setFull] = useState(false);
+  const [editing, setEditing] = useState(false), [full, setFull] = useState(false), { split } = useApp();
   const inputs = r.references ?? [];
   const names = new Map((project.asset_manifest ?? []).map(a => [a.id, a]));
   return <div className={'draft' + (on ? '' : ' off') + (flash ? ' flash' : '')} id={'draft-' + card.id}>
@@ -96,14 +97,15 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
       ]}><Icon.More /></MenuButton>
     </div>
     {!current && <p className="changed">Showing version {view + 1}. <button className="link" onClick={() => setView(card.revisions.length - 1)}>Back to latest</button></p>}
-    {editing && current ? <DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
+    {editing && current && split && <Dialog title={'Edit ' + titleOf(r)} wide onClose={() => setEditing(false)}><DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} /></Dialog>}
+    {editing && current && !split ? <DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
       : <>
         <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project)}</p>
         {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
         {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const a = names.get(ref.asset_id); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={a?.name ?? 'Input'} /><span><b>{roleLabels[ref.role] ?? ref.role}</b>{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
         {own.length > 0 && <div className="chips">{own.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</div>}
         {current && changed.length > 0 && <p className="changed">What changed: {changed.join(' · ')}</p>}
-        {current && checks.map(c => <div className="check-note" role="status" key={c.text}><span>⚠ {c.text}</span>{c.fixes.map(f => <button key={f.label} className="btn small" disabled={busy} onClick={() => { const patch = f.patch(r); if (Object.keys(patch).length) void onRevise(patch); else onAcknowledge(c.text); }}>{f.label}</button>)}</div>)}
+        {current && checks.map(c => <div className="check-note" role="status" key={c.text}><span>⚠ {c.text}</span>{c.fixes.map(f => <button key={f.label} className="btn small" disabled={busy} onClick={() => { if (f.action === 'edit-myself') { onEditMyself(f.assets ?? []); return; } const patch = f.patch(r); if (Object.keys(patch).length) void onRevise(patch); else onAcknowledge(c.text); }}>{f.label}</button>)}</div>)}
         {ready && <span className={'ready ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'warn' : 'bad')}><span className={'dot ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'amber' : 'red')} />{ready.label}</span>}
       </>}
     <span className="sr-only">{kindLabel} · {outputNoun(r, r.count)}</span>

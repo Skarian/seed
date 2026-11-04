@@ -4,7 +4,7 @@ import { latest } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
 
 type Aspect = '16:9' | '9:16' | '1:1' | '4:5';
-export type Fix = { label: string; patch: (r: ImageRequest) => Record<string, unknown> };
+export type Fix = { label: string; patch: (r: ImageRequest) => Record<string, unknown>; action?: 'edit-myself'; assets?: string[] };
 export type Check = { text: string; fixes: Fix[] };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
@@ -54,7 +54,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   const asking = runMessage > 0 ? [...project.messages.slice(0, runMessage)].reverse().find(m => m.role === 'user') : undefined;
   const used = new Set((r.references ?? []).map(x => x.asset_id));
   const unused = (asking?.assets ?? []).filter(a => !used.has(a));
-  if (unused.length && !(r.references ?? []).length) out.push({ text: `Your attached ${unused.length === 1 ? 'image is' : 'files are'} not used by this draft; it is made from words only.`, fixes: [] });
+  if (unused.length && !(r.references ?? []).length) out.push({ text: `Your attached ${unused.length === 1 ? 'image is' : 'files are'} not used by this draft; it is made from words only.`, fixes: [{ label: 'Make it as an edit of the attached image', patch: () => ({}), action: 'edit-myself', assets: unused }] });
   return out;
 }
 
@@ -63,5 +63,9 @@ export function readablePrompt(r: ImageRequest, project: Project) {
   const labels = inputLabels(r.references ?? []), names = new Map((project.asset_manifest ?? []).map(a => [a.id, a.name]));
   let text = r.prompt.replace(/\[\[([^\]]+)\]\]/g, '$1');
   for (const ref of r.references ?? []) { const label = labels.get(ref.id); if (label) text = text.split(label).join('“' + (names.get(ref.asset_id) ?? 'input') + '”'); }
-  return text;
+  // Video prompts are structured for the model; show their sections as plain headings.
+  const headings: Record<string, string> = { integrated_multimodal_description: 'Scene', subject_definitions: 'Subjects', scene_anchor: 'Setting', action_timeline: 'Action', camera_path: 'Camera', overall_soundscape: 'Sound', non_diegetic_music: 'Music', retention_analysis: 'Keep', detailed_description: 'Detail', summary: 'Summary' };
+  text = text.split('\n').filter(line => !/^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i.test(line)).join('\n');
+  text = text.replace(/^(\s*)([a-z]+(?:_[a-z]+)+)\s*:\s*/gm, (_m, space: string, key: string) => space + (headings[key] ?? key.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())) + ': ');
+  return text.replace(/\[Shot (\d+)\]/g, 'Shot $1:');
 }

@@ -1,15 +1,16 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { pool as poolApi, randomKey, type OffersResponse, type WorkerClass } from '../api.js';
 import { Dialog, Spinner } from '../ui.js';
-import { rate, money } from '../format.js';
+import { rate, money, estimateText } from '../format.js';
 import { useApp, useStoredState } from '../data.js';
 import type { WorkerOffer } from '../../../shared/pool.js';
 
-const idleChoices = [[5, '5 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [0, 'Never (I release it myself)']] as const;
+export const capChoices = [[60, '1 hour'], [120, '2 hours'], [240, '4 hours'], [480, '8 hours'], [0, 'No limit']] as const;
+export const idleChoices = [[5, '5 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [0, 'Never (I release it myself)']] as const;
 const gb = (bytes?: number) => bytes ? (bytes / 1024 ** 3).toFixed(0) + ' GB' : '';
 
 /** Explicit consent for a new rental, bound to one quote. Closing it starts nothing. */
-export function ComputeSheet({ role, action, onClose, onStarted }: { role: WorkerClass; action: string; onClose: () => void; onStarted: () => void }) {
+export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { role: WorkerClass; action: string; seconds?: number | null; onClose: () => void; onStarted: () => void }) {
   const { refreshPool, go, pool } = useApp();
   const [offers, setOffers] = useState<OffersResponse | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(true);
   const [choice, setChoice] = useState<string>(''), [more, setMore] = useState(false), [busy, setBusy] = useState(false);
@@ -69,7 +70,8 @@ export function ComputeSheet({ role, action, onClose, onStarted }: { role: Worke
     {others.length > 0 && selected && <div className="notice" style={{ fontSize: 13.5 }}>This adds a second rental: you already rent {others.map(w => (w.worker_class === 'video' ? 'a video' : 'an image') + ' GPU at ' + rate(w.hourly) + (w.state === 'ready' && !w.current_job_id ? ' (idle)' : '')).join(' and ')}. Image and video need different GPUs. Total while both run: <b>{rate(othersRate + selected.hourly)}</b>.
       {idleOthers.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}><input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} /> Release the idle {idleOthers[0]!.worker_class} GPU when this starts</label>}</div>}
     <label className="field"><span>Stop renting after (even if busy, it finishes the current output first)</span>
-      <select className="select" value={cap} onChange={e => setCap(Number(e.target.value))}>{[[60, '1 hour'], [120, '2 hours'], [240, '4 hours'], [480, '8 hours'], [0, 'No limit']].map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+      <select className="select" value={cap} onChange={e => setCap(Number(e.target.value))}>{capChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+    {selected && !voluntary && <p style={{ margin: 0, fontSize: 13.5 }}><b>This task:</b> {seconds == null ? 'no estimate yet, because nothing like it has finished in this project. The first result sets one.' : <>{estimateText(seconds)} of making once the GPU is ready, about <b>{money(selected.hourly * seconds / 3600)}</b> at this rate.</>} Start-up and model download come first and are billed too.</p>}
     {selected && cap > 0 && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>The most this rental can cost is about <b>{money(selected.hourly * cap / 60)}</b> ({rate(selected.hourly)} for {cap / 60} {cap === 60 ? 'hour' : 'hours'}), plus any transfer charges the provider adds.</p>}
     <label className="field"><span>Release it automatically when idle for</span>
       <select className="select" value={idle} onChange={e => setIdle(Number(e.target.value))}>{idleChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>

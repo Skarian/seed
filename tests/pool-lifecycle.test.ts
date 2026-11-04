@@ -58,6 +58,15 @@ it('finishes a rental once it reaches its time cap, even while it is busy betwee
   f.advance(59*60_000);await f.pool.tick();expect(f.pool.get(id)!.quit_mode).toBeUndefined();
   f.advance(2*60_000);await f.pool.tick();expect(f.pool.get(id)!.released_reason).toBe('limit');expect(f.pool.get(id)!.quit_mode).toBe('finish');
 }));
+it('changes the limits of an active rental',()=>fixture(async f=>{
+  const offer=(await f.pool.offers('image')).items.find(o=>o.provider==='vast')!;
+  await f.pool.launch({selections:[{offer_id:offer.id,quantity:1}],max_hourly:offer.hourly,max_minutes:60,idle_release_minutes:15},'limit-change-fixture');
+  await f.pool.tick();const id=f.pool.all()[0]!.id;
+  f.pool.limits(id,{max_minutes:120,idle_release_minutes:0});
+  expect(f.pool.get(id)!.max_minutes).toBe(120);expect(f.pool.get(id)!.idle_release_minutes).toBeUndefined();
+  f.advance(61*60_000);await f.pool.tick();expect(f.pool.get(id)!.quit_mode).toBeUndefined();
+  expect(()=>f.pool.limits(id,{max_minutes:-5})).toThrow();
+}));
 it('includes the role-specific base model download size in offers',()=>fixture(async f=>{
   f.deps.releases!.image!.manifest=[{path:'model',url:'https://example.test/model',sha256:'a'.repeat(64),size:123456}];
   expect((await f.pool.offers('image')).items.every(o=>o.model_download_bytes===123456)).toBe(true);

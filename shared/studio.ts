@@ -23,6 +23,9 @@ export interface LibraryAsset {
   title?: string;
   /** The project (chat) the job came from. */
   chat_id?: string;
+  /** Its place in a batch, 1-based, when the job was one of several ("2 of 4"). */
+  variant?: number;
+  variants?: number;
 }
 
 export interface AssetOrganization {

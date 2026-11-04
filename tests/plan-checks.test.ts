@@ -38,3 +38,8 @@ it('does not apply a request about one draft to its siblings', () => {
   const all = project([message('user', 'Make them all square'), message('assistant', 'Updated', 'run')]);
   expect(checkDraft(draft as any, all, 4)[0]!.text).toBe('You asked for square; this draft is portrait 4:5.');
 });
+
+it('shows structured video prompts as plain sections', () => {
+  const text = readablePrompt({ workflow: 'text-to-video', prompt: 'integrated_multimodal_description: A paper wave rolls in.\n[Shot 1] Slow push.\noverall_soundscape: Silence.\nnon_diegetic_music: N/A' } as any, project([]));
+  expect(text).toBe('Scene: A paper wave rolls in.\nShot 1: Slow push.\nSound: Silence.');
+});

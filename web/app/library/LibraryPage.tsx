@@ -9,10 +9,10 @@ import { StatusControl } from '../App.js';
 type Filters = { kind: '' | 'image' | 'video' | 'audio'; source: '' | 'made' | 'uploaded'; favorites: boolean; collection: string; project: string; order: 'newest' | 'oldest' };
 const none: Filters = { kind: '', source: '', favorites: false, collection: '', project: '', order: 'newest' };
 
-export const assetTitle = (a: LibraryAsset) => a.title ?? (a.name === 'Generated image' || a.name === 'Generated video' ? (a.kind === 'video' ? 'Video' : 'Image') : a.name);
+export const assetTitle = (a: LibraryAsset) => (a.title ?? (a.name === 'Generated image' || a.name === 'Generated video' ? (a.kind === 'video' ? 'Video' : 'Image') : a.name)) + (a.variant && a.variants ? ` · ${a.variant} of ${a.variants}` : '');
 
 /** Every result and upload: search, filter, sort into collections, act on several at once. */
-export function LibraryPage() {
+export function LibraryPage({ collection }: { collection?: string } = {}) {
   const app = useApp();
   const [q, setQ] = useState(''), [query, setQuery] = useState('');
   const [f, setF] = useStoredState<Filters>('seed.library.filters', none);
@@ -21,6 +21,8 @@ export function LibraryPage() {
   const [cols, setCols] = useState<AssetCollection[]>([]), [filtersOpen, setFiltersOpen] = useState(false);
   const [selecting, setSelecting] = useState(false), [selected, setSelected] = useState<string[]>([]), [confirm, setConfirm] = useState(false), [toCollection, setToCollection] = useState(false);
   useEffect(() => { const t = setTimeout(() => setQuery(q), 250); return () => clearTimeout(t); }, [q]);
+  // Opened from a collection chip: show just that collection.
+  useEffect(() => { if (collection) { setF({ ...none, collection }); app.go({ name: 'library' }, true); } }, [collection]);
   useEffect(() => { void collectionsApi.list(app.mode).then(setCols).catch(() => {}); }, [app.mode, toCollection]);
   const list = useAssets({ mode: app.mode, q: query || undefined, kind: f.kind || undefined, source: f.source || undefined, favorites: f.favorites || undefined, collection_id: f.collection || undefined, chat_id: f.project || undefined, order: f.order });
   const items: ViewerItem[] = list.items.map(a => ({ asset: a.id, kind: a.kind, title: assetTitle(a), project: a.chat_id }));

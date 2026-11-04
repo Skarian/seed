@@ -95,7 +95,7 @@ export function App() {
         {route.name === 'project' && <ProjectPage key={route.id} id={route.id} view={route.view} focus={route.focus} />}
         {route.name === 'projects' && <ProjectsList />}
         {route.name === 'home' && <div className="scroll" aria-busy="true" />}
-        {route.name === 'library' && <LibraryPage />}
+        {route.name === 'library' && <LibraryPage collection={route.collection} />}
         {route.name === 'gpus' && <GpusPage />}
         {route.name === 'settings' && <SettingsPage section={route.section} />}
         {top && <TabBar />}
@@ -119,14 +119,14 @@ export function App() {
 /** The status control: active work and the running rental rate, in every header. */
 export function StatusControl() {
   const { tasks, pool, openStatus, projectList } = useApp();
-  const making = tasks.filter(jobActive).length;
+  const active = tasks.filter(jobActive), waiting = active.filter(j => j.state === 'queued' || (!j.progress && j.state !== 'running' && j.state !== 'copying')).length, making = active.length - waiting;
   // Two lanes: Seed planning (agent replies) and making (renders on GPUs).
   const planning = projectList.filter(p => p.activity === 'thinking' || p.activity === 'preparing').length;
   const hourly = pool?.summary.hourly ?? 0, attention = (pool?.summary.needs_attention ?? 0) + tasks.filter(j => ['failed', 'needs_attention'].includes(j.state) && !j.uncertainty_acknowledged && Date.now() - Date.parse(j.updated_at) < 3600_000).length;
-  const words = [planning ? 'Seed planning' : '', making ? making + ' making' : ''].filter(Boolean).join(' · ');
+  const words = [planning ? 'Seed planning' : '', making ? making + ' making' : '', waiting ? waiting + ' waiting for GPU' : ''].filter(Boolean).join(' · ');
   const label = [words, hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
-  return <button className="status" onClick={() => openStatus(making || !hourly ? 'tasks' : 'gpus')} aria-label={'Activity and GPUs: ' + label} aria-haspopup="dialog">
-    <span className={`dot ${making || planning ? 'live' : attention ? 'amber' : hourly ? '' : 'off'}`} />
+  return <button className="status" onClick={() => openStatus(active.length || !hourly ? 'tasks' : 'gpus')} aria-label={'Activity and GPUs: ' + label} aria-haspopup="dialog">
+    <span className={`dot ${making || planning ? 'live' : waiting ? 'amber' : attention ? 'amber' : hourly ? '' : 'off'}`} />
     <span className={words ? '' : 'label'}>{words || (attention ? 'Needs you' : hourly ? 'GPU on' : 'Nothing running')}</span>
     {hourly > 0 && <span className="rate"><span className="sep">· </span>{rate(hourly)}</span>}
   </button>;

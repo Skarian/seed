@@ -3,7 +3,7 @@ import { projects as projectsApi, randomKey, kindOf, workflowOf, isVideoKind, ty
 import { useApp, useNow, useProject, useStoredState } from '../data.js';
 import { Icon } from '../icons.js';
 import { Markdown, MenuButton, Confirm, Dialog, Thumb, cleanReply, LocalBoundary } from '../ui.js';
-import { latest, titleOf, outputNoun, duration, cardJobs, isFailed } from '../format.js';
+import { latest, titleOf, outputNoun, duration, cardJobs, isFailed, estimateSeconds, estimateText } from '../format.js';
 import { StatusControl } from '../App.js';
 import { PlanCard, type Selection } from './PlanCard.js';
 import { ResultGroup } from './ResultGroup.js';
@@ -21,6 +21,7 @@ const isOpenPlan = (g: ChatGroup) => openStates.includes(g.state) && !g.direct;
 export function ProjectPage({ id, view, focus }: { id: string; view: 'conversation' | 'results'; focus?: string }) {
   const app = useApp();
   const { project, setProject, reload, error } = useProject(id);
+  const projectRef = useRef<Project | null>(null); projectRef.current = project;
   const styles = useStyles(app.mode);
   const plan = project?.groups.find(isOpenPlan);
   const replying = project ? ['thinking', 'preparing'].includes(project.activity) : false;
@@ -32,8 +33,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [context, setContext] = useState<ComposerContext>({ type: 'talk' });
   const [selection, setSelection] = useState<Selection>({});
-  const [compute, setCompute] = useState<null | { role: 'image' | 'video'; action: string; then: () => Promise<void> }>(null);
-  const [conflict, setConflict] = useState<null | { label: string; run: () => Promise<void> }>(null);
+  const [compute, setCompute] = useState<null | { role: 'image' | 'video'; action: string; seconds?: number | null; then: () => Promise<void> }>(null);
+  const [conflict, setConflict] = useState<null | { label: string; run: () => Promise<void>; add?: () => Promise<void> }>(null);
   const [confirmDelete, setConfirmDelete] = useState(false), [renaming, setRenaming] = useState(false);
   const [busy, setBusy] = useState(''), [problem, setProblem] = useState(''), [typing, setTyping] = useState(false);
   const [acknowledged, setAcknowledged] = useState<Set<string>>(new Set());
@@ -53,6 +54,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       if (card) { if (use.intent === 'more') void remake(card, 'more'); else reuse(card); }
       return;
     }
+    // Use as input is a plain attachment: it can revise a waiting plan or start one, as the words say.
+    if (use.intent === 'input') { setAttachments(list => list.some(a => a.asset_id === use.item.asset) ? list : [...list, { key: use.item.asset, asset_id: use.item.asset, name: use.item.title, kind: use.item.kind }]); setMode('ask'); setFocusToken(t => t + 1); return; }
     setMode('ask'); setContext({ type: 'using', item: use.item, intent: use.intent }); setFocusToken(t => t + 1);
     // Keep the chosen source visibly anchored: highlight it where it lives in the stream.
     const source = use.item.job?.source?.card_id;
@@ -62,7 +65,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
 
   async function run(label: string, fn: () => Promise<Project | void>) {
     setBusy(label); setProblem('');
-    try { const value = await fn(); if (value) setProject(value); app.refreshTasks(); app.refreshProjects(); return true; }
+    try { const value = await fn(); if (value) { projectRef.current = value; setProject(value); } app.refreshTasks(); app.refreshProjects(); return true; }
     catch (e) { setProblem((e as Error).message); return false; }
     finally { setBusy(''); }
   }
@@ -82,12 +85,26 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       assets.unshift(context.item.asset);
       body = (context.intent === 'refine' ? 'Edit this image (“' + context.item.title + '”): ' : context.intent === 'animate' ? 'Animate this image (“' + context.item.title + '”) as the start frame: ' : 'Use “' + context.item.title + '” as an input: ') + body;
     }
-    const go = async () => {
+    // Refine and Animate mean an operation on that exact image: set the kind before Seed reads the message.
+    const kind = context.type === 'using' ? ({ refine: 'image-to-image', animate: 'reference-to-video' } as Record<string, string>)[context.intent] : undefined;
+    const go = async (addToPlan = false) => {
       lastSent.current = { text: body, assets }; follow.current = true;
-      const ok = await run('', async () => projectsApi.send(project, { text: body, assets: [...new Set(assets)], ...extra }));
-      if (ok) { setText(''); setAttachments([]); setContext(c => c.type === 'using' || c.type === 'draft' || c.type === 'keep' ? { type: plan ? 'plan' : 'talk' } : c); }
+      const ok = await run('', async () => {
+        // Always send against the newest version (a plan may have just been set aside).
+        let current = projectRef.current ?? project;
+        if (kind && !addToPlan && current.workflow !== kind) { try { current = await projectsApi.setKind(current, kind); } catch { /* the agent can still choose */ } }
+        return projectsApi.send(current, { text: body, assets: [...new Set(assets)], ...extra });
+      });
+      if (ok) { setText(''); setAttachments([]); setContext(c => c.type === 'using' || c.type === 'draft' || c.type === 'keep' ? { type: plan && addToPlan ? 'plan' : 'talk' } : c); }
     };
-    if (context.type === 'using' && plan) { setConflict({ label: context.intent === 'animate' ? 'Animate' : context.intent === 'refine' ? 'Refine' : 'Use this result', run: async () => { await setAside(); await go(); } }); return; }
+    if (context.type === 'using' && plan) {
+      setConflict({
+        label: context.intent === 'animate' ? 'Animate' : 'Refine',
+        run: async () => { await setAside(); await go(); },
+        add: async () => { await go(true); },
+      });
+      return;
+    }
     await go();
   }
   async function retry() { const last = lastSent.current ?? lastUserMessage(project); if (!project || !last) return; await run('', () => projectsApi.send(project, { text: last.text, assets: last.assets })); }
@@ -112,7 +129,14 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     const go = async () => { const ok = await run('Starting', () => projectsApi.makeDirect(id, request, key)); if (ok) { setText(''); setAttachments([]); if (context.type === 'using') setContext({ type: plan ? 'plan' : 'talk' }); } };
     const need = readiness(request as unknown as Parameters<typeof readiness>[0], app.pool, styles);
     if (need.blocked) { setProblem(need.label); return; }
-    if (need.needs) setCompute({ role: need.needs, action: `make ${outputNoun(request as never, settings.count)}`, then: go }); else await go();
+    if (need.needs) setCompute({ role: need.needs, action: `make ${outputNoun(request as never, settings.count)}`, seconds: estimateSeconds(project?.jobs ?? [], (request as { workflow: string }).workflow, settings.count), then: go }); else await go();
+  }
+
+  /** GPU time for some drafts, summed per workflow. Null when any of them has no comparable past job. */
+  function planSeconds(cards: ChatCard[]) {
+    let total = 0;
+    for (const c of cards) { const r = latest(c).request, s = estimateSeconds(project?.jobs ?? [], r.workflow, r.count); if (s === null) return null; total += s; }
+    return total;
   }
 
   /** Make the open plan: one decision for every draft, after GPU consent if a new rental is needed. */
@@ -124,7 +148,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     const go = async () => { const ok = await run('Making', () => projectsApi.decide(id, plan.id, decisions)); if (ok) setFlash(plan.id); };
     const need = chosen.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs);
     const outputs = chosen.reduce((n, c) => n + latest(c).request.count, 0);
-    if (need?.needs) setCompute({ role: need.needs, action: 'make ' + outputNoun(latest(chosen[0]!).request, outputs), then: go }); else await go();
+    if (need?.needs) setCompute({ role: need.needs, action: 'make ' + outputNoun(latest(chosen[0]!).request, outputs), seconds: planSeconds(chosen), then: go }); else await go();
   }
 
   /** More like this, Retry and Make again run at once as direct makes: no new plan, no extra Make, no conflict with an open plan. */
@@ -139,7 +163,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     const go = async () => { await run('Starting', () => projectsApi.makeDirect(id, request, randomKey())); };
     const need = readiness(r, app.pool, styles);
     if (need.blocked) { setProblem(need.label); return; }
-    if (need.needs) setCompute({ role: need.needs, action: 'make ' + outputNoun(r, count), then: go }); else await go();
+    if (need.needs) setCompute({ role: need.needs, action: 'make ' + outputNoun(r, count), seconds: estimateSeconds(project.jobs, r.workflow, count), then: go }); else await go();
   }
   /** Load a result's exact prompt and settings into Make, to change one thing and run it. */
   function reuse(card: ChatCard) {
@@ -192,7 +216,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   // Seed changed the plan and also asked something (often about an unsupported setting): quote it next to Make.
   const lastReply = lastTurn?.transcript?.state === 'completed' ? cleanReply(lastTurn.text) : '';
   // Only for a real decision (a substitution or limit), not a polite "anything else?".
-  const question = plan && !planStale && /\?\s*$/.test(lastReply) && /support|instead|can.?t|cannot|not available|only (offer|support|do)|unable|which (one|option|format)|would you (prefer|like)/i.test(lastReply) && plan.cards.some(c => c.revisions.some(r => r.run_id === lastTurn!.id))
+  const question = plan && !planStale && !unresolved && /\?\s*$/.test(lastReply) && /support|instead|can.?t|cannot|not available|only (offer|support|do)|unable|which (one|option|format)|would you (prefer|like)/i.test(lastReply) && plan.cards.some(c => c.revisions.some(r => r.run_id === lastTurn!.id))
     ? (lastReply.split(/(?<=[.!])\s+/).filter(s => s.includes('?')).at(-1) ?? '').replace(/[*_`#]/g, '').trim().slice(0, 220) : '';
   const planNeed = selectedCards.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs || r.billing);
 
@@ -209,7 +233,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                   : isOpenPlan(item.group) ? <PlanCard key={item.group.id} project={project} group={item.group} snapshot={app.pool} styles={styles} busy={Boolean(busy) || replying} selection={selection} onSelection={setSelection} flash={flash}
                     onRevise={async (card, request) => run('Saving', () => projectsApi.revise(id, card.id, latest(card).number, request))}
                     onAskAbout={card => { setMode('ask'); setContext({ type: 'draft', card: card.id, revision: latest(card).number, title: titleOf(latest(card).request) }); setFocusToken(t => t + 1); }}
-                    onSetAside={() => void setAside(item.group)} acknowledged={acknowledged} onAcknowledge={key => setAcknowledged(s => new Set([...s, key]))} />
+                    onSetAside={() => void setAside(item.group)} acknowledged={acknowledged} onAcknowledge={key => setAcknowledged(s => new Set([...s, key]))}
+                    onEditMyself={(card, ids) => { setMode('make'); setText(latest(card).request.prompt); setSettings({ ...settings, kind: 'edit' }); setAttachments(ids.map((a, i) => { const m = project.asset_manifest?.find(x => x.id === a); return { key: a, asset_id: a, name: m?.name ?? 'Image', kind: m?.kind ?? 'image', role: i === 0 ? 'source' as const : 'reference' as const }; })); setFocusToken(t => t + 1); }} />
                     : <ResultGroup key={item.group.id} project={project} group={item.group} styles={styles} collapsed={collapsedIds.has(item.group.id)} onExpand={() => setExpanded(s => new Set([...s, item.group.id]))} actions={actions} flash={flash} />}</LocalBoundary>)}
                 {problem && <div className="notice error" role="alert">{problem} <button className="link" onClick={() => setProblem('')}>Dismiss</button></div>}
               </div>}
@@ -219,21 +244,22 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         {plan && (planStale || question) && <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>{planStale ? 'Seed asked a question before changing the plan. The plan shows the earlier version until you answer.' : <>Seed asked: “{question}” Answer below, or make the plan as it is.</>}</div>}
         {plan && !(app.narrow && typing) && <div className="makebar">
           <button className="sum" onClick={() => { const first = selectedCards[0]; if (first) setFlash(first.id); }} aria-label="Show the selected drafts">
-            <b>Make selected · {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}</b> · {selectedCards.length} of {plan.cards.length} drafts{planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
+            <b>Make selected · {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}</b> · {selectedCards.length} of {plan.cards.length} drafts{selectedCards.length && planSeconds(selectedCards) !== null ? ' · ' + estimateText(planSeconds(selectedCards)) : ''}{planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
           </button>
           <button className={planStale || question || unresolved ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : question ? 'Make as it is' : unresolved ? 'Make anyway' : 'Make selected'}</button>
         </div>}
-        <Composer context={context} onContext={setContext} planOpen={Boolean(plan)} mode={mode} onMode={m => { setMode(m); if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' }); }}
+        <Composer context={context} onContext={setContext} planOpen={Boolean(plan)} mode={mode} onMode={m => { setMode(m); if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' }); if (m === 'make' && context.type === 'using' && context.intent !== 'input') setSettings({ ...settings, kind: context.intent === 'animate' ? 'animate' : 'edit' }); }}
           text={text} onText={setText} attachments={attachments} onAttachments={setAttachments} settings={settings} onSettings={setSettings} styles={styles}
           replying={replying} disabled={!project ? 'Opening…' : replying && mode === 'make' ? 'Seed is still replying. Stop reply to make this now.' : undefined} focusToken={focusToken}
           onSend={() => void send()} onMake={() => void makeDirect()} onStopReply={() => void run('', () => projectsApi.stopReply(id))} onSetAside={() => void setAside()} />
       </div></div>
     </div>{app.split && project && <ResultsView project={project} embedded />}</div>}
-    {compute && <ComputeSheet role={compute.role} action={compute.action} onClose={() => setCompute(null)} onStarted={() => { const then = compute.then; setCompute(null); void then(); }} />}
+    {compute && <ComputeSheet role={compute.role} action={compute.action} seconds={compute.seconds} onClose={() => setCompute(null)} onStarted={() => { const then = compute.then; setCompute(null); void then(); }} />}
     {conflict && <Dialog title="A plan is waiting" onClose={() => setConflict(null)} footer={<>
-      <button className="btn" onClick={() => setConflict(null)}>Keep the plan, cancel this</button>
-      <button className="btn primary" onClick={() => { const c = conflict; setConflict(null); void (async () => { if (plan) await setAside(); await c.run(); })(); }}>Set the plan aside and continue</button>
-    </>}><p style={{ margin: 0 }}>{conflict.label} starts a new plan. A project holds one open plan at a time. Setting the waiting plan aside moves its drafts to Not now, where you can bring them back. Nothing is made or deleted.</p></Dialog>}
+      <button className="btn" onClick={() => setConflict(null)}>Cancel</button>
+      {conflict.add && <button className="btn" onClick={() => { const c = conflict; setConflict(null); void c.add!(); }}>Add it to the waiting plan</button>}
+      <button className="btn primary" onClick={() => { const c = conflict; setConflict(null); void c.run(); }}>Set the plan aside and start a new one</button>
+    </>}><p style={{ margin: 0 }}>{conflict.add ? <>You can add this to the plan that is waiting, so Seed revises it with the image attached, or set that plan aside and start a new one. </> : <>{conflict.label} starts a new plan. </>}Setting a plan aside moves its drafts to Not now, where you can bring them back. Nothing is made or deleted, and your message is kept.</p></Dialog>}
     {renaming && project && <RenameDialog project={project} onClose={() => setRenaming(false)} onSaved={p => { setProject(p); app.refreshProjects(); setRenaming(false); }} />}
     {confirmDelete && project && <Confirm title={`Delete “${project.title}”?`} danger action="Delete project" busy={Boolean(busy)} onClose={() => setConfirmDelete(false)}
       body={<><p style={{ margin: 0 }}>The conversation and its plans are removed. Its results stay in your Library.</p>{(replying || project.jobs.some(j => !['completed', 'failed', 'cancelled'].includes(j.state))) && <p className="changed">This project is still working. Stop the reply and wait for its results to finish before deleting.</p>}</>}

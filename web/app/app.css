@@ -221,7 +221,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .empty .chips { justify-content: center; }
 
 /* Popovers, menus, sheets, dialogs */
-.backdrop { position: fixed; inset: 0; background: #0009; z-index: 40; display: grid; place-items: center; padding: 16px; animation: fade .12s; }
+.backdrop { position: fixed; inset: 0; background: #0009; z-index: 70; display: grid; place-items: center; padding: 16px; animation: fade .12s; }
 @keyframes fade { from { opacity: 0; } }
 .dialog { background: var(--s1); border: 1px solid var(--line2); border-radius: 16px; width: min(520px, 100%); max-height: min(86vh, 900px); display: flex; flex-direction: column; box-shadow: 0 30px 80px #000a; }
 .dialog.wide { width: min(760px, 100%); }
@@ -229,7 +229,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .dialog-head h2 { font-size: 17px; margin: 0; flex: 1; }
 .dialog-body { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
 .dialog-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-.menu { position: absolute; z-index: 50; background: var(--s2); border: 1px solid var(--line2); border-radius: 12px; padding: 4px; min-width: 220px; box-shadow: 0 16px 40px #0009; }
+.menu { position: absolute; z-index: 80; background: var(--s2); border: 1px solid var(--line2); border-radius: 12px; padding: 4px; min-width: 220px; box-shadow: 0 16px 40px #0009; }
 .menu button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 12px; border-radius: 8px; min-height: 40px; font-size: 14px; }
 .menu button:hover, .menu button:focus-visible { background: var(--s3); outline: none; }
 .menu button[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--accent); }
@@ -242,7 +242,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .option .radio { width: 18px; height: 18px; border-radius: 50%; border: 2px solid var(--muted); flex: none; margin-top: 2px; }
 .option[aria-checked="true"] .radio { border: 5px solid var(--accent); }
 .option small { display: block; color: var(--muted); font-size: 12.5px; margin-top: 2px; }
-.toast-stack { position: fixed; z-index: 60; left: 50%; top: 72px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
+.toast-stack { position: fixed; z-index: 90; left: 50%; top: 72px; transform: translateX(-50%); display: flex; flex-direction: column; gap: 8px; align-items: center; pointer-events: none; }
 .toast { background: var(--s3); border: 1px solid var(--line2); border-radius: 12px; padding: 10px 14px; box-shadow: 0 10px 30px #0008; pointer-events: auto; display: flex; gap: 10px; align-items: center; font-size: 14px; animation: rise .16s; }
 @keyframes rise { from { transform: translateY(8px); opacity: 0; } }
 
@@ -409,3 +409,16 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .check-note { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 13px; color: var(--amber); background: var(--amber-soft); border-radius: 8px; padding: 6px 8px; }
 .check.big { width: 32px; height: 32px; }
 @media (hover: hover) { .tile:not(:hover):not(.selected) .check.big[aria-checked="false"] { opacity: 0; } .tile .check.big:focus-visible { opacity: 1; } }
+.card-head .title { flex: 0 1 auto; min-width: 7em; }
+.card-head .meta { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+@media (max-width: 699px) {
+  .composer .tools { flex-wrap: wrap; }
+  .composer .tools .settings-line { flex: 1 1 100%; max-width: none; order: -1; }
+  .viewer .vtop b.compare-title { display: none; }
+}
+
+/* Split layout: the inspector takes the board's place instead of adding a third column. */
+.shell.with-inspector:has(.split) { grid-template-columns: var(--rail) minmax(380px, 520px) minmax(0, 1fr); }
+.shell.with-inspector .split { grid-template-columns: minmax(0, 1fr); }
+.shell.with-inspector .split > :not(.convo) { display: none; }
+.shell.with-inspector .split .convo { border-right: 0; }

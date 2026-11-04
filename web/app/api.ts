@@ -50,6 +50,7 @@ export const projects = {
   list: (mode: string) => api<{ items: ProjectSummary[] }>('chats?mode=' + mode).then(r => r.items.map(named)),
   create: (mode: string) => pj('chats', { body: { mode } }),
   get: (id: string, signal?: AbortSignal) => pj('chats/' + id, { signal }),
+  setKind: (p: Project, workflow: string) => pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, workflow } }),
   rename: (p: Project, title: string) => pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, title } }),
   remove: (id: string) => api<{ deleted: boolean }>('chats/' + id, { method: 'DELETE' }),
   send: (p: Project, body: { text: string; assets: string[]; card_id?: string; revision?: number; keep_plan?: boolean }) =>
@@ -98,6 +99,7 @@ export const pool = {
   snapshot: (signal?: AbortSignal) => api<PoolSnapshot>('pool', { signal }),
   offers: (role: WorkerClass) => api<OffersResponse>('pool/offers?worker_class=' + role),
   launch: (request: LaunchRequest, key: string) => api<PoolSnapshot>('pool/launch', { body: request, headers: { 'Idempotency-Key': key } }),
+  limits: (worker: string, body: { idle_release_minutes?: number; max_minutes?: number }) => api<PoolSnapshot>('pool/workers/' + worker, { method: 'PATCH', body }),
   act: (worker: string, action: PoolAction) => api<PoolSnapshot>('pool/workers/' + worker + '/actions', { body: { action } }),
   local: () => api<{ setup: LocalSetupStatus; worker: import('../../shared/local-worker.js').LocalWorkerView | null }>('pool/local'),
   localAction: (action: string) => api<unknown>('pool/local/actions', { body: { action } }),

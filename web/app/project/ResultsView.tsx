@@ -15,7 +15,7 @@ import { jobActive } from '../../../shared/jobs.js';
 export function ResultsView({ project, embedded = false }: { project: Project; embedded?: boolean }) {
   const app = useApp();
   const [filter, setFilter] = useState<'all' | 'fav' | 'image' | 'video'>('all');
-  const [size, setSize] = useStoredState<'s' | 'm' | 'l'>('seed.results.size', embedded ? 's' : 'm');
+  const [size, setSize] = useStoredState<'s' | 'm' | 'l'>(embedded ? 'seed.board.size' : 'seed.results.size', 'm');
   const [grouped, setGrouped] = useStoredState('seed.results.grouped', false);
   const [selected, setSelected] = useState<string[]>([]);
   const list = useAssets({ mode: app.mode, chat_id: project.id, source: 'made', ...(filter === 'fav' ? { favorites: true } : {}), ...(filter === 'image' || filter === 'video' ? { kind: filter } : {}) });

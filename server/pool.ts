@@ -700,6 +700,18 @@ export class WorkerPool {
           : undefined;
     });
   }
+  /** Change an active rental's idle release and time cap. 0 turns either off. */
+  limits(id: string, input: { idle_release_minutes?: number; max_minutes?: number }) {
+    const w = this.get(id);
+    if (!w || stopped(w)) throw Error("Worker not found.");
+    const bad = (v: number | undefined, max: number) => v !== undefined && (!Number.isInteger(v) || v < 0 || v > max);
+    if (bad(input.idle_release_minutes, 1440) || bad(input.max_minutes, 10080)) throw Error("Invalid rental limits.");
+    this.update(id, (current) => {
+      if (input.idle_release_minutes !== undefined) { if (input.idle_release_minutes) current.idle_release_minutes = input.idle_release_minutes; else delete current.idle_release_minutes; }
+      if (input.max_minutes !== undefined) { if (input.max_minutes) current.max_minutes = input.max_minutes; else delete current.max_minutes; }
+    });
+    return this.snapshot();
+  }
   async action(id: string, action: PoolAction, paths?: string[]) {
     const w = this.get(id);
     if (!w) throw Error("Worker not found.");

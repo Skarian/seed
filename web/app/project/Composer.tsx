@@ -3,7 +3,7 @@ import { Icon } from '../icons.js';
 import { MenuButton, Thumb, Dialog } from '../ui.js';
 import { kindLabels, isVideoKind, type Kind } from '../api.js';
 import { useApp, type ViewerItem } from '../data.js';
-import { type Attachment, type MakeSettings, rolesFor, roleLabels, inputProblem, sizeOptions, kindOfFile, uploadFile, engines } from './requests.js';
+import { type Attachment, type MakeSettings, rolesFor, roleLabels, inputProblem, sizeOptions, kindOfFile, uploadFile, engines, defaultRoles } from './requests.js';
 import type { StyleEntry } from './readiness.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 import { workflowOf } from '../api.js';
@@ -35,7 +35,9 @@ export function Composer(p: Props) {
   const touch = useMemo(() => matchMedia('(pointer: coarse)').matches, []);
   useLayoutEffect(() => { const el = area.current; if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, innerHeight * 0.4) + 'px'; }, [p.text]);
   useEffect(() => { if (p.focusToken) area.current?.focus(); }, [p.focusToken]);
-  const problem = p.mode === 'make' ? inputProblem(p.settings.kind, p.attachments) : p.attachments.some(a => a.progress) ? 'Wait for attachments to finish uploading.' : null;
+  // The result being refined or animated is an input like any attachment, in Ask and in Make alike.
+  const inputs = p.context.type === 'using' ? defaultRoles(p.settings.kind, [{ key: p.context.item.asset, asset_id: p.context.item.asset, name: p.context.item.title, kind: p.context.item.kind, role: p.context.intent === 'animate' ? 'first_frame' : p.context.intent === 'refine' ? 'source' : undefined }, ...p.attachments]) : p.attachments;
+  const problem = p.mode === 'make' ? inputProblem(p.settings.kind, inputs) : p.attachments.some(a => a.progress) ? 'Wait for attachments to finish uploading.' : null;
   const canSend = !p.disabled && !problem && p.text.trim().length > 0;
   const count = p.settings.count, video = isVideoKind(p.settings.kind);
   const makeLabel = `Make ${count} ${video ? (count === 1 ? 'clip' : 'clips') : (count === 1 ? 'image' : 'images')} from this prompt`;
