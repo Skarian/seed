@@ -28,10 +28,10 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
   const hourly = pool?.summary.hourly ?? 0;
   return <>
     {!compact && <LocalCard />}
-    <h2>Cloud GPUs</h2>
+    <h2 className="subhead">Cloud GPUs</h2>
     <div className="box">
-      <div className="row"><span className="grow"><b>{active.length ? `${active.length} running · ${rate(hourly)}` : 'Nothing rented'}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>Last 24 hours · estimated {money(pool?.summary.spend_24h ?? pool?.summary.estimated_spend ?? 0)}, including released GPUs</span></span>
-        <button className="btn" onClick={() => setStart('image')}><Icon.Plus />Image GPU</button><button className="btn" onClick={() => setStart('video')}><Icon.Plus />Video GPU</button></div>
+      <div className="row"><span className="grow"><b>{active.length ? `${active.length} running · ${rate(hourly)}` : 'Nothing rented'}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>Last 24 hours · estimated {money(pool?.summary.spend_24h ?? pool?.summary.estimated_spend ?? 0)}, including released GPUs</span></span></div>
+      <div className="row"><button className="btn" onClick={() => setStart('image')}><Icon.Plus />Start an image GPU</button><button className="btn" onClick={() => setStart('video')}><Icon.Plus />Start a video GPU</button></div>
     </div>
     {active.map(w => <div className="box" key={w.id}>
       <div className="row">
@@ -44,7 +44,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
       {(w.issue || w.preparation?.error) && <div className="notice error">{w.issue?.message ?? w.preparation?.error}
         <div className="actions">{w.actions.filter(a => ['reconnect', 'retry_preparation', 'omit_loras', 'local_fallback', 'dismiss_launch_failure'].includes(a)).map(a => <button key={a} className="btn small" onClick={() => void poolApi.act(w.id, a).then(refreshPool)}>{{ reconnect: 'Reconnect', retry_preparation: 'Retry setup', omit_loras: 'Continue without styles', local_fallback: 'Use fallback models', dismiss_launch_failure: 'Dismiss' }[a as string]}</button>)}</div></div>}
     </div>)}
-    {recent.length > 0 && <><h2>Released recently</h2>{recent.map(w => <div className="box" key={w.id}><div className="row"><span className="grow">{w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}<br /><span className="muted" style={{ fontSize: 13.5 }}>{duration(w.elapsed_seconds)} · {money(w.estimated_spend)} estimated{w.released_reason === 'idle' ? ' · released when idle' : ''}</span></span></div></div>)}</>}
+    {recent.length > 0 && <><h2 className="subhead">Released recently</h2>{recent.map(w => <div className="box" key={w.id}><div className="row"><span className="grow">{w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}<br /><span className="muted" style={{ fontSize: 13.5 }}>{duration(w.elapsed_seconds)} · {money(w.estimated_spend)} estimated{w.released_reason === 'idle' ? ' · released when idle' : ''}</span></span></div></div>)}</>}
     {start && <ComputeSheet role={start} action="keep it ready" onClose={() => setStart(null)} onStarted={() => setStart(null)} />}
     {release && <Confirm title={`Release the ${release.gpu}?`} action="Finish current work, then release" onClose={() => setRelease(null)}
       body={<><p style={{ margin: 0 }}>Work already running on it finishes and saves first, then the rental ends. Results stay in your Library. Billing stops when the provider confirms the release.</p>
@@ -61,7 +61,7 @@ function LocalCard() {
   async function act(action: string) { setBusy(true); setError(''); try { if (action === 'setup') await poolApi.localSetup(); else await poolApi.localAction(action); setStatus(await poolApi.local() as never); refreshPool(); } catch (e) { setError((e as Error).message); } finally { setBusy(false); } }
   const s = status?.setup, w = status?.worker, gb = (n?: number) => ((n ?? 0) / 1024 ** 3).toFixed(0) + ' GB';
   return <>
-    <h2>Seed PC</h2>
+    <h2 className="subhead">Seed PC</h2>
     <div className="box">
       <div className="row"><span className={'dot ' + (w?.enabled && !w.paused ? (w.current_job_id ? 'live' : '') : 'off')} /><span className="grow"><b>{w?.gpu ?? 'This computer'}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>{!s ? 'Checking…' : s.supported === false ? 'Local GPU work needs Windows.' : !s.installed ? 'Not set up' : !w?.enabled ? 'Off' : w.paused ? 'Paused' : w.current_activity ?? (w.state === 'sleeping' ? 'Ready · loads models when needed' : workerLabel[w.state] ?? w.state)} · no rental fee</span></span>
         {s?.supported !== false && s && (!s.installed ? <button className="btn primary" disabled={busy || s.state === 'running'} onClick={() => setConfirm(true)}>{s.state === 'running' ? 'Setting up…' : s.state === 'failed' ? 'Resume setup' : 'Set up'}</button>

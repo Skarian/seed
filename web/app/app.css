@@ -289,7 +289,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 
 /* GPUs and settings pages */
 .page { padding: 20px 0 40px; display: flex; flex-direction: column; gap: 16px; }
-.page h2 { font-size: 16px; margin: 8px 0 0; }
+.page h2, h2.subhead { font-size: 15px; margin: 8px 0 0; font-weight: 650; }
 .box { background: var(--s1); border: 1px solid var(--line); border-radius: var(--r); padding: 14px 16px; display: flex; flex-direction: column; gap: 10px; }
 .box .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .box .row .grow { flex: 1; min-width: 0; }

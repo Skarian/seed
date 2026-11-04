@@ -234,7 +234,9 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
   if (message.role === 'event') return <div className="sys">{message.text}</div>;
   if (message.role === 'user') {
     const names = new Map((project.asset_manifest ?? []).map(a => [a.id, a]));
-    return <div className="msg-you">{cleanReply(message.text)}{message.assets.length > 0 && <div className="attachments">{message.assets.map(a => { const m = names.get(a); return <span className="input-chip" key={a}><Thumb id={a} kind={m?.kind ?? 'image'} alt={m?.name ?? 'Attachment'} /></span>; })}</div>}</div>;
+    const intent = message.text.match(/^(Edit this image|Animate this image|Use) \(?“[^”]*”\)?[^:]*: /);
+    const label = intent ? (intent[1] === 'Edit this image' ? 'Refine' : intent[1] === 'Animate this image' ? 'Animate' : 'Use as input') : '';
+    return <div className="msg-you">{label && <span className="kind" style={{ marginRight: 6 }}>{label}</span>}{cleanReply(intent ? message.text.slice(intent[0].length) : message.text)}{message.assets.length > 0 && <div className="attachments">{message.assets.map(a => { const m = names.get(a); return <span className="input-chip" key={a}><Thumb id={a} kind={m?.kind ?? 'image'} alt={m?.name ?? 'Attachment'} /></span>; })}</div>}</div>;
   }
   const text = cleanReply(message.text);
   const madePlan = project.groups.some(g => g.cards.some(c => c.revisions.some(r => r.run_id === message.id)));
