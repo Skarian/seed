@@ -81,6 +81,19 @@ it('makes a direct request inside a project without disturbing an open plan',asy
   await expect(chats.makeDirect(chat.id,{prompt:'x'})).rejects.toThrow('Choose what kind');
 }));
 
+it('talks without changing an open plan when asked, and retries a direct make without making it twice',async()=>fixture(async({chats,jobs,queue,requests})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request:{...request,title:'Quiet lake'}}]);
+  chats.send(chat.id,{version:chat.version,text:'One idea',assets:[]});chat=await idle(chats,chat.id);
+  const before=JSON.stringify(chat.groups[0]!.cards);
+  chats.send(chat.id,{version:chat.version,text:'Why a lake?',assets:[],keep_plan:true});chat=await idle(chats,chat.id);
+  expect(requests.at(-1).tools ?? []).toHaveLength(0);
+  expect(chat.groups[0]!.state).toBe('reviewing');expect(JSON.stringify(chat.groups[0]!.cards)).toBe(before);
+  const direct={...request,workflow:'text-to-image',title:'Direct study'};
+  chat=await chats.makeDirect(chat.id,direct,'retry-identity-1');chat=await chats.makeDirect(chat.id,direct,'retry-identity-1');
+  expect(jobs.all()).toHaveLength(1);expect(chat.groups.filter(g=>g.direct)).toHaveLength(1);
+}));
+
 it('holds a whole group until all decisions and submits approved requests once',async()=>fixture(async({chats,jobs,queue,requests})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Another landscape'}}]);

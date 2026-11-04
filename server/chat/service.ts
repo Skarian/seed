@@ -173,7 +173,7 @@ export class Chats {
       }
     }));
   }
-  send(id:string,input:{version:number;text:string;assets:string[];mention_bindings?:MentionBinding[];card_id?:string;revision?:number;attach_request?:boolean}){
+  send(id:string,input:{version:number;text:string;assets:string[];mention_bindings?:MentionBinding[];card_id?:string;revision?:number;attach_request?:boolean;keep_plan?:boolean}){
     const chat=this.get(id);this.checkVersion(chat,input.version);if(this.agentBusy(chat))throw Error('Seed is still replying. Wait for it or stop it, then send.');
     if(!input.text.trim()||input.text.length>16000)throw Error('Write a message of 1–16000 characters.');
     const key=chatCredential(this.paths);if(!key)throw Error('Add your OpenRouter key in Admin → Credentials.');
@@ -196,16 +196,17 @@ export class Chats {
     snapshot.hash=createHash('sha256').update(JSON.stringify({version:snapshot.version,system:snapshot.system,summarySystem:snapshot.summarySystem})).digest('hex');
     chat.messages.push({id:randomUUID(),role:'user',text:input.text,mention_bindings:mentionBindings,assets:input.assets,...(input.attach_request&&target?{request_attachment:{card_id:target.id,revision:latest(target).number,request:structuredClone(latest(target).request),notes:structuredClone(latest(target).notes)}}:{}),created_at:now()});
     const needsTitle=chat.messages.filter(m=>m.role==='user').length===1&&!chat.title_manual;
-    if(group)group.state='revising';chat.activity='thinking';chat.error=null;chat.partial='';chat.partial_reasoning='';chat.version++;
+    if(input.keep_plan&&input.card_id)throw Error('Choose either a draft to revise or talk without changing the plan.');
+    if(group&&!input.keep_plan)group.state='revising';chat.activity='thinking';chat.error=null;chat.partial='';chat.partial_reasoning='';chat.version++;
     const run={id:randomUUID(),workflow:chat.workflow,source_assets:[...input.assets],target_request_id:target?.id,prompt:snapshot,accounting:[] as ChatAccounting[],messages:[] as AgentMessage[],state:'running'};chat.runs.push(run);chat.messages.push({id:run.id,role:'assistant',text:'',assets:[],created_at:now(),transcript:{started_at:now(),state:'running',steps:[]}});this.save(chat);
-    const task=this.run(chat.id,chat.epoch,run.id,key,snapshot,selected,target?.id,contextCards.map(c=>c.id)).finally(()=>{if(this.tasks.get(id)===task){this.tasks.delete(id);this.agents.delete(id);}});this.tasks.set(id,task);if(needsTitle){try{this.generateTitle(id,input.text,key);}catch(error){const current=this.get(id);current.title_error=(error as Error).message;this.save(current);}}return this.view(id);
+    const task=this.run(chat.id,chat.epoch,run.id,key,snapshot,selected,target?.id,contextCards.map(c=>c.id),Boolean(input.keep_plan)).finally(()=>{if(this.tasks.get(id)===task){this.tasks.delete(id);this.agents.delete(id);}});this.tasks.set(id,task);if(needsTitle){try{this.generateTitle(id,input.text,key);}catch(error){const current=this.get(id);current.title_error=(error as Error).message;this.save(current);}}return this.view(id);
   }
   private generateTitle(id:string,firstMessage:string,key:string){
     const agent=createChatAgent({apiKey:key,systemPrompt:chatTitlePrompt(this.paths),reasoning:false,maxTokens:128,fetch:this.transport,onAccounting:value=>{try{const chat=this.get(id);chat.title_accounting=[value];this.save(chat);}catch{/* Chat may have been deleted. */}}});
     const task=(async()=>{try{await agent.prompt(firstMessage);const final=agent.state.messages.at(-1);if(final?.role!=='assistant'||final.stopReason!=='stop')throw Error('Title generation did not complete.');const title=final.content.filter(p=>p.type==='text').map(p=>p.text).join('').trim().replace(/^['"“”]+|['"“”]+$/g,'').replace(/\s+/g,' ').slice(0,70);if(!title)throw Error('Title generation returned no title.');const chat=this.get(id);if(!chat.title_manual){chat.title=title;this.save(chat);}}catch(error){try{const chat=this.get(id);chat.title_error=(error as Error).message;this.save(chat);}catch{/* Chat was deleted. */}}finally{this.titles.delete(id);}})();
     this.titles.set(id,{agent,task});
   }
-  private async run(id:string,epoch:number,runId:string,key:string,snapshot:ReturnType<typeof chatPromptSnapshot>,selected:string[],target?:string,contextCardIds:string[]=[]){
+  private async run(id:string,epoch:number,runId:string,key:string,snapshot:ReturnType<typeof chatPromptSnapshot>,selected:string[],target?:string,contextCardIds:string[]=[],discussOnly=false){
     try{
       const chat=this.get(id);
       const ranges=new Map<string,Array<{start_seconds:number;duration_seconds:number;input_id:string}>>();
@@ -265,8 +266,9 @@ export class Chats {
           const result={ok:true,kind,available_loras:loraCatalog(workflow),next_action:'Prepare the drafts now with create_request, or edit_request for an existing draft.'};
           return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
         }};
-      const tools=[chooseKind,...(chat.workflow?kindTools(chat.workflow):[])];
-      const agent=createChatAgent({apiKey:key,systemPrompt:snapshot.system,tools,reasoning:chat.reasoning,fetch:this.transport,
+      // Talking without changing the plan: no request tools, so the open plan cannot change in this turn.
+      const tools=discussOnly?[]:[chooseKind,...(chat.workflow?kindTools(chat.workflow):[])];
+      const agent=createChatAgent({apiKey:key,systemPrompt:discussOnly?snapshot.system+'\n\nThe user chose to talk without changing the open plan. Answer in conversation only. Do not prepare or change requests, and do not write tool calls.':snapshot.system,tools,reasoning:chat.reasoning,fetch:this.transport,
         onAccounting:account,nextTurn:()=>{const value=nextTurn;nextTurn=undefined;return value;}});
       this.agents.set(id,agent);
       let lastUpdate=0,messageIndex=-1;
@@ -345,15 +347,17 @@ export class Chats {
     return this.view(id);
   }
   /** A user-authored draft made directly in this project: it is approved as written and starts at once. */
-  async makeDirect(id:string,raw:unknown){
-    const chat=this.get(id);if(this.agentBusy(chat))throw Error('Wait for Seed to finish, then make this.');
+  async makeDirect(id:string,raw:unknown,clientRequestId?:string){
+    const chat=this.get(id);
+    // A retried submission (lost response, reconnect) returns the earlier result instead of making it twice.
+    if(clientRequestId&&chat.groups.some(g=>g.client_request_id===clientRequestId))return this.view(id);if(this.agentBusy(chat))throw Error('Wait for Seed to finish, then make this.');
     const workflow=(raw as {workflow?:ChatWorkflow})?.workflow;if(!workflow||!Object.hasOwn(chatWorkflows,workflow))throw Error('Choose what kind of media to make.');
     const {workflow:_kind,...settings}=raw as Record<string,unknown>;
     const inputs=[...new Set(((settings.references??[]) as Array<{asset_id?:unknown}>).map(r=>String(r?.asset_id)))];
     this.assertAssets(chat,inputs);for(const asset of inputs)if(!chat.assets.includes(asset))chat.assets.push(asset);
     const request=this.request(chat,workflow,settings);
     const revision={...this.revision(chat,request,1),decision:'approved' as const,approved_snapshot:true};revision.request.resolved_seeds=seeds(revision.request);
-    const group:ChatGroup={id:randomUUID(),after_message_id:chat.messages.at(-1)?.id??null,workflow,state:'reviewing',cards:[{id:randomUUID(),workflow,revisions:[revision]}]};
+    const group:ChatGroup={id:randomUUID(),after_message_id:chat.messages.at(-1)?.id??null,workflow,state:'reviewing',cards:[{id:randomUUID(),workflow,revisions:[revision]}],direct:true,...(clientRequestId?{client_request_id:clientRequestId}:{})};
     // Keep an open plan first so plan revisions still find it.
     chat.groups.push(group);chat.activity='preparing';chat.version++;this.save(chat);
     await this.release(id,group.id,chat.epoch);
