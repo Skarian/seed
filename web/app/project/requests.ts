@@ -6,10 +6,14 @@ import { workflowOf, isVideoKind, type Kind } from '../api.js';
 
 /** Settings for a direct make, remembered per kind. */
 export type MakeSettings = {
-  kind: Kind; aspect: '16:9' | '9:16'; imageSize: ResolutionSize; videoSize: ResolutionSize; count: number;
+  kind: Kind; aspect: '16:9' | '9:16' | '1:1' | '4:5'; imageSize: ResolutionSize; videoSize: ResolutionSize; count: number;
   duration: number; sound: 'generated' | 'silent'; detail: 'standard' | 'full'; style?: { id: string; revision: string; scale: number };
   target: 'auto' | 'local' | 'cloud';
+  /** 'random' for a new variation each time, or a starting seed to repeat a result. */
+  seed?: string;
 };
+/** The model behind each kind, in plain words. */
+export const engines: Record<Kind, string> = { image: 'Krea 2: fast stills, photographic or illustrated', edit: 'Qwen Image Edit: follows edit instructions and keeps the rest of the source', video: 'MiniMax H3: 5 to 15 second clips, with sound if you want it', animate: 'MiniMax H3: clips guided by your images, video or audio' };
 export const defaultMake: MakeSettings = { kind: 'image', aspect: '16:9', imageSize: defaultPreferences.image, videoSize: defaultPreferences.video, count: 1, duration: 5, sound: 'generated', detail: DEFAULT_VIDEO_DETAIL, target: 'auto' };
 
 export type Attachment = { key: string; asset_id?: string; file?: File; name: string; kind: 'image' | 'video' | 'audio'; url?: string; role?: InputReference['role']; framing?: 'fit' | 'fill'; start?: number; length?: number; include_audio?: boolean; progress?: string; error?: string };
@@ -52,12 +56,12 @@ export function buildRequest(settings: MakeSettings, prompt: string, inputs: Att
     ...(kind === 'animate' && a.kind === 'image' ? { framing: a.framing ?? 'fit' } : {}),
     ...(a.kind !== 'image' ? { range: { start_seconds: a.start ?? 0, duration_seconds: a.length ?? 5 }, ...(a.kind === 'video' ? { include_audio: Boolean(a.include_audio) } : {}) } : {}),
   }));
-  const base = { workflow, prompt: prompt.trim(), title, seed: 'random', count: settings.count, ...(settings.target !== 'auto' ? { target: settings.target } : {}) };
+  const base = { workflow, prompt: prompt.trim(), title, seed: settings.seed && settings.seed !== 'random' ? settings.seed : 'random', count: settings.count, ...(settings.target !== 'auto' ? { target: settings.target } : {}) };
   if (kind === 'edit') return { ...base, references, output: { aspect: 'source', size: settings.imageSize } };
   if (!video) return { ...base, output: { aspect: settings.aspect, size: settings.imageSize }, ...(settings.style ? { loras: [settings.style] } : {}) };
   return {
     ...base, ...(kind === 'animate' ? { references } : {}),
-    output: { aspect: settings.aspect, size: settings.videoSize, duration_seconds: settings.duration },
+    output: { aspect: settings.aspect === '9:16' || settings.aspect === '4:5' ? '9:16' : '16:9', size: settings.videoSize, duration_seconds: settings.duration },
     audio: { output: settings.sound }, steps: DEFAULT_VIDEO_STEPS, detail: settings.detail,
     ...(settings.style ? { loras: [settings.style] } : {}),
   };

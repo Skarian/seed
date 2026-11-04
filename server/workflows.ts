@@ -1,6 +1,6 @@
 import { videoRequest } from './video.js';
 import { editRequest } from './image-edit.js';
-import type {ImageRequest} from '../shared/generation.js';
+import { imageAspects, type ImageRequest } from '../shared/generation.js';
 export type {ImageRequest} from '../shared/generation.js';
 import { randomBytes } from 'node:crypto';
 import { isResolutionSize } from '../shared/resolution.js';
@@ -27,7 +27,7 @@ export function imageRequest(value: unknown): ImageRequest {
   if (v?.workflow === 'text-to-video' || v?.workflow === 'reference-to-video') return videoRequest(v);
   if (!v || Object.keys(v).some(k => !['workflow', 'prompt', 'mode', 'output', 'seed', 'count'].includes(k))
       || v.workflow !== 'text-to-image' || typeof v.prompt !== 'string' || !v.prompt.trim() || v.prompt.length > 5000
-      || !['sfw', 'nsfw'].includes(v.mode) || !v.output || Object.keys(v.output).some(k => !['aspect', 'size'].includes(k)) || !['16:9', '9:16'].includes(v.output.aspect) || !isResolutionSize(v.workflow,v.output.size,process.env.SEED_QUALIFY_RESOLUTIONS==='1')) throw new Error('Check the image settings.');
+      || !['sfw', 'nsfw'].includes(v.mode) || !v.output || Object.keys(v.output).some(k => !['aspect', 'size'].includes(k)) || !(imageAspects as readonly string[]).includes(v.output.aspect) || !isResolutionSize(v.workflow,v.output.size,process.env.SEED_QUALIFY_RESOLUTIONS==='1')) throw new Error('Check the image settings.');
   const count = v.count ?? 1, seed = v.seed ?? 'random';
   if (!Number.isInteger(count) || count < 1 || count > 16 || typeof seed !== 'string' || (seed !== 'random' && (!/^(0|[1-9][0-9]{0,15})$/.test(seed) || BigInt(seed) + BigInt(count - 1) > 9007199254740991n))) throw new Error('Check the generation count and seed.');
   return { workflow: v.workflow, prompt: v.prompt, mode: v.mode, output: { aspect: v.output.aspect, size: v.output.size }, seed, count };

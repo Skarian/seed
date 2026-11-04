@@ -28,10 +28,12 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   const [open, setOpen] = useState<string | null>(null);
   useEffect(() => { if (cards.length > 2 && innerWidth < 700) setCompact(true); }, [cards.length]);
   const kind = kindOf[group.workflow];
+  const lastRun = cards.flatMap(c => c.revisions).filter(r => r.number > 1).map(r => r.run_id).filter(Boolean).at(-1);
+  const revisedCount = lastRun ? cards.filter(c => latest(c).run_id === lastRun && latest(c).number > 1).length : 0;
   const working = group.state === 'revising' || group.state === 'assembling';
   return <section className={'card' + (flash === group.id ? ' flash' : '')} aria-label={`Plan, ${cards.length} ${cards.length === 1 ? 'draft' : 'drafts'}`} id={'group-' + group.id}>
     <div className="card-head">
-      <b>Plan</b><span className="meta">{cards.length} {cards.length === 1 ? 'draft' : 'drafts'}{working ? ' · Seed is updating it…' : ''}</span>
+      <b>Plan</b><span className="meta">{cards.length} {cards.length === 1 ? 'draft' : 'drafts'}{working ? ' · Seed is updating it…' : revisedCount ? ` · ${revisedCount} changed, ${cards.length - revisedCount} unchanged in the last revision` : ''}</span>
       <span className="end">
         {cards.length > 2 && <button className="btn quiet small" onClick={() => setCompact(c => !c)} aria-pressed={compact}>{compact ? 'Show details' : 'Compact'}</button>}
         <MenuButton label="Plan options" items={[{ label: 'Set this plan aside', hint: 'Drafts move to Not now; you can bring them back.', onSelect: onSetAside, disabled: busy }]}><Icon.More /></MenuButton>
@@ -91,7 +93,8 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
     {!current && <p className="changed">Showing version {view + 1}. <button className="link" onClick={() => setView(card.revisions.length - 1)}>Back to latest</button></p>}
     {editing && current ? <DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
       : <>
-        <p className={'excerpt' + (full ? ' full' : '')} onClick={() => setFull(f => !f)} title={full ? 'Show less' : 'Show the full prompt'}>{r.prompt.replace(/\[\[([^\]]+)\]\]/g, '$1')}</p>
+        <p className={'excerpt' + (full ? ' full' : '')}>{r.prompt.replace(/\[\[([^\]]+)\]\]/g, '$1')}</p>
+        {r.prompt.length > 200 && <button className="link" style={{ justifySelf: 'start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
         {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const a = names.get(ref.asset_id); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={a?.name ?? 'Input'} /><span><b>{roleLabels[ref.role] ?? ref.role}</b>{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
         {own.length > 0 && <div className="chips">{own.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</div>}
         {current && changed.length > 0 && <p className="changed">What changed: {changed.join(' · ')}</p>}
@@ -114,7 +117,7 @@ function DraftEditor({ card, styles, busy, onCancel, onSave }: { card: ChatCard;
     <label className="field"><span>Title</span><input className="input" value={f.title} maxLength={80} onChange={e => set({ title: e.target.value })} placeholder={titleOf(r)} /></label>
     <label className="field"><span>Prompt</span><textarea className="textarea" value={f.prompt} onChange={e => set({ prompt: e.target.value })} rows={Math.min(10, Math.max(3, Math.ceil(f.prompt.length / 70)))} /></label>
     <div className="row">
-      {r.output.aspect !== 'source' && <label className="field"><span>Shape</span><select className="select" value={f.aspect} onChange={e => set({ aspect: e.target.value as '16:9' | '9:16' })}><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option></select></label>}
+      {r.output.aspect !== 'source' && <label className="field"><span>Shape</span><select className="select" value={f.aspect} onChange={e => set({ aspect: e.target.value as never })}>{r.workflow === 'text-to-image' ? <><option value="16:9">Landscape 16:9</option><option value="1:1">Square 1:1</option><option value="4:5">Portrait 4:5</option><option value="9:16">Tall portrait 9:16</option></> : <><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option></>}</select></label>}
       <label className="field"><span>Size</span><select className="select" value={f.size} onChange={e => set({ size: e.target.value as never })}>{sizeOptions(r.workflow, f.aspect).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
       <label className="field"><span>How many</span><select className="select" value={f.count} onChange={e => set({ count: Number(e.target.value) })}>{[1, 2, 3, 4, 6, 8].map(n => <option key={n} value={n}>{n}</option>)}</select></label>
       {video && <label className="field"><span>Length</span><select className="select" value={f.duration} onChange={e => set({ duration: Number(e.target.value) })}>{[5, 6, 8, 10, 12, 15].map(n => <option key={n} value={n}>{n} seconds</option>)}</select></label>}

@@ -43,12 +43,12 @@ export function titleOf(r: ImageRequest | undefined) {
 }
 export function shapeLabel(r: ImageRequest) {
   if (r.output.aspect === 'source') return 'Source shape';
-  return r.output.aspect === '9:16' ? 'Portrait' : 'Landscape';
+  return ({ '9:16': 'Portrait 9:16', '16:9': 'Landscape', '1:1': 'Square', '4:5': 'Portrait 4:5' } as Record<string, string>)[r.output.aspect] ?? 'Landscape';
 }
 export const shapeClass = (r?: ImageRequest, w?: number, h?: number) => {
   if (w && h) return w > h * 1.15 ? 'landscape' : h > w * 1.15 ? 'portrait' : 'square';
   if (!r) return 'square';
-  return r.output.aspect === '9:16' ? 'portrait' : r.output.aspect === '16:9' ? 'landscape' : 'square';
+  return r.output.aspect === '9:16' ? 'portrait' : r.output.aspect === '4:5' ? 'portrait45' : r.output.aspect === '16:9' ? 'landscape' : 'square';
 };
 export function sizeLabel(r: ImageRequest) { return sizeName(r.workflow, String(r.output.size), r.output.aspect); }
 export function targetLabel(t: string | undefined, host?: string) { return t === 'cloud' ? 'Cloud GPU' : t === 'local' ? 'Seed PC' + (host ? ' (' + host + ')' : '') : 'Auto'; }
@@ -84,12 +84,19 @@ export function changesBetween(a: ChatRevision | undefined, b: ChatRevision, sty
   if (xs !== ys) out.push(ys ? 'style: ' + (y.loras ?? []).map(l => styleName(l.id)).join(', ') : 'style removed');
   if ((x.references ?? []).length !== (y.references ?? []).length) out.push(`${(x.references ?? []).length} → ${(y.references ?? []).length} inputs`);
   if (x.target !== y.target) out.push('runs on ' + targetLabel(y.target));
-  if (x.prompt !== y.prompt) {
-    const added = y.prompt.match(/\bno [a-z ]{2,24}/gi)?.filter(p => !x.prompt.toLowerCase().includes(p.toLowerCase()));
-    out.push(added?.length ? 'added “' + added[0]!.trim() + '”' : 'prompt rewritten');
-  }
-  if (x.title !== y.title && y.title && x.title) out.push('renamed');
+  if (x.prompt !== y.prompt) out.push(...promptChanges(x.prompt, y.prompt));
+  if (x.title !== y.title && y.title && x.title) out.push(`renamed “${x.title}” → “${y.title}”`);
   return out;
+}
+
+const stop = new Set('a an the and or of in on at to with for from by as is are be this that its it into over under near very more less'.split(' '));
+/** The meaningful words a prompt gained and lost, e.g. “+ fern, empty top · − moths”. */
+export function promptChanges(before: string, after: string) {
+  const words = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !stop.has(w)));
+  const a = words(before), b = words(after);
+  const added = [...b].filter(w => !a.has(w)).slice(0, 6), removed = [...a].filter(w => !b.has(w)).slice(0, 6);
+  if (!added.length && !removed.length) return ['prompt reworded'];
+  return [[added.length ? '+ ' + added.join(', ') : '', removed.length ? '− ' + removed.join(', ') : ''].filter(Boolean).join(' · ')];
 }
 
 /* ---------- Job states shown to people ---------- */

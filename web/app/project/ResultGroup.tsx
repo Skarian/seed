@@ -36,6 +36,7 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
   const head = <div className="card-head">
     <span className="title">{title}</span><span className="meta">{status}{group.direct ? ' · made directly' : ''}</span>
     <span className="end">
+      {running.length > 1 && <button className="btn small" onClick={() => { void Promise.all(running.map(j => jobsApi.cancel(j.id))).then(() => app.refreshTasks()); app.toast(`Cancelled ${running.length} · finished results are kept, the GPU keeps running`); }}>Cancel remaining {running.length}</button>}
       {collapsed ? <button className="btn quiet small" onClick={onExpand}>Show</button> : <button className="btn quiet small" aria-expanded={how} onClick={() => setHow(h => !h)}>How it was made</button>}
       <MenuButton label={'Options for ' + title} items={[
         { label: 'More like this', hint: 'Same settings, new seeds. Starts now.', onSelect: () => actions.onVariations(card) },
@@ -81,7 +82,7 @@ function ResultTile({ job, project, title, siblings, card, actions }: { job: Job
   const base = tileState(job), shape = shapeClass(r, job.output_dimensions?.width, job.output_dimensions?.height);
   const state = base.label === 'Waiting for GPU' || base.label === 'Queued' ? { ...base, label: gpuWait(app.pool, video ? 'video' : 'image') ?? base.label } : base;
   const asset = job.outputs[0];
-  if (job.state !== 'completed' || !asset) return <div className={`tile ${shape} ${state.tone === 'bad' ? 'failed' : ''} ${state.tone === 'live' || state.tone === 'wait' ? 'shimmer' : ''}`} role="group" aria-label={title + ': ' + state.label}>
+  if (job.state !== 'completed' || !asset) return <div className={`tile pending ${shape} ${state.tone === 'bad' ? 'failed' : ''} ${state.tone === 'live' || state.tone === 'wait' ? 'shimmer' : ''}`} role="group" aria-label={title + ': ' + state.label}>
     <span className="state pill"><span className={'dot ' + (state.tone === 'live' ? 'live' : state.tone === 'bad' ? 'red' : state.tone === 'wait' ? 'amber' : 'off')} />{state.tone === 'bad' ? state.label.split(' · ')[0] : state.label}</span>
     <div className="placeholder">{state.tone === 'bad' ? <span>{state.label.replace(/^Failed · /, '')}<br /><button className="btn small" style={{ marginTop: 8 }} onClick={() => job.state === 'needs_attention' ? void jobsApi.recover(job.id) : actions.onRetryFailed(card)}>{job.state === 'needs_attention' ? 'Check again' : 'Retry'}</button></span> : state.tone === 'off' ? <span>Cancelled<br /><button className="btn small" style={{ marginTop: 8 }} onClick={() => actions.onMakeAgain(card)}>Make again</button></span> : null}</div>
     {state.cancellable && <span className="corner"><button className="pill" onClick={() => void jobsApi.cancel(job.id).then(() => { app.refreshTasks(); app.toast('Cancelled · the GPU keeps running for other work'); })} aria-label={'Cancel ' + title}>Cancel</button></span>}

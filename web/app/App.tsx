@@ -11,6 +11,7 @@ import { SettingsPage } from './settings/SettingsPage.js';
 import { StatusPanel } from './status/StatusPanel.js';
 import { Viewer, Compare, Inspector } from './viewer/Viewer.js';
 import { ProjectsList } from './project/ProjectsList.js';
+import { Dialog } from './ui.js';
 
 export function App() {
   const { route, go } = useRouter();
@@ -25,6 +26,7 @@ export function App() {
   const [viewing, setViewing] = useState<{ item: ViewerItem; siblings: ViewerItem[]; opener: Element | null } | null>(null);
   const [comparing, setComparing] = useState<{ a: ViewerItem; b: ViewerItem } | null>(null);
   const [pendingUse, setPendingUse] = useState<AppContextValue['pendingUse']>(null);
+  const [destination, setDestination] = useState<{ item: ViewerItem; intent: NonNullable<AppContextValue['pendingUse']>['intent'] } | null>(null);
   const [lastProject, setLastProject] = useStoredState<string>('seed.lastProject.' + mode, '');
   const toastId = useRef(0);
   const toast = useCallback((text: string, action?: Toast['action']) => {
@@ -72,14 +74,19 @@ export function App() {
     compare: (a, b) => setComparing({ a, b }),
     useResult: (item, intent) => {
       setViewing(null); setComparing(null);
-      setPendingUse({ item, intent, nonce: Date.now() });
-      if (item.project && !(route.name === 'project' && route.id === item.project)) go({ name: 'project', id: item.project, view: 'conversation' });
-      else if (route.name === 'project' && route.view !== 'conversation') go({ ...route, view: 'conversation' });
-      else if (route.name !== 'project') { const target = lastProject || list.items[0]?.id; if (target) go({ name: 'project', id: target, view: 'conversation' }); }
+      // More like this and Reuse settings belong to the draft's own project.
+      if (intent === 'more' || intent === 'reuse') { const home = item.job?.source?.chat_id ?? item.project; if (home) handTo(item, intent, home); return; }
+      // Inside a project, a result goes to the project you are in. Elsewhere, ask where it should go.
+      if (route.name === 'project') handTo(item, intent, route.id);
+      else setDestination({ item, intent });
     },
     pendingUse, clearPendingUse: () => setPendingUse(null),
     wide, narrow,
   };
+  function handTo(item: ViewerItem, intent: NonNullable<AppContextValue['pendingUse']>['intent'], projectId: string) {
+    setPendingUse({ item: { ...item, project: projectId }, intent, nonce: Date.now() });
+    if (!(route.name === 'project' && route.id === projectId && route.view === 'conversation')) go({ name: 'project', id: projectId, view: 'conversation' });
+  }
   const top = route.name !== 'project';
   return <AppContext.Provider value={value}>
     <div className={`shell ${top ? 'top' : ''} ${inspected && wide ? 'with-inspector' : ''}`}>
@@ -98,6 +105,11 @@ export function App() {
     {status && <StatusPanel tab={status} onTab={setStatus} onClose={() => setStatus(null)} />}
     {viewing && <Viewer item={viewing.item} siblings={viewing.siblings} onPick={item => setViewing(v => v && { ...v, item })} onClose={() => { const opener = viewing.opener as HTMLElement | null; setViewing(null); requestAnimationFrame(() => opener?.focus?.()); }} />}
     {comparing && <Compare a={comparing.a} b={comparing.b} onClose={() => setComparing(null)} />}
+    {destination && <Dialog title={{ refine: 'Refine in which project?', animate: 'Animate in which project?', input: 'Use in which project?', more: '', reuse: '' }[destination.intent]} onClose={() => setDestination(null)}>
+      {[...new Set([lastProject, destination.item.project].filter((x): x is string => Boolean(x)))].map(pid => { const p = list.items.find(x => x.id === pid); return p ? <button key={pid} className="option" onClick={() => { setDestination(null); handTo(destination.item, destination.intent, pid); }}><span><b>{p.title}</b><small>{pid === lastProject ? 'The project you were last working in' : 'Where this result was made'}{pid === lastProject && pid === destination.item.project ? ' · where this result was made' : ''}</small></span></button> : null; })}
+      <button className="option" onClick={() => { const d = destination; setDestination(null); void projectsApi.create(mode).then(p => { list.refresh(); handTo(d.item, d.intent, p.id); }); }}><span><b>A new project</b><small>Start fresh with this result attached</small></span></button>
+      <details><summary className="faint">Another project</summary><div style={{ display: 'grid', gap: 6, marginTop: 8 }}>{list.items.filter(p => p.id !== lastProject && p.id !== destination.item.project).map(p => <button key={p.id} className="option" onClick={() => { setDestination(null); handTo(destination.item, destination.intent, p.id); }}><span>{p.title}</span></button>)}</div></details>
+    </Dialog>}
     <div className="toast-stack" role="status" aria-live="polite">
       {toasts.map(t => <div className="toast" key={t.id}>{t.text}{t.action && <button className="btn small" onClick={() => { t.action!.run(); setToasts(x => x.filter(y => y.id !== t.id)); }}>{t.action.label}</button>}</div>)}
     </div>
@@ -106,13 +118,16 @@ export function App() {
 
 /** The status control: active work and the running rental rate, in every header. */
 export function StatusControl() {
-  const { tasks, pool, openStatus } = useApp();
+  const { tasks, pool, openStatus, projectList } = useApp();
   const making = tasks.filter(jobActive).length;
+  // Two lanes: Seed planning (agent replies) and making (renders on GPUs).
+  const planning = projectList.filter(p => p.activity === 'thinking' || p.activity === 'preparing').length;
   const hourly = pool?.summary.hourly ?? 0, attention = (pool?.summary.needs_attention ?? 0) + tasks.filter(j => ['failed', 'needs_attention'].includes(j.state) && !j.uncertainty_acknowledged && Date.now() - Date.parse(j.updated_at) < 3600_000).length;
-  const label = [making ? making + ' making' : '', hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
+  const words = [planning ? 'Seed planning' : '', making ? making + ' making' : ''].filter(Boolean).join(' · ');
+  const label = [words, hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
   return <button className="status" onClick={() => openStatus(making || !hourly ? 'tasks' : 'gpus')} aria-label={'Activity and GPUs: ' + label} aria-haspopup="dialog">
-    <span className={`dot ${making ? 'live' : attention ? 'amber' : hourly ? '' : 'off'}`} />
-    <span className={making ? '' : 'label'}>{making ? making + ' making' : attention ? 'Needs you' : hourly ? 'GPU on' : 'Idle'}</span>
+    <span className={`dot ${making || planning ? 'live' : attention ? 'amber' : hourly ? '' : 'off'}`} />
+    <span className={words ? '' : 'label'}>{words || (attention ? 'Needs you' : hourly ? 'GPU on' : 'Nothing running')}</span>
     {hourly > 0 && <span className="rate"><span className="sep">· </span>{rate(hourly)}</span>}
   </button>;
 }
@@ -147,7 +162,7 @@ function Rail() {
     <button className="nav" aria-current={route.name === 'library' ? 'page' : undefined} onClick={() => go({ name: 'library' })} title="Library"><Icon.Library /><span className="txt">Library</span></button>
     <div className="spacer" />
     <div className="foot">
-      <button className="nav" aria-current={route.name === 'gpus' ? 'page' : undefined} onClick={() => go({ name: 'gpus' })} title="GPUs" aria-label="GPUs"><Icon.Gpu /><span className="txt">GPUs{active ? ` · ${active} on · ${rate(hourly)}` : ''}</span></button>
+      <button className="nav" aria-current={route.name === 'gpus' ? 'page' : undefined} onClick={() => go({ name: 'gpus' })} title="GPUs" aria-label="GPUs"><Icon.Gpu /><span className="txt">GPUs<span className="no-tablet">{active ? ` · ${active} on · ${rate(hourly)}` : ''}</span></span></button>
       <button className="nav" aria-current={route.name === 'settings' ? 'page' : undefined} onClick={() => go({ name: 'settings' })} title="Settings"><Icon.Settings /><span className="txt">Settings</span></button>
     </div>
   </nav>;

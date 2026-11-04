@@ -17,6 +17,7 @@ export function LibraryPage() {
   const [q, setQ] = useState(''), [query, setQuery] = useState('');
   const [f, setF] = useStoredState<Filters>('seed.library.filters', none);
   const [dense, setDense] = useStoredState('seed.library.dense', false);
+  const [captions, setCaptions] = useStoredState('seed.library.captions', true);
   const [cols, setCols] = useState<AssetCollection[]>([]), [filtersOpen, setFiltersOpen] = useState(false);
   const [selecting, setSelecting] = useState(false), [selected, setSelected] = useState<string[]>([]), [confirm, setConfirm] = useState(false), [toCollection, setToCollection] = useState(false);
   useEffect(() => { const t = setTimeout(() => setQuery(q), 250); return () => clearTimeout(t); }, [q]);
@@ -44,8 +45,14 @@ export function LibraryPage() {
     <div className="toolbar">
       <label className="search-box"><Icon.Search /><input type="search" placeholder="Search prompts, titles and notes" aria-label="Search the Library" value={q} onChange={e => setQ(e.target.value)} /></label>
       <button className="btn" aria-expanded={filtersOpen} onClick={() => setFiltersOpen(true)}><Icon.Tune />Filters{active.length ? ' · ' + active.length : ''}</button>
-      <MenuButton label="Sort" className="btn" items={[{ label: 'Newest first', checked: f.order === 'newest', onSelect: () => setF({ ...f, order: 'newest' }) }, { label: 'Oldest first', checked: f.order === 'oldest', onSelect: () => setF({ ...f, order: 'oldest' }) }, 'divider', { label: dense ? 'Larger tiles' : 'Smaller tiles', onSelect: () => setDense(!dense) }]}>{f.order === 'newest' ? 'Newest' : 'Oldest'} ▾</MenuButton>
+      <MenuButton label="Sort" className="btn" items={[{ label: 'Newest first', checked: f.order === 'newest', onSelect: () => setF({ ...f, order: 'newest' }) }, { label: 'Oldest first', checked: f.order === 'oldest', onSelect: () => setF({ ...f, order: 'oldest' }) }, 'divider', { label: dense ? 'Larger tiles' : 'Smaller tiles', onSelect: () => setDense(!dense) }, { label: captions ? 'Hide titles' : 'Show titles', onSelect: () => setCaptions(!captions) }]}>{f.order === 'newest' ? 'Newest' : 'Oldest'} ▾</MenuButton>
       <button className="btn" aria-pressed={selecting} onClick={() => { setSelecting(s => !s); setSelected([]); }}>{selecting ? 'Done' : 'Select'}</button>
+      <nav className="chips shelves" aria-label="Collections" style={{ flexBasis: '100%' }}>
+        <button className={'chip' + (!f.favorites && !f.collection ? ' on' : '')} onClick={() => setF({ ...f, favorites: false, collection: '' })}>Everything</button>
+        <button className={'chip' + (f.favorites ? ' on' : '')} onClick={() => setF({ ...f, favorites: !f.favorites, collection: '' })}><Icon.Heart width={13} height={13} />Favorites</button>
+        {cols.map(c => <button key={c.id} className={'chip' + (f.collection === c.id ? ' on' : '')} onClick={() => setF({ ...f, collection: f.collection === c.id ? '' : c.id, favorites: false })}>{c.name} <span className="faint">{c.count}</span></button>)}
+        <NewShelf onCreate={async name => { const c = await collectionsApi.create(app.mode, name); setCols(x => [...x, c]); setF({ ...f, collection: c.id, favorites: false }); }} />
+      </nav>
       {active.length > 0 && <div className="chips" style={{ flexBasis: '100%' }}>{active.map(([label, clear]) => <button key={label} className="chip on" onClick={clear} aria-label={'Remove filter ' + label}>{label} <Icon.Close width={12} height={12} /></button>)}<button className="chip" onClick={() => setF(none)}>Clear filters</button></div>}
     </div>
     <div className="scroll"><div className="col" style={{ maxWidth: 1400, paddingBottom: 24 }}>
@@ -56,13 +63,13 @@ export function LibraryPage() {
         {anyFilter && <button className="btn" onClick={() => { setF(none); setQ(''); }}>Clear search and filters</button>}
       </div></div>}
       {groups.map(([day, list2]) => <section key={day}><div className="day">{day}</div><div className={'grid' + (dense ? ' dense' : '')}>
-        {list2.map(a => { const it = items.find(i => i.asset === a.id)!, on = selected.includes(a.id); return <div key={a.id} className={'tile' + (on ? ' selected' : '')}>
+        {list2.map(a => { const it = items.find(i => i.asset === a.id)!, on = selected.includes(a.id); return <figure key={a.id} className="cell"><div className={'tile' + (on ? ' selected' : '')}>
           <Media id={a.id} kind={a.kind} alt={it.title} />
           <button className="open" aria-label={selecting ? (on ? 'Deselect ' : 'Select ') + it.title : 'Open ' + it.title} onClick={() => selecting ? toggle(a.id) : app.inspect(it, items)} />
           {selecting && <span className="check sel" role="checkbox" aria-checked={on} aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, background: on ? 'var(--accent)' : '#121311aa' }}>{on && <Icon.Check />}</span>}
           {a.favorite && <span className="corner" aria-label="Favorite"><Icon.HeartFill width={16} height={16} style={{ color: 'var(--accent)' }} /></span>}
-          {a.kind === 'video' && <span className="badge pill" aria-hidden="true"><Icon.Play width={11} height={11} /></span>}
-        </div>; })}
+          {a.kind !== 'image' && <span className="badge pill" aria-hidden="true">{a.kind === 'video' ? <><Icon.Play width={11} height={11} />Video</> : '♪ Audio'}</span>}
+        </div>{captions && <figcaption><span>{it.title}</span><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small></figcaption>}</figure>; })}
       </div></section>)}
       {list.cursor && <div style={{ textAlign: 'center', padding: 16 }}><button className="btn" disabled={list.loading} onClick={() => void list.more()}>{list.loading ? 'Loading…' : 'Load more'}</button></div>}
     </div></div>
@@ -90,6 +97,13 @@ export function LibraryPage() {
       body={<p style={{ margin: 0 }}>They are removed from the Library and from their projects. Items that are still saving or used by a running request are skipped. This can't be undone.</p>}
       onConfirm={() => { setConfirm(false); void bulk(id => assetsApi.remove(id), 'Deleted'); }} />}
   </>;
+}
+
+/** A one-line way to start a new collection from the shelf row. */
+function NewShelf({ onCreate }: { onCreate: (name: string) => Promise<void> }) {
+  const [open, setOpen] = useState(false), [name, setName] = useState('');
+  if (!open) return <button className="chip" onClick={() => setOpen(true)}><Icon.Plus width={13} height={13} />New collection</button>;
+  return <form style={{ display: 'inline-flex', gap: 6 }} onSubmit={e => { e.preventDefault(); if (name.trim()) void onCreate(name.trim()).then(() => { setOpen(false); setName(''); }); }}><input className="input" style={{ minHeight: 30, padding: '4px 10px', width: 180 }} autoFocus placeholder="Collection name" aria-label="New collection name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Escape' && setOpen(false)} /><button className="chip on" disabled={!name.trim()}>Create</button></form>;
 }
 
 function NewCollection({ onCreate }: { onCreate: (name: string) => Promise<void> }) {

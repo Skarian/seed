@@ -3,7 +3,7 @@ import { Icon } from '../icons.js';
 import { MenuButton, Thumb, Dialog } from '../ui.js';
 import { kindLabels, isVideoKind, type Kind } from '../api.js';
 import { useApp, type ViewerItem } from '../data.js';
-import { type Attachment, type MakeSettings, rolesFor, roleLabels, inputProblem, sizeOptions, kindOfFile, uploadFile } from './requests.js';
+import { type Attachment, type MakeSettings, rolesFor, roleLabels, inputProblem, sizeOptions, kindOfFile, uploadFile, engines } from './requests.js';
 import type { StyleEntry } from './readiness.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 import { workflowOf } from '../api.js';
@@ -101,7 +101,7 @@ export function Composer(p: Props) {
 
 function summary(s: MakeSettings, styles: StyleEntry[]) {
   const video = isVideoKind(s.kind);
-  return [kindLabels[s.kind], s.kind === 'edit' ? 'source shape' : s.aspect === '9:16' ? 'Portrait' : 'Landscape', '×' + s.count, ...(video ? [s.duration + ' s', s.sound === 'silent' ? 'silent' : 'sound'] : []), ...(s.style && s.kind !== 'edit' ? [styles.find(x => x.id === s.style!.id)?.name ?? 'style'] : []), s.target === 'local' ? 'Seed PC' : s.target === 'cloud' ? 'Cloud' : 'Auto'].join(' · ');
+  return [kindLabels[s.kind], s.kind === 'edit' ? 'source shape' : ({ '16:9': 'Landscape', '9:16': 'Portrait', '1:1': 'Square', '4:5': 'Portrait 4:5' } as Record<string, string>)[s.aspect], '×' + s.count, ...(video ? [s.duration + ' s', s.sound === 'silent' ? 'silent' : 'sound'] : []), ...(s.style && s.kind !== 'edit' ? [styles.find(x => x.id === s.style!.id)?.name ?? 'style'] : []), s.target === 'local' ? 'Seed PC' : s.target === 'cloud' ? 'Cloud' : 'Auto', ...(s.seed && s.seed !== 'random' ? ['seed ' + s.seed] : [])].join(' · ');
 }
 
 function MakeSettingsDialog({ settings: s, onChange, styles, onClose }: { settings: MakeSettings; onChange: (s: MakeSettings) => void; styles: StyleEntry[]; onClose: () => void }) {
@@ -111,9 +111,9 @@ function MakeSettingsDialog({ settings: s, onChange, styles, onClose }: { settin
   const available = styles.filter(x => x.route === route);
   return <Dialog title="Make settings" onClose={onClose} footer={<button className="btn primary" onClick={onClose}>Done</button>}>
     <div className="field"><span>Kind</span><div className="seg" role="group" aria-label="Kind">{(['image', 'edit', 'video', 'animate'] as Kind[]).map(k => <button key={k} aria-pressed={s.kind === k} onClick={() => set({ kind: k, style: undefined })}>{kindLabels[k]}</button>)}</div>
-      <span className="faint" style={{ fontSize: 13 }}>{s.kind === 'image' ? 'A new still from words.' : s.kind === 'edit' ? 'Change an image you attach (one source, optional references).' : s.kind === 'video' ? 'A new clip from words.' : 'A clip guided by images, video or audio you attach.'}</span></div>
+      <span className="faint" style={{ fontSize: 13 }}>{s.kind === 'image' ? 'A new still from words.' : s.kind === 'edit' ? 'Change an image you attach (one source, optional references).' : s.kind === 'video' ? 'A new clip from words.' : 'A clip guided by images, video or audio you attach.'} Engine: {engines[s.kind]}.</span></div>
     <div className="editor"><div className="row">
-      {s.kind !== 'edit' && <label className="field"><span>Shape</span><select className="select" value={s.aspect} onChange={e => set({ aspect: e.target.value as '16:9' | '9:16' })}><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option></select></label>}
+      {s.kind !== 'edit' && <label className="field"><span>Shape</span><select className="select" value={video && (s.aspect === '1:1' || s.aspect === '4:5') ? '9:16' : s.aspect} onChange={e => set({ aspect: e.target.value as MakeSettings['aspect'] })}>{s.kind === 'image' ? <><option value="16:9">Landscape 16:9</option><option value="1:1">Square 1:1</option><option value="4:5">Portrait 4:5</option><option value="9:16">Tall portrait 9:16</option></> : <><option value="16:9">Landscape 16:9</option><option value="9:16">Portrait 9:16</option></>}</select></label>}
       <label className="field"><span>Size</span><select className="select" value={video ? s.videoSize : s.imageSize} onChange={e => set(video ? { videoSize: e.target.value as never } : { imageSize: e.target.value as never })}>{sizeOptions(workflow, s.kind === 'edit' ? 'source' : s.aspect).map(o => <option key={o.id} value={o.id}>{o.label}</option>)}</select></label>
       <label className="field"><span>How many</span><select className="select" value={s.count} onChange={e => set({ count: Number(e.target.value) })}>{[1, 2, 3, 4, 6, 8].map(n => <option key={n}>{n}</option>)}</select></label>
       {video && <label className="field"><span>Length</span><select className="select" value={s.duration} onChange={e => set({ duration: Number(e.target.value) })}>{[5, 6, 8, 10, 12, 15].map(n => <option key={n} value={n}>{n} seconds</option>)}</select></label>}
@@ -121,6 +121,8 @@ function MakeSettingsDialog({ settings: s, onChange, styles, onClose }: { settin
       {video && <label className="field"><span>Detail</span><select className="select" value={s.detail} onChange={e => set({ detail: e.target.value as 'standard' | 'full' })}><option value="standard">Fast</option><option value="full">Full (slower)</option></select></label>}
       {s.kind !== 'edit' && <label className="field"><span>Style</span><select className="select" value={s.style?.id ?? ''} onChange={e => { const x = available.find(v => v.id === e.target.value); set({ style: x ? { id: x.id, revision: x.revision, scale: x.default_scale ?? 1 } : undefined }); }}><option value="">No style</option>{available.map(x => <option key={x.id} value={x.id} disabled={x.source_status === 'needs_source'}>{x.name}</option>)}</select></label>}
       <label className="field"><span>Runs on</span><select className="select" value={s.target} onChange={e => set({ target: e.target.value as MakeSettings['target'] })}><option value="auto">Auto</option><option value="local">Seed PC</option><option value="cloud">Cloud GPU</option></select></label>
+      <label className="field"><span>Variation</span><select className="select" value={!s.seed || s.seed === 'random' ? 'random' : 'fixed'} onChange={e => set({ seed: e.target.value === 'random' ? 'random' : (s.seed && s.seed !== 'random' ? s.seed : '1') })}><option value="random">New each time</option><option value="fixed">Repeat a seed</option></select></label>
+      {s.seed && s.seed !== 'random' && <label className="field"><span>Seed</span><input className="input" inputMode="numeric" value={s.seed} onChange={e => set({ seed: e.target.value.replace(/[^0-9]/g, '') || '0' })} /></label>}
     </div></div>
   </Dialog>;
 }

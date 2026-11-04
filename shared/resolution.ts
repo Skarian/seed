@@ -34,6 +34,11 @@ export function resolveDimensions(workflow: string, size: ResolutionSize, aspect
     if (!source) throw Error('Choose a source image first.');
     return editDimensions(source.width, source.height, size as ImageSize);
   }
+  // Square and 4:5 stills keep the preset's pixel area, rounded to the model's 32-pixel grid.
+  if (resolutionFamily(workflow) === 'image' && (aspect === '1:1' || aspect === '4:5')) {
+    const area = preset.area ?? preset.width * preset.height, ratio = aspect === '1:1' ? 1 : 4 / 5;
+    return { width: Math.round(Math.sqrt(area * ratio) / 32) * 32, height: Math.round(Math.sqrt(area / ratio) / 32) * 32 };
+  }
   if (aspect !== '16:9' && aspect !== '9:16') throw Error('Choose a supported orientation.');
   return aspect === '9:16' ? { width: preset.height, height: preset.width } : { width: preset.width, height: preset.height };
 }

@@ -205,7 +205,7 @@ describe('provider-readable enums and input instance contract',()=>{
       const schemas=requestToolSchemas(workflow,'nsfw');
       for(const schema of [schemas.create,schemas.edit]){
         const raw=JSON.parse(JSON.stringify(schema));expect(JSON.stringify(raw)).not.toContain('anyOf');
-        expect(raw.properties.aspect_ratio).toMatchObject({type:'string',enum:['16:9','9:16']});
+        expect(raw.properties.aspect_ratio).toMatchObject({type:'string',enum:workflow==='text-to-image'?['16:9','9:16','1:1','4:5']:['16:9','9:16']});
         if(workflow!=='text-to-image')expect(raw.properties.audio_output).toMatchObject({type:'string',enum:['generated','silent']});
       }
     }

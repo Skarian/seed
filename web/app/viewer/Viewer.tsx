@@ -3,7 +3,7 @@ import { assets as assetsApi, collections as collectionsApi, jobs as jobsApi, pr
 import { useApp, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
 import { Media, MenuButton, Thumb, Confirm, Dialog } from '../ui.js';
-import { titleOf, settingChips, duration, targetLabel } from '../format.js';
+import { titleOf, settingChips, duration, targetLabel, promptChanges } from '../format.js';
 import { roleLabels } from '../project/requests.js';
 import { StatusControl } from '../App.js';
 import { useStyles } from '../project/styles.js';
@@ -64,12 +64,12 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
     <div className="kv">
       <span>Made from</span><div>{parents.length ? <span className="lineage">{parents.map(p => <button key={p.asset} onClick={() => app.inspect({ asset: p.asset, kind: p.kind, title: roleLabels[p.role] ?? 'Input' })}><Thumb id={p.asset} kind={p.kind} alt="" />{roleLabels[p.role] ?? p.role}</button>)}</span> : <span className="faint">{job ? 'Words only' : detail && !detail.job_id ? 'Uploaded' : '—'}</span>}</div>
       {children.length > 0 && <><span>Made from this</span><div className="lineage">{children.slice(0, 8).map(c => <button key={c.asset} onClick={() => app.inspect({ asset: c.asset, kind: isVideoKind(kindOf[c.job.request.workflow]) ? 'video' : 'image', title: titleOf(c.job.request), job: c.job, project: c.job.source?.chat_id })}><Thumb id={c.asset} kind={isVideoKind(kindOf[c.job.request.workflow]) ? 'video' : 'image'} alt="" />{titleOf(c.job.request)}</button>)}</div></>}
-      {r && <><span>Prompt</span><div className="prompt">{r.prompt}</div></>}
       {r && <><span>Settings</span><div>{settingChips(r, id => id).filter(([k]) => !k.startsWith('style') && k !== 'target').map(([, v]) => v).join(' · ')}{detail?.width ? ` · saved at ${detail.width}×${detail.height}` : ''}</div></>}
       {r?.loras?.length ? <><span>Style</span><div>{r.loras.map(l => `${styles.find(s => s.id === l.id)?.name ?? 'Style'} · strength ${l.scale}`).join(', ')}</div></> : null}
       {job && <><span>Seed</span><div>{job.seed}</div></>}
       {job && <><span>Ran on</span><div>{job.worker?.executor === 'local' ? 'Seed PC' : job.worker?.executor === 'cloud' ? 'Cloud GPU' : targetLabel(r?.target)}{job.metrics?.elapsed_to_saved_seconds ? ' · ' + duration(job.metrics.elapsed_to_saved_seconds) : ''}</div></>}
       {source?.chat_id && <><span>Project</span><div><button className="link" onClick={() => { onClosed?.(); app.go({ name: 'project', id: source.chat_id!, view: 'conversation', focus: source.card_id }); }}>{app.projectList.find(p => p.id === source.chat_id)?.title ?? 'Open project'} · show in conversation</button></div></>}
+      {r && <><span>Prompt</span><div><details open={!app.narrow && r.prompt.length < 600}><summary className="link" style={{ cursor: 'pointer' }}>{r.prompt.length < 600 && !app.narrow ? 'Prompt' : `Show prompt (${r.prompt.split(/\s+/).length} words)`}</summary><div className="prompt">{r.prompt}</div></details></div></>}
       {!compact && <><span>Note</span><div><NoteField asset={item.asset} note={note} onSaved={setNote} /></div></>}
     </div>
     {colDialog && <Dialog title="Add to collection" onClose={() => setColDialog(false)} footer={<button className="btn primary" onClick={() => setColDialog(false)}>Done</button>}>
@@ -163,7 +163,7 @@ export function Viewer({ item, siblings, onClose, onPick }: { item: ViewerItem; 
 /** Two results, A and B, at matched size. Phones show one at a time with an A | B switch. */
 export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClose: () => void }) {
   const app = useApp();
-  const [side, setSide] = useState<'A' | 'B'>('A'), [zoom, setZoom] = useState(1);
+  const [side, setSide] = useState<'A' | 'B'>('A'), [zoom, setZoom] = useState(1), [diff, setDiff] = useState(!app.narrow);
   const [favs, setFavs] = useState<Record<string, boolean>>({});
   useEffect(() => { for (const x of [a, b]) void assetsApi.get(x.asset).then(d => setFavs(f => ({ ...f, [x.asset]: Boolean(d.favorite) }))).catch(() => {}); }, [a.asset, b.asset]);
   useEffect(() => { const key = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); if (e.key === 'a' || e.key === 'ArrowLeft') setSide('A'); if (e.key === 'b' || e.key === 'ArrowRight') setSide('B'); }; addEventListener('keydown', key); return () => removeEventListener('keydown', key); }, []);
@@ -182,7 +182,27 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
       <button className="btn small close" onClick={onClose} autoFocus><Icon.Close />Close</button><b>Compare</b>
       <div className="seg phone-only" role="group" aria-label="Show A or B"><button aria-pressed={side === 'A'} onClick={() => setSide('A')}>A</button><button aria-pressed={side === 'B'} onClick={() => setSide('B')}>B</button></div>
       <span className="faint no-phone" style={{ fontSize: 13 }}>Click to zoom both · A/B keys</span>
+      <span style={{ flex: 1 }} />
+      <button className="btn small" aria-pressed={diff} onClick={() => setDiff(d => !d)}>Differences</button>
     </div>
+    {diff && <Differences a={a} b={b} />}
     <div className="compare-grid">{fig(a, 'A')}{fig(b, 'B')}</div>
+  </div>;
+}
+
+/** What separates A from B: settings, seed, prompt words, and whether one was made from the other. */
+function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
+  const ja = useDetail(a).job, jb = useDetail(b).job;
+  if (!ja || !jb) return <div className="diffbar faint">Reading how each was made…</div>;
+  const ca = new Map(settingChips(ja.request, id => id)), cb = new Map(settingChips(jb.request, id => id));
+  const keys = [...new Set([...ca.keys(), ...cb.keys()])].filter(k => ca.get(k) !== cb.get(k));
+  const rows: Array<[string, string]> = keys.map(k => [k.startsWith('style') ? 'Style' : k[0]!.toUpperCase() + k.slice(1), `${ca.get(k) ?? '—'} → ${cb.get(k) ?? '—'}`]);
+  if (ja.seed !== jb.seed) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
+  if (ja.request.prompt !== jb.request.prompt) rows.push(['Prompt', promptChanges(ja.request.prompt, jb.request.prompt).join(' ')]);
+  const lineage = jb.request.references?.some(r => r.asset_id === a.asset) ? 'B was made from A' : ja.request.references?.some(r => r.asset_id === b.asset) ? 'A was made from B' : '';
+  return <div className="diffbar" aria-label="Differences between A and B">
+    {lineage && <span className="chip on">{lineage}</span>}
+    {!rows.length && !lineage && <span className="faint">Same prompt and settings{ja.seed === jb.seed ? ' and seed' : ''}.</span>}
+    {rows.map(([k, v]) => <span key={k} className="chip"><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
   </div>;
 }

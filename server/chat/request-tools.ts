@@ -1,3 +1,4 @@
+import { imageAspects } from '../../shared/generation.js';
 import { isVideoWorkflow, usesInputs } from '../../shared/workflows.js';
 import {randomUUID} from 'node:crypto';
 import {Type} from '@earendil-works/pi-ai';
@@ -39,7 +40,7 @@ export function requestToolSchemas(workflow:ChatWorkflow,mode:ChatMode,hasLoras=
     ...(hasLoras?{loras:Type.Array(Type.Object({id:Type.String(),revision:Type.String(),scale:Type.Number({minimum:0,maximum:4})},{additionalProperties:false}),{maxItems:3,description:'Prefer zero or one compatible adapter from available_loras. Copy its id and revision exactly; use its default_scale unless the user asks otherwise. An empty array removes all adapters. Omit during edits to keep the current selection.'})}:{}),
     batch_size:Type.Integer({minimum:1,maximum:16}),
     seed:Type.String({pattern:'^(random|0|[1-9][0-9]{0,15})$',description:'random, or the starting seed as a string; last batch seed must be <=9007199254740991.'}),
-    aspect_ratio:enumOf(editingImage?['source']:['16:9','9:16'],'16:9 is landscape; 9:16 is portrait.'),
+    aspect_ratio:enumOf(editingImage?['source']:workflow==='text-to-image'?[...imageAspects]:['16:9','9:16'],workflow==='text-to-image'?'16:9 is landscape; 9:16 is tall portrait; 1:1 is square; 4:5 is portrait (posters, social).':'16:9 is landscape; 9:16 is portrait.'),
     title:Type.String({minLength:1,maxLength:80,description:'A short name for this draft in the user’s own words, 2-6 words, e.g. "Cat on the sill". Always include it; it is shown on the draft and its results.'}),
     note:Type.String({maxLength:4000,description:'A note saved with generated assets. Empty text clears it.'}),
     ...(video?{

@@ -41,3 +41,11 @@ it('only shows a legacy size while selected, without changing its dimensions or 
   expect(resolutionOptions('text-to-image','9:16','1mp').at(-1)).toEqual({label:'720 × 1280',size:'1mp'});
   expect(resolutionOptions('image-to-image','source','1mp',{width:512,height:512})).toEqual([{label:'512 × 512',size:'1mp'}]);
 });
+
+it('makes square and 4:5 stills at the preset area on a 32-pixel grid, and keeps video to 16:9 and 9:16', () => {
+  expect(resolveDimensions('text-to-image', 'image-768', '1:1')).toEqual({ width: 1024, height: 1024 });
+  const portrait = resolveDimensions('text-to-image', 'image-768', '4:5');
+  expect(portrait.width % 32).toBe(0); expect(portrait.height % 32).toBe(0);
+  expect(Math.abs(portrait.width / portrait.height - 0.8)).toBeLessThan(0.03);
+  expect(() => resolveDimensions('text-to-video', '768p', '1:1')).toThrow('Choose a supported orientation.');
+});

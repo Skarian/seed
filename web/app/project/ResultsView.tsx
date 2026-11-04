@@ -26,12 +26,13 @@ export function ResultsView({ project }: { project: Project }) {
     <div className="scroll"><div className="col" style={{ maxWidth: 1200, paddingBottom: 24 }}>
       {list.loaded && !items.length && <div className="empty" style={{ minHeight: 280 }}><div><h2 className="serif" style={{ fontSize: 24 }}>{filter === 'fav' ? 'No favorites yet' : 'Nothing made yet'}</h2><p>{filter === 'fav' ? 'Tap ♥ on a result to keep it here.' : 'Results from this project appear here.'}</p>{filter !== 'all' && <button className="btn" onClick={() => setFilter('all')}>Show all</button>}</div></div>}
       {groups.map(([day, its]) => <section key={day}><div className="day">{day}</div><div className="grid dense">
-        {its.map(it => { const on = selected.includes(it.asset); return <div key={it.asset} className={'tile' + (on ? ' selected' : '')}>
+        {its.map(it => { const on = selected.includes(it.asset); return <figure key={it.asset} className="cell"><div className={'tile' + (on ? ' selected' : '')}>
           <Media id={it.asset} kind={it.kind} alt={it.title} />
           <button className="open" aria-label={'Open ' + it.title} onClick={() => app.inspect(it, items)} />
           <button className="sel check" role="checkbox" aria-checked={on} aria-label={'Select ' + it.title + ' to compare'} onClick={() => toggle(it.asset)} style={{ position: 'absolute', top: 6, left: 6, background: on ? 'var(--accent)' : '#121311aa' }}>{on && <Icon.Check />}</button>
           <span className="corner"><button className="pill" onClick={() => app.go({ name: 'project', id: project.id, view: 'conversation', focus: it.job?.source?.card_id })} aria-label={'Show ' + it.title + ' in conversation'}><Icon.Chat width={13} height={13} /></button></span>
-        </div>; })}
+          {it.kind === 'video' && <span className="badge pill" aria-hidden="true"><Icon.Play width={11} height={11} />{it.job?.request.output.duration_seconds ?? 5} s</span>}
+        </div><figcaption><span>{it.title}</span>{it.job?.request && <small>{it.kind === 'video' ? 'Video' : 'Image'}{it.job.request.workflow === 'image-to-image' ? ' · edit' : it.job.request.workflow === 'reference-to-video' ? ' · animated' : ''}</small>}</figcaption></figure>; })}
       </div></section>)}
       {list.cursor && <div style={{ textAlign: 'center', padding: 16 }}><button className="btn" disabled={list.loading} onClick={() => void list.more()}>{list.loading ? 'Loading…' : 'Load more'}</button></div>}
     </div></div>

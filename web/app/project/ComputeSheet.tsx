@@ -1,8 +1,8 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { pool as poolApi, randomKey, type OffersResponse, type WorkerClass } from '../api.js';
 import { Dialog, Spinner } from '../ui.js';
-import { rate } from '../format.js';
-import { useApp } from '../data.js';
+import { rate, money } from '../format.js';
+import { useApp, useStoredState } from '../data.js';
 import type { WorkerOffer } from '../../../shared/pool.js';
 
 const idleChoices = [[5, '5 minutes'], [15, '15 minutes'], [30, '30 minutes'], [60, '1 hour'], [0, 'Never (I release it myself)']] as const;
@@ -12,7 +12,9 @@ const gb = (bytes?: number) => bytes ? (bytes / 1024 ** 3).toFixed(0) + ' GB' : 
 export function ComputeSheet({ role, action, onClose, onStarted }: { role: WorkerClass; action: string; onClose: () => void; onStarted: () => void }) {
   const { refreshPool, go, pool } = useApp();
   const [offers, setOffers] = useState<OffersResponse | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(true);
-  const [choice, setChoice] = useState<string>(''), [idle, setIdle] = useState(15), [more, setMore] = useState(false), [busy, setBusy] = useState(false);
+  const [choice, setChoice] = useState<string>(''), [more, setMore] = useState(false), [busy, setBusy] = useState(false);
+  const [idle, setIdle] = useStoredState('seed.idleRelease', 15);
+  const voluntary = action === 'keep it ready';
   const [key] = useState(randomKey);
   async function load() {
     setLoading(true); setError('');
@@ -39,9 +41,9 @@ export function ComputeSheet({ role, action, onClose, onStarted }: { role: Worke
     finally { setBusy(false); }
   }
   const noun = role === 'video' ? 'a video GPU' : 'an image GPU';
-  return <Dialog title={`This needs ${noun}`} onClose={onClose} footer={<>
-    <button className="btn" onClick={onClose}>Back to plan</button>
-    <button className="btn primary" disabled={!selected || busy || expired} onClick={() => void start()}>{busy ? 'Starting…' : `Start GPU and ${action}`}</button>
+  return <Dialog title={voluntary ? `Start ${noun}` : `This needs ${noun}`} onClose={onClose} footer={<>
+    <button className="btn" onClick={onClose}>{voluntary ? 'Cancel' : 'Back to plan'}</button>
+    <button className="btn primary" disabled={!selected || busy || expired} onClick={() => void start()}>{busy ? 'Starting…' : voluntary ? `Start ${noun.replace(/^an? /, '')}` : `Start GPU and ${action}`}</button>
   </>}>
     <p className="muted" style={{ margin: 0 }}>Nothing is rented until you press Start. Prices are the provider's current quote.</p>
     {loading && <Spinner label="Finding available machines…" />}
@@ -60,6 +62,7 @@ export function ComputeSheet({ role, action, onClose, onStarted }: { role: Worke
     {items.length > 2 && <button className="link" style={{ justifySelf: 'start' }} onClick={() => setMore(m => !m)}>{more ? 'Show recommended only' : `More machines (${items.length})`}</button>}
     <label className="field"><span>Release it automatically when idle for</span>
       <select className="select" value={idle} onChange={e => setIdle(Number(e.target.value))}>{idleChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
+    {selected && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>Billing starts when the provider accepts the rental. {idle ? `If it then sits idle until release, that idle time costs about ${money(selected.hourly * idle / 60)}` : 'With no idle release it bills until you release it'}, plus the time to start, download models and make.</p>}
     <p className="faint" style={{ margin: 0, fontSize: 13 }}>Closing this browser doesn't stop the GPU. Seed's server releases it when idle. If the Seed server itself is off, release it from the provider's console.</p>
     {expired && <div className="notice" role="alert">This quote expired. <button className="link" onClick={() => void load()}>Get a fresh quote</button></div>}
   </Dialog>;

@@ -52,6 +52,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       return;
     }
     setMode('ask'); setContext({ type: 'using', item: use.item, intent: use.intent }); setFocusToken(t => t + 1);
+    follow.current = true; requestAnimationFrame(() => { const el = scroller.current; if (el) el.scrollTop = el.scrollHeight; });
   }, [app.pendingUse, project?.id]);
 
   async function run(label: string, fn: () => Promise<Project | void>) {
@@ -139,7 +140,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   function reuse(card: ChatCard) {
     const r = latest(card).request, kind = kindOf[r.workflow];
     setMode('make'); setText(r.prompt);
-    setSettings({ ...settings, kind, aspect: r.output.aspect === '9:16' ? '9:16' : '16:9', count: r.count, ...(isVideoKind(kind) ? { videoSize: r.output.size, duration: r.output.duration_seconds ?? 5, sound: r.audio?.output ?? 'generated', detail: r.detail ?? 'standard' } : { imageSize: r.output.size }), style: r.loras?.[0], target: r.target ?? 'auto' });
+    setSettings({ ...settings, kind, aspect: r.output.aspect === 'source' ? settings.aspect : r.output.aspect, count: r.count, ...(isVideoKind(kind) ? { videoSize: r.output.size, duration: r.output.duration_seconds ?? 5, sound: r.audio?.output ?? 'generated', detail: r.detail ?? 'standard' } : { imageSize: r.output.size }), style: r.loras?.[0], target: r.target ?? 'auto', seed: r.resolved_seeds?.[0] ?? r.seed });
     setAttachments((r.references ?? []).map(ref => ({ key: ref.id, asset_id: ref.asset_id, name: project?.asset_manifest?.find(a => a.id === ref.asset_id)?.name ?? 'Input', kind: ref.kind, role: ref.role, framing: ref.framing, start: ref.range?.start_seconds, length: ref.range?.duration_seconds, include_audio: ref.include_audio })));
     setFocusToken(t => t + 1);
   }
@@ -175,6 +176,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const selectedCards = plan ? plan.cards.filter(c => (selection[c.id] ?? true) && !readiness(latest(c).request, app.pool, styles).blocked) : [];
   const outputs = selectedCards.reduce((n, c) => n + latest(c).request.count, 0);
   const planReady = plan && plan.state === 'reviewing' && !replying;
+  // Seed answered the latest message without changing the plan (often a clarifying question):
+  // the plan still shows the earlier version, so running it is a secondary, clearly named choice.
+  const lastTurn = project ? [...project.messages].reverse().find(m => m.role === 'assistant' && m.transcript) : undefined;
+  const lastAsk = project ? [...project.messages].reverse().find(m => m.role === 'user') : undefined;
+  const planStale = Boolean(plan && lastTurn && lastAsk && Date.parse(lastAsk.created_at) <= Date.parse(lastTurn.created_at) && lastTurn.transcript?.state === 'completed'
+    && plan.cards.every(c => !c.revisions.some(r => r.run_id === lastTurn.id)) && /\?\s*$/.test(cleanReply(lastTurn.text)));
   const planNeed = selectedCards.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs || r.billing);
 
   if (error && !project) return <><Header project={null} view={view} onRename={() => {}} onDelete={() => {}} /><div className="scroll"><div className="col"><div className="notice error" style={{ marginTop: 24 }}>This project could not be opened: {error} <div className="actions"><button className="btn small" onClick={() => app.go({ name: 'home' })}>Go to your latest project</button></div></div></div></div></>;
@@ -197,11 +204,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         </div>
       </div>
       <div className="dock" onFocus={e => { if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(true); }} onBlur={e => { if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(false); }}><div className="col">
-        {plan && mode === 'ask' && !(app.narrow && typing) && <div className="makebar">
+        {plan && planStale && <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>Seed asked a question before changing the plan. The plan shows the earlier version until you answer.</div>}
+        {plan && !(app.narrow && typing) && <div className="makebar">
           <button className="sum" onClick={() => { const first = selectedCards[0]; if (first) setFlash(first.id); }} aria-label="Show the selected drafts">
             <b>Make selected · {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}</b> · {selectedCards.length} of {plan.cards.length} drafts{planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
           </button>
-          <button className="btn primary" disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : 'Make selected'}</button>
+          <button className={planStale ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : 'Make selected'}</button>
         </div>}
         <Composer context={context} onContext={setContext} planOpen={Boolean(plan)} mode={mode} onMode={m => { setMode(m); if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' }); }}
           text={text} onText={setText} attachments={attachments} onAttachments={setAttachments} settings={settings} onSettings={setSettings} styles={styles}
@@ -278,6 +286,7 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
   const reasoning = message.reasoning_text || turn?.steps.filter(s => s.kind === 'reasoning').map(s => s.text).join('\n');
   return <div className={'msg-seed' + (planAfter && text.length > 220 ? ' clamped' : '')}>
     <div className="who">Seed{running && <span className="statusline"><span className="dot live" />{stage} · {duration((now - Date.parse(turn!.started_at)) / 1000)}</span>}</div>
+    {running && !text && reasoning && <p className="thought" aria-live="off">{(reasoning.trim().split(/(?<=[.!?])\s+/).at(-1) ?? '').replace(/[`*_#]/g, '').slice(-140)}</p>}
     {text && <Markdown text={text} streaming={running} />}
     {!running && turn?.state === 'failed' && <div className="notice error">{turn.error ?? 'Seed stopped with an error.'}<div className="actions"><button className="btn small" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}
     {!running && turn?.state === 'stopped' && <p className="faint" style={{ margin: '4px 0 0', fontSize: 13 }}>Stopped.</p>}
@@ -312,7 +321,19 @@ function buildTimeline(project: Project): TimelineItem[] {
   });
   flush();
   for (const g of project.groups) if (!placed.has(g.id)) out.push({ type: 'group', group: g });
-  return out;
+  // The conversation is a record: a made plan appears when it was made, and the open plan is
+  // always the current object at the end, so revising it never rewrites the history above.
+  const at = (item: TimelineItem, index: number): number => {
+    if (item.type === 'message') return Date.parse(item.message.created_at) || index;
+    if (isOpenPlan(item.group)) return Infinity;
+    const made = project.jobs.filter(j => item.group.cards.some(c => c.revisions.some(r => r.job_ids.includes(j.id)))).map(j => Date.parse(j.created_at)).filter(Number.isFinite);
+    if (made.length) return Math.min(...made);
+    const prev = out.slice(0, index).reverse().find(x => x.type === 'message') as { message: ChatMessage } | undefined;
+    return prev ? (Date.parse(prev.message.created_at) || index) + 0.5 : -Infinity;
+  };
+  const keyed = out.map((item, index) => ({ item, index, t: at(item, index) }));
+  keyed.sort((a, b) => a.t - b.t || a.index - b.index);
+  return keyed.map(k => k.item);
 }
 /** The user's last message that asked for something, skipping short follow-ups such as "go ahead". */
 function substantialRequest(project: Project | null) {

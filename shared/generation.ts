@@ -26,15 +26,19 @@ type GenerationFields = {
   seed: string;
   count: number;
 };
+/** Still images also come square and in 4:5 portrait; video stays 16:9 or 9:16. */
+export const imageAspects = ["16:9", "9:16", "1:1", "4:5"] as const;
+export type ImageAspect = typeof imageAspects[number];
 type Output = {
-  aspect: "16:9" | "9:16" | "source";
+  aspect: ImageAspect | "source";
   size: ResolutionSize;
   duration_seconds?: number;
   format?: "video" | "images";
 };
 export type GenerationRequest = GenerationFields & (
   | { workflow: "image-to-image"; output: Output & { aspect: "source"; size: ImageSize } }
-  | { workflow: "text-to-image" | "text-to-video" | "reference-to-video"; output: Output & { aspect: "16:9" | "9:16" } }
+  | { workflow: "text-to-image"; output: Output & { aspect: ImageAspect } }
+  | { workflow: "text-to-video" | "reference-to-video"; output: Output & { aspect: "16:9" | "9:16" } }
 );
 /** Compatibility name for existing callers and persisted jobs. */
 export type ImageRequest = GenerationRequest;
@@ -45,5 +49,5 @@ export function patchGeneration(request:GenerationRequest, patch:Partial<Generat
   if(request.workflow==='image-to-image')return {...fields,workflow:'image-to-image',output:{aspect:'source',size:(patch.output?.size??request.output.size) as ImageSize},loras:undefined,audio:undefined,steps:undefined,detail:undefined};
   if(request.workflow==='text-to-image'){delete fields.steps;delete fields.detail;}
   const output=patch.output??request.output;
-  return {...fields,workflow:request.workflow,output:{...output,aspect:output.aspect==='source'?request.output.aspect:output.aspect}};
+  return {...fields,workflow:request.workflow,output:{...output,aspect:output.aspect==='source'?request.output.aspect:output.aspect}} as GenerationRequest;
 }
