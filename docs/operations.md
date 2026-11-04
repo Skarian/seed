@@ -212,10 +212,7 @@ npm run verify
 npm pack --pack-destination .local
 npm run test:package -- .local/skarian-seed-0.1.0.tgz
 npm run test:browser
-npm run test:visual
-npm run test:cards
-node scripts/test-remote-access.mjs
-npm run qa:serve
+npm run test:user
 ```
 
 Tests use injected provider/worker transports, isolated local profiles, and
@@ -223,29 +220,3 @@ real persisted app state. The browser harness rejects external network calls;
 it cannot rent a GPU or submit paid inference. Worker CPU tests and local
 container smoke checks are documented in `worker/README.md`.
 
-The visual atlas captures numbered, captioned scenarios on desktop and mobile,
-with individual screenshots, mosaics, an HTML gallery, and a JSON index.
-`npm run test:visual` captures the application atlas and the request-card matrix;
-`npm run qa:serve` makes the
-read-only report available on this PC's local-network address, port 4312.
-
-`npm run test:cards` builds the frontend and server into unique staging directories
-and exercises request cards on desktop and touch-enabled mobile, including branch,
-approval-lifecycle, responsive-layout, and stale-response regressions. It covers
-all four workflows, LoRA selections, request states, drafts, and review dialogs.
-Reports go to
-`.local/request-card-atlas`; set `SEED_ATLAS_ROOT` to that directory when serving
-this gallery. The live frontend and workers are not changed by these tests.
-Each capture is tied to its test run, so an old screenshot cannot make a missing
-case pass. Review individual full-size screenshots before using the numbered
-mosaics to navigate or discuss findings.
-
-Live GPU inference and provider purchases require a separate test
-run; passing offline tests does not establish generation latency or quality.
-
-The remote-access harness builds into isolated staging directories, exercises a
-real HTTPS-to-HTTP local proxy (including resumable uploads, byte-range media and
-chat events), and captures desktop/mobile Admin screens. It generates a temporary
-test certificate using OpenSSL (`OPENSSL_PATH`, PATH, or Git for Windows' bundled
-OpenSSL), and uses fixture data only. It does not configure a real tunnel or rent
-GPUs. Actual Cloudflare login policy must also be checked when deploying a tunnel.

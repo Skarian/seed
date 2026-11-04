@@ -33,9 +33,13 @@ python -m pytest worker
 npm pack --pack-destination .local
 npm run test:package -- .local/skarian-seed-0.1.0.tgz
 npm run test:browser
-npm run test:visual
-npm run test:cards
+npm run test:user
 ```
+
+`npm run test:browser` runs the offline app suite at phone, tablet and desktop
+widths: navigation, a direct make through GPU consent to results, the viewer,
+Library search and the GPU page. `npm run test:user` holds a live Gemma
+conversation (see Realistic user testing).
 
 The browser harness blocks external network calls. Passing offline tests does
 not qualify GPU compatibility, generation speed, output quality, or provider

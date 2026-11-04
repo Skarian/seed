@@ -121,7 +121,8 @@ export function Inspector({ item, siblings, onClose, onPick }: { item: ViewerIte
 export function Viewer({ item, siblings, onClose, onPick }: { item: ViewerItem; siblings: ViewerItem[]; onClose: () => void; onPick: (i: ViewerItem) => void }) {
   const app = useApp();
   const i = siblings.findIndex(s => s.asset === item.asset);
-  const { job } = useDetail(item);
+  const { job, detail, refresh } = useDetail(item);
+  const fav = Boolean(detail?.favorite);
   const source = job?.request.workflow === 'image-to-image' ? job.request.references?.find(r => r.role === 'source')?.asset_id : undefined;
   const [before, setBefore] = useState(false), [zoom, setZoom] = useState(1), [info, setInfo] = useState(!app.narrow);
   const videoRef = useRef<HTMLVideoElement>(null), touch = useRef<number | null>(null);
@@ -142,6 +143,7 @@ export function Viewer({ item, siblings, onClose, onPick }: { item: ViewerItem; 
       <b>{item.title}{siblings.length > 1 ? ` · ${i + 1} of ${siblings.length}` : ''}</b>
       {source && <div className="seg" role="group" aria-label="Before or after"><button aria-pressed={before} onClick={() => setBefore(true)}>Before</button><button aria-pressed={!before} onClick={() => setBefore(false)}>After</button></div>}
       {item.kind === 'image' && <button className="btn small no-phone" onClick={() => setZoom(z => z === 1 ? 2 : 1)}>{zoom === 1 ? 'Zoom' : 'Fit'}</button>}
+      <button className="btn small" aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={fav} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>
       <button className="btn small" aria-pressed={info} onClick={() => setInfo(v => !v)}>Details</button>
       <span className="no-phone"><StatusControl /></span>
     </div>

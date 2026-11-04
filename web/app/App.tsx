@@ -132,7 +132,7 @@ function Rail() {
     <div className="section">Projects</div>
     {projectList.length > 6 && <div className="search"><label className="search-box"><Icon.Search /><input placeholder="Find a project" aria-label="Find a project" value={query} onChange={e => setQuery(e.target.value)} /></label></div>}
     <div className="projects">
-      {shown.map(p => <button key={p.id} className="nav" aria-current={route.name === 'project' && route.id === p.id ? 'page' : undefined} onClick={() => go({ name: 'project', id: p.id, view: 'conversation' })} title={p.title}>
+      {shown.map(p => <button key={p.id} className="nav" aria-current={route.name === 'project' && route.id === p.id ? 'page' : undefined} onClick={() => go({ name: 'project', id: p.id, view: 'conversation' })} title={p.title} aria-label={'Project: ' + p.title}>
         <span className="txt">{p.title}</span>
         {activeChats.has(p.id) || p.activity !== 'idle' ? <span className="dot live" aria-label="Working" /> : p.status === 'Failed' ? <span className="dot red" aria-label="Has a failed result" /> : null}
       </button>)}
@@ -147,7 +147,7 @@ function Rail() {
     <button className="nav" aria-current={route.name === 'library' ? 'page' : undefined} onClick={() => go({ name: 'library' })} title="Library"><Icon.Library /><span className="txt">Library</span></button>
     <div className="spacer" />
     <div className="foot">
-      <button className="nav" aria-current={route.name === 'gpus' ? 'page' : undefined} onClick={() => go({ name: 'gpus' })} title="GPUs"><Icon.Gpu /><span className="txt">GPUs{active ? ` · ${active} on · ${rate(hourly)}` : ''}</span></button>
+      <button className="nav" aria-current={route.name === 'gpus' ? 'page' : undefined} onClick={() => go({ name: 'gpus' })} title="GPUs" aria-label="GPUs"><Icon.Gpu /><span className="txt">GPUs{active ? ` · ${active} on · ${rate(hourly)}` : ''}</span></button>
       <button className="nav" aria-current={route.name === 'settings' ? 'page' : undefined} onClick={() => go({ name: 'settings' })} title="Settings"><Icon.Settings /><span className="txt">Settings</span></button>
     </div>
   </nav>;
