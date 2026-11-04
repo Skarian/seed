@@ -34,7 +34,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const [compute, setCompute] = useState<null | { role: 'image' | 'video'; action: string; then: () => Promise<void> }>(null);
   const [conflict, setConflict] = useState<null | { label: string; run: () => Promise<void> }>(null);
   const [confirmDelete, setConfirmDelete] = useState(false), [renaming, setRenaming] = useState(false);
-  const [busy, setBusy] = useState(''), [problem, setProblem] = useState('');
+  const [busy, setBusy] = useState(''), [problem, setProblem] = useState(''), [typing, setTyping] = useState(false);
   const [focusToken, setFocusToken] = useState(0), [flash, setFlash] = useState<string | undefined>(focus);
   const lastSent = useRef<{ text: string; assets: string[] } | null>(null);
 
@@ -165,8 +165,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
               </div>}
         </div>
       </div>
-      <div className="dock"><div className="col">
-        {plan && mode === 'ask' && !(app.narrow && document.activeElement?.tagName === 'TEXTAREA') && <div className="makebar">
+      <div className="dock" onFocus={e => { if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(true); }} onBlur={e => { if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(false); }}><div className="col">
+        {plan && mode === 'ask' && !(app.narrow && typing) && <div className="makebar">
           <button className="sum" onClick={() => { const first = selectedCards[0]; if (first) setFlash(first.id); }} aria-label="Show the selected drafts">
             <b>Make selected · {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}</b> · {selectedCards.length} of {plan.cards.length} drafts{planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
           </button>

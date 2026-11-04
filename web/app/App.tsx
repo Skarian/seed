@@ -113,7 +113,7 @@ export function StatusControl() {
   return <button className="status" onClick={() => openStatus(making || !hourly ? 'tasks' : 'gpus')} aria-label={'Activity and GPUs: ' + label} aria-haspopup="dialog">
     <span className={`dot ${making ? 'live' : attention ? 'amber' : hourly ? '' : 'off'}`} />
     <span className={making ? '' : 'label'}>{making ? making + ' making' : attention ? 'Needs you' : hourly ? 'GPU on' : 'Idle'}</span>
-    {hourly > 0 && <span className="rate">· {rate(hourly)}</span>}
+    {hourly > 0 && <span className="rate"><span className="sep">· </span>{rate(hourly)}</span>}
   </button>;
 }
 

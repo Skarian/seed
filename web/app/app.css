@@ -345,7 +345,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
   .status .rate-long { display: none; }
   .results.tall { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   .status { padding: 6px 10px; gap: 6px; }
-  .status .label { display: none; }
+  .status .label, .status .sep { display: none; }
   .status:not(:has(.rate)) .label { display: inline; }
   .inspector { width: 100vw; }
   .composer .tools .ctx { max-width: 150px; }
