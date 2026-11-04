@@ -112,7 +112,7 @@ export function StatusControl() {
   const label = [making ? making + ' making' : '', hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
   return <button className="status" onClick={() => openStatus(making || !hourly ? 'tasks' : 'gpus')} aria-label={'Activity and GPUs: ' + label} aria-haspopup="dialog">
     <span className={`dot ${making ? 'live' : attention ? 'amber' : hourly ? '' : 'off'}`} />
-    <span>{making ? making + ' making' : attention ? 'Needs you' : hourly ? 'GPU on' : 'Idle'}</span>
+    <span className={making ? '' : 'label'}>{making ? making + ' making' : attention ? 'Needs you' : hourly ? 'GPU on' : 'Idle'}</span>
     {hourly > 0 && <span className="rate">· {rate(hourly)}</span>}
   </button>;
 }

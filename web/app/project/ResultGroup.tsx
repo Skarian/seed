@@ -48,7 +48,7 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
   return <section className={'card' + (flash ? ' flash' : '')} id={'card-' + card.id} aria-label={title}>
     {head}
     {how && <HowItWasMade project={project} card={card} styles={styles} />}
-    <div className={'results' + (list.length === 1 ? ' one' : '') + (r.output.aspect === '9:16' && list.length > 2 ? ' tall' : '')}>
+    <div className={'results' + (list.length === 1 ? ' one' : '') + (r.output.aspect === '9:16' && list.length > 2 ? ' tall' : '')} style={r.output.aspect === '9:16' && list.length > 2 ? { ['--cols' as string]: String(Math.min(list.length, 4)) } : undefined}>
       {list.map((job, n) => <ResultTile key={job.id} job={job} project={project} title={`${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`} siblings={items} card={card} actions={actions} />)}
     </div>
     {notNow.length > 0 && <div className="notnow"><span>Not now:</span>{notNow.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b> <button className="link" onClick={() => actions.onBringBack(c)}>Bring back</button></span>)}</div>}

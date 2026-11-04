@@ -159,7 +159,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 /* Results */
 .results { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; padding: 8px; }
 .results.one { grid-template-columns: minmax(0, 1fr); }
-.results.tall { grid-template-columns: repeat(auto-fill, minmax(min(180px, 45%), 1fr)); }
+.results.tall { grid-template-columns: repeat(var(--cols, 4), minmax(0, 1fr)); }
 .tile { position: relative; border-radius: var(--rt); overflow: hidden; background: var(--s2); max-height: 70vh; display: block; width: 100%; }
 .tile.portrait { aspect-ratio: 9 / 16; } .tile.landscape { aspect-ratio: 16 / 9; } .tile.square { aspect-ratio: 1; }
 .results.one .tile.portrait { max-width: min(100%, 420px); margin: 0 auto; }
@@ -343,6 +343,10 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
   .compare-grid { grid-template-columns: 1fr; }
   .compare-grid figure.hidden-phone { display: none; }
   .status .rate-long { display: none; }
+  .results.tall { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .status { padding: 6px 10px; gap: 6px; }
+  .status .label { display: none; }
+  .status:not(:has(.rate)) .label { display: inline; }
   .inspector { width: 100vw; }
   .composer .tools .ctx { max-width: 150px; }
   .toast-stack { top: auto; bottom: calc(76px + env(safe-area-inset-bottom)); width: calc(100% - 24px); }
