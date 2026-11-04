@@ -56,7 +56,7 @@ test('a multi-turn Gemma conversation becomes a plan, then results in the Librar
   expect(await plan.getByRole('checkbox', { name: /^Include / }).count()).toBeGreaterThan(0);
 
   // Make the whole plan. The first width consents to a fake cloud GPU; later widths reuse it.
-  await page.getByRole('button', { name: 'Make selected', exact: true }).click();
+  await page.getByRole('button', { name: /^Make (selected|anyway|as it is|this earlier version)$/ }).click();
   const consent = page.getByRole('dialog', { name: /^This needs an? (image|video) GPU$/ });
   await expect.poll(async () => await consent.isVisible() || (await project(page.request, id)).jobs?.length > 0, { timeout: 30_000 }).toBe(true);
   if (await consent.isVisible()) {
