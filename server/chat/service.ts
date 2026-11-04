@@ -344,6 +344,23 @@ export class Chats {
     if(prepare)await this.release(id,group.id,chat.epoch);
     return this.view(id);
   }
+  /** A user-authored draft made directly in this project: it is approved as written and starts at once. */
+  async makeDirect(id:string,raw:unknown){
+    const chat=this.get(id);if(this.agentBusy(chat))throw Error('Wait for Seed to finish, then make this.');
+    const workflow=(raw as {workflow?:ChatWorkflow})?.workflow;if(!workflow||!Object.hasOwn(chatWorkflows,workflow))throw Error('Choose what kind of media to make.');
+    const {workflow:_kind,...settings}=raw as Record<string,unknown>;
+    const inputs=[...new Set(((settings.references??[]) as Array<{asset_id?:unknown}>).map(r=>String(r?.asset_id)))];
+    this.assertAssets(chat,inputs);for(const asset of inputs)if(!chat.assets.includes(asset))chat.assets.push(asset);
+    const request=this.request(chat,workflow,settings);
+    const revision={...this.revision(chat,request,1),decision:'approved' as const,approved_snapshot:true};revision.request.resolved_seeds=seeds(revision.request);
+    const group:ChatGroup={id:randomUUID(),after_message_id:chat.messages.at(-1)?.id??null,workflow,state:'reviewing',cards:[{id:randomUUID(),workflow,revisions:[revision]}]};
+    // Keep an open plan first so plan revisions still find it.
+    chat.groups.push(group);chat.activity='preparing';chat.version++;this.save(chat);
+    await this.release(id,group.id,chat.epoch);
+    const after=this.get(id),made=after.groups.find(g=>g.id===group.id);
+    if(made&&made.state==='reviewing'){made.state='stopped';after.version++;this.save(after);}
+    return this.view(id);
+  }
   private async release(id:string,groupId:string,epoch:number){
     this.preparing.add(id);
     try{await this.jobs.serialize(async()=>{

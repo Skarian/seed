@@ -68,6 +68,19 @@ it('makes a plan in one versioned decision, sets the rest aside, and ignores a r
   await expect(chats.decideAll(chat.id,group.id,decisions.map(d=>({...d,decision:'approved' as const})))).rejects.toThrow('already been decided');
 }));
 
+it('makes a direct request inside a project without disturbing an open plan',async()=>fixture(async({chats,jobs,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request:{...request,title:'Quiet lake'}}]);
+  chats.send(chat.id,{version:chat.version,text:'One idea',assets:[]});chat=await idle(chats,chat.id);
+  const plan=chat.groups[0]!;
+  chat=await chats.makeDirect(chat.id,{...request,workflow:'text-to-image',title:'Direct study'});
+  expect(jobs.all()).toHaveLength(1);
+  const direct=chat.groups.find(g=>g.id!==plan.id)!;
+  expect(direct.state).toBe('released');expect(direct.cards[0]!.revisions[0]!.decision).toBe('approved');expect(direct.cards[0]!.revisions[0]!.request.title).toBe('Direct study');
+  expect(chat.groups.find(g=>g.id===plan.id)!.state).toBe('reviewing');
+  await expect(chats.makeDirect(chat.id,{prompt:'x'})).rejects.toThrow('Choose what kind');
+}));
+
 it('holds a whole group until all decisions and submits approved requests once',async()=>fixture(async({chats,jobs,queue,requests})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Another landscape'}}]);
