@@ -43,6 +43,41 @@ availability. See the [operations guide](operations.md) for recovery and live
 qualification guidance, and the [worker guide](../worker/README.md) for
 container-specific validation.
 
+## Realistic user testing
+
+User-test mode runs Seed with the same offline fake GPU providers and workers
+as the browser tests, but chat is live: Gemma 4 31B through OpenRouter. Every
+start uses a fresh, isolated profile under `.local/user-test-*`. Only
+`openrouter.ai` is reachable. Seed blocks and records every other outside
+call, and the launcher fails if it finds any when it stops.
+
+Set `OPENROUTER_API_KEY` in your shell, then build and start:
+
+```powershell
+$env:OPENROUTER_API_KEY = '<your OpenRouter key>'
+npm run build
+npm run user-test
+```
+
+Open the printed address (default `http://127.0.0.1:4312`; set `SEED_QA_PORT`
+to change it). Press Ctrl+C to stop. The launcher prints the number of
+OpenRouter calls and any blocked calls. The key goes only to the server
+process environment. Seed never writes it to the profile, and the profile
+does not hold any other OpenRouter key. Chats use real OpenRouter credit.
+
+To run the Playwright user suite against a fresh instance at phone, tablet and
+desktop widths:
+
+```powershell
+npm run test:user
+```
+
+The suite holds a multi-turn chat with Gemma that produces a text-to-image
+request, approves it, rents a fake cloud worker, waits for the output and
+finds it in the Library. Use only synthetic prompts in user tests. Live model
+replies can vary, so a failure can come from the model as well as from Seed.
+`npm run test:browser` is unchanged and still blocks all outside calls.
+
 Native Windows GPU tests are documented in the [local worker guide](local-worker.md).
 They use real models and run serially; normal unit tests do not load a GPU.
 To run Python fixtures without public model downloads, set `HF_HUB_OFFLINE=1`.

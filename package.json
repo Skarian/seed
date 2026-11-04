@@ -17,6 +17,8 @@
     "test:cards": "node scripts/test-request-cards.mjs",
     "qa:serve": "node scripts/serve-visual-atlas.mjs",
     "test:browser": "node scripts/test-browser.mjs",
+    "user-test": "node scripts/user-test.mjs",
+    "test:user": "node scripts/user-test.mjs --test",
     "test:recovery": "npm run build && node scripts/test-pool-recovery.mjs",
     "test:transport": "npm run build && node scripts/test-container-transport.mjs",
     "check:publication": "node scripts/check-publication.mjs",
