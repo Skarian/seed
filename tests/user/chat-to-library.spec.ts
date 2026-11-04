@@ -19,8 +19,9 @@ const test = base.extend({
 
 // No slash command: Seed has to choose the kind of work itself.
 const turns = [
-  'I would like one still image of a red paper kite above a calm beach at sunrise. Before you prepare anything, ask me one short question about the style.',
-  'A soft watercolor style, wide framing. Please prepare the image now.',
+  // Long, film-style turns, like the owner's real use: one keyframe for a short scene.
+  'I am storyboarding a short film called The Lantern Keeper. Shot 1 is the opening keyframe: Mara, a wiry woman in her sixties with cropped silver hair, a moss-green oilskin coat and fingerless wool gloves, climbs the spiral iron stairs inside an old lighthouse at dusk. She carries a brass storm lantern that throws warm amber light up the curved whitewashed wall, while cold blue twilight leaks in through a narrow salt-crusted window behind her. Low angle from a few steps below her, 35mm lens, shallow depth of field, her face half lit, dust in the lantern light, quiet and determined mood. Keep it one still image for now. Before you prepare anything, ask me one short question about the look.',
+  'Go for a grounded, painterly cinematic look: muted teal shadows, warm practical light, subtle film grain, no text or lettering anywhere, wide framing so the staircase curve reads. Mara must look exactly as described, because she appears in every later shot. Please prepare the keyframe now.',
 ];
 
 const projectId = (page: Page) => new URL(page.url()).pathname.match(/^\/projects\/([\w-]+)/)?.[1] ?? null;
