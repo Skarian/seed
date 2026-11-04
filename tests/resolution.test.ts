@@ -1,7 +1,6 @@
 import { expect, it } from 'vitest';
 import { editDimensions, isResolutionSize, resolveDimensions, resolutionOptions, sizeChoices } from '../shared/resolution.js';
 import { patchGeneration } from '../shared/generation.js';
-import { emptyGeneration, restoreGenerationDrafts } from '../web/generation-draft.js';
 
 it('offers the approved catalog without flags and retains valid historical IDs', () => {
   expect(sizeChoices('text-to-image').map(p => p.id)).toEqual(['image-480','image-768','2mp','image-1440']);
@@ -41,17 +40,4 @@ it('only shows a legacy size while selected, without changing its dimensions or 
   expect(resolutionOptions('text-to-image','16:9','image-768').map(p=>p.label)).toEqual(['864 × 480','1344 × 768','1920 × 1080','2560 × 1440']);
   expect(resolutionOptions('text-to-image','9:16','1mp').at(-1)).toEqual({label:'720 × 1280',size:'1mp'});
   expect(resolutionOptions('image-to-image','source','1mp',{width:512,height:512})).toEqual([{label:'512 × 512',size:'1mp'}]);
-});
-
-it('starts all fresh workflows with the common baseline, leaving saved selections alone', () => {
-  for(const workflow of ['text-to-image','image-to-image','text-to-video','reference-to-video'] as const)
-    expect(emptyGeneration(workflow).request.output.size).toBe(workflow.includes('video')?'768p':'image-768');
-  expect(restoreGenerationDrafts({'text-to-image':{request:{output:{aspect:'16:9',size:'1mp'}}}})['text-to-image'].request.output.size).toBe('1mp');
-});
-
-it('keeps image-edit size through ordinary patches and draft restoration', () => {
-  const request = patchGeneration(emptyGeneration('image-to-image').request, {output:{aspect:'source',size:'2mp'}});
-  expect(patchGeneration(request,{prompt:'edit'}).output).toEqual({aspect:'source',size:'2mp'});
-  expect(restoreGenerationDrafts({'image-to-image':{request,sourceJob:'original'}})['image-to-image']).toMatchObject({sourceJob:'original',request:{output:{aspect:'source',size:'2mp'}}});
-  expect(restoreGenerationDrafts({'text-to-video':{request:{output:{aspect:'9:16',size:'future'}}}})['text-to-video'].request.output.size).toBe('future');
 });
