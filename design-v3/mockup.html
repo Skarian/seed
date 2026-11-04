@@ -1,0 +1,151 @@
+<!doctype html>
+<html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Seed redesign mockup</title>
+<style>
+:root{--bg:#121311;--s1:#1a1c19;--s2:#23261f;--s3:#2c3027;--line:#30342b;--text:#ecebe4;--muted:#a3a69a;--accent:#c5e88a;--accent-ink:#17200b;--amber:#e8c36a;--red:#ef8a7a;--r:12px;--rt:10px;font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;color:var(--text);background:var(--bg)}
+*{box-sizing:border-box}body{margin:0}button{font:inherit;color:inherit;background:none;border:0;cursor:pointer}
+.serif{font-family:Georgia,"Iowan Old Style",serif;font-weight:500}
+.app{display:grid;grid-template-columns:248px 1fr;height:100vh}
+.app.inspect{grid-template-columns:248px 1fr 340px}
+.rail{background:var(--s1);border-right:1px solid var(--line);display:flex;flex-direction:column;padding:14px 10px;gap:4px}
+.brand{display:flex;align-items:center;gap:8px;padding:4px 8px 12px;font-size:20px}.dot{width:8px;height:8px;border-radius:50%;background:var(--accent);display:inline-block}
+.rail .btn{display:flex;align-items:center;gap:10px;padding:9px 10px;border-radius:8px;color:var(--muted);min-height:40px}.rail .btn.on{background:var(--s2);color:var(--text)}
+.rail .label{font-size:12px;color:var(--muted);padding:12px 10px 4px;text-transform:uppercase;letter-spacing:.06em}
+.newp{background:var(--s2)!important;color:var(--text)!important}
+.spacer{flex:1}.gpu{border:1px solid var(--line);border-radius:10px;padding:10px;font-size:13px;color:var(--muted)}.gpu b{color:var(--text);font-weight:600}
+.main{display:flex;flex-direction:column;min-width:0;height:100vh}
+.head{display:flex;align-items:center;gap:12px;padding:12px 20px;border-bottom:1px solid var(--line)}
+.head h1{font-size:20px;margin:0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.seg{display:inline-flex;background:var(--s1);border:1px solid var(--line);border-radius:9px;padding:2px}.seg span{padding:5px 12px;border-radius:7px;font-size:13px;color:var(--muted)}.seg .on{background:var(--s3);color:var(--text)}
+.status{margin-left:auto;display:flex;align-items:center;gap:8px;border:1px solid var(--line);border-radius:999px;padding:6px 12px;font-size:13px;white-space:nowrap}
+.live{width:8px;height:8px;border-radius:50%;background:var(--accent);box-shadow:0 0 0 4px #c5e88a22}
+.stream{flex:1;overflow:auto;padding:24px 20px 12px}.col{max-width:820px;margin:0 auto;display:flex;flex-direction:column;gap:18px}
+.you{align-self:flex-end;background:var(--s2);border-radius:16px 16px 4px 16px;padding:10px 14px;max-width:80%}
+.seed{color:var(--text)}.seed .who{font-size:12px;color:var(--muted);margin-bottom:4px}
+.statusline{font-size:13px;color:var(--muted);display:flex;gap:8px;align-items:center}
+.card{background:var(--s1);border:1px solid var(--line);border-radius:var(--r);overflow:hidden}
+.card>.ch{display:flex;align-items:center;gap:10px;padding:12px 14px;border-bottom:1px solid var(--line);font-size:14px}.ch .k{background:var(--s3);border-radius:6px;padding:2px 8px;font-size:12px}
+.drafts{display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line)}
+.draft{background:var(--s1);padding:12px 14px;display:flex;flex-direction:column;gap:8px}
+.draft .t{display:flex;align-items:center;gap:10px;font-weight:600}.cb{width:20px;height:20px;border-radius:6px;background:var(--accent);display:grid;place-items:center;color:var(--accent-ink);font-size:13px;flex:none}.cb.off{background:none;border:1.5px solid var(--muted)}
+.draft p{margin:0;color:var(--muted);font-size:13.5px;display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chip{font-size:12.5px;border:1px solid var(--line);border-radius:999px;padding:2px 9px;color:var(--muted)}
+.ready{font-size:12.5px;color:var(--accent)}.ready.warn{color:var(--amber)}
+.changed{font-size:12.5px;color:var(--amber)}
+.draft.off{opacity:.55}.more{margin-left:auto;color:var(--muted)}
+.results{display:grid;grid-template-columns:1fr 1fr;gap:8px;padding:8px}
+.tile{position:relative;border-radius:var(--rt);overflow:hidden;aspect-ratio:9/16;background:var(--s2)}.tile.l{aspect-ratio:16/9}
+.art1{background:radial-gradient(circle at 30% 30%,#f2b36b55,transparent 40%),linear-gradient(160deg,#2b3a2f,#55402e 55%,#1d2419)}
+.art2{background:radial-gradient(circle at 70% 35%,#ffd59b55,transparent 35%),linear-gradient(200deg,#2c2a3d,#4b3a2a 60%,#1b1a24)}
+.art3{background:radial-gradient(circle at 50% 60%,#c5e88a33,transparent 45%),linear-gradient(120deg,#203a3a,#2d2a40)}
+.art4{background:linear-gradient(180deg,#3a2c22,#7a5a3a 50%,#2a2018)}
+.tile .bar{position:absolute;left:8px;right:8px;bottom:8px;display:flex;gap:6px}.pill{background:#121311cc;backdrop-filter:blur(6px);border-radius:999px;padding:5px 10px;font-size:12.5px}
+.prog{position:absolute;inset:auto 0 0 0;height:3px;background:#0004}.prog i{display:block;height:100%;width:42%;background:var(--accent)}
+.tile .state{position:absolute;top:8px;left:8px}
+.notnow{padding:10px 14px;border-top:1px solid var(--line);font-size:13px;color:var(--muted);display:flex;gap:10px}.notnow b{color:var(--text);font-weight:500}
+.sys{align-self:center;font-size:12.5px;color:var(--muted)}
+.dock{padding:10px 20px 16px;border-top:1px solid var(--line);background:var(--bg)}.dock .col{gap:8px}
+.makebar{display:flex;align-items:center;gap:12px;background:var(--s2);border:1px solid var(--line);border-radius:12px;padding:8px 8px 8px 14px;font-size:14px}.makebar .sum{color:var(--muted)}
+.primary{background:var(--accent);color:var(--accent-ink);font-weight:650;border-radius:9px;padding:9px 16px;min-height:40px;white-space:nowrap}.makebar .primary{margin-left:auto}
+.ghost{border:1px solid var(--line);border-radius:9px;padding:8px 14px;min-height:40px}
+.composer{background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:10px;display:flex;flex-direction:column;gap:6px}.tools{display:flex;align-items:center;gap:8px}
+.ctx{display:inline-flex;align-items:center;gap:6px;background:var(--s3);border-radius:8px;padding:5px 9px;font-size:13px;white-space:nowrap}.ctx .x{color:var(--muted)}
+.ctx img,.ctx .th{width:20px;height:20px;border-radius:4px}
+.input{color:var(--muted);padding:4px 6px;min-height:24px}
+.icon{width:36px;height:36px;border-radius:9px;display:grid;place-items:center;color:var(--muted);flex:none}.send{background:var(--accent);color:var(--accent-ink)}
+.modes{display:inline-flex;font-size:12.5px;border:1px solid var(--line);border-radius:8px;overflow:hidden}.modes span{padding:4px 9px;color:var(--muted)}.modes .on{background:var(--s3);color:var(--text)}
+.inspector{border-left:1px solid var(--line);background:var(--s1);padding:16px;overflow:auto;display:flex;flex-direction:column;gap:14px}
+.inspector h2{margin:0;font-size:16px}.acts{display:flex;flex-wrap:wrap;gap:8px}
+.kv{font-size:13px;color:var(--muted);display:grid;grid-template-columns:90px 1fr;gap:6px 10px}.kv b{color:var(--text);font-weight:500}
+.inputs{display:flex;gap:8px}.in{width:56px}.in .tile{aspect-ratio:1}.in small{font-size:11px;color:var(--muted)}
+.sheet{background:var(--s1);border:1px solid var(--line);border-radius:14px;padding:16px;display:flex;flex-direction:column;gap:10px}
+.opt{display:flex;gap:12px;align-items:flex-start;border:1px solid var(--line);border-radius:10px;padding:10px 12px}.opt.on{border-color:var(--accent)}.radio{width:18px;height:18px;border-radius:50%;border:2px solid var(--muted);flex:none;margin-top:2px}.opt.on .radio{border:5px solid var(--accent)}
+.opt small{display:block;color:var(--muted);font-size:12.5px}
+.note{font-size:13px;color:var(--muted)}
+.libbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:12px 20px;border-bottom:1px solid var(--line)}
+.search{flex:1;min-width:200px;background:var(--s1);border:1px solid var(--line);border-radius:10px;padding:8px 12px;color:var(--muted)}
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(170px,1fr));gap:8px}.day{font-size:13px;color:var(--muted);margin:16px 0 8px}
+.tabbar,.phonehead,.back{display:none}
+.compare{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+/* tablet */
+@media (max-width:1099px){.app,.app.inspect{grid-template-columns:64px 1fr}.rail .txt,.rail .label,.gpu,.brand span{display:none}.inspector{position:fixed;right:0;top:0;bottom:0;width:420px;box-shadow:-20px 0 40px #0008}}
+@media (max-width:899px){.drafts{grid-template-columns:1fr}}
+/* phone */
+@media (max-width:699px){.back{display:grid;font-size:24px;width:32px}.ch .more{font-size:0}.ch .more::after{content:"⋯";font-size:15px}.app,.app.inspect{grid-template-columns:1fr}.rail{display:none}.head{padding:10px 12px;flex-wrap:wrap}.head h1{font-size:17px;flex:1}.head .seg{order:3;width:100%;justify-content:stretch}.head .seg span{flex:1;text-align:center}.status .txt{display:none}.stream{padding:14px 12px}.dock{padding:8px 10px 12px}.you{max-width:88%}.inspector{width:100%}.results{grid-template-columns:1fr 1fr}.grid{grid-template-columns:1fr 1fr}.libbar{padding:10px 12px}
+.app.top .tabbar{display:flex;position:fixed;bottom:0;left:0;right:0;height:60px;background:var(--s1);border-top:1px solid var(--line)}.tabbar span{flex:1;display:grid;place-items:center;font-size:12px;color:var(--muted)}.tabbar .on{color:var(--accent)}.app.top .main{padding-bottom:60px}.compare{grid-template-columns:1fr}.makebar .sum .long{display:none}}
+.shared{padding:10px 14px;border-bottom:1px solid var(--line)}
+.strip{display:flex;gap:6px;padding:8px}.strip .tile{width:64px;aspect-ratio:9/16}
+.clamp{display:-webkit-box;-webkit-line-clamp:3;-webkit-box-orient:vertical;overflow:hidden}
+.fail{border:1px solid #e8c36a55;background:#e8c36a10;border-radius:12px;padding:12px 14px;margin-top:4px}
+.vtop{display:flex;align-items:center;gap:10px}.close{min-height:36px;padding:6px 12px}
+.hero{aspect-ratio:9/16;max-height:60vh;margin:0 auto;width:100%}
+.mini{display:inline-block;width:18px;height:18px;border-radius:4px;vertical-align:-4px;margin-right:4px}
+.smgrid{grid-template-columns:repeat(auto-fill,minmax(120px,1fr))}.tile.sm{aspect-ratio:3/4}
+.compare figure{margin:0;display:flex;flex-direction:column;gap:8px}.compare figure .tile{max-height:72vh}.compare figcaption{display:flex;gap:8px;justify-content:center}
+.seg.ab{display:none}
+.chip.on{border-color:var(--accent);color:var(--text)}
+.ctx{color:var(--text)}.ctx svg{vertical-align:-4px}
+.tabbar span{display:flex!important;flex-direction:column;align-items:center;gap:2px}
+.rail .btn svg{flex:none}
+.results .tile{max-height:70vh}
+@media (max-width:1099px){.rail .btn{justify-content:center}.rail .live{display:none}}
+@media (max-width:699px){
+ .compare figure.b{display:none}.seg.ab{display:inline-flex}
+ .draft p{-webkit-line-clamp:1}.drafts .draft{padding:10px 12px;gap:6px}
+ .makebar{padding:6px 6px 6px 12px}.makebar .sum{font-size:13px}
+ .composer .modes span{padding:4px 8px}
+ .libbar .search{min-width:0;flex:1 1 100%}
+ .head .status span:nth-child(3){display:inline}
+}
+</style></head><body>
+<div id="root"></div>
+<script>
+const s=new URLSearchParams(location.search).get('screen')||'project';
+const I={check:'✓',more:'⋯',send:'▸'};
+const ico={proj:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="4" width="18" height="16" rx="3"/><path d="M3 9h18"/></svg>',lib:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3" y="3" width="7" height="7" rx="2"/><rect x="14" y="3" width="7" height="7" rx="2"/><rect x="3" y="14" width="7" height="7" rx="2"/><rect x="14" y="14" width="7" height="7" rx="2"/></svg>',gpu:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="5" y="5" width="14" height="14" rx="2"/><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4"/></svg>',set:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M4.2 4.2l2.1 2.1M17.7 17.7l2.1 2.1M2 12h3M19 12h3M4.2 19.8l2.1-2.1M17.7 6.3l2.1-2.1"/></svg>',plus:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M12 5v14M5 12h14"/></svg>',tune:'<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12M20 18h0"/><circle cx="16" cy="6" r="2"/><circle cx="10" cy="12" r="2"/><circle cx="18" cy="18" r="2"/></svg>'};
+const rail=`<nav class="rail"><div class="brand serif"><span class="dot"></span><span>seed</span></div>
+<button class="btn newp">${ico.plus} <span class="txt">New project</span></button>
+<div class="label">Projects</div>
+<button class="btn ${!['library'].includes(s)?'on':''}" title="Moss &amp; Kettle">${ico.proj}<span class="txt">Moss &amp; Kettle</span><span class="live" style="margin-left:auto"></span></button>
+<button class="btn"><span class="txt">Moonseed posters</span></button><button class="btn"><span class="txt">Logo ideas</span></button>
+<div class="label"></div><button class="btn ${s==='library'?'on':''}" title="Library">${ico.lib}<span class="txt">Library</span></button>
+<div class="spacer"></div><button class="btn" title="GPUs">${ico.gpu}<span class="txt">GPUs · 1 on · $0.42/h</span></button><button class="btn" title="Settings">${ico.set}<span class="txt">Settings</span></button></nav>`;
+const status=`<button class="status" aria-label="2 making, GPUs $0.42 per hour"><span class="live"></span><span>2 making</span><span>· $0.42/h</span> ▾</button>`;
+const head=(tab)=>`<header class="head"><button class="icon back" aria-label="Projects">‹</button><h1 class="serif">Moss &amp; Kettle postcards</h1><div class="seg"><span class="${tab==='c'?'on':''}">Conversation</span><span class="${tab==='r'?'on':''}">Results</span></div>${status}</header>`;
+const draft=(t,p,c,on=true,extra='')=>`<div class="draft ${on?'':'off'}"><div class="t"><span class="cb ${on?'':'off'}">${on?I.check:''}</span>${t}<span class="more">${I.more}</span></div><p>${p}</p>${c.length?`<div class="chips">${c.map(x=>`<span class="chip">${x}</span>`).join('')}</div>`:''}${extra}</div>`;
+const shared=`<div class="shared chips"><span class="chip">Image</span><span class="chip">Portrait 9:16</span><span class="chip">1080p</span><span class="chip">Watercolor study</span><span class="chip">Seed PC · ready</span></div>`;
+const plan=`<div class="card"><div class="ch"><b>Plan</b><span style="color:var(--muted)">4 drafts · same for all:</span><span class="more">Set aside</span></div>${shared}<div class="drafts">
+${draft('Storefront in the rain','A small tea shop at dusk in soft rain, warm amber window light spilling onto wet cobbles…',['×2'])}
+${draft('Cat on the sill','A ginger cat asleep on the shop windowsill beside a steaming teacup…',['×1'],true,'<span class="changed">Changed: 2 → 1 image · added “no lettering”</span>')}
+${draft('Teapot close-up','Close-up of a cast-iron teapot on a wooden counter, steam curling…',['×2'],false)}
+${draft('Hanging sign','The shop sign hanging from an iron bracket, rain droplets, painted…',['×2'])}
+</div></div>`;
+const composer=(ctx,ph,action)=>`<div class="composer"><div class="input">${ph}</div><div class="tools"><button class="ctx">${ctx} ▾</button><span class="icon" aria-label="Attach">${ico.plus}</span><span style="flex:1"></span><span class="modes"><span class="on">Ask</span><span>Make</span></span>${action}</div></div>`;
+const dockPlan=`<div class="dock"><div class="col"><div class="makebar"><span class="sum"><b style="color:var(--text)">Make selected · 5 images</b> · 3 of 4 drafts ›</span><button class="primary">Make selected</button></div>${composer('✎ Revising plan','Ask Seed to change the plan…','<span class="icon send">'+I.send+'</span>')}</div></div>`;
+const results=`<div class="card"><div class="ch"><b>Storefront in the rain</b><span style="color:var(--muted)">2 images · done</span><span class="more">How it was made</span></div><div class="results"><div class="tile art1"><div class="bar"><span class="pill">Refine</span><span class="pill">${I.more}</span></div></div><div class="tile art2"></div></div></div>
+<div class="card"><div class="ch"><b>Hanging sign</b><span style="color:var(--muted)">1 of 2 · making</span><span class="more">Cancel</span></div><div class="results"><div class="tile art4"></div><div class="tile" style="background:var(--s2)"><span class="state pill">Making · 42%</span><div class="prog"><i></i></div></div></div><div class="notnow"><span>Not now:</span><b>Teapot close-up</b><button style="color:var(--accent)">Bring back</button></div></div>`;
+const collapsed=`<div class="card"><div class="ch"><b>Storefront in the rain</b><span style="color:var(--muted)">2 images · done</span><span class="more">Show</span></div><div class="strip"><div class="tile art1"></div><div class="tile art2"></div></div></div>`;
+const stream=(body)=>`<div class="stream"><div class="col">${body}</div></div>`;
+const you=`<div class="you">I'm making four postcards for a made-up tea shop called Moss &amp; Kettle. Cozy, hand-painted, muted greens and warm amber light.</div>`;
+const seedSaid=`<div class="seed"><div class="who">Seed</div><div class="clamp">Here's a plan for four postcards in one consistent gouache style. I kept them portrait so they work as postcards. Uncheck any you want to hold back.</div></div>`;
+const viewerTop=(t)=>`<div class="vtop"><button class="ghost close" aria-label="Close viewer">✕ Close</button><b>${t}</b><span style="flex:1"></span>${status}</div>`;
+let html='';
+if(s==='project'){html=`<div class="app">${rail}<main class="main">${head('c')}${stream(you+seedSaid+plan)}${dockPlan}</main></div>`;}
+if(s==='failed'){html=`<div class="app">${rail}<main class="main">${head('c')}${stream(you+`<div class="seed"><div class="who">Seed</div><div class="fail"><b>Seed couldn't prepare that.</b> Your message and attachments are kept.<div style="display:flex;gap:8px;margin-top:10px"><button class="primary">Try again</button><button class="ghost">Make it myself</button></div></div></div>`)}<div class="dock"><div class="col">${composer('💬 Talking with Seed','Ask Seed, or describe what to make…','<span class="icon send">'+I.send+'</span>')}</div></div></main></div>`;}
+if(s==='make'){html=`<div class="app">${rail}<main class="main">${head('c')}${stream(you+seedSaid+collapsed)}<div class="dock"><div class="col"><div class="composer"><div class="input" style="color:var(--text)">Close-up of a cast-iron teapot, steam curling, gouache</div><div class="tools"><button class="ctx">${ico.tune} Image · Portrait · 1080p · ×2 · Seed PC</button><span style="flex:1"></span><span class="modes"><span>Ask</span><span class="on">Make</span></span><button class="primary">Make 2 images from this prompt <small style="opacity:.7">Ctrl ↵</small></button></div></div></div></div></main></div>`;}
+if(s==='running'){html=`<div class="app">${rail}<main class="main">${head('c')}${stream(you+seedSaid+'<div class="sys">GPU started · RTX 4090 · $0.42/h · releases after 15 idle min</div>'+collapsed+results.split('</div>\n')[1]+'<div class="you">While those render — what would make the sign feel more hand-lettered?</div><div class="seed"><div class="who">Seed</div><span class="statusline"><span class="live"></span>Thinking… 12s</span></div>')}<div class="dock"><div class="col">${composer('💬 Talking with Seed','Ask Seed, or describe what to make…','<button class="ghost">■ Stop reply</button>')}</div></div></main></div>`;}
+if(s==='inspect'){html=`<div class="app inspect">${rail}<main class="main">${head('c')}${stream(you+seedSaid+results)}<div class="dock"><div class="col">${composer('💬 Talking with Seed','Ask Seed, or describe what to make…','<span class="icon send">'+I.send+'</span>')}</div></div></main><aside class="inspector">${viewerTop('Storefront in the rain · 1 of 2')}<div class="tile art1 hero"></div><div class="acts"><button class="primary">Refine</button><button class="ghost">More like this</button><button class="ghost">Animate</button><button class="ghost" aria-label="More actions">${I.more}</button></div>
+<div class="kv"><span>Derived from</span><b>— (new image)</b><span>Made from this</span><b><span class="mini art3"></span> Storefront · animated</b><span>Prompt</span><b>A small tea shop at dusk in soft rain, warm amber window light…</b><span>Settings</span><b>Image · Portrait 9:16 · 1080p · seed 48213</b><span>Style</span><b>Watercolor study · 0.8</b><span>Ran on</span><b>Seed PC (studio-desktop) · 22 s</b><span>Project</span><b>Moss &amp; Kettle · Show in conversation ›</b></div></aside></div>`;}
+if(s==='compute'){html=`<div class="app">${rail}<main class="main">${head('c')}${stream(you+seedSaid+plan)}<div class="dock"><div class="col"><div class="sheet"><div style="display:flex"><b>Make selected · 5 images needs an image GPU</b><span style="flex:1"></span><button class="ghost close" aria-label="Close">✕</button></div>
+<div class="opt on"><span class="radio"></span><div><b>RTX 4090 · Vast</b> — $0.42/h<small>compute $0.39 + storage $0.03 · lowest hourly rate · startup time not known · model download not quoted</small></div></div>
+<div class="opt"><span class="radio"></span><div><b>RTX 6000 Ada · RunPod</b> — $0.79/h<small>compute $0.74 + storage $0.05 · higher reliability</small></div></div>
+<div class="opt"><span class="radio"></span><div><b>Seed PC</b><small>Not set up · about 91 GB download · Set up in Settings</small></div></div>
+<div class="note">More machines… · Release when idle for <b>15 min ▾</b><br>Closing this browser doesn't stop the GPU; Seed's server releases it when idle. Nothing starts until you press Start.</div>
+<div style="display:flex;gap:8px;justify-content:flex-end"><button class="ghost">Back to plan</button><button class="primary">Start GPU and make 5 images</button></div></div></div></div></main></div>`;}
+if(s==='results'){const sm=['art1','art2','art3','art4','art2','art1'].map((a,i)=>`<div class="tile sm ${a}">${i<2?`<span class="cb" style="position:absolute;top:6px;left:6px">${I.check}</span>`:''}</div>`).join('');html=`<div class="app">${rail}<main class="main">${head('r')}<div class="libbar"><div class="seg"><span class="on">All</span><span>♥</span><span>Images</span><span>Videos</span></div><span class="note" style="margin-left:auto">2 selected</span><button class="primary">Compare A·B</button></div>${stream(`<div class="grid smgrid">${sm}</div>`)}</main></div>`;}
+if(s==='compare'){html=`<div class="app">${rail}<main class="main"><div class="vtop" style="padding:12px 16px;border-bottom:1px solid var(--line)"><button class="ghost close">✕ Close</button><b>Compare</b><span class="seg ab"><span class="on">A</span><span>B</span></span><span style="flex:1"></span>${status}</div>${stream(`<div class="compare"><figure><div class="tile art1"><span class="state pill">A · Storefront</span></div><figcaption><button class="ghost">♥</button><button class="primary">Continue from A</button></figcaption></figure><figure class="b"><div class="tile art2"><span class="state pill">B · More like this</span></div><figcaption><button class="ghost">♥</button><button class="primary">Continue from B</button></figcaption></figure></div>`)}</main></div>`;}
+if(s==='library'){const tiles=['art1','art2','art3 l','art4','art2 l','art1','art3','art4 l','art1','art2'].map((a,i)=>`<div class="tile ${a}"></div>`).join('');html=`<div class="app top">${rail}<main class="main"><header class="head"><h1 class="serif">Library</h1>${status}</header><div class="libbar"><span class="search">⌕ Search prompts, titles, notes</span><button class="ghost">Filters · 1</button><span class="chip on">Made in Seed ✕</span><button class="ghost wide">Select</button></div>${stream(`<div><div class="day">Today</div><div class="grid">${tiles}</div><div class="day">Yesterday</div><div class="grid">${tiles}</div></div>`)}</main><nav class="tabbar"><span>${ico.proj}Projects</span><span class="on">${ico.lib}Library</span><span>${ico.gpu}GPUs</span><span>${ico.set}Settings</span></nav></div>`;}
+if(s==='projects'){html=`<div class="app top">${rail}<main class="main"><header class="head"><h1 class="serif">Projects</h1>${status}</header>${stream(`<button class="primary">＋ New project</button><div class="card"><div class="draft"><div class="t"><span class="live"></span>Moss &amp; Kettle postcards<span class="more">making 2</span></div><p>Plan waiting · 3 results</p></div></div><div class="card"><div class="draft"><div class="t">Moonseed posters<span class="more">yesterday</span></div><p>8 results</p></div></div><div class="card"><div class="draft"><div class="t">Logo ideas<span class="more">Nov 1</span></div><p>4 results</p></div></div>`)}</main><nav class="tabbar"><span class="on">${ico.proj}Projects</span><span>${ico.lib}Library</span><span>${ico.gpu}GPUs</span><span>${ico.set}Settings</span></nav></div>`;}
+if(s==='empty'){html=`<div class="app">${rail}<main class="main"><header class="head"><button class="icon back" aria-label="Projects">‹</button><h1 class="serif">New project</h1><button class="status">No GPU rented ▾</button></header><div class="stream" style="display:grid;place-items:center"><div class="col" style="align-items:center;text-align:center;max-width:560px"><h2 class="serif" style="font-size:30px;margin:0">What are we making?</h2><p class="note">Describe it in your own words. Seed plans it and asks before anything runs.</p><div class="chips" style="justify-content:center"><span class="chip">A set of four postcards</span><span class="chip">Turn a photo into a painting</span><span class="chip">A 5-second clip from an image</span><span class="chip">Logo options</span></div><p class="note">Seed PC is ready · no rental fee</p></div></div><div class="dock"><div class="col">${composer('💬 Talking with Seed','Ask Seed, or describe what to make…','<span class="icon send">'+I.send+'</span>')}</div></div></main></div>`;}
+document.getElementById('root').innerHTML=html;
+</script></body></html>
