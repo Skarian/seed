@@ -3,7 +3,7 @@ import type {MentionBinding} from './chat-mentions.js';
 export type ChatWorkflow='text-to-image'|'image-to-image'|'text-to-video'|'reference-to-video';
 export type ChatMode='sfw'|'nsfw';
 export interface ChatRevision {number:number;request:ImageRequest;notes:Record<string,string>;decision:'undecided'|'approved'|'denied';approved_snapshot?:boolean;job_ids:string[];source_job_id?:string;after_message_id?:string|null;run_id?:string}
-export interface ChatCard {timeline_start?:number;id:string;workflow:ChatWorkflow;revisions:ChatRevision[]}
+export interface ChatCard {timeline_start?:number;id:string;workflow:ChatWorkflow;revisions:ChatRevision[];/** Seed left this draft out of the plan when the user narrowed it; shown unselected, never deleted. */left_out?:boolean}
 export interface ChatGroup {id:string;after_message_id?:string|null;workflow:ChatWorkflow;state:'assembling'|'reviewing'|'revising'|'released'|'stopped';cards:ChatCard[];submission_error?:string;
   /** Made directly by the user rather than proposed by Seed. */
   direct?:boolean;

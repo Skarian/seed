@@ -1,5 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { assets as assetsApi, collections as collectionsApi, type AssetCollection, type LibraryAsset } from '../api.js';
+import { assets as assetsApi, collections as collectionsApi, projects as projectsApi, type AssetCollection, type LibraryAsset } from '../api.js';
 import { useApp, useAssets, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
 import { Media, MenuButton, Confirm, Dialog, downloadAsset } from '../ui.js';
@@ -61,8 +61,8 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
       <nav className="chips shelves" aria-label="Collections" style={{ flexBasis: '100%' }}>
         <button className={'chip' + (!f.favorites && !f.collection ? ' on' : '')} onClick={() => setF({ ...f, favorites: false, collection: '' })}>Everything</button>
         <button className={'chip' + (f.favorites ? ' on' : '')} onClick={() => setF({ ...f, favorites: !f.favorites, collection: '' })}><Icon.Heart width={13} height={13} />Favorites</button>
-        {cols.map(c => <button key={c.id} className={'chip' + (f.collection === c.id ? ' on' : '')} onClick={() => setF({ ...f, collection: f.collection === c.id ? '' : c.id, favorites: false })}>{c.name} <span className="faint">{c.count}</span></button>)}
         <NewShelf onCreate={async name => { const c = await collectionsApi.create(app.mode, name); setCols(x => [...x, c]); startFilling(c); }} />
+        {cols.map(c => <button key={c.id} className={'chip' + (f.collection === c.id ? ' on' : '')} onClick={() => setF({ ...f, collection: f.collection === c.id ? '' : c.id, favorites: false })}>{c.name} <span className="faint">{c.count}</span></button>)}
       </nav>
       {active.length > 0 && <div className="chips" style={{ flexBasis: '100%' }}>{active.map(([label, clear]) => <button key={label} className="chip on" onClick={clear} aria-label={'Remove filter ' + label}>{label} <Icon.Close width={12} height={12} /></button>)}<button className="chip" onClick={() => setF(none)}>Clear filters</button></div>}
     </div>
@@ -71,8 +71,9 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
       {list.loaded && !list.items.length && <div className="empty" style={{ minHeight: 320 }}><div>
         {current && current.count === 0 ? <><h2 className="serif" style={{ fontSize: 26 }}>“{current.name}” is empty</h2><p>Pick results from your Library to put in it.</p><button className="btn primary" onClick={() => startFilling(current)}>Add items</button></>
           : <><h2 className="serif" style={{ fontSize: 26 }}>{anyFilter ? 'Nothing matches' : 'Your Library is empty'}</h2>
-        <p>{anyFilter ? (query ? `No results for “${query}”` : 'No media match these filters') + (current ? ` in “${current.name}”` : '') + '.' : 'Everything you make or upload appears here.'}</p>
-        {anyFilter && <button className="btn" onClick={() => { setF(none); setQ(''); }}>Clear search and filters</button>}</>}
+        <p>{anyFilter ? (query ? `No results for “${query}”` : 'No media match these filters') + (current ? ` in “${current.name}”` : '') + '.' : 'Everything you make, and every file you attach in a project, appears here.'}</p>
+        {anyFilter ? <button className="btn" onClick={() => { setF(none); setQ(''); }}>Clear search and filters</button>
+          : <button className="btn primary" onClick={() => void projectsApi.create(app.mode).then(p => { app.refreshProjects(); app.go({ name: 'project', id: p.id, view: 'conversation' }); })}>Start a project</button>}</>}
       </div></div>}
       {groups.map(([day, list2]) => <section key={day}><div className="day">{day}</div><div className={'grid' + (dense ? ' dense' : '')}>
         {list2.map(a => { const it = items.find(i => i.asset === a.id)!, on = selected.includes(a.id); return <figure key={a.id} className="cell"><div className={'tile' + (on ? ' selected' : '')}>

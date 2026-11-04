@@ -219,6 +219,6 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   return <div className="diffbar" aria-label="Differences between A and B">
     {lineage && <span className="chip on">{lineage}</span>}
     {!rows.length && !lineage && <span className="faint">Same prompt and settings{ja.seed === jb.seed ? ' and seed' : ''}.</span>}
-    {rows.map(([k, v], n) => <span key={k} className={'chip' + (n >= rows.length - technical - (ja.seed !== jb.seed ? 1 : 0) ? ' faint' : '')}><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
+    {rows.map(([k, v], n) => v.length > 70 ? <p key={k} className="diff-text"><b style={{ fontWeight: 600 }}>{k}</b> {v.replace(/<(?:image|Picture|Video|Audio) ?\d+>|\[\[input\d+\]\]/gi, 'the source')}</p> : <span key={k} className={'chip' + (n >= rows.length - technical - (ja.seed !== jb.seed ? 1 : 0) ? ' faint' : '')}><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
   </div>;
 }

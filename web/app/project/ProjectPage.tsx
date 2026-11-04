@@ -44,6 +44,10 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   // Context follows the plan: an open plan means messages revise it unless the user chose otherwise.
   useEffect(() => { setContext(c => plan ? (c.type === 'talk' ? { type: 'plan' } : c) : (c.type === 'plan' || c.type === 'keep' || c.type === 'draft' ? { type: 'talk' } : c)); }, [Boolean(plan)]);
   useEffect(() => { if (!plan) setSelection({}); }, [plan?.id]);
+  // When Seed narrows or widens the plan, its choice replaces earlier ticks on those drafts.
+  const leftOut = plan?.cards.map(c => c.id + (c.left_out ? '-' : '')).join() ?? '';
+  const lastLeftOut = useRef(leftOut);
+  useEffect(() => { const before = new Set(lastLeftOut.current.split(',')); lastLeftOut.current = leftOut; const now = new Set(leftOut.split(',')); setSelection(s => Object.fromEntries(Object.entries(s).filter(([id]) => (before.has(id) && now.has(id)) || (before.has(id + '-') && now.has(id + '-'))))); }, [leftOut]);
   // A result handed over from elsewhere (viewer, Library, compare).
   useEffect(() => {
     const use = app.pendingUse; if (!use || !project) return;
@@ -148,7 +152,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   /** Make the open plan: one decision for every draft, after GPU consent if a new rental is needed. */
   async function makePlan() {
     if (!plan) return;
-    const decisions = plan.cards.map(c => ({ card: c.id, revision: latest(c).number, decision: (selection[c.id] ?? true) && !readiness(latest(c).request, app.pool, styles).blocked ? 'approved' as const : 'denied' as const }));
+    const decisions = plan.cards.map(c => ({ card: c.id, revision: latest(c).number, decision: (selection[c.id] ?? !c.left_out) && !readiness(latest(c).request, app.pool, styles).blocked ? 'approved' as const : 'denied' as const }));
     const chosen = plan.cards.filter((_, i) => decisions[i]!.decision === 'approved');
     if (!chosen.length) return;
     const go = async () => { const ok = await run('Making', () => projectsApi.decide(id, plan.id, decisions)); if (ok) setFlash(plan.id); };
@@ -209,7 +213,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const collapsedIds = new Set(finishedGroups.slice(0, Math.max(0, finishedGroups.length - 6)).map(g => g.id).filter(g => !expanded.has(g)));
 
-  const selectedCards = plan ? plan.cards.filter(c => (selection[c.id] ?? true) && !readiness(latest(c).request, app.pool, styles).blocked) : [];
+  const selectedCards = plan ? plan.cards.filter(c => (selection[c.id] ?? !c.left_out) && !readiness(latest(c).request, app.pool, styles).blocked) : [];
   const outputs = selectedCards.reduce((n, c) => n + latest(c).request.count, 0);
   const planReady = plan && plan.state === 'reviewing' && !replying;
   const unresolved = plan ? selectedCards.flatMap(c => checkDraft(c, project!, plan.cards.length).filter(x => x.fixes.length && !acknowledged.has(c.id + ':' + x.text))).length : 0;

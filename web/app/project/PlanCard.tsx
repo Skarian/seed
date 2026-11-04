@@ -37,11 +37,16 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   // Compact rows lead with what tells drafts apart: words every title starts with are dropped.
   const words = cards.map(c => titleOf(latest(c).request).split(' '));
   let common = 0; while (cards.length > 1 && words.every(w => w.length > common + 1 && w[common] === words[0]![common])) common++;
+  // Excerpts skip the opening words every draft shares, so each one starts with what makes it different.
+  const { tasks: everywhere } = useApp();
+  const texts = cards.map(c => readablePrompt(latest(c).request, project, everywhere).split(/\s+/));
+  let same = 0; while (cards.length > 1 && texts.every(t => t.length > same + 12 && t[same] === texts[0]![same])) same++;
+  const skip = same >= 8 ? same : 0;
   const warnings = cards.map(card => checkDraft(card, project, cards.length).filter(x => !acknowledged.has(card.id + ':' + x.text)));
   const short = (r: ChatCard) => titleOf(latest(r).request).split(' ').slice(common).join(' ');
   return <section className={'card' + (flash === group.id ? ' flash' : '')} aria-label={`Plan, ${cards.length} ${cards.length === 1 ? 'draft' : 'drafts'}`} id={'group-' + group.id}>
     <div className="card-head">
-      <b>Plan</b><span className="meta">{cards.length} {cards.length === 1 ? 'draft' : 'drafts'}{working ? ' · Seed is updating it…' : revisedCount ? ` · ${revisedCount} changed, ${cards.length - revisedCount} unchanged in the last revision` : ''}</span>
+      <b>Plan</b><span className="meta">{cards.length} {cards.length === 1 ? 'draft' : 'drafts'}{working ? ' · Seed is updating it…' : revisedCount ? ` · ${revisedCount} changed, ${cards.length - revisedCount} unchanged in the last revision` : ''}{!working && cards.some(c => c.left_out) ? ` · Seed left ${cards.filter(c => c.left_out).length} out` : ''}</span>
       <span className="end">
         {cards.length > 2 && <button className="btn quiet small" onClick={() => setCompact(c => !c)} aria-pressed={compact}>{compact ? 'Show details' : 'Compact'}</button>}
         <MenuButton label="Plan options" items={[{ label: 'Set this plan aside', hint: 'Drafts are kept under Not made yet; Bring back returns them.', onSelect: onSetAside, disabled: busy }]}><Icon.More /></MenuButton>
@@ -54,7 +59,7 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
     </div>}
     <div className="drafts">
       {cards.map((card, i) => {
-        const rev = latest(card), r = rev.request, on = selection[card.id] ?? true, blocked = Boolean(ready[i]?.blocked);
+        const rev = latest(card), r = rev.request, on = selection[card.id] ?? !card.left_out, blocked = Boolean(ready[i]?.blocked);
         const own = chips[i]!.filter(([k]) => !sharedKeys.has(k));
         const prior = card.revisions.at(-2);
         const changed = rev.number > 1 && prior ? changesBetween(prior, rev, name) : [];
@@ -66,7 +71,7 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
             {warnings[i]!.map(c => <span className="warn-line" key={c.text}>⚠ {c.text}</span>)}</span>
           {changed.length > 0 && <span className="dot amber" aria-label="Changed" />}
         </button>;
-        return <Draft key={card.id + ':' + rev.number} label={short(card)} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
+        return <Draft key={card.id + ':' + rev.number} skip={skip} label={short(card)} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
           ready={sharedReady ? undefined : ready[i]} styles={styles} flash={flash === card.id}
           onRevise={request => onRevise(card, request)} onAskAbout={() => onAskAbout(card)} onCollapse={compact ? () => setOpen(null) : undefined} kindLabel={kindLabels[kind]}
           checks={warnings[i]!} onAcknowledge={text => onAcknowledge(card.id + ':' + text)} onEditMyself={assets => onEditMyself(card, assets)} />;
@@ -75,14 +80,14 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   </section>;
 }
 
-function Draft({ label, project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge, onEditMyself }: {
-  label: string; project: Project; card: ChatCard; on: boolean; blocked: boolean; busy: boolean; onToggle: () => void; own: Array<[string, string]>; changed: string[];
+function Draft({ skip, label, project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge, onEditMyself }: {
+  skip: number; label: string; project: Project; card: ChatCard; on: boolean; blocked: boolean; busy: boolean; onToggle: () => void; own: Array<[string, string]>; changed: string[];
   ready?: ReturnType<typeof readiness>; styles: StyleEntry[]; flash: boolean; onRevise: (r: Record<string, unknown>) => Promise<boolean>; onAskAbout: () => void; onCollapse?: () => void; kindLabel: string;
   checks: Check[]; onAcknowledge: (text: string) => void; onEditMyself: (assets: string[]) => void;
 }) {
   const [view, setView] = useState(card.revisions.length - 1);
   const shown = card.revisions[view] ?? latest(card), r = shown.request, current = view === card.revisions.length - 1;
-  const [editing, setEditing] = useState(false), [full, setFull] = useState(false), { split, tasks } = useApp();
+  const [editing, setEditing] = useState(false), [full, setFull] = useState(false), { split, tasks, narrow } = useApp();
   const inputs = r.references ?? [];
   // An edit or animation runs on its own engine and size; say so next to the source it came from.
   const sourceJob = inputs.length ? project.jobs.find(j => j.outputs.includes(inputs[0]!.asset_id)) : undefined;
@@ -108,11 +113,12 @@ function Draft({ label, project, card, on, blocked, busy, onToggle, own, changed
         { label: on ? 'Not now' : 'Include', hint: on ? 'Leave this draft out when you make the plan.' : undefined, onSelect: onToggle, disabled: blocked },
       ]}><Icon.More /></MenuButton>
     </div>
+    {card.left_out && !on && <p className="faint" style={{ margin: 0, fontSize: 13 }}>Seed left this out of the plan. Tick it to make it anyway.</p>}
     {!current && <p className="changed">Showing version {view + 1}. <button className="link" onClick={() => setView(card.revisions.length - 1)}>Back to latest</button></p>}
-    {editing && current && split && <Dialog title={'Edit ' + titleOf(r)} wide onClose={() => setEditing(false)}><DraftEditor card={card} project={project} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} /></Dialog>}
-    {editing && current && !split ? <DraftEditor card={card} project={project} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
+    {editing && current && (split || narrow) && <Dialog title={'Edit ' + titleOf(r)} wide onClose={() => setEditing(false)}><DraftEditor card={card} project={project} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} /></Dialog>}
+    {editing && current && !split && !narrow ? <DraftEditor card={card} project={project} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
       : <>
-        <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project, tasks)}</p>
+        <p className={'excerpt' + (full ? ' full' : '')}>{skip && current && !full ? '… ' + readablePrompt(r, project, tasks).split(/\s+/).slice(skip).join(' ') : readablePrompt(r, project, tasks)}</p>
         {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
         {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const name = assetName(project, ref.asset_id, tasks); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={name} /><span><b>{roleLabels[ref.role] ?? ref.role}</b> · {name}{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
         {departure && <p className="faint" style={{ margin: 0, fontSize: 13 }}>{departure}</p>}

@@ -136,7 +136,21 @@ export class Chats {
     const initial=this.get(id),snapshots=new Map(initial.groups.flatMap(g=>g.cards).map(c=>[c.id,latest(c).number]));
     const schemas=requestToolSchemas(workflow,initial.mode,this.jobs.loras.list(initial.mode).filter(l=>l.source_status==='ready').some(l=>workflow==='text-to-image'?l.route==='image':workflow==='text-to-video'?l.route==='fl':l.route!=='image'));
     const referenceMode=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct';
-    return (['create','edit'] as const).map(operation=>({
+    const leaveOut:AgentTool={name:'leave_out_request',label:'Leave out request',
+      description:'Leave a draft out of the open plan (left_out true), or put it back (left_out false). Use it whenever the user narrows the plan, drops a direction or asks for fewer drafts, so the plan matches what you say. The draft stays visible to the user, unselected, and is not deleted. Copy request_id from the current review.',
+      parameters:{type:'object',additionalProperties:false,properties:{request_id:{type:'string'},left_out:{type:'boolean'}},required:['request_id','left_out']} as any,
+      execute:async(_call,raw)=>{
+        const current=this.get(id);
+        if(current.epoch!==epoch)throw Error('This run is no longer active.');
+        const value=raw as {request_id?:unknown;left_out?:unknown},group=openGroup(current),card=group?.cards.find(c=>c.id===String(value.request_id));
+        if(!card)throw Error(JSON.stringify({ok:false,error:'Request not found. Use a request_id listed in the current review.'}));
+        if(value.left_out===false)delete card.left_out;else card.left_out=true;
+        const kept=group!.cards.filter(c=>!c.left_out).length;
+        this.save(current);
+        const result={ok:true,request_id:card.id,left_out:Boolean(card.left_out),drafts_selected:kept,drafts_left_out:group!.cards.length-kept,next_action:'Describe the plan by the drafts still selected.'};
+        return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
+      }};
+    return [...(['create','edit'] as const).map((operation):AgentTool=>({
       name:operation+'_request',label:operation==='create'?'Create request':'Edit request',
       description:operation==='create'?'Prepare one new request for user review. Does not generate media.':'Change an existing request. Copy request_id from context. Send only changed fields; all omitted fields stay unchanged.',
       parameters:schemas[operation],
@@ -171,7 +185,7 @@ export class Chats {
           return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
         }catch(error){throw Error(JSON.stringify(requestToolResultError(error,operation)));}
       }
-    }));
+    })),leaveOut];
   }
   send(id:string,input:{version:number;text:string;assets:string[];mention_bindings?:MentionBinding[];card_id?:string;revision?:number;attach_request?:boolean;keep_plan?:boolean}){
     const chat=this.get(id);this.checkVersion(chat,input.version);if(this.agentBusy(chat))throw Error('Seed is still replying. Wait for it or stop it, then send.');
@@ -245,7 +259,7 @@ export class Chats {
       const last_attempt=previousAttempt&&previousAttempt.state!=='succeeded'?{tool:previousAttempt.name,input:previousAttempt.input,saved:false,result:previousResult}:undefined;
       const loraCatalog=(workflow:ChatWorkflow|null)=>this.jobs.loras.list(chat.mode).filter(l=>l.source_status==='ready').filter(l=>workflow==='text-to-image'?l.route==='image':workflow==='text-to-video'?l.route==='fl':workflow==='reference-to-video'?l.route!=='image':false).map(l=>({id:l.id,revision:l.revision,name:l.name,version:l.version,description:l.description??'',trigger_words:l.trigger_words??[],source_status:l.source_status,default_scale:l.default_scale,min_scale:l.min_scale,max_scale:l.max_scale,compatible_with:l.route==='image'?'Krea images':l.route==='fl'?'Text to video and first/last-frame guides':'General image/video/audio references'}));
       const available_loras=loraCatalog(chat.workflow);
-      const context=JSON.stringify({active_kind:Object.entries(chatKinds).find(([,w])=>w===chat.workflow)?.[0]??null,available_loras,worker_policy:"Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not quote per-generation costs.",last_attempt,earlier_conversation_summary:compact.summary?.text,conversation:compact.recent,assets:manifest,available_inputs:availableInputs,images_in_order:imageIds,visual_evidence_in_order:visual.evidence,video_evidence_note:"Video images are sampled frames, not a full video. Audio has not been supplied. Do not claim to hear audio.",unavailable_images:unavailableImages,unavailable_inputs:visual.unavailable_inputs,request_context:chat.groups.flatMap(g=>g.cards.filter(c=>contextCardIds.includes(c.id)).map(c=>({id:c.id,state:g.state,...latest(c),request:agentRequest(latest(c).request,toolAssets),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))}))),review:group?.cards.map(c=>({id:c.id,revision:latest(c).number,decision:latest(c).decision})),feedback_card:target});
+      const context=JSON.stringify({active_kind:Object.entries(chatKinds).find(([,w])=>w===chat.workflow)?.[0]??null,available_loras,worker_policy:"Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not quote per-generation costs.",last_attempt,earlier_conversation_summary:compact.summary?.text,conversation:compact.recent,assets:manifest,available_inputs:availableInputs,images_in_order:imageIds,visual_evidence_in_order:visual.evidence,video_evidence_note:"Video images are sampled frames, not a full video. Audio has not been supplied. Do not claim to hear audio.",unavailable_images:unavailableImages,unavailable_inputs:visual.unavailable_inputs,request_context:chat.groups.flatMap(g=>g.cards.filter(c=>contextCardIds.includes(c.id)).map(c=>({id:c.id,state:g.state,...(c.left_out?{left_out:true}:{}),...latest(c),request:agentRequest(latest(c).request,toolAssets),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))}))),review:group?.cards.map(c=>({id:c.id,revision:latest(c).number,decision:latest(c).decision})),feedback_card:target});
       if(context.length>400000)throw Error('Current requests and attachments exceed the context budget. Start another chat with fewer assets.');
       const kindTools=(workflow:ChatWorkflow)=>[...this.workflowTools(id,epoch,workflow,runId,toolAssets,target),...(workflow==='reference-to-video'&&toolAssets.some(a=>a.kind==='video')?[createReadInputTool({data:this.paths.data,assets:toolAssets,getAsset:assetId=>this.jobs.media.get(assetId)})]:[])];
       // The agent chooses the kind of work itself; choosing loads that kind's guide and request tools for the next model request.
