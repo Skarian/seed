@@ -1,4 +1,6 @@
 // Local UI fixtures only. These transports never contact an external service.
+// With { liveChat: true }, chat and OpenRouter key checks use the caller's
+// guarded global fetch, and the OpenRouter key comes from OPENROUTER_API_KEY.
 import { writeFileSync, statSync } from "node:fs";
 import { createHash, randomUUID } from "node:crypto";
 import path from "node:path";
@@ -6,14 +8,15 @@ import sharp from "sharp";
 import { prepareStorage } from "../dist/server/storage.js";
 import { Loras } from "../dist/server/loras.js";
 import { offlinePool } from "./offline-pool.mjs";
-export async function offlineProviders(paths) {
+export async function offlineProviders(paths, { liveChat = false } = {}) {
   prepareStorage(paths);
   writeFileSync(
     path.join(paths.config, "credentials.json"),
     JSON.stringify({
       vastApiKey: "offline-fixture",
       runpodApiKey: "offline-fixture",
-      openrouterApiKey: "offline-fixture",
+      // Omitted in live chat, so Seed reads OPENROUTER_API_KEY from the environment.
+      ...(liveChat ? {} : { openrouterApiKey: "offline-fixture" }),
       civitaiKey: "offline-fixture",
       huggingFaceToken: null,
     }),
@@ -126,8 +129,9 @@ export async function offlineProviders(paths) {
     model: { name: "Unsupported study", type: "LORA" },
   };
   const versions = [version, h3Version, unsupported];
-  const providerFetch = async (url) => {
+  const providerFetch = async (url, init) => {
     const u = new URL(String(url));
+    if (liveChat && u.hostname === "openrouter.ai") return globalThis.fetch(url, init);
     if (u.pathname.includes("/api/download/"))
       return new Response(
         u.pathname.endsWith("/11")
@@ -211,7 +215,7 @@ export async function offlineProviders(paths) {
   return {
     poolDependencies: pool.dependencies,
     providerFetch,
-    chatFetch,
+    ...(liveChat ? {} : { chatFetch }),
     fixtureControls: pool.controls,
   };
 }
