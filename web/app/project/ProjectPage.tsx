@@ -71,7 +71,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       body = (context.intent === 'refine' ? 'Edit this image (“' + context.item.title + '”): ' : context.intent === 'animate' ? 'Animate this image (“' + context.item.title + '”) as the start frame: ' : 'Use “' + context.item.title + '” as an input: ') + body;
     }
     const go = async () => {
-      lastSent.current = { text: body, assets };
+      lastSent.current = { text: body, assets }; follow.current = true;
       const ok = await run('', async () => projectsApi.send(project, { text: body, assets: [...new Set(assets)], ...extra }));
       if (ok) { setText(''); setAttachments([]); setContext(c => c.type === 'using' || c.type === 'draft' || c.type === 'keep' ? { type: plan ? 'plan' : 'talk' } : c); }
     };
@@ -132,7 +132,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   }, [Boolean(project), view, flash]);
   useEffect(() => {
     if (!flash || !project) return;
-    const el = document.getElementById('group-' + flash) ?? document.getElementById('card-' + flash) ?? document.getElementById('draft-' + flash);
+    const el = document.getElementById('group-' + flash) ?? document.querySelector<HTMLElement>(`[data-group="${flash}"]`) ?? document.getElementById('card-' + flash) ?? document.getElementById('draft-' + flash);
     if (el) { el.scrollIntoView({ block: 'center' }); const t = setTimeout(() => setFlash(undefined), 1600); return () => clearTimeout(t); }
   }, [flash, Boolean(project)]);
 

@@ -45,7 +45,7 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
     </span>
   </div>;
   if (collapsed) return <section className="card" id={'card-' + card.id}>{head}<div className="strip">{items.map(it => <button key={it.asset} className={'tile ' + shapeClass(r)} onClick={() => app.inspect(it, items)} aria-label={'Open ' + it.title}><Media id={it.asset} kind={it.kind} alt={it.title} /></button>)}</div></section>;
-  return <section className={'card' + (flash ? ' flash' : '')} id={'card-' + card.id} aria-label={title}>
+  return <section className={'card' + (flash ? ' flash' : '')} id={'card-' + card.id} data-group={group.id} aria-label={title}>
     {head}
     {how && <HowItWasMade project={project} card={card} styles={styles} />}
     <div className={'results' + (list.length === 1 ? ' one' : '') + (r.output.aspect === '9:16' && list.length > 2 ? ' tall' : '')} style={r.output.aspect === '9:16' && list.length > 2 ? { ['--cols' as string]: String(Math.min(list.length, 4)) } : undefined}>
