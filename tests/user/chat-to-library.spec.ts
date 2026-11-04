@@ -8,7 +8,7 @@ const test = base.extend({
     const blocked: string[] = [];
     await page.route('**/*', route => {
       const target = new URL(route.request().url());
-      if (['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname) || target.protocol === 'data:') return route.continue();
+      if (['127.0.0.1', 'localhost', '[::1]'].includes(target.hostname) || ['data:', 'blob:'].includes(target.protocol)) return route.continue();
       blocked.push(target.origin);
       return route.abort('blockedbyclient');
     });
@@ -17,95 +17,75 @@ const test = base.extend({
   },
 });
 
+// No slash command: Seed has to choose the kind of work itself.
 const turns = [
-  'I would like one still image of a red paper kite above a calm beach at sunrise. Before you prepare a request, ask me one short question about the style.',
-  'A soft watercolor style, wide framing. Please prepare the image request now.',
+  'I would like one still image of a red paper kite above a calm beach at sunrise. Before you prepare anything, ask me one short question about the style.',
+  'A soft watercolor style, wide framing. Please prepare the image now.',
 ];
 
-// A new chat keeps the /chat URL, so read its id from the creation response.
-const chatIds = new WeakMap<Page, string>();
-function trackChat(page: Page) {
-  page.on('response', async response => {
-    const url = new URL(response.url());
-    if (response.request().method() === 'POST' && url.pathname === '/api/v1/chats' && response.ok() && !chatIds.has(page))
-      chatIds.set(page, (await response.json()).id);
-  });
-}
-const chatId = (page: Page) => chatIds.get(page) ?? null;
-async function chat(request: APIRequestContext, id: string) {
+const projectId = (page: Page) => new URL(page.url()).pathname.match(/^\/projects\/([\w-]+)/)?.[1] ?? null;
+async function project(request: APIRequestContext, id: string) {
   const response = await request.get('/api/v1/chats/' + id);
   expect(response.ok()).toBe(true);
   return response.json();
 }
-// Choose the workflow as a user does: type its slash command and pick it.
-async function chooseTextToImage(page: Page) {
-  await page.getByRole('combobox', { name: 'Chat message', exact: true }).fill('/text-to-image');
-  await page.getByRole('listbox', { name: 'Commands', exact: true }).getByRole('option', { name: /\/text-to-image/ }).click();
-  await expect(page.getByRole('listbox', { name: 'Commands', exact: true })).toHaveCount(0);
-}
-async function send(page: Page, text: string, prefix = '') {
-  await page.getByRole('combobox', { name: 'Chat message', exact: true }).fill(prefix + text);
-  await page.locator('.composer-actions').getByRole('button', { name: 'Send', exact: true }).click();
-  await expect.poll(() => chatId(page), { timeout: 30_000 }).toBeTruthy();
+async function send(page: Page, text: string) {
+  await page.getByRole('textbox', { name: 'Message to Seed', exact: true }).fill(text);
+  await page.getByRole('button', { name: 'Send to Seed', exact: true }).click();
+  await expect.poll(() => projectId(page)).toBeTruthy();
   // Wait for the live model to finish its turn.
-  await expect.poll(async () => (await chat(page.request, chatId(page)!)).activity, { timeout: 240_000, intervals: [1000] }).toBe('idle');
-  await expect(page.locator('.composer-actions [role=alert]')).toHaveCount(0);
+  await expect.poll(async () => (await project(page.request, projectId(page)!)).activity, { timeout: 240_000, intervals: [1000] }).toBe('idle');
 }
 
-test('a multi-turn Gemma chat request reaches the Library', async ({ page }, testInfo) => {
-  trackChat(page);
-  await page.goto('/chat');
-  await expect(page.getByText('What shall we create today?', { exact: true })).toBeVisible();
+test('a multi-turn Gemma conversation becomes a plan, then results in the Library', async ({ page }, testInfo) => {
+  await page.goto('/');
+  // Phones open the project list; larger screens open the most recent project.
+  if (testInfo.project.name === 'phone') await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible();
+  await page.getByRole('button', { name: 'New project' }).first().click();
+  await expect(page.getByText('What are we making?', { exact: true })).toBeVisible();
 
-  await chooseTextToImage(page);
-  await send(page, turns[0]!, '/text-to-image ');
-  expect((await chat(page.request, chatId(page)!)).workflow).toBe('text-to-image');
-  await expect(page.locator('.chat-message.assistant').last()).not.toBeEmpty();
+  await send(page, turns[0]!);
+  await expect(page.locator('.msg-seed').last()).not.toBeEmpty();
   await send(page, turns[1]!);
-  await expect(page.locator('.chat-message.assistant')).not.toHaveCount(0);
 
-  // Gemma may prepare one or more requests; approve each pending card.
-  const approve = page.getByRole('button', { name: 'Approve', exact: true });
-  await expect(approve.first()).toBeVisible({ timeout: 60_000 });
-  const pending = await approve.count();
-  for (let i = 0; i < pending; i++) {
-    await approve.first().scrollIntoViewIfNeeded();
-    await approve.first().click();
-    await expect(approve).toHaveCount(pending - i - 1);
+  // Seed chose the kind and prepared at least one titled draft in one plan.
+  const id = projectId(page)!;
+  await expect.poll(async () => (await project(page.request, id)).workflow, { timeout: 30_000 }).toBe('text-to-image');
+  const plan = page.getByRole('region', { name: /^Plan, \d+ drafts?$/ });
+  await expect(plan).toBeVisible({ timeout: 60_000 });
+  expect(await plan.getByRole('checkbox', { name: /^Include / }).count()).toBeGreaterThan(0);
+
+  // Make the whole plan. The first width consents to a fake cloud GPU; later widths reuse it.
+  await page.getByRole('button', { name: 'Make selected', exact: true }).click();
+  const consent = page.getByRole('dialog', { name: /^This needs an? (image|video) GPU$/ });
+  await expect.poll(async () => await consent.isVisible() || (await project(page.request, id)).jobs?.length > 0, { timeout: 30_000 }).toBe(true);
+  if (await consent.isVisible()) {
+    await expect(consent.getByText(/Nothing is rented until you press Start/)).toBeVisible();
+    await consent.getByRole('button', { name: /^Start GPU and make / }).click();
+    await expect(consent).toHaveCount(0, { timeout: 30_000 });
   }
 
-  // The first width rents a fake cloud worker; later widths reuse it.
-  const workers = page.getByRole('dialog', { name: 'GPU workers', exact: true });
-  await expect.poll(async () => await workers.isVisible() || (await chat(page.request, chatId(page)!)).jobs?.length > 0, { timeout: 30_000 }).toBe(true);
-  if (await workers.isVisible()) {
-    const ready = workers.locator('.pool-worker .worker-state', { hasText: 'Ready' });
-    if (!await ready.count()) {
-      await workers.locator('.pool-offer input[type=checkbox]').last().check();
-      await workers.getByRole('button', { name: /^Start 1 worker/ }).click();
-      await expect(ready.first()).toBeVisible({ timeout: 60_000 });
-    }
-    await page.keyboard.press('Escape');
-    await expect(workers).toHaveCount(0);
-  }
-
-  // The fake worker completes the job and Seed saves its output.
-  const id = chatId(page)!;
+  // The fake worker completes the jobs and Seed saves their outputs.
   let outputs: string[] = [];
   await expect.poll(async () => {
-    const jobs = (await chat(page.request, id)).jobs ?? [];
+    const jobs = (await project(page.request, id)).jobs ?? [];
     if (jobs.some((job: any) => ['failed', 'cancelled'].includes(job.state))) return 'failed';
     outputs = jobs.flatMap((job: any) => job.state === 'completed' ? job.outputs : []);
     return jobs.length && jobs.every((job: any) => job.state === 'completed') && outputs.length ? 'completed' : 'waiting';
   }, { timeout: 120_000, intervals: [1000] }).toBe('completed');
-  await expect(page.locator('.job-output-tile').first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Open / }).first()).toBeVisible({ timeout: 20_000 });
 
-  // Find each saved output in the Library by its asset name (metadata only).
+  // The conversation never locked: the composer still takes a message.
+  await expect(page.getByRole('textbox', { name: 'Message to Seed', exact: true })).toBeEditable();
+
+  // Each saved output is in the Library and remembers the job that made it (metadata only).
   await page.goto('/library');
-  await expect(page.locator('.library-grid')).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Library' })).toBeVisible();
   for (const asset of outputs) {
     const item = await (await page.request.get('/api/v1/assets/' + asset)).json();
     expect(item.kind).toBe('image');
-    await expect(page.locator('.library-grid').getByRole('button', { name: item.name, exact: true }).first()).toBeVisible();
+    expect(item.job_id).toBeTruthy();
   }
+  await expect.poll(() => page.getByRole('button', { name: /^Open / }).count(), { timeout: 20_000 }).toBeGreaterThanOrEqual(outputs.length);
   testInfo.annotations.push({ type: 'outputs', description: String(outputs.length) });
 });
