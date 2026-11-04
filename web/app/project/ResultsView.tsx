@@ -46,7 +46,7 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
       <span style={{ flex: 1 }} />
       <button className="btn small quiet" aria-pressed={grouped} onClick={() => setGrouped(!grouped)}>{grouped ? 'Grouped by request' : 'All together'}</button>
       <div className="seg" role="group" aria-label="Tile size">{(['s', 'm', 'l'] as const).map(k => <button key={k} aria-pressed={size === k} aria-label={{ s: 'Small tiles', m: 'Medium tiles', l: 'Large tiles' }[k]} onClick={() => setSize(k)}>{k.toUpperCase()}</button>)}</div>
-      <button className="btn primary small" disabled={selected.length !== 2} onClick={() => { const [a, b] = selected.map(id => items.find(i => i.asset === id)!); if (a && b) app.compare(a, b); }}><Icon.Compare />{selected.length === 2 ? 'Compare' : `Compare (${selected.length}/2)`}</button>
+      <button className="btn primary small" disabled={selected.length !== 2} onClick={() => { const [a, b] = selected.map(id => items.find(i => i.asset === id)!); if (a && b) app.compare(a, b); }}><Icon.Compare />{selected.length === 2 ? 'Compare' : selected.length ? 'Select one more' : 'Select two to compare'}</button>
     </div>
     <div className="scroll"><div className={embedded ? 'boardpad' : 'col'} style={embedded ? undefined : { maxWidth: 1400, paddingBottom: 24 }}>
       {running.length > 0 && <section><div className="day">Making now</div><div className="grid" style={grid}>

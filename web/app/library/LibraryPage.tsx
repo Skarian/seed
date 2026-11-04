@@ -71,7 +71,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
           {selecting && <span className="check sel" role="checkbox" aria-checked={on} aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, background: on ? 'var(--accent)' : '#121311aa' }}>{on && <Icon.Check />}</span>}
           {a.favorite && <span className="corner" aria-label="Favorite"><Icon.HeartFill width={16} height={16} style={{ color: 'var(--accent)' }} /></span>}
           {a.kind !== 'image' && <span className="badge pill" aria-hidden="true">{a.kind === 'video' ? <><Icon.Play width={11} height={11} />Video</> : '♪ Audio'}</span>}
-        </div>{captions && <figcaption><span>{it.title}</span><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small></figcaption>}</figure>; })}
+        </div>{captions && <figcaption><Caption title={it.title} /><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small></figcaption>}</figure>; })}
       </div></section>)}
       {list.cursor && <div style={{ textAlign: 'center', padding: 16 }}><button className="btn" disabled={list.loading} onClick={() => void list.more()}>{list.loading ? 'Loading…' : 'Load more'}</button></div>}
     </div></div>
@@ -115,4 +115,11 @@ function NewShelf({ onCreate }: { onCreate: (name: string) => Promise<void> }) {
 function NewCollection({ onCreate }: { onCreate: (name: string) => Promise<void> }) {
   const [name, setName] = useState('');
   return <form style={{ display: 'flex', gap: 8 }} onSubmit={e => { e.preventDefault(); if (name.trim()) void onCreate(name.trim()); }}><input className="input" placeholder="New collection" aria-label="New collection name" value={name} onChange={e => setName(e.target.value)} /><button className="btn" disabled={!name.trim()}>Create and add</button></form>;
+}
+
+/** A tile title whose version or batch place never truncates away. */
+function Caption({ title }: { title: string }) {
+  const m = title.match(/^(.*?)((?: · v\d+)?(?: · \d+ of \d+)?)$/);
+  const base = m?.[1] || title, badge = (m?.[2] ?? '').replace(/^ · /, '').trim();
+  return <span className="cap"><span>{base}</span>{badge && <b>{badge}</b>}</span>;
 }

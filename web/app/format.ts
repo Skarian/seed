@@ -89,13 +89,34 @@ export function changesBetween(a: ChatRevision | undefined, b: ChatRevision, sty
 }
 
 const stop = new Set('a an the and or of in on at to with for from by as is are be this that its it into over under near very more less'.split(' '));
-/** The meaningful words a prompt gained and lost, e.g. “+ fern, empty top · − moths”. */
+/** How a prompt changed, as phrases: “avocado toast → a bowl of strawberries”, “added: rising steam”, “removed: lettering”. */
 export function promptChanges(before: string, after: string) {
-  const words = (s: string) => new Set(s.toLowerCase().replace(/[^a-z0-9\s-]/g, ' ').split(/\s+/).filter(w => w.length > 2 && !stop.has(w)));
-  const a = words(before), b = words(after);
-  const added = [...b].filter(w => !a.has(w)).slice(0, 6), removed = [...a].filter(w => !b.has(w)).slice(0, 6);
-  if (!added.length && !removed.length) return ['prompt reworded'];
-  return [[added.length ? '+ ' + added.join(', ') : '', removed.length ? '− ' + removed.join(', ') : ''].filter(Boolean).join(' · ')];
+  const split = (s: string) => s.split(/\s+/).filter(Boolean);
+  const key = (w: string) => w.toLowerCase().replace(/[^a-z0-9-]/g, '');
+  const a = split(before), b = split(after);
+  if (a.length * b.length > 250_000) return ['prompt rewritten'];
+  // Longest common subsequence of words, then group the differences into runs.
+  const n = a.length, m = b.length, dp: Uint16Array[] = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--) for (let j = m - 1; j >= 0; j--) dp[i]![j] = key(a[i]!) === key(b[j]!) ? dp[i + 1]![j + 1]! + 1 : Math.max(dp[i + 1]![j]!, dp[i]![j + 1]!);
+  const runs: Array<{ from: string[]; to: string[] }> = [];
+  let i = 0, j = 0, run: { from: string[]; to: string[] } | null = null, gap: string[] = [];
+  while (i < n || j < m) {
+    if (i < n && j < m && key(a[i]!) === key(b[j]!)) { if (run) { runs.push(run); run = null; gap = []; } gap.push(a[i]!); i++; j++; continue; }
+    // Changes separated only by one or two small words read as one phrase: “plate of toast → bowl of berries”.
+    if (!run && runs.length && gap.length <= 2 && gap.every(w => stop.has(key(w)))) { run = runs.pop()!; run.from.push(...gap); run.to.push(...gap); }
+    gap = [];
+    run ??= { from: [], to: [] };
+    if (j < m && (i >= n || dp[i]![j + 1]! >= dp[i + 1]![j]!)) run.to.push(b[j++]!); else run.from.push(a[i++]!);
+  }
+  if (run) runs.push(run);
+  const clean = (ws: string[]) => { const t = ws.join(' ').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N})”"]+$/gu, ''); return t.split(' ').length > 8 ? t.split(' ').slice(0, 8).join(' ') + '…' : t; };
+  const meaningful = (ws: string[]) => ws.some(w => key(w).length > 2 && !stop.has(key(w)));
+  const phrases = runs.filter(r => meaningful(r.from) || meaningful(r.to)).map(r => {
+    const from = clean(r.from), to = clean(r.to);
+    return from && to ? `${from} → ${to}` : to ? 'added: ' + to : 'removed: ' + from;
+  });
+  if (!phrases.length) return ['prompt reworded'];
+  return phrases.length > 3 ? [...phrases.slice(0, 3), `and ${phrases.length - 3} more prompt ${phrases.length === 4 ? 'change' : 'changes'}`] : phrases;
 }
 
 /* ---------- Job states shown to people ---------- */
@@ -135,3 +156,11 @@ export function estimateSeconds(jobs: JobRecord[], workflow: string, outputs: nu
   return per.length ? per[Math.floor(per.length / 2)]! * outputs : null;
 }
 export const estimateText = (seconds: number | null) => seconds === null ? 'time not known until the first result' : 'about ' + duration(Math.max(5, Math.round(seconds / 5) * 5));
+
+/** A person-facing name for an asset in a project: the title of the draft that made it, else its upload name. */
+export function assetName(project: Project, asset: string) {
+  const job = project.jobs.find(j => j.outputs.includes(asset));
+  if (job) return titleOf(job.request);
+  const name = project.asset_manifest?.find(a => a.id === asset)?.name;
+  return name && !/^Generated (image|video)$/.test(name) ? name : 'the attached ' + (project.asset_manifest?.find(a => a.id === asset)?.kind ?? 'image');
+}

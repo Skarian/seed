@@ -3,7 +3,7 @@ import { projects as projectsApi, randomKey, kindOf, workflowOf, isVideoKind, ty
 import { useApp, useNow, useProject, useStoredState } from '../data.js';
 import { Icon } from '../icons.js';
 import { Markdown, MenuButton, Confirm, Dialog, Thumb, cleanReply, LocalBoundary } from '../ui.js';
-import { latest, titleOf, outputNoun, duration, cardJobs, isFailed, estimateSeconds, estimateText } from '../format.js';
+import { latest, titleOf, outputNoun, duration, cardJobs, isFailed, estimateSeconds, estimateText, assetName } from '../format.js';
 import { StatusControl } from '../App.js';
 import { PlanCard, type Selection } from './PlanCard.js';
 import { ResultGroup } from './ResultGroup.js';
@@ -219,11 +219,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const question = plan && !planStale && !unresolved && /\?\s*$/.test(lastReply) && /support|instead|can.?t|cannot|not available|only (offer|support|do)|unable|which (one|option|format)|would you (prefer|like)/i.test(lastReply) && plan.cards.some(c => c.revisions.some(r => r.run_id === lastTurn!.id))
     ? (lastReply.split(/(?<=[.!])\s+/).filter(s => s.includes('?')).at(-1) ?? '').replace(/[*_`#]/g, '').trim().slice(0, 220) : '';
   const planNeed = selectedCards.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs || r.billing);
+  const split = app.split && Boolean(project?.jobs.length);
 
   if (error && !project) return <><Header project={null} view={view} onRename={() => {}} onDelete={() => {}} /><div className="scroll"><div className="col"><div className="notice error" style={{ marginTop: 24 }}>This project could not be opened: {error} <div className="actions"><button className="btn small" onClick={() => app.go({ name: 'home' })}>Go to your latest project</button></div></div></div></div></>;
   return <>
     <Header project={project} view={view} onRename={() => setRenaming(true)} onDelete={() => setConfirmDelete(true)} />
-    {view === 'results' && project && !app.split ? <ResultsView project={project} /> : <div className={app.split ? 'split' : 'single'}><div className="convo">
+    {view === 'results' && project && !split ? <ResultsView project={project} /> : <div className={split ? 'split' : 'single'}><div className="convo">
       <div className="scroll" ref={scroller} onScroll={e => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div className="col">
           {!project ? <div className="stream"><span className="statusline"><span className="dot live" />Opening…</span></div>
@@ -253,7 +254,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           replying={replying} disabled={!project ? 'Opening…' : replying && mode === 'make' ? 'Seed is still replying. Stop reply to make this now.' : undefined} focusToken={focusToken}
           onSend={() => void send()} onMake={() => void makeDirect()} onStopReply={() => void run('', () => projectsApi.stopReply(id))} onSetAside={() => void setAside()} />
       </div></div>
-    </div>{app.split && project && <ResultsView project={project} embedded />}</div>}
+    </div>{split && project && <ResultsView project={project} embedded />}</div>}
     {compute && <ComputeSheet role={compute.role} action={compute.action} seconds={compute.seconds} onClose={() => setCompute(null)} onStarted={() => { const then = compute.then; setCompute(null); void then(); }} />}
     {conflict && <Dialog title="A plan is waiting" onClose={() => setConflict(null)} footer={<>
       <button className="btn" onClick={() => setConflict(null)}>Cancel</button>
@@ -272,13 +273,13 @@ function Header({ project, view, onRename, onDelete }: { project: Project | null
   return <header className="head">
     <button className="icon-btn back" aria-label="All projects" onClick={() => app.go({ name: 'projects' })}><Icon.Back /></button>
     <h1 className="serif"><button onClick={onRename} title="Rename project" disabled={!project}>{project?.title ?? ' '}</button></h1>
-    {project && !app.split && <div className="seg views" role="tablist" aria-label="Project view">
+    {project && !(app.split && project.jobs.length) && <div className="seg views" role="tablist" aria-label="Project view">
       <button role="tab" aria-selected={view === 'conversation'} onClick={() => app.go({ name: 'project', id: project.id, view: 'conversation' })}>Conversation</button>
       <button role="tab" aria-selected={view === 'results'} onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })}>Results</button>
     </div>}
     <span className="spacer" />
     <StatusControl />
-    {project && <MenuButton label="Project options" items={[{ label: 'Rename', onSelect: onRename }, { label: 'Delete project…', danger: true, onSelect: onDelete }]}><Icon.More /></MenuButton>}
+    {project && <MenuButton label="Project options" items={[...(app.narrow ? [{ label: 'Library', hint: 'Every result and upload', onSelect: () => app.go({ name: 'library' }) }, { label: 'GPUs', onSelect: () => app.go({ name: 'gpus' }) }, { label: 'Settings', onSelect: () => app.go({ name: 'settings' }) }, 'divider' as const] : []), { label: 'Rename', onSelect: onRename }, { label: 'Delete project…', danger: true, onSelect: onDelete }]}><Icon.More /></MenuButton>}
   </header>;
 }
 
@@ -316,7 +317,9 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
     const label = intent ? (intent[1] === 'Edit this image' ? 'Refine' : intent[1] === 'Animate this image' ? 'Animate' : 'Use as input') : '';
     return <div className="msg-you">{label && <span className="kind" style={{ marginRight: 6 }}>{label}</span>}{cleanReply(intent ? message.text.slice(intent[0].length) : message.text)}{message.assets.length > 0 && <div className="attachments">{message.assets.map(a => { const m = names.get(a); return <span className="input-chip" key={a}><Thumb id={a} kind={m?.kind ?? 'image'} alt={m?.name ?? 'Attachment'} /></span>; })}</div>}</div>;
   }
-  const text = cleanReply(message.text);
+  // Input tokens belong in generation prompts; in a reply, name the input the user attached.
+  const asked = [...project.messages.slice(0, project.messages.findIndex(m => m.id === message.id))].reverse().find(m => m.role === 'user');
+  const text = cleanReply(message.text).replace(/\[\[input(\d+)\]\]|<(?:Picture|Video|Audio) (\d+)>/g, (_m, a: string, b: string) => { const asset = asked?.assets[Number(a ?? b) - 1]; return asset ? '“' + assetName(project, asset) + '”' : 'the attached input'; });
   const madePlan = project.groups.some(g => g.cards.some(c => c.revisions.some(r => r.run_id === message.id)));
   const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan;
   const leaked = /<\|?tool_call|call:[a-z_.]+\{/i.test(message.text);

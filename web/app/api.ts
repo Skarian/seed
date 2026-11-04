@@ -11,7 +11,7 @@ export type Project = ChatView & {
   jobs: JobRecord[];
   asset_manifest?: Array<{ id: string; name: string; kind: 'image' | 'video' | 'audio'; note: string; metadata?: Record<string, unknown> }>;
 };
-export type ProjectSummary = { id: string; title: string; activity: string; error: string | null; status?: string; last_reply_id?: string; updated_at: string };
+export type ProjectSummary = { id: string; title: string; activity: string; ready_to_review?: boolean; error: string | null; status?: string; last_reply_id?: string; updated_at: string };
 export type AssetDetail = { kind: 'image' | 'video' | 'audio'; name: string; job_id?: string; width?: number; height?: number; duration?: number; executor?: 'local' | 'cloud'; state?: string; favorite?: boolean; collection_ids?: string[]; [key: string]: unknown };
 
 export class ApiError extends Error { constructor(message: string, readonly status: number) { super(message); } }

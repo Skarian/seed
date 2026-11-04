@@ -287,6 +287,8 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .cell { margin: 0; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .cell figcaption { display: flex; flex-direction: column; font-size: 12.5px; line-height: 1.3; padding: 0 2px; min-width: 0; }
 .cell figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.cell figcaption .cap { display: flex; gap: 6px; min-width: 0; }
+.cell figcaption .cap b { flex: none; font-weight: 500; color: var(--muted); }
 .cell figcaption small { color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
 .shelves { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
 .grid .tile .badge { position: absolute; left: 6px; bottom: 6px; }
@@ -422,3 +424,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .shell.with-inspector .split { grid-template-columns: minmax(0, 1fr); }
 .shell.with-inspector .split > :not(.convo) { display: none; }
 .shell.with-inspector .split .convo { border-right: 0; }
+
+/* Compare selection: an unmistakable empty box on every tile, a filled one when chosen. */
+.check.big[aria-checked="false"] { background: #121311cc; border: 2px solid #f4f3ecdd; box-shadow: 0 1px 4px #0008; }
+.tile.selected { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 12px; }

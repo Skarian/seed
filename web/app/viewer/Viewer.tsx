@@ -28,7 +28,7 @@ function useFamily(item: ViewerItem, job?: JobRecord) {
   return { parents, children };
 }
 
-export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerItem; compact?: boolean; onClosed?: () => void }) {
+export function AssetPanel({ item, compact = false, actionsOnly = false, onClosed }: { item: ViewerItem; compact?: boolean; actionsOnly?: boolean; onClosed?: () => void }) {
   const app = useApp();
   const { detail, job, refresh } = useDetail(item);
   const { parents, children } = useFamily(item, job);
@@ -47,6 +47,7 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
     catch (e) { app.toast((e as Error).message); }
   }
   const more = [
+    ...(actionsOnly && source?.card_id ? [{ label: 'Make another now', hint: 'Same settings, a new seed.', onSelect: () => { onClosed?.(); app.useResult({ ...item, job }, 'more'); } }] : []),
     { label: 'Use as input', hint: 'Attach it to the composer.', onSelect: () => app.useResult({ ...item, job }, 'input') },
     ...(source?.card_id ? [{ label: 'Reuse settings', hint: 'Load its prompt and settings into Make.', onSelect: () => { onClosed?.(); app.useResult({ ...item, job }, 'reuse'); } }] : []),
     { label: fav ? 'Remove from favorites' : 'Add to favorites', onSelect: () => void assetsApi.favorite(item.asset, !fav).then(refresh) },
@@ -59,12 +60,12 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
   return <>
     <div className="acts">
       <button className="btn primary" onClick={() => app.useResult({ ...item, job }, 'refine')}><Icon.Pencil />Refine</button>
-      {source?.card_id && <button className="btn" onClick={() => { onClosed?.(); app.useResult({ ...item, job }, 'more'); }}>Make another now</button>}
+      {source?.card_id && !actionsOnly && <button className="btn" onClick={() => { onClosed?.(); app.useResult({ ...item, job }, 'more'); }}>Make another now</button>}
       {!video && <button className="btn" onClick={() => app.useResult({ ...item, job }, 'animate')}><Icon.Film />Animate</button>}
-      <button className="btn" aria-pressed={fav} aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>
-      <MenuButton label="More actions" className="btn" items={more}><Icon.More /></MenuButton>
+      {!actionsOnly && <button className="btn" aria-pressed={fav} aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>}
+      <MenuButton label="More actions" className="btn" items={more} placement={actionsOnly ? 'above' : undefined}><Icon.More /></MenuButton>
     </div>
-    <div className="kv">
+    {!actionsOnly && <div className="kv">
       <span>Made from</span><div>{parents.length ? <span className="lineage">{parents.map(p => <button key={p.asset} onClick={() => app.inspect({ asset: p.asset, kind: p.kind, title: p.title, job: p.job, project: p.job?.source?.chat_id })}><Thumb id={p.asset} kind={p.kind} alt="" /><span><b style={{ fontWeight: 500 }}>{p.title}</b> · {roleLabels[p.role] ?? p.role}</span></button>)}</span> : <span className="faint">{job ? 'Words only' : detail && !detail.job_id ? 'Uploaded' : '—'}</span>}</div>
       {children.length > 0 && <><span>Made from this</span><div className="lineage">{children.slice(0, 8).map(c => <button key={c.asset} onClick={() => app.inspect({ asset: c.asset, kind: isVideoKind(kindOf[c.job.request.workflow]) ? 'video' : 'image', title: titleOf(c.job.request), job: c.job, project: c.job.source?.chat_id })}><Thumb id={c.asset} kind={isVideoKind(kindOf[c.job.request.workflow]) ? 'video' : 'image'} alt="" />{titleOf(c.job.request)}</button>)}</div></>}
       {r && <><span>Settings</span><div>{settingChips(r, id => id).filter(([k]) => !k.startsWith('style') && k !== 'target').map(([, v]) => v).join(' · ')}{detail?.width ? ` · saved at ${detail.width}×${detail.height}` : ''}</div></>}
@@ -73,9 +74,9 @@ export function AssetPanel({ item, compact = false, onClosed }: { item: ViewerIt
       {job && <><span>Ran on</span><div>{job.worker?.executor === 'local' ? 'Seed PC' : job.worker?.executor === 'cloud' ? 'Cloud GPU' : targetLabel(r?.target)}{job.metrics?.elapsed_to_saved_seconds ? ' · ' + duration(job.metrics.elapsed_to_saved_seconds) : ''}</div></>}
       {source?.chat_id && <><span>Project</span><div><button className="link" onClick={() => { onClosed?.(); app.go({ name: 'project', id: source.chat_id!, view: 'conversation', focus: source.card_id }); }}>{app.projectList.find(p => p.id === source.chat_id)?.title ?? 'Open project'} · show in conversation</button></div></>}
       {r && <><span>Prompt</span><div><details open={!app.narrow && r.prompt.length < 600}><summary className="link" style={{ cursor: 'pointer' }}>{r.prompt.length < 600 && !app.narrow ? 'Prompt' : `Show prompt (${r.prompt.split(/\s+/).length} words)`}</summary><div className="prompt">{r.prompt}</div></details></div></>}
-      {memberOf.length > 0 && <><span>Collections</span><div className="chips">{memberOf.map(c => <button key={c.id} className="chip" onClick={() => { onClosed?.(); app.go({ name: 'library', collection: c.id }); }}>{c.name}</button>)}</div></>}
+      <><span>Collections</span><div className="chips">{memberOf.map(c => <button key={c.id} className="chip" aria-label={'Open collection ' + c.name} onClick={() => { onClosed?.(); app.go({ name: 'library', collection: c.id }); }}>{c.name}</button>)}<button className="chip" onClick={() => { setColDialog(true); void collectionsApi.list(app.mode).then(setCols); }}><Icon.Plus />{memberOf.length ? 'Change' : 'Add to collection'}</button></div></>
       {<><span>Note</span><div><NoteField asset={item.asset} note={note} onSaved={setNote} /></div></>}
-    </div>
+    </div>}
     {colDialog && <Dialog title="Add to collection" onClose={() => setColDialog(false)} footer={<button className="btn primary" onClick={() => setColDialog(false)}>Done</button>}>
       {!cols ? <p className="muted">Loading…</p> : <CollectionChoices asset={item.asset} cols={cols} detail={detail} onChanged={refresh} />}
     </Dialog>}
@@ -145,7 +146,7 @@ export function Viewer({ item, siblings, onClose, onPick }: { item: ViewerItem; 
   return <div className="viewer" role="dialog" aria-modal="true" aria-label={item.title}>
     <div className="vtop">
       <button className="btn small close" onClick={onClose} autoFocus><Icon.Close />Close</button>
-      <b>{item.title}{siblings.length > 1 ? ` · ${i + 1} of ${siblings.length}` : ''}</b>
+      <b>{item.title}{siblings.length > 1 && !/ of \d+$/.test(item.title) ? ` · ${i + 1} of ${siblings.length}` : ''}</b>
       {source && <div className="seg" role="group" aria-label="Before or after"><button aria-pressed={before} onClick={() => setBefore(true)}>Before</button><button aria-pressed={!before} onClick={() => setBefore(false)}>After</button></div>}
       {item.kind === 'image' && <button className="btn small no-phone" onClick={() => setZoom(z => z === 1 ? 2 : 1)}>{zoom === 1 ? 'Zoom' : 'Fit'}</button>}
       <button className="btn small" aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={fav} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>
@@ -160,7 +161,7 @@ export function Viewer({ item, siblings, onClose, onPick }: { item: ViewerItem; 
     </div>
     {item.kind === 'video' && <div className="bottom" style={{ borderTop: 'none', paddingBottom: 0 }}><button className="btn small" onClick={() => void pickFrame()}><Icon.Frame />Save this frame as an image</button></div>}
     {info ? <div className="bottom" style={{ display: 'block', maxHeight: '40vh', overflow: 'auto' }}><div style={{ maxWidth: 720, margin: '0 auto', display: 'grid', gap: 12 }}><AssetPanel item={item} compact onClosed={onClose} /></div></div>
-      : <div className="bottom"><button className="btn primary" onClick={() => app.useResult({ ...item, job }, 'refine')}><Icon.Pencil />Refine</button>{item.kind === 'image' && <button className="btn" onClick={() => app.useResult({ ...item, job }, 'animate')}><Icon.Film />Animate</button>}<button className="btn" onClick={() => setInfo(true)}>More…</button></div>}
+      : <div className="bottom"><AssetPanel item={item} compact actionsOnly onClosed={onClose} /></div>}
   </div>;
 }
 
@@ -202,7 +203,7 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   const keys = [...new Set([...ca.keys(), ...cb.keys()])].filter(k => ca.get(k) !== cb.get(k));
   const rows: Array<[string, string]> = keys.map(k => [k.startsWith('style') ? 'Style' : k[0]!.toUpperCase() + k.slice(1), `${ca.get(k) ?? '—'} → ${cb.get(k) ?? '—'}`]);
   if (ja.seed !== jb.seed) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
-  if (ja.request.prompt !== jb.request.prompt) rows.push(['Prompt', promptChanges(ja.request.prompt, jb.request.prompt).join(' ')]);
+  if (ja.request.prompt !== jb.request.prompt) rows.push(['Prompt', promptChanges(ja.request.prompt, jb.request.prompt).join('; ')]);
   const lineage = jb.request.references?.some(r => r.asset_id === a.asset) ? 'B was made from A' : ja.request.references?.some(r => r.asset_id === b.asset) ? 'A was made from B' : '';
   return <div className="diffbar" aria-label="Differences between A and B">
     {lineage && <span className="chip on">{lineage}</span>}

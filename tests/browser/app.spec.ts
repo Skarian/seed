@@ -72,3 +72,23 @@ test('the GPU page shows the running rental, its rate and a release with stated 
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   }
 });
+
+test('a GPU released from the Activity panel is actually released', async ({ page }) => {
+  await page.goto('/gpus');
+  await page.getByRole('button', { name: 'Start an image GPU' }).click();
+  const sheet = page.getByRole('dialog', { name: /^Start an? image GPU$/ });
+  await sheet.getByRole('button', { name: /^Start image GPU$/ }).click();
+  await expect(sheet).toHaveCount(0, { timeout: 30_000 });
+  const running = async () => (await (await page.request.get('/api/v1/pool')).json()).workers.filter((w: any) => w.state !== 'released' && !w.quit_mode).length;
+  await expect.poll(running, { timeout: 30_000 }).toBeGreaterThan(0);
+  const before = await running();
+
+  await page.getByRole('button', { name: /^Activity and GPUs:/ }).click();
+  const panel = page.getByRole('dialog', { name: 'Activity and GPUs' });
+  await panel.getByRole('tab', { name: /^GPUs/ }).click();
+  await panel.getByRole('button', { name: 'Release…' }).first().click();
+  const confirm = page.getByRole('dialog', { name: /^Release the / });
+  await confirm.getByRole('button', { name: /^(Release|Finish current work, then release)$/ }).click();
+  await expect(confirm).toHaveCount(0);
+  await expect.poll(running, { timeout: 30_000 }).toBe(before - 1);
+});

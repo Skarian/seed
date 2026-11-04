@@ -4,7 +4,7 @@ import { kindOf, kindLabels, isVideoKind } from '../api.js';
 import { Icon } from '../icons.js';
 import { MenuButton, Thumb, Dialog } from '../ui.js';
 import { useApp } from '../data.js';
-import { latest, titleOf, settingChips, changesBetween, outputNoun } from '../format.js';
+import { latest, titleOf, settingChips, changesBetween, outputNoun, assetName } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
 import { checkDraft, readablePrompt, type Check } from './checks.js';
@@ -78,7 +78,13 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
   const shown = card.revisions[view] ?? latest(card), r = shown.request, current = view === card.revisions.length - 1;
   const [editing, setEditing] = useState(false), [full, setFull] = useState(false), { split } = useApp();
   const inputs = r.references ?? [];
-  const names = new Map((project.asset_manifest ?? []).map(a => [a.id, a]));
+  // An edit or animation runs on its own engine and size; say so next to the source it came from.
+  const sourceJob = inputs.length ? project.jobs.find(j => j.outputs.includes(inputs[0]!.asset_id)) : undefined;
+  const departure = sourceJob && sourceJob.request.workflow !== r.workflow ? (() => {
+    const chip = (x: typeof r, k: string) => settingChips(x, id => id).find(([key]) => key === k)?.[1];
+    const parts = (['engine', 'size'] as const).filter(k => chip(sourceJob.request, k) !== chip(r, k));
+    return parts.length ? `“${titleOf(sourceJob.request)}” was made with ${parts.map(k => chip(sourceJob.request, k)).join(' at ')}; this ${kindLabels[kindOf[r.workflow]].toLowerCase()} uses ${parts.map(k => chip(r, k)).join(' at ')}. Its framing and look come from the source.` : '';
+  })() : '';
   return <div className={'draft' + (on ? '' : ' off') + (flash ? ' flash' : '')} id={'draft-' + card.id}>
     <div className="top">
       <span className="check" role="checkbox" tabIndex={blocked ? -1 : 0} aria-checked={on} aria-disabled={blocked} aria-label={'Include ' + titleOf(r)} onClick={onToggle} onKeyDown={e => { if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); onToggle(); } }}>{on && <Icon.Check />}</span>
@@ -102,7 +108,8 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
       : <>
         <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project)}</p>
         {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
-        {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const a = names.get(ref.asset_id); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={a?.name ?? 'Input'} /><span><b>{roleLabels[ref.role] ?? ref.role}</b>{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
+        {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const name = assetName(project, ref.asset_id); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={name} /><span><b>{roleLabels[ref.role] ?? ref.role}</b> · {name}{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
+        {departure && <p className="faint" style={{ margin: 0, fontSize: 13 }}>{departure}</p>}
         {own.length > 0 && <div className="chips">{own.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</div>}
         {current && changed.length > 0 && <p className="changed">What changed: {changed.join(' · ')}</p>}
         {current && checks.map(c => <div className="check-note" role="status" key={c.text}><span>⚠ {c.text}</span>{c.fixes.map(f => <button key={f.label} className="btn small" disabled={busy} onClick={() => { if (f.action === 'edit-myself') { onEditMyself(f.assets ?? []); return; } const patch = f.patch(r); if (Object.keys(patch).length) void onRevise(patch); else onAcknowledge(c.text); }}>{f.label}</button>)}</div>)}

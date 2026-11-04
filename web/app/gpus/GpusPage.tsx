@@ -9,7 +9,7 @@ import { ComputeSheet, capChoices, idleChoices } from '../project/ComputeSheet.j
 import type { PoolWorker } from '../../../shared/pool.js';
 import type { LocalWorkerView } from '../../../shared/local-worker.js';
 
-const workerLabel: Record<string, string> = { starting: 'Starting', preparing: 'Loading models', ready: 'Ready · idle', generating: 'Making', saving: 'Saving', reconnecting: 'Reconnecting', finishing: 'Finishing current work, then releasing', releasing: 'Releasing', released: 'Released', needs_attention: 'Needs attention' };
+const workerLabel: Record<string, string> = { starting: 'Starting', preparing: 'Loading models', ready: 'Ready', generating: 'Making', saving: 'Saving', reconnecting: 'Reconnecting', finishing: 'Finishing current work, then releasing', releasing: 'Releasing', released: 'Released', needs_attention: 'Needs attention' };
 
 function idleNote(w: PoolWorker) {
   const cap = w.max_minutes && w.allocated_at ? ` · stops by ${new Date(Date.parse(w.allocated_at) + w.max_minutes * 60000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}` : '';
@@ -65,11 +65,13 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
     {active.map(w => <div className="box" key={w.id}>
       <div className="row">
         <span className={'dot ' + (w.state === 'needs_attention' ? 'amber' : ['generating', 'saving', 'preparing', 'starting'].includes(w.state) ? 'live' : '')} />
-        <span className="grow"><b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>{w.provider === 'vast' ? 'Vast' : 'RunPod'} · {rate(w.hourly)} · up {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} so far</span></span>
-        {w.actions.includes('finish') && !w.quit_mode && <button className="btn quiet" onClick={() => setLimits(w)}>Limits…</button>}
-        {w.actions.includes('finish') && <button className="btn" onClick={() => setRelease(w)}>Release…</button>}
+        <span className="grow"><b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU</b> · {rate(w.hourly)}<br /><span className="muted" style={{ fontSize: 13.5 }}>Up {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} so far · {w.gpu} on {w.provider === 'vast' ? 'Vast' : 'RunPod'}</span></span>
       </div>
       <div className="muted" style={{ fontSize: 13.5 }}>{w.current_activity ?? workerLabel[w.state] ?? w.state}{startupNote(w)}{w.state === 'ready' ? idleNote(w) : ''}</div>
+      {w.actions.includes('finish') && <div className="row">
+        {!w.quit_mode && <button className="btn" style={{ flex: 1 }} onClick={() => setLimits(w)}>Limits…</button>}
+        <button className="btn" style={{ flex: 1 }} onClick={() => setRelease(w)}>Release…</button>
+      </div>}
       {w.preparation && !w.preparation.error && w.state === 'preparing' && w.preparation.bytes_total > 0 && <div className="meter" aria-label="Model download progress"><i style={{ width: Math.round(w.preparation.bytes_done / w.preparation.bytes_total * 100) + '%' }} /></div>}
       {(w.issue || w.preparation?.error) && <div className="notice error">{w.issue?.message ?? w.preparation?.error}
         <div className="actions">{w.actions.filter(a => ['reconnect', 'retry_preparation', 'omit_loras', 'local_fallback', 'dismiss_launch_failure'].includes(a)).map(a => <button key={a} className="btn small" onClick={() => void poolApi.act(w.id, a).then(refreshPool)}>{{ reconnect: 'Reconnect', retry_preparation: 'Retry setup', omit_loras: 'Continue without styles', local_fallback: 'Use fallback models', dismiss_launch_failure: 'Dismiss' }[a as string]}</button>)}</div></div>}

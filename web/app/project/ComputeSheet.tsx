@@ -14,10 +14,11 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
   const { refreshPool, go, pool } = useApp();
   const [offers, setOffers] = useState<OffersResponse | null>(null), [error, setError] = useState(''), [loading, setLoading] = useState(true);
   const [choice, setChoice] = useState<string>(''), [more, setMore] = useState(false), [busy, setBusy] = useState(false);
-  const [idle, setIdle] = useStoredState('seed.idleRelease', 15);
-  const [cap, setCap] = useStoredState('seed.rentalCap', 120);
-  const [releaseIdle, setReleaseIdle] = useState(true);
   const voluntary = action === 'keep it ready';
+  // A rental for one task defaults to a short lease; keeping a GPU ready is a deliberate choice with its own defaults.
+  const [idle, setIdle] = useStoredState(voluntary ? 'seed.idleRelease' : 'seed.idleRelease.task', voluntary ? 15 : 5);
+  const [cap, setCap] = useStoredState(voluntary ? 'seed.rentalCap' : 'seed.rentalCap.task', voluntary ? 120 : 60);
+  const [releaseIdle, setReleaseIdle] = useState(true);
   const [key] = useState(randomKey);
   async function load() {
     setLoading(true); setError('');
@@ -49,19 +50,21 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
   }
   const noun = role === 'video' ? 'a video GPU' : 'an image GPU';
   return <Dialog title={voluntary ? `Start ${noun}` : `This needs ${noun}`} onClose={onClose} footer={<>
+    <span className="faint" style={{ fontSize: 12.5, marginRight: 'auto', maxWidth: 280 }}>Billing continues if you close the browser. Seed releases it {idle ? `after ${idle} idle min` : 'when you say'}, while Seed is running.</span>
     <button className="btn" onClick={onClose}>{voluntary ? 'Cancel' : 'Back to plan'}</button>
     <button className="btn primary" disabled={!selected || busy || expired} onClick={() => void start()}>{busy ? 'Starting…' : voluntary ? `Start ${noun.replace(/^an? /, '')}` : `Start GPU and ${action}`}</button>
   </>}>
     <p className="muted" style={{ margin: 0 }}>Nothing is rented until you press Start. Prices are the provider's current quote.</p>
+    {selected && !voluntary && <p style={{ margin: 0, fontSize: 13.5 }}><b>This task:</b> {seconds == null ? 'no estimate yet, because nothing like it has finished in this project. The first result sets one.' : <>{estimateText(seconds)} of making once the GPU is ready, about <b>{money(selected.hourly * seconds / 3600)}</b> at this rate.</>} Start-up and model download come first and are billed too.</p>}
     {loading && <Spinner label="Finding available machines…" />}
     {error && <div className="notice error" role="alert">{error}</div>}
     {!loading && !items.length && !error && <div className="notice">No machines are available right now{offers?.issues.length ? ': ' + offers.issues.map(i => i.message).join(' ') : '.'} <div className="actions"><button className="btn small" onClick={() => void load()}>Check again</button><button className="btn small" onClick={() => go({ name: 'settings', section: 'keys' })}>Check API keys</button></div></div>}
     <div role="radiogroup" aria-label="Machine" style={{ display: 'grid', gap: 8 }}>
       {picks.map((o, i) => <button key={o.id} role="radio" aria-checked={o.id === choice} className="option" onClick={() => setChoice(o.id)}>
         <span className="radio" />
-        <span><b>{o.gpu} · {o.provider === 'vast' ? 'Vast' : 'RunPod'}</b> — {rate(o.hourly)}
-          <small>compute {rate(o.compute_hourly)} + storage {rate(o.storage_hourly)}{!more && i === 0 ? ' · lowest hourly rate' : ''}{o.reliability ? ` · reliability ${Math.round(o.reliability * 100)}%` : ''} · {o.vram_gb} GB VRAM · {o.region}</small>
-          <small>Startup time not known{o.model_download_bytes ? ` · downloads ${gb(o.model_download_bytes)} of models first` : ''}{o.download_per_gb ? ` · transfer ${rate(o.download_per_gb).replace('/h', '/GB')}` : ' · transfer charges not quoted'}</small>
+        <span><b>{!more && i === 0 ? 'Lowest price' : !more ? 'Most reliable' : o.gpu}</b> — {rate(o.hourly)}{!more && <small>{o.gpu} · {o.provider === 'vast' ? 'Vast' : 'RunPod'}</small>}
+          {o.id === choice && <><small>compute {rate(o.compute_hourly)} + storage {rate(o.storage_hourly)}{o.reliability ? ` · reliability ${Math.round(o.reliability * 100)}%` : ''} · {o.vram_gb} GB VRAM · {o.region}</small>
+          <small>Startup time not known{o.model_download_bytes ? ` · downloads ${gb(o.model_download_bytes)} of models first` : ''}{o.download_per_gb ? ` · transfer ${rate(o.download_per_gb).replace('/h', '/GB')}` : ' · transfer charges not quoted'}</small></>}
         </span>
       </button>)}
       {!local?.enabled && <button className="option" role="radio" aria-checked={false} onClick={() => go({ name: 'gpus' })}><span className="radio" /><span><b>Seed PC</b> — no rental fee<small>{local ? 'Turned off. Turn it on in GPUs.' : 'Not set up yet (large one-time download). Set it up in GPUs.'}</small></span></button>}
@@ -71,12 +74,11 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
       {idleOthers.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 8 }}><input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} /> Release the idle {idleOthers[0]!.worker_class} GPU when this starts</label>}</div>}
     <label className="field"><span>Stop renting after (even if busy, it finishes the current output first)</span>
       <select className="select" value={cap} onChange={e => setCap(Number(e.target.value))}>{capChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
-    {selected && !voluntary && <p style={{ margin: 0, fontSize: 13.5 }}><b>This task:</b> {seconds == null ? 'no estimate yet, because nothing like it has finished in this project. The first result sets one.' : <>{estimateText(seconds)} of making once the GPU is ready, about <b>{money(selected.hourly * seconds / 3600)}</b> at this rate.</>} Start-up and model download come first and are billed too.</p>}
     {selected && cap > 0 && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>The most this rental can cost is about <b>{money(selected.hourly * cap / 60)}</b> ({rate(selected.hourly)} for {cap / 60} {cap === 60 ? 'hour' : 'hours'}), plus any transfer charges the provider adds.</p>}
     <label className="field"><span>Release it automatically when idle for</span>
       <select className="select" value={idle} onChange={e => setIdle(Number(e.target.value))}>{idleChoices.map(([v, l]) => <option key={v} value={v}>{l}</option>)}</select></label>
     {selected && <p className="muted" style={{ margin: 0, fontSize: 13.5 }}>Billing starts when the provider accepts the rental. {idle ? `If it then sits idle until release, that idle time costs about ${money(selected.hourly * idle / 60)}` : 'With no idle release it bills until you release it'}, plus the time to start, download models and make.</p>}
-    <p className="faint" style={{ margin: 0, fontSize: 13 }}>Closing this browser doesn't stop the GPU. Seed's server releases it when idle. If the Seed server itself is off, release it from the provider's console.</p>
+    <p className="faint" style={{ margin: 0, fontSize: 13 }}>If the Seed server itself is off, release the GPU from the provider's console.</p>
     {expired && <div className="notice" role="alert">This quote expired. <button className="link" onClick={() => void load()}>Get a fresh quote</button></div>}
   </Dialog>;
 }

@@ -11,10 +11,13 @@ import { GpuOverview } from '../gpus/GpusPage.js';
 export function StatusPanel({ tab, onTab, onClose }: { tab: 'tasks' | 'gpus'; onTab: (t: 'tasks' | 'gpus') => void; onClose: () => void }) {
   const app = useApp();
   const ref = useRef<HTMLDivElement>(null);
+  const reviewable = app.projectList.filter(p => p.ready_to_review && !(app.route.name === 'project' && app.route.id === p.id));
   useEffect(() => {
     const opener = document.activeElement as HTMLElement | null; ref.current?.querySelector<HTMLElement>('[role=tab][aria-selected=true]')?.focus();
-    const key = (e: KeyboardEvent) => e.key === 'Escape' && onClose();
-    const out = (e: PointerEvent) => { if (!ref.current?.contains(e.target as Node) && !(e.target as HTMLElement).closest('.status')) onClose(); };
+    // Dialogs and menus opened from the panel live outside it (portals); using them must not close the panel.
+    const layered = () => Boolean(document.querySelector('.backdrop, .menu'));
+    const key = (e: KeyboardEvent) => e.key === 'Escape' && !layered() && onClose();
+    const out = (e: PointerEvent) => { const t = e.target as HTMLElement; if (!ref.current?.contains(t) && !t.closest('.status, .backdrop, .menu')) onClose(); };
     addEventListener('keydown', key); addEventListener('pointerdown', out);
     return () => { removeEventListener('keydown', key); removeEventListener('pointerdown', out); opener?.focus?.(); };
   }, []);
@@ -45,7 +48,8 @@ export function StatusPanel({ tab, onTab, onClose }: { tab: 'tasks' | 'gpus'; on
     <div style={{ overflow: 'auto' }}>
       {tab === 'tasks' ? <>
         {planning.length > 0 && <><div className="day" style={{ padding: '0 16px' }}>Seed planning</div>{planning.map(p => <button key={p.id} className="task" onClick={() => { onClose(); app.go({ name: 'project', id: p.id, view: 'conversation' }); }}><span className="thumb" style={{ display: 'grid', placeItems: 'center' }}><span className="dot live" /></span><span className="t"><b>{p.title}</b><small>Seed is replying</small></span><Icon.Next /></button>)}</>}
-        {!recent.length && !planning.length && <p className="muted" style={{ padding: 16, margin: 0 }}>Nothing has run in the last few hours.</p>}
+        {reviewable.length > 0 && <><div className="day" style={{ padding: '0 16px' }}>Ready for you</div>{reviewable.map(p => <button key={p.id} className="task" onClick={() => { onClose(); app.go({ name: 'project', id: p.id, view: 'conversation' }); }}><span className="thumb" style={{ display: 'grid', placeItems: 'center' }}><span className="dot amber" /></span><span className="t"><b>{p.title}</b><small>A plan is ready to review and make</small></span><Icon.Next /></button>)}</>}
+        {!recent.length && !planning.length && !reviewable.length && <p className="muted" style={{ padding: 16, margin: 0 }}>Nothing has run in the last few hours.</p>}
         {active.length > 0 && <div className="day" style={{ padding: '0 16px' }}>Now</div>}{active.map(row)}
         {rest.length > 0 && <div className="day" style={{ padding: '0 16px' }}>Earlier</div>}{rest.map(row)}
       </> : <div style={{ padding: '8px 16px 16px', display: 'flex', flexDirection: 'column', gap: 10 }}><GpuOverview compact /><button className="btn" onClick={() => { onClose(); app.go({ name: 'gpus' }); }}>Open GPUs</button></div>}

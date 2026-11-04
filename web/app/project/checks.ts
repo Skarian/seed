@@ -1,6 +1,6 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest } from '../api.js';
 import { kindOf, isVideoKind } from '../api.js';
-import { latest } from '../format.js';
+import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
 
 type Aspect = '16:9' | '9:16' | '1:1' | '4:5';
@@ -60,9 +60,9 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
 
 /** Prompt text for people: input tokens such as <Picture 1> become the input's name. */
 export function readablePrompt(r: ImageRequest, project: Project) {
-  const labels = inputLabels(r.references ?? []), names = new Map((project.asset_manifest ?? []).map(a => [a.id, a.name]));
+  const labels = inputLabels(r.references ?? []);
   let text = r.prompt.replace(/\[\[([^\]]+)\]\]/g, '$1');
-  for (const ref of r.references ?? []) { const label = labels.get(ref.id); if (label) text = text.split(label).join('“' + (names.get(ref.asset_id) ?? 'input') + '”'); }
+  for (const ref of r.references ?? []) { const label = labels.get(ref.id); if (label) text = text.split(label).join('“' + assetName(project, ref.asset_id) + '”'); }
   // Video prompts are structured for the model; show their sections as plain headings.
   const headings: Record<string, string> = { integrated_multimodal_description: 'Scene', subject_definitions: 'Subjects', scene_anchor: 'Setting', action_timeline: 'Action', camera_path: 'Camera', overall_soundscape: 'Sound', non_diegetic_music: 'Music', retention_analysis: 'Keep', detailed_description: 'Detail', summary: 'Summary' };
   text = text.split('\n').filter(line => !/^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i.test(line)).join('\n');
