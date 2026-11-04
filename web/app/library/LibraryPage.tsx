@@ -81,6 +81,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
       <button className="btn" onClick={() => setSelected(selected.length === list.items.length ? [] : list.items.map(a => a.id))}>{selected.length === list.items.length ? 'Select none' : 'Select all loaded'}</button>
       <button className="btn" disabled={!selected.length} onClick={() => void bulk(id => assetsApi.favorite(id, true), 'Added to favorites:')}><Icon.Heart />Favorite</button>
       <button className="btn" disabled={!selected.length} onClick={() => void (async () => { for (const id of selected) { const a = list.items.find(x => x.id === id); if (a) await downloadAsset(id, assetTitle(a)); } app.toast(`Downloaded ${selected.length}`); })()}><Icon.Download />Download {selected.length || ''}</button>
+      {selected.length === 2 && <button className="btn" onClick={() => { const [a, b] = selected.map(id => items.find(i => i.asset === id)); if (a && b) app.compare(a, b); }}><Icon.Compare />Compare</button>}
       <button className="btn" disabled={!selected.length} onClick={() => setToCollection(true)}>Add to collection</button>
       {f.collection && <button className="btn" disabled={!selected.length} onClick={() => void bulk(id => assetsApi.inCollection(id, f.collection, false), 'Removed from collection:')}>Remove from collection</button>}
       <button className="btn danger" disabled={!selected.length} onClick={() => setConfirm(true)}><Icon.Trash />Delete</button>

@@ -428,3 +428,18 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 /* Compare selection: an unmistakable empty box on every tile, a filled one when chosen. */
 .check.big[aria-checked="false"] { background: #121311cc; border: 2px solid #f4f3ecdd; box-shadow: 0 1px 4px #0008; }
 .tile.selected { outline: 2px solid var(--accent); outline-offset: 2px; border-radius: 12px; }
+
+/* Crop: the image with a draggable frame; outside the frame is dimmed. */
+.crop-stage { position: relative; margin: 0 auto; touch-action: none; user-select: none; cursor: grab; border-radius: 8px; overflow: hidden; }
+.crop-stage img { width: 100%; height: 100%; display: block; pointer-events: none; }
+.crop-box { position: absolute; border: 2px solid #fff; box-shadow: 0 0 0 9999px #000a; border-radius: 2px; }
+
+/* Activity rows: media previews are always small, fixed thumbnails. */
+.task .thumb { overflow: hidden; display: grid; place-items: center; }
+.task .thumb img, .task .thumb video { width: 100%; height: 100%; object-fit: cover; display: block; }
+
+/* Phone viewer: the title gets its own line so the selected result is always identifiable. */
+@media (max-width: 699px) {
+  .viewer .vtop { flex-wrap: wrap; }
+  .viewer .vtop > b:not(.compare-title) { order: 10; flex-basis: 100%; white-space: normal; font-size: 14px; }
+}

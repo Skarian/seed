@@ -1,4 +1,4 @@
-import type { ChatCard, ChatMessage, Project, ImageRequest } from '../api.js';
+import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
@@ -9,10 +9,13 @@ export type Check = { text: string; fixes: Fix[] };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
 export function askedFor(messages: ChatMessage[]) {
-  const said: { aspect?: Aspect | 'portrait' | 'landscape'; seconds?: number; silent?: boolean } = {};
+  const said: { aspect?: Aspect | 'portrait' | 'landscape'; other?: string; seconds?: number; silent?: boolean } = {};
   for (const m of [...messages].reverse().filter(x => x.role === 'user').slice(0, 3)) {
     const t = m.text.toLowerCase();
-    if (!said.aspect) {
+    if (!said.aspect && !said.other) {
+      // A ratio Seed cannot make directly (3:2, 21:9, 2:3…): remember it so the plan can say so.
+      const ratio = t.match(/\b(\d{1,2}):(\d{1,2})\b/);
+      if (ratio && !['4:5', '1:1', '16:9', '9:16'].includes(ratio[0]) && Number(ratio[1]) > 0 && Number(ratio[2]) > 0 && Number(ratio[1]) <= 32 && Number(ratio[2]) <= 32) { said.other = ratio[0]; continue; }
       const exact = t.match(/\b(4:5|1:1|16:9|9:16)\b/)?.[1] as Aspect | undefined;
       said.aspect = exact ?? (/\bsquare\b/.test(t) ? '1:1' : /\b(portrait|vertical|tall)\b/.test(t) ? 'portrait' : /\b(landscape|horizontal|widescreen|wide)\b/.test(t) ? 'landscape' : undefined);
     }
@@ -45,6 +48,16 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       else out.push({ text: `You asked for ${names[want]}; this draft is ${names[aspect]}.`, fixes: [{ label: 'Make it ' + names[want], patch: withAspect(want as Aspect) }] });
     }
   }
+  if (asked.other && aspect !== 'source') {
+    const [w, h] = asked.other.split(':').map(Number) as [number, number], want = w / h;
+    const supported: Aspect[] = video ? ['16:9', '9:16'] : ['16:9', '1:1', '4:5', '9:16'];
+    const value = (a: Aspect) => { const [x, y] = a.split(':').map(Number) as [number, number]; return x / y; };
+    // The closest supported shape that still contains the asked one, so a crop loses as little as possible.
+    const closest = [...supported].sort((a, b) => Math.abs(Math.log(value(a) / want)) - Math.abs(Math.log(value(b) / want)))[0]!;
+    const fixes: Fix[] = closest !== aspect ? [{ label: 'Use ' + names[closest], patch: withAspect(closest) }] : [];
+    fixes.push({ label: video ? 'Keep ' + names[aspect] : `Keep ${names[aspect]}, crop to ${asked.other} after`, patch: () => ({}) });
+    out.push({ text: `You asked for ${asked.other}, which Seed can't make directly. This draft is ${names[aspect]}.${video ? '' : ` After it's made, Crop turns it into ${asked.other} on this device, no GPU.`}`, fixes });
+  }
   if (video && asked.seconds && asked.seconds >= 5 && asked.seconds <= 15 && r.output.duration_seconds !== asked.seconds)
     out.push({ text: `You asked for ${asked.seconds} seconds; this draft is ${r.output.duration_seconds ?? 5}.`, fixes: [{ label: `Make it ${asked.seconds} s`, patch: x => ({ ...strip(x), output: { ...x.output, duration_seconds: asked.seconds } }) }] });
   if (video && asked.silent !== undefined && (r.audio?.output === 'silent') !== asked.silent)
@@ -59,10 +72,10 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
 }
 
 /** Prompt text for people: input tokens such as <Picture 1> become the input's name. */
-export function readablePrompt(r: ImageRequest, project: Project) {
+export function readablePrompt(r: ImageRequest, project: Project, everywhere: JobRecord[] = []) {
   const labels = inputLabels(r.references ?? []);
   let text = r.prompt.replace(/\[\[([^\]]+)\]\]/g, '$1');
-  for (const ref of r.references ?? []) { const label = labels.get(ref.id); if (label) text = text.split(label).join('“' + assetName(project, ref.asset_id) + '”'); }
+  for (const ref of r.references ?? []) { const label = labels.get(ref.id); if (label) text = text.split(label).join('“' + assetName(project, ref.asset_id, everywhere) + '”'); }
   // Video prompts are structured for the model; show their sections as plain headings.
   const headings: Record<string, string> = { integrated_multimodal_description: 'Scene', subject_definitions: 'Subjects', scene_anchor: 'Setting', action_timeline: 'Action', camera_path: 'Camera', overall_soundscape: 'Sound', non_diegetic_music: 'Music', retention_analysis: 'Keep', detailed_description: 'Detail', summary: 'Summary' };
   text = text.split('\n').filter(line => !/^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i.test(line)).join('\n');

@@ -59,7 +59,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
     {!compact && <LocalCard />}
     <h2 className="subhead">Cloud GPUs</h2>
     <div className="box">
-      <div className="row"><span className="grow"><b>{active.length ? `${active.length} running · ${rate(hourly)}` : 'Nothing rented'}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>Last 24 hours · estimated {money(pool?.summary.spend_24h ?? pool?.summary.estimated_spend ?? 0)}, including released GPUs</span></span></div>
+      <div className="row"><span className="grow"><b>{active.length ? `${active.length} rented${active.some(w => ['starting', 'preparing'].includes(w.state)) ? ' · still preparing' : ' · ready'} · ${rate(hourly)}` : 'Nothing rented'}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>Last 24 hours · estimated {money(pool?.summary.spend_24h ?? pool?.summary.estimated_spend ?? 0)}, including released GPUs</span></span></div>
       <div className="row"><button className="btn" onClick={() => setStart('image')}><Icon.Plus />Start an image GPU</button><button className="btn" onClick={() => setStart('video')}><Icon.Plus />Start a video GPU</button></div>
     </div>
     {active.map(w => <div className="box" key={w.id}>

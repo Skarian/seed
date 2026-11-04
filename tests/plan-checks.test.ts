@@ -43,3 +43,10 @@ it('shows structured video prompts as plain sections', () => {
   const text = readablePrompt({ workflow: 'text-to-video', prompt: 'integrated_multimodal_description: A paper wave rolls in.\n[Shot 1] Slow push.\noverall_soundscape: Silence.\nnon_diegetic_music: N/A' } as any, project([]));
   expect(text).toBe('Scene: A paper wave rolls in.\nShot 1: Slow push.\nSound: Silence.');
 });
+
+it('turns an unsupported ratio such as 3:2 into a visible choice with a crop path', () => {
+  const p = project([message('user', 'Two dawn postcards in landscape 3:2, no words'), message('assistant', 'Prepared', 'run')]);
+  const checks = checkDraft(card({ workflow: 'text-to-image', prompt: 'cafe', output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' }) as any, p);
+  expect(checks[0]!.text).toBe("You asked for 3:2, which Seed can't make directly. This draft is landscape 16:9. After it's made, Crop turns it into 3:2 on this device, no GPU.");
+  expect(checks[0]!.fixes.map(f => f.label)).toEqual(['Keep landscape 16:9, crop to 3:2 after']);
+});

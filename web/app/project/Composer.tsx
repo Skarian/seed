@@ -88,8 +88,8 @@ export function Composer(p: Props) {
       <input ref={file} type="file" hidden multiple accept="image/*,video/*,audio/*" onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />
       <span className="grow" />
       <span className="modes" role="group" aria-label="Ask Seed or make directly">
-        <button aria-pressed={p.mode === 'ask'} onClick={() => p.onMode('ask')}>Ask</button>
-        <button aria-pressed={p.mode === 'make'} onClick={() => p.onMode('make')}>Make</button>
+        <button aria-pressed={p.mode === 'ask'} onClick={() => p.onMode('ask')} title="Talk it through; Seed prepares drafts you approve">Plan with Seed</button>
+        <button aria-pressed={p.mode === 'make'} onClick={() => p.onMode('make')} title="Write the prompt and settings yourself; it runs when you press Make">Make now</button>
       </span>
       {p.replying && p.mode === 'ask' ? <button className="btn" onClick={p.onStopReply}><Icon.Stop />Stop reply</button>
         : p.mode === 'make' ? <>{p.replying && <button className="btn quiet" onClick={p.onStopReply}><Icon.Stop />Stop reply</button>}<button className="btn primary" disabled={!canSend} onClick={submit} title={touch ? undefined : 'Ctrl+Enter'}>{narrow ? makeLabel.replace(' from this prompt', '') : makeLabel}{!touch && !narrow && <span className="kbd">Ctrl ↵</span>}</button></>

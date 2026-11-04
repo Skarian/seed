@@ -76,7 +76,7 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
 }) {
   const [view, setView] = useState(card.revisions.length - 1);
   const shown = card.revisions[view] ?? latest(card), r = shown.request, current = view === card.revisions.length - 1;
-  const [editing, setEditing] = useState(false), [full, setFull] = useState(false), { split } = useApp();
+  const [editing, setEditing] = useState(false), [full, setFull] = useState(false), { split, tasks } = useApp();
   const inputs = r.references ?? [];
   // An edit or animation runs on its own engine and size; say so next to the source it came from.
   const sourceJob = inputs.length ? project.jobs.find(j => j.outputs.includes(inputs[0]!.asset_id)) : undefined;
@@ -106,9 +106,9 @@ function Draft({ project, card, on, blocked, busy, onToggle, own, changed, ready
     {editing && current && split && <Dialog title={'Edit ' + titleOf(r)} wide onClose={() => setEditing(false)}><DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} /></Dialog>}
     {editing && current && !split ? <DraftEditor card={card} styles={styles} busy={busy} onCancel={() => setEditing(false)} onSave={async request => { if (await onRevise(request)) setEditing(false); }} />
       : <>
-        <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project)}</p>
+        <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project, tasks)}</p>
         {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
-        {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const name = assetName(project, ref.asset_id); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={name} /><span><b>{roleLabels[ref.role] ?? ref.role}</b> · {name}{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
+        {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const name = assetName(project, ref.asset_id, tasks); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={name} /><span><b>{roleLabels[ref.role] ?? ref.role}</b> · {name}{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
         {departure && <p className="faint" style={{ margin: 0, fontSize: 13 }}>{departure}</p>}
         {own.length > 0 && <div className="chips">{own.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</div>}
         {current && changed.length > 0 && <p className="changed">What changed: {changed.join(' · ')}</p>}

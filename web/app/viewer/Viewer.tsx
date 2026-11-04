@@ -7,6 +7,7 @@ import { titleOf, settingChips, duration, targetLabel, promptChanges } from '../
 import { roleLabels } from '../project/requests.js';
 import { StatusControl } from '../App.js';
 import { useStyles } from '../project/styles.js';
+import { CropDialog } from './Crop.js';
 
 /** Everything known about one result: its job, organization and family. */
 function useDetail(item: ViewerItem) {
@@ -35,7 +36,7 @@ export function AssetPanel({ item, compact = false, actionsOnly = false, onClose
   const styles = useStyles(app.mode);
   const [cols, setCols] = useState<AssetCollection[] | null>(null), [colDialog, setColDialog] = useState(false), [del, setDel] = useState(false), [note, setNote] = useState<{ note: string; revision: number } | null>(null);
   useEffect(() => { void assetsApi.note(item.asset).then(setNote).catch(() => setNote({ note: '', revision: 0 })); }, [item.asset]);
-  const [allCols, setAllCols] = useState<AssetCollection[]>([]);
+  const [allCols, setAllCols] = useState<AssetCollection[]>([]), [crop, setCrop] = useState(false);
   useEffect(() => { void collectionsApi.list(app.mode).then(setAllCols).catch(() => {}); }, [app.mode, detail?.collection_ids?.join()]);
   const memberOf = allCols.filter(c => detail?.collection_ids?.includes(c.id));
   const r = job?.request, video = item.kind === 'video';
@@ -52,6 +53,7 @@ export function AssetPanel({ item, compact = false, actionsOnly = false, onClose
     ...(source?.card_id ? [{ label: 'Reuse settings', hint: 'Load its prompt and settings into Make.', onSelect: () => { onClosed?.(); app.useResult({ ...item, job }, 'reuse'); } }] : []),
     { label: fav ? 'Remove from favorites' : 'Add to favorites', onSelect: () => void assetsApi.favorite(item.asset, !fav).then(refresh) },
     { label: 'Add to collection…', onSelect: () => { setColDialog(true); void collectionsApi.list(app.mode).then(setCols); } },
+    ...(!video ? [{ label: 'Crop…', hint: 'A new shape, on this device. No GPU.', onSelect: () => setCrop(true) }] : []),
     { label: 'Download', onSelect: () => void downloadAsset(item.asset, job ? titleOf(job.request) + (job.request.count > 1 ? ' ' + (job.submission_index + 1) : '') : item.title) },
     ...(source?.chat_id ? [{ label: 'Show in conversation', onSelect: () => { onClosed?.(); app.go({ name: 'project', id: source.chat_id!, view: 'conversation', focus: source.card_id }); } }] : []),
     'divider' as const,
@@ -62,6 +64,8 @@ export function AssetPanel({ item, compact = false, actionsOnly = false, onClose
       <button className="btn primary" onClick={() => app.useResult({ ...item, job }, 'refine')}><Icon.Pencil />Refine</button>
       {source?.card_id && !actionsOnly && <button className="btn" onClick={() => { onClosed?.(); app.useResult({ ...item, job }, 'more'); }}>Make another now</button>}
       {!video && <button className="btn" onClick={() => app.useResult({ ...item, job }, 'animate')}><Icon.Film />Animate</button>}
+      {!actionsOnly && !video && <button className="btn" onClick={() => setCrop(true)}>Crop</button>}
+      {!actionsOnly && <button className="btn" onClick={() => void downloadAsset(item.asset, job ? titleOf(job.request) + (job.request.count > 1 ? ' ' + (job.submission_index + 1) : '') : item.title)}>Download</button>}
       {!actionsOnly && <button className="btn" aria-pressed={fav} aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>}
       <MenuButton label="More actions" className="btn" items={more} placement={actionsOnly ? 'above' : undefined}><Icon.More /></MenuButton>
     </div>
@@ -77,6 +81,7 @@ export function AssetPanel({ item, compact = false, actionsOnly = false, onClose
       <><span>Collections</span><div className="chips">{memberOf.map(c => <button key={c.id} className="chip" aria-label={'Open collection ' + c.name} onClick={() => { onClosed?.(); app.go({ name: 'library', collection: c.id }); }}>{c.name}</button>)}<button className="chip" onClick={() => { setColDialog(true); void collectionsApi.list(app.mode).then(setCols); }}><Icon.Plus />{memberOf.length ? 'Change' : 'Add to collection'}</button></div></>
       {<><span>Note</span><div><NoteField asset={item.asset} note={note} onSaved={setNote} /></div></>}
     </div>}
+    {crop && <CropDialog asset={item.asset} title={item.title} onClose={() => setCrop(false)} />}
     {colDialog && <Dialog title="Add to collection" onClose={() => setColDialog(false)} footer={<button className="btn primary" onClick={() => setColDialog(false)}>Done</button>}>
       {!cols ? <p className="muted">Loading…</p> : <CollectionChoices asset={item.asset} cols={cols} detail={detail} onChanged={refresh} />}
     </Dialog>}
@@ -202,8 +207,9 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   const ca = new Map(settingChips(ja.request, id => id)), cb = new Map(settingChips(jb.request, id => id));
   const keys = [...new Set([...ca.keys(), ...cb.keys()])].filter(k => ca.get(k) !== cb.get(k));
   const rows: Array<[string, string]> = keys.map(k => [k.startsWith('style') ? 'Style' : k[0]!.toUpperCase() + k.slice(1), `${ca.get(k) ?? '—'} → ${cb.get(k) ?? '—'}`]);
+  // What changed creatively comes first; seeds are technical detail.
+  if (ja.request.prompt !== jb.request.prompt) rows.unshift(['Prompt', promptChanges(ja.request.prompt, jb.request.prompt).join('; ')]);
   if (ja.seed !== jb.seed) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
-  if (ja.request.prompt !== jb.request.prompt) rows.push(['Prompt', promptChanges(ja.request.prompt, jb.request.prompt).join('; ')]);
   const lineage = jb.request.references?.some(r => r.asset_id === a.asset) ? 'B was made from A' : ja.request.references?.some(r => r.asset_id === b.asset) ? 'A was made from B' : '';
   return <div className="diffbar" aria-label="Differences between A and B">
     {lineage && <span className="chip on">{lineage}</span>}

@@ -130,7 +130,7 @@ export function StatusControl() {
   const label = [words, hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
   return <button className="status" onClick={() => openStatus(active.length || ready.length || planning || !hourly ? 'tasks' : 'gpus')} aria-label={'Activity and GPUs: ' + label} aria-haspopup="dialog">
     <span className={`dot ${making || planning ? 'live' : ready.length ? 'amber' : waiting ? 'amber' : attention ? 'amber' : hourly ? '' : 'off'}`} />
-    <span className={words ? '' : 'label'}>{words || (attention ? 'Needs you' : hourly ? 'GPU on' : 'Nothing running')}</span>
+    <span className={words ? '' : 'label'}>{words || (attention ? 'Needs you' : hourly ? ((pool?.workers ?? []).some(w => ['starting', 'preparing'].includes(w.state)) ? 'GPU starting' : 'GPU ready') : 'Nothing running')}</span>
     {hourly > 0 && <span className="rate"><span className="sep">· </span>{rate(hourly)}</span>}
   </button>;
 }
@@ -165,7 +165,7 @@ function Rail() {
     <button className="nav" aria-current={route.name === 'library' ? 'page' : undefined} onClick={() => go({ name: 'library' })} title="Library"><Icon.Library /><span className="txt">Library</span></button>
     <div className="spacer" />
     <div className="foot">
-      <button className="nav" aria-current={route.name === 'gpus' ? 'page' : undefined} onClick={() => go({ name: 'gpus' })} title="GPUs" aria-label="GPUs"><Icon.Gpu /><span className="txt">GPUs<span className="no-tablet">{active ? ` · ${active} on · ${rate(hourly)}` : ''}</span></span></button>
+      <button className="nav" aria-current={route.name === 'gpus' ? 'page' : undefined} onClick={() => go({ name: 'gpus' })} title="GPUs" aria-label="GPUs"><Icon.Gpu /><span className="txt">GPUs<span className="no-tablet">{active ? ` · ${(pool?.workers ?? []).some(w => ['starting', 'preparing'].includes(w.state)) ? 'starting' : active + ' on'} · ${rate(hourly)}` : ''}</span></span></button>
       <button className="nav" aria-current={route.name === 'settings' ? 'page' : undefined} onClick={() => go({ name: 'settings' })} title="Settings"><Icon.Settings /><span className="txt">Settings</span></button>
     </div>
   </nav>;

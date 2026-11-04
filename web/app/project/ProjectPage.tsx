@@ -219,11 +219,13 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const question = plan && !planStale && !unresolved && /\?\s*$/.test(lastReply) && /support|instead|can.?t|cannot|not available|only (offer|support|do)|unable|which (one|option|format)|would you (prefer|like)/i.test(lastReply) && plan.cards.some(c => c.revisions.some(r => r.run_id === lastTurn!.id))
     ? (lastReply.split(/(?<=[.!])\s+/).filter(s => s.includes('?')).at(-1) ?? '').replace(/[*_`#]/g, '').trim().slice(0, 220) : '';
   const planNeed = selectedCards.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs || r.billing);
-  const split = app.split && Boolean(project?.jobs.length);
+  // On wide screens the board sits beside the conversation once there are results, unless the person turned that off.
+  const [beside, setBeside] = useStoredState('seed.board.beside', true);
+  const canSplit = app.split && Boolean(project?.jobs.length), split = canSplit && beside;
 
-  if (error && !project) return <><Header project={null} view={view} onRename={() => {}} onDelete={() => {}} /><div className="scroll"><div className="col"><div className="notice error" style={{ marginTop: 24 }}>This project could not be opened: {error} <div className="actions"><button className="btn small" onClick={() => app.go({ name: 'home' })}>Go to your latest project</button></div></div></div></div></>;
+  if (error && !project) return <><Header project={null} view={view} split={false} canSplit={false} onBeside={() => {}} onRename={() => {}} onDelete={() => {}} /><div className="scroll"><div className="col"><div className="notice error" style={{ marginTop: 24 }}>This project could not be opened: {error} <div className="actions"><button className="btn small" onClick={() => app.go({ name: 'home' })}>Go to your latest project</button></div></div></div></div></>;
   return <>
-    <Header project={project} view={view} onRename={() => setRenaming(true)} onDelete={() => setConfirmDelete(true)} />
+    <Header project={project} view={view} split={split} canSplit={canSplit} onBeside={setBeside} onRename={() => setRenaming(true)} onDelete={() => setConfirmDelete(true)} />
     {view === 'results' && project && !split ? <ResultsView project={project} /> : <div className={split ? 'split' : 'single'}><div className="convo">
       <div className="scroll" ref={scroller} onScroll={e => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div className="col">
@@ -268,12 +270,13 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   </>;
 }
 
-function Header({ project, view, onRename, onDelete }: { project: Project | null; view: 'conversation' | 'results'; onRename: () => void; onDelete: () => void }) {
+function Header({ project, view, split, canSplit, onBeside, onRename, onDelete }: { project: Project | null; view: 'conversation' | 'results'; split: boolean; canSplit: boolean; onBeside: (on: boolean) => void; onRename: () => void; onDelete: () => void }) {
   const app = useApp();
   return <header className="head">
     <button className="icon-btn back" aria-label="All projects" onClick={() => app.go({ name: 'projects' })}><Icon.Back /></button>
     <h1 className="serif"><button onClick={onRename} title="Rename project" disabled={!project}>{project?.title ?? ' '}</button></h1>
-    {project && !(app.split && project.jobs.length) && <div className="seg views" role="tablist" aria-label="Project view">
+    {canSplit && <button className="btn small quiet" aria-pressed={split} onClick={() => onBeside(!split)} title={split ? 'Show the conversation alone, with Results as a tab' : 'Show the board beside the conversation'}>{split ? 'Board beside chat' : 'Show board beside chat'}</button>}
+    {project && !split && <div className="seg views" role="tablist" aria-label="Project view">
       <button role="tab" aria-selected={view === 'conversation'} onClick={() => app.go({ name: 'project', id: project.id, view: 'conversation' })}>Conversation</button>
       <button role="tab" aria-selected={view === 'results'} onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })}>Results</button>
     </div>}
@@ -309,7 +312,7 @@ function EmptyProject({ onStarter }: { onStarter: (t: string) => void }) {
 function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { message: ChatMessage; project: Project; planAfter: boolean; onRetry: () => void; onMakeItMyself: () => void }) {
   const turn = message.transcript, running = turn?.state === 'running';
   const [open, setOpen] = useState(false);
-  const now = useNow(1000, running);
+  const now = useNow(1000, running), { tasks } = useApp();
   if (message.role === 'event') return <div className="sys">{message.text}</div>;
   if (message.role === 'user') {
     const names = new Map((project.asset_manifest ?? []).map(a => [a.id, a]));
@@ -319,14 +322,15 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
   }
   // Input tokens belong in generation prompts; in a reply, name the input the user attached.
   const asked = [...project.messages.slice(0, project.messages.findIndex(m => m.id === message.id))].reverse().find(m => m.role === 'user');
-  const text = cleanReply(message.text).replace(/\[\[input(\d+)\]\]|<(?:Picture|Video|Audio) (\d+)>/g, (_m, a: string, b: string) => { const asset = asked?.assets[Number(a ?? b) - 1]; return asset ? '“' + assetName(project, asset) + '”' : 'the attached input'; });
+  const text = cleanReply(message.text).replace(/\[\[input(\d+)\]\]|<(?:Picture|Video|Audio) (\d+)>/g, (_m, a: string, b: string) => { const asset = asked?.assets[Number(a ?? b) - 1]; return asset ? '“' + assetName(project, asset, tasks) + '”' : 'the attached input'; });
   const madePlan = project.groups.some(g => g.cards.some(c => c.revisions.some(r => r.run_id === message.id)));
   const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan;
   const leaked = /<\|?tool_call|call:[a-z_.]+\{/i.test(message.text);
   const askedToMake = !madePlan && (leaked || toolFailed || (!text && turn?.state === 'completed'));
   const stage = running ? stageOf(turn!) : '';
   const reasoning = message.reasoning_text || turn?.steps.filter(s => s.kind === 'reasoning').map(s => s.text).join('\n');
-  const long = planAfter && text.length > 220;
+  // A reply that states a limit ("only supports…", "can't…") stays fully visible next to the plan it affects.
+  const long = planAfter && text.length > 220 && !/(only supports?|not supported|isn't supported|can't|cannot|not possible|won't)/i.test(text);
   return <div className={'msg-seed' + (long && !open ? ' clamped' : '')}>
     <div className="who">Seed{running && <span className="statusline"><span className="dot live" />{stage} · {duration((now - Date.parse(turn!.started_at)) / 1000)}</span>}</div>
     {running && !text && reasoning && <p className="thought" aria-live="off">{(reasoning.trim().split(/(?<=[.!?])\s+/).at(-1) ?? '').replace(/[`*_#]/g, '').slice(-140)}</p>}

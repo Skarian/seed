@@ -158,8 +158,8 @@ export function estimateSeconds(jobs: JobRecord[], workflow: string, outputs: nu
 export const estimateText = (seconds: number | null) => seconds === null ? 'time not known until the first result' : 'about ' + duration(Math.max(5, Math.round(seconds / 5) * 5));
 
 /** A person-facing name for an asset in a project: the title of the draft that made it, else its upload name. */
-export function assetName(project: Project, asset: string) {
-  const job = project.jobs.find(j => j.outputs.includes(asset));
+export function assetName(project: Project, asset: string, everywhere: JobRecord[] = []) {
+  const job = project.jobs.find(j => j.outputs.includes(asset)) ?? everywhere.find(j => j.outputs.includes(asset));
   if (job) return titleOf(job.request);
   const name = project.asset_manifest?.find(a => a.id === asset)?.name;
   return name && !/^Generated (image|video)$/.test(name) ? name : 'the attached ' + (project.asset_manifest?.find(a => a.id === asset)?.kind ?? 'image');

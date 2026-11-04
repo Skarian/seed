@@ -25,7 +25,7 @@ test('every destination is one tap away and shows the status control', async ({ 
 
 test('a direct make asks before renting, then results land in the project and the Library', async ({ page }) => {
   await newProject(page);
-  await page.getByRole('button', { name: 'Make', exact: true }).click();
+  await page.getByRole('button', { name: 'Make now', exact: true }).click();
   const prompt = page.getByRole('textbox', { name: 'Prompt to make', exact: true });
   await prompt.fill('A paper lantern floating over a quiet harbor at dusk');
   // Enter never makes in Make mode.
@@ -49,6 +49,14 @@ test('a direct make asks before renting, then results land in the project and th
   await expect(fav).toBeVisible();
   await fav.click();
   await expect(page.getByRole('button', { name: 'Remove from favorites' }).first()).toBeVisible();
+  // Crop a square copy on the device: no GPU, the copy lands in the Library.
+  await page.getByRole('button', { name: 'More actions' }).last().click();
+  await page.getByRole('menuitem', { name: /^Crop…/ }).click();
+  const crop = page.getByRole('dialog', { name: /^Crop / });
+  await crop.getByRole('button', { name: '1:1', exact: true }).click();
+  await expect(crop.getByText(/^\d+ × \d+ from /)).toBeVisible();
+  await crop.getByRole('button', { name: 'Save copy to Library' }).click();
+  await expect(page.getByText('Saved a 1:1 copy to the Library')).toBeVisible({ timeout: 20_000 });
   await page.getByRole('button', { name: /Close/ }).first().click();
 
   // The Library finds it by its title.
