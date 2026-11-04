@@ -34,6 +34,8 @@ function agentRequest(request:ImageRequest,assets:ToolAsset[]=[]){
 interface StoredChat extends ChatView {title_manual?:boolean;title_accounting?:ChatAccounting[];title_error?:string;summary?:ConversationSummary;runs:Array<{id:string;workflow?:ChatWorkflow|null;source_assets?:string[];target_request_id?:string;prompt:ReturnType<typeof chatPromptSnapshot>;accounting:ChatAccounting[];messages:AgentMessage[];state:string;summary?:ConversationSummary}>}
 const terminal=['completed','failed','cancelled'];
 const latest=(card:ChatCard)=>card.revisions.at(-1)!;
+/** User-facing kinds of work and the workflow each one runs. */
+const chatKinds={image:'text-to-image',edit:'image-to-image',video:'text-to-video',animate:'reference-to-video'} as const satisfies Record<string,ChatWorkflow>;
 const openGroup=(chat:ChatView)=>chat.groups.find(g=>!['released','stopped'].includes(g.state));
 const now=()=>new Date().toISOString();
 
@@ -77,7 +79,9 @@ export class Chats {
   private jobIds(chat:ChatView){return [...new Set(chat.groups.flatMap(g=>g.cards.flatMap(c=>c.revisions.flatMap(r=>r.job_ids))))];}
   private activeJobs(chat:ChatView){return this.jobIds(chat).map(id=>this.jobs.get(id)).filter(job=>job&&!terminal.includes(job.state));}
   private generating(chat:ChatView){return this.activeJobs(chat).some(job=>!['needs_attention','blocked'].includes(job!.state)&&!job!.recovery_blocked&&!this.db.prepare('SELECT id FROM job_cancel_intents WHERE id=?').get(job!.id));}
-  private busy(chat:ChatView){return this.tasks.has(chat.id)||this.preparing.has(chat.id)||this.generating(chat);}
+  private busy(chat:ChatView){return this.agentBusy(chat)||this.generating(chat);}
+  /** Rendering results never blocks the conversation; only an agent turn or plan preparation does. */
+  private agentBusy(chat:ChatView){return this.tasks.has(chat.id)||this.preparing.has(chat.id);}
   private checkVersion(chat:ChatView,version:number){if(chat.version!==version)throw Error('Chat changed in another tab. Refresh and send again.');}
   view(id:string){const chat=this.get(id);const {runs,...view}=chat;
     view.activity=this.tasks.has(id)?'thinking':this.preparing.has(id)?'preparing':this.generating(chat)?'generating':'idle';
@@ -87,17 +91,18 @@ export class Chats {
   list(mode:ChatMode){return (this.db.prepare('SELECT id FROM chats WHERE mode=?').all(mode) as {id:string}[]).map(row=>{const c=this.view(row.id);return {id:c.id,title:c.title,last_reply_id:c.messages.filter(m=>m.role==='assistant').at(-1)?.id??'',activity:c.activity,error:c.error??c.groups.find(g=>g.state==='reviewing'&&g.submission_error)?.submission_error??c.jobs.find(j=>j?.state==='failed')?.error,status:c.jobs.some(j=>j?.state==='failed')?'Failed':c.jobs.length&&c.jobs.every(j=>j&&terminal.includes(j.state))?'Completed':'',updated_at:c.updated_at};}).sort((a,b)=>b.updated_at.localeCompare(a.updated_at));}
   create(mode:ChatMode){const id=randomUUID();this.save({id,mode,title:'New chat',workflow:null,version:0,epoch:0,reasoning:true,messages:[],groups:[],assets:[],runs:[],activity:'idle',error:null,created_at:now(),updated_at:now()});return this.view(id);}
   settings(id:string,version:number,values:{title?:string;workflow?:ChatWorkflow|null;reasoning?:boolean}){
-    const chat=this.get(id);this.checkVersion(chat,version);if(this.busy(chat))throw Error('Stop this chat before changing its settings.');
+    const chat=this.get(id);this.checkVersion(chat,version);if(this.agentBusy(chat))throw Error('Wait for Seed to finish before changing chat settings.');
     if(values.title!==undefined){if(!values.title.trim()||values.title.length>120)throw Error('Choose a title of 1–120 characters.');chat.title=values.title.trim();chat.title_manual=true;}
     if(values.workflow!==undefined){if(values.workflow!==null&&!Object.hasOwn(chatWorkflows,values.workflow))throw Error('Unknown workflow.');chat.workflow=values.workflow;}
     if(values.reasoning!==undefined)chat.reasoning=values.reasoning;
     chat.version++;this.save(chat);return this.view(id);
   }
   delete(id:string){const chat=this.get(id);if(this.busy(chat))throw Error('Stop generation before deleting this chat, then try again.');if(this.activeJobs(chat).length)throw Error('Remote cancellation or output saving is still pending. Check the worker status and try deletion after it settles.');this.titles.get(id)?.agent.abort();this.db.prepare('DELETE FROM chats WHERE id=?').run(id);}
-  stop(id:string){this.titles.get(id)?.agent.abort();const chat=this.get(id);chat.epoch++;chat.version++;chat.activity='idle';
+  /** scope 'reply' stops only the agent's turn: running results continue and an open plan stays open. */
+  stop(id:string,scope:'chat'|'reply'='chat'){this.titles.get(id)?.agent.abort();const chat=this.get(id);chat.epoch++;chat.version++;chat.activity='idle';
     for(const run of chat.runs)if(run.state==='running')run.state='stopped';for(const message of chat.messages)if(message.transcript?.state==='running')finishTurn(message.transcript,'stopped');
-    for(const group of chat.groups)if(group.state!=='released')group.state='stopped';
-    this.db.transaction(()=>{this.jobs.stopJobs(this.jobIds(chat));this.save(chat);})();
+    for(const group of chat.groups)if(group.state!=='released')group.state=scope==='reply'&&group.state!=='stopped'&&group.cards.length?'reviewing':'stopped';
+    this.db.transaction(()=>{if(scope==='chat')this.jobs.stopJobs(this.jobIds(chat));this.save(chat);})();
     this.agents.get(id)?.abort();return this.view(id);
   }
   private assertAssets(chat:StoredChat,ids:string[],allowExisting=true){
@@ -169,7 +174,7 @@ export class Chats {
     }));
   }
   send(id:string,input:{version:number;text:string;assets:string[];mention_bindings?:MentionBinding[];card_id?:string;revision?:number;attach_request?:boolean}){
-    const chat=this.get(id);this.checkVersion(chat,input.version);if(this.busy(chat))throw Error('This chat is busy. Stop it before sending another message.');
+    const chat=this.get(id);this.checkVersion(chat,input.version);if(this.agentBusy(chat))throw Error('Seed is still replying. Wait for it or stop it, then send.');
     if(!input.text.trim()||input.text.length>16000)throw Error('Write a message of 1–16000 characters.');
     const key=chatCredential(this.paths);if(!key)throw Error('Add your OpenRouter key in Admin → Credentials.');
     for(const job of this.jobIds(chat).map(id=>this.jobs.get(id)))for(const asset of job?.outputs??[])if(!chat.assets.includes(asset))chat.assets.push(asset);
@@ -237,13 +242,32 @@ export class Chats {
       const previousText=(previousAttempt?.result as any)?.content?.filter((p:any)=>p.type==='text').map((p:any)=>p.text).join('\n');
       if(previousText){try{previousResult=JSON.parse(previousText);}catch{previousResult={message:previousText.slice(0,3000),truncated:previousText.length>3000};}}
       const last_attempt=previousAttempt&&previousAttempt.state!=='succeeded'?{tool:previousAttempt.name,input:previousAttempt.input,saved:false,result:previousResult}:undefined;
-      const available_loras=this.jobs.loras.list(chat.mode).filter(l=>l.source_status==='ready').filter(l=>chat.workflow==='text-to-image'?l.route==='image':chat.workflow==='text-to-video'?l.route==='fl':chat.workflow==='reference-to-video'?l.route!=='image':false).map(l=>({id:l.id,revision:l.revision,name:l.name,version:l.version,description:l.description??'',trigger_words:l.trigger_words??[],source_status:l.source_status,default_scale:l.default_scale,min_scale:l.min_scale,max_scale:l.max_scale,compatible_with:l.route==='image'?'Krea images':l.route==='fl'?'Text to video and first/last-frame guides':'General image/video/audio references'}));
-      const context=JSON.stringify({available_loras,worker_policy:"Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not quote per-generation costs.",last_attempt,earlier_conversation_summary:compact.summary?.text,conversation:compact.recent,assets:manifest,available_inputs:availableInputs,images_in_order:imageIds,visual_evidence_in_order:visual.evidence,video_evidence_note:"Video images are sampled frames, not a full video. Audio has not been supplied. Do not claim to hear audio.",unavailable_images:unavailableImages,unavailable_inputs:visual.unavailable_inputs,request_context:chat.groups.flatMap(g=>g.cards.filter(c=>contextCardIds.includes(c.id)).map(c=>({id:c.id,state:g.state,...latest(c),request:agentRequest(latest(c).request,toolAssets),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))}))),review:group?.cards.map(c=>({id:c.id,revision:latest(c).number,decision:latest(c).decision})),feedback_card:target});
+      const loraCatalog=(workflow:ChatWorkflow|null)=>this.jobs.loras.list(chat.mode).filter(l=>l.source_status==='ready').filter(l=>workflow==='text-to-image'?l.route==='image':workflow==='text-to-video'?l.route==='fl':workflow==='reference-to-video'?l.route!=='image':false).map(l=>({id:l.id,revision:l.revision,name:l.name,version:l.version,description:l.description??'',trigger_words:l.trigger_words??[],source_status:l.source_status,default_scale:l.default_scale,min_scale:l.min_scale,max_scale:l.max_scale,compatible_with:l.route==='image'?'Krea images':l.route==='fl'?'Text to video and first/last-frame guides':'General image/video/audio references'}));
+      const available_loras=loraCatalog(chat.workflow);
+      const context=JSON.stringify({active_kind:Object.entries(chatKinds).find(([,w])=>w===chat.workflow)?.[0]??null,available_loras,worker_policy:"Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not quote per-generation costs.",last_attempt,earlier_conversation_summary:compact.summary?.text,conversation:compact.recent,assets:manifest,available_inputs:availableInputs,images_in_order:imageIds,visual_evidence_in_order:visual.evidence,video_evidence_note:"Video images are sampled frames, not a full video. Audio has not been supplied. Do not claim to hear audio.",unavailable_images:unavailableImages,unavailable_inputs:visual.unavailable_inputs,request_context:chat.groups.flatMap(g=>g.cards.filter(c=>contextCardIds.includes(c.id)).map(c=>({id:c.id,state:g.state,...latest(c),request:agentRequest(latest(c).request,toolAssets),reference_labels:Object.fromEntries(chatReferenceLabels(latest(c).request))}))),review:group?.cards.map(c=>({id:c.id,revision:latest(c).number,decision:latest(c).decision})),feedback_card:target});
       if(context.length>400000)throw Error('Current requests and attachments exceed the context budget. Start another chat with fewer assets.');
-      const tools=chat.workflow?this.workflowTools(id,epoch,chat.workflow,runId,toolAssets,target):[];
-      if(chat.workflow==='reference-to-video'&&toolAssets.some(a=>a.kind==='video'))tools.push(createReadInputTool({data:this.paths.data,assets:toolAssets,getAsset:assetId=>this.jobs.media.get(assetId)}));
+      const kindTools=(workflow:ChatWorkflow)=>[...this.workflowTools(id,epoch,workflow,runId,toolAssets,target),...(workflow==='reference-to-video'&&toolAssets.some(a=>a.kind==='video')?[createReadInputTool({data:this.paths.data,assets:toolAssets,getAsset:assetId=>this.jobs.media.get(assetId)})]:[])];
+      // The agent chooses the kind of work itself; choosing loads that kind's guide and request tools for the next model request.
+      let nextTurn:{systemPrompt:string;tools:AgentTool[]}|undefined;
+      const chooseKind:AgentTool={name:'choose_kind',label:'Choose kind',
+        description:'Choose what kind of media to prepare before creating requests: image (a new still from words), edit (change an existing image; needs an image input), video (a new clip from words only), animate (a clip guided by image, video or audio inputs, such as a start frame). Call it once before create_request whenever the needed kind differs from the active kind. It does not generate media.',
+        parameters:{type:'object',additionalProperties:false,properties:{kind:{type:'string',enum:Object.keys(chatKinds)}},required:['kind']} as any,
+        execute:async(_call,raw)=>{
+          const kind=String((raw as {kind?:unknown}).kind) as keyof typeof chatKinds,workflow=chatKinds[kind];
+          const current=this.get(id);
+          if(!workflow)throw Error(JSON.stringify({ok:false,error:'Unknown kind.',choices:Object.keys(chatKinds)}));
+          if(current.epoch!==epoch)throw Error('This run is no longer active.');
+          const open=openGroup(current);
+          if(open&&open.cards.length&&open.workflow!==workflow)throw Error(JSON.stringify({ok:false,error:'An open plan of another kind is waiting for the user. Revise that plan, or ask the user to make it or set it aside before planning a different kind.',open_plan_kind:Object.entries(chatKinds).find(([,w])=>w===open.workflow)?.[0]}));
+          if(current.workflow!==workflow){current.workflow=workflow;current.version++;this.save(current);}
+          const next=chatPromptSnapshot(this.paths,current.mode,workflow);
+          nextTurn={systemPrompt:next.system+'\n\n'+requestToolRules(process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct',workflow),tools:[chooseKind,...kindTools(workflow)]};
+          const result={ok:true,kind,available_loras:loraCatalog(workflow),next_action:'Prepare the drafts now with create_request, or edit_request for an existing draft.'};
+          return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
+        }};
+      const tools=[chooseKind,...(chat.workflow?kindTools(chat.workflow):[])];
       const agent=createChatAgent({apiKey:key,systemPrompt:snapshot.system,tools,reasoning:chat.reasoning,fetch:this.transport,
-        onAccounting:account});
+        onAccounting:account,nextTurn:()=>{const value=nextTurn;nextTurn=undefined;return value;}});
       this.agents.set(id,agent);
       let lastUpdate=0,messageIndex=-1;
       agent.subscribe(event=>{

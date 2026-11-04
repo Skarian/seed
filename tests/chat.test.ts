@@ -22,16 +22,43 @@ async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDa
 
   const pool=fakePool(db,paths).pool;
   const jobs=new Jobs(db,paths,pool);
-  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();if(ops instanceof Error)throw ops;return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
+  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();if(ops instanceof Error)throw ops;return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='kind'?'choose_kind':op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='kind'?{kind:op.kind}:op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
   try{await run({chats,jobs,db,paths,queue,requests,titleRequests});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
 }
 async function idle(chats:Chats,id:string){for(let i=0;i<200;i++){const value=chats.view(id);if(value.activity==='idle')return value;await new Promise(r=>setTimeout(r,5));}throw Error('Agent did not settle.');}
+
+it('lets the agent choose the kind of work, then prepare drafts with that kind’s tools in the same turn',async()=>fixture(async({chats,queue,requests})=>{
+  let chat=chats.create('sfw');expect(chat.workflow).toBeNull();
+  queue.push([{operation:'kind',kind:'image'}],[{operation:'create',request}]);
+  chats.send(chat.id,{version:chat.version,text:'One quiet landscape image, please',assets:[]});chat=await idle(chats,chat.id);
+  expect(chat.error).toBeNull();expect(chat.workflow).toBe('text-to-image');
+  expect(requests[0].tools.map((t:any)=>t.function.name)).toEqual(['choose_kind']);
+  expect(requests[1].tools.map((t:any)=>t.function.name)).toEqual(['choose_kind','create_request','edit_request']);
+  expect(requests[1].messages[0].content).toContain('Active workflow: text-to-image');
+  expect(chat.groups).toHaveLength(1);expect(chat.groups[0]!.workflow).toBe('text-to-image');expect(chat.groups[0]!.cards).toHaveLength(1);
+}));
+
+it('refuses to switch kind while a plan of another kind is open',async()=>fixture(async({chats,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'A landscape',assets:[]});chat=await idle(chats,chat.id);
+  queue.push([{operation:'kind',kind:'video'}]);chats.send(chat.id,{version:chat.version,text:'Now a video instead',assets:[]});chat=await idle(chats,chat.id);
+  expect(chat.workflow).toBe('text-to-image');expect(chat.groups).toHaveLength(1);
+  const step=chat.messages.at(-1)?.transcript?.steps.find(s=>s.kind==='tool'&&s.name==='choose_kind');expect(step?.state).toBe('failed');
+}));
+
+it('keeps the conversation open while approved results render, and a reply-only stop keeps the jobs',async()=>fixture(async({chats,jobs,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'A landscape',assets:[]});chat=await idle(chats,chat.id);
+  chat=await chats.decide(chat.id,chat.groups[0]!.cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(1);
+  chats.send(chat.id,{version:chat.version,text:'While that renders, what else could we try?',assets:[]});
+  chat=chats.stop(chat.id,'reply');expect(jobs.all()[0]!.state).not.toBe('cancelled');
+}));
 
 it('holds a whole group until all decisions and submits approved requests once',async()=>fixture(async({chats,jobs,queue,requests})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Another landscape'}}]);
   chats.send(chat.id,{version:chat.version,text:'Two ideas',assets:[]});chat=await idle(chats,chat.id);
-  expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.length===2)).toBe(true);
+  expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.map((t:any)=>t.function.name).join()==='choose_kind,create_request,edit_request')).toBe(true);
   expect(chat.groups[0]!.after_message_id).toBe(chat.messages.filter(m=>m.role==='user').at(-1)!.id);expect(chat.messages.filter(m=>m.role==='assistant').at(-1)?.reasoning_text).toContain('I will prepare the requested scene.');const cards=chat.groups[0]!.cards;expect(cards).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[1]!.id,1,'denied');expect(jobs.all()).toHaveLength(1);
@@ -191,7 +218,7 @@ it('surfaces rejected tool calls even when the model falsely claims success',asy
   expect(c.groups).toHaveLength(0);expect(jobs.all()).toHaveLength(0);
   expect(c.error).toBeNull();expect(c.messages.at(-1)?.transcript?.state).toBe('failed');expect(c.messages.at(-1)?.transcript?.steps.some(s=>s.kind==='tool'&&s.state==='failed')).toBe(true);
   expect(c.messages.some(m=>m.role==='event'&&m.text.includes('tool failed'))).toBe(false);
-  const schema=requests[0].tools[0].function.parameters;
+  const schema=requests[0].tools.find((t:any)=>t.function.name==='create_request').function.parameters;
   for(const tool of requests[0].tools)expect(tool.function.parameters.properties).not.toHaveProperty('size');
   expect(schema.properties).not.toHaveProperty('duration_seconds');
   expect(schema.properties.seed.pattern).toContain('random');

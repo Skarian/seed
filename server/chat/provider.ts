@@ -90,16 +90,20 @@ export function createChatAgent(options: {
   maxTokens?: number;
   fetch?: typeof fetch;
   onAccounting?: (value: ChatAccounting) => void;
+  /** Replaces the system prompt and tools before the next model request, e.g. after the agent chooses a kind. */
+  nextTurn?: () => { systemPrompt: string; tools: AgentTool[] } | undefined;
 }) {
   if (!options.apiKey.trim()) throw new Error('Add your OpenRouter key in Admin → Credentials.');
   let turns = 0;
+  let currentTools: AgentTool[] = options.tools ?? (options.tool ? [options.tool] : []);
   return new Agent({
     initialState: {
       model, systemPrompt: options.systemPrompt, messages: options.messages ?? [],
       tools: options.tools ?? (options.tool ? [options.tool] : []), thinkingLevel: options.reasoning === false ? 'off' : 'medium',
     },
     toolExecution: 'sequential',
-    transformContext: async messages=>explainToolValidation(messages,options.tools??(options.tool?[options.tool]:[])),
+    prepareNextTurnWithContext: options.nextTurn ? ({ context }) => { const next = options.nextTurn!(); if (!next) return undefined; currentTools = next.tools; return { context: { ...context, systemPrompt: next.systemPrompt, tools: next.tools } }; } : undefined,
+    transformContext: async messages=>explainToolValidation(messages,currentTools),
     streamFn: (_model, context, streamOptions) => {
       if (++turns > 8) throw new Error('Agent turn limit reached. Send another message to continue.');
       return streamSimple(model, context, {
