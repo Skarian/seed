@@ -94,7 +94,7 @@ function NoteField({ asset, note, onSaved }: { asset: string; note: { note: stri
   const [value, setValue] = useState(note?.note ?? ''), [saved, setSaved] = useState('');
   useEffect(() => setValue(note?.note ?? ''), [note?.revision, asset]);
   if (!note) return <span className="faint">…</span>;
-  return <textarea className="textarea" style={{ minHeight: 56 }} value={value} placeholder="Add a note (searchable in the Library)" aria-label="Note"
+  return <textarea className="textarea note" style={{ minHeight: 56, height: Math.min(320, 56 + Math.ceil(value.length / 48) * 20) }} value={value} placeholder="Add a note (searchable in the Library)" aria-label="Note"
     onChange={e => { setValue(e.target.value); setSaved(''); }}
     onBlur={() => { if (value !== note.note) void assetsApi.saveNote(asset, value, note.revision).then(n => { onSaved(n); setSaved('Saved'); }).catch(e => setSaved((e as Error).message)); }} />;
 }
@@ -164,8 +164,8 @@ export function Viewer({ item, siblings, onClose, onPick }: { item: ViewerItem; 
       {i > 0 && <button className="nav-arrow prev" aria-label="Previous" onClick={() => step(-1)}><Icon.Back /></button>}
       {i >= 0 && i < siblings.length - 1 && <button className="nav-arrow next" aria-label="Next" onClick={() => step(1)}><Icon.Next /></button>}
     </div>
-    {item.kind === 'video' && <div className="bottom" style={{ borderTop: 'none', paddingBottom: 0 }}><button className="btn small" onClick={() => void pickFrame()}><Icon.Frame />Save this frame as an image</button></div>}
-    {info ? <div className="bottom" style={{ display: 'block', maxHeight: '40vh', overflow: 'auto' }}><div style={{ maxWidth: 720, margin: '0 auto', display: 'grid', gap: 12 }}><AssetPanel item={item} compact onClosed={onClose} /></div></div>
+    {item.kind === 'video' && !(info && innerWidth < 700) && <div className="bottom" style={{ borderTop: 'none', paddingBottom: 0 }}><button className="btn small" onClick={() => void pickFrame()}><Icon.Frame />Save this frame as an image</button></div>}
+    {info ? <div className="bottom" style={{ display: 'block', maxHeight: innerWidth < 700 ? '66vh' : '40vh', overflow: 'auto' }}><div style={{ maxWidth: 720, margin: '0 auto', display: 'grid', gap: 12 }}><AssetPanel item={item} compact onClosed={onClose} /></div></div>
       : <div className="bottom"><AssetPanel item={item} compact actionsOnly onClosed={onClose} /></div>}
   </div>;
 }
@@ -200,6 +200,12 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
   </div>;
 }
 
+/** A long difference (a whole prompt): three lines, with the rest one tap away. */
+function DiffText({ label, text }: { label: string; text: string }) {
+  const [all, setAll] = useState(false);
+  return <div className="diff-wrap"><p className={'diff-text' + (all ? ' all' : '')}><b style={{ fontWeight: 600 }}>{label}</b> {text}</p>{text.length > 220 && <button className="link" style={{ fontSize: 13 }} onClick={() => setAll(x => !x)} aria-expanded={all}>{all ? 'Show less' : 'Show all'}</button>}</div>;
+}
+
 /** What separates A from B: settings, seed, prompt words, and whether one was made from the other. */
 function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   const ja = useDetail(a).job, jb = useDetail(b).job, app = useApp(), styles = useStyles(app.mode);
@@ -214,13 +220,13 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   const technical = rows.length;
   // An edit of the other one: the change that was asked for leads, ahead of engine and size.
   if (childJob) rows.unshift(['Change asked', '“' + (childJob.request.prompt.length > 180 ? childJob.request.prompt.slice(0, 179) + '…' : childJob.request.prompt) + '”']);
-  else if (ja.request.prompt !== jb.request.prompt) { const changes = promptChanges(ja.request.prompt, jb.request.prompt); const set = changes.length > 3 || changes[0] === 'prompt rewritten'; if (set) { const brief = (p: string) => '“' + (p.length > 140 ? p.slice(0, 139) + '…' : p) + '”'; rows.unshift(['A asks for', brief(ja.request.prompt)], ['B asks for', brief(jb.request.prompt)]); } else rows.unshift(['Prompt', changes.join('; ')]); }
+  else if (ja.request.prompt !== jb.request.prompt) { const changes = promptChanges(ja.request.prompt, jb.request.prompt); const set = changes.length > 3 || changes[0] === 'prompt rewritten'; if (set) { const brief = (p: string) => '“' + p + '”'; rows.unshift(['A asks for', brief(ja.request.prompt)], ['B asks for', brief(jb.request.prompt)]); } else rows.unshift(['Prompt', changes.join('; ')]); }
   // Seeds only matter between takes of the same request.
   if (ja.seed !== jb.seed && ja.request.prompt === jb.request.prompt) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
   const lineage = jb.request.references?.some(r => r.asset_id === a.asset) ? 'B was made from A' : ja.request.references?.some(r => r.asset_id === b.asset) ? 'A was made from B' : '';
   return <div className="diffbar" aria-label="Differences between A and B">
     {lineage && <span className="chip on">{lineage}</span>}
     {!rows.length && !lineage && <span className="faint">Same prompt and settings{ja.seed === jb.seed ? ' and seed' : ''}.</span>}
-    {rows.map(([k, v], n) => v.length > 70 ? <p key={k} className="diff-text"><b style={{ fontWeight: 600 }}>{k}</b> {v.replace(/<(?:image|Picture|Video|Audio) ?\d+>|\[\[input\d+\]\]/gi, 'the source')}</p> : <span key={k} className={'chip' + (n >= rows.length - technical - (ja.seed !== jb.seed && ja.request.prompt === jb.request.prompt ? 1 : 0) ? ' faint' : '')}><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
+    {rows.map(([k, v], n) => v.length > 70 ? <DiffText key={k} label={k} text={v.replace(/<(?:image|Picture|Video|Audio) ?\d+>|\[\[input\d+\]\]/gi, 'the source')} /> : <span key={k} className={'chip' + (n >= rows.length - technical - (ja.seed !== jb.seed && ja.request.prompt === jb.request.prompt ? 1 : 0) ? ' faint' : '')}><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
   </div>;
 }

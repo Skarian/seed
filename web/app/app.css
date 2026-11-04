@@ -265,7 +265,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .kv { display: grid; grid-template-columns: 104px minmax(0, 1fr); gap: 7px 12px; font-size: 13.5px; }
 .kv > span { color: var(--muted); }
 .kv > div { overflow-wrap: anywhere; }
-.kv .prompt { white-space: pre-wrap; max-height: 200px; overflow: auto; }
+.kv .prompt { white-space: pre-wrap; }
 .lineage { display: flex; gap: 6px; flex-wrap: wrap; }
 .lineage button { display: inline-flex; align-items: center; gap: 6px; border: 1px solid var(--line2); border-radius: 8px; padding: 3px 8px 3px 3px; font-size: 12.5px; }
 .lineage img, .lineage .ph, .lineage video { width: 28px; height: 28px; border-radius: 5px; object-fit: cover; background: var(--s3); flex: none; }
@@ -278,7 +278,9 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .viewer .bottom { display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; padding: 10px 12px 16px; border-top: 1px solid var(--line); }
 .diffbar { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 12px; border-bottom: 1px solid var(--line); font-size: 13px; }
 .diffbar .chip { white-space: normal; }
-.diffbar .diff-text { flex-basis: 100%; margin: 0; text-align: left; line-height: 1.4; color: var(--text); }
+.diffbar .diff-text { flex-basis: 100%; margin: 0; text-align: left; line-height: 1.4; color: var(--text); display: -webkit-box; -webkit-line-clamp: 3; -webkit-box-orient: vertical; overflow: hidden; }
+.diffbar .diff-text.all { display: block; max-height: 40vh; overflow: auto; }
+.diffbar { max-height: 55vh; overflow: auto; } .diffbar .diff-wrap { flex-basis: 100%; }
 .compare-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; flex: 1; min-height: 0; padding: 12px; }
 .compare-grid figure { margin: 0; display: flex; flex-direction: column; gap: 10px; min-height: 0; }
 .compare-grid .frame { flex: 1; min-height: 0; background: var(--s1); border-radius: var(--rt); display: grid; place-items: center; overflow: hidden; position: relative; }

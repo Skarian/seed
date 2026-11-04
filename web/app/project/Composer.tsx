@@ -25,7 +25,7 @@ type Props = {
   focusToken?: number;
 };
 
-const ctxLabel = (c: ComposerContext) => c.type === 'talk' ? 'Talking with Seed' : c.type === 'plan' ? 'Revising plan' : c.type === 'keep' ? 'Talking · plan kept' : c.type === 'draft' ? 'Revising: ' + c.title : (c.intent === 'animate' ? 'Animating: ' : c.intent === 'refine' ? 'Refining: ' : 'Using: ') + c.item.title;
+const ctxLabel = (c: ComposerContext) => c.type === 'talk' ? 'Talking with Seed' : c.type === 'plan' ? 'Revising plan' : c.type === 'keep' ? 'Talking · plan kept' : c.type === 'draft' ? 'Revising: ' + c.title : (c.intent === 'animate' ? 'Animating: ' : c.intent === 'refine' ? (c.item.kind === 'video' ? 'New take of: ' : 'Refining: ') : 'Using: ') + c.item.title;
 const placeholder = (c: ComposerContext, mode: 'ask' | 'make') => mode === 'make' ? 'Describe exactly what to make…' : c.type === 'plan' ? 'Ask Seed to change the plan, or ask a question…' : c.type === 'draft' ? `How should “${c.title}” change?` : c.type === 'using' ? (c.intent === 'animate' ? 'How should it move? (Seed plans an Animate draft)' : c.intent === 'refine' ? 'What should change? (Seed plans an Edit draft)' : 'What should Seed make with it?') : 'Ask Seed, or describe what to make…';
 
 export function Composer(p: Props) {
@@ -36,7 +36,7 @@ export function Composer(p: Props) {
   useLayoutEffect(() => { const el = area.current; if (!el) return; el.style.height = 'auto'; el.style.height = Math.min(el.scrollHeight, innerHeight * 0.4) + 'px'; }, [p.text]);
   useEffect(() => { if (p.focusToken) area.current?.focus(); }, [p.focusToken]);
   // The result being refined or animated is an input like any attachment, in Ask and in Make alike.
-  const inputs = p.context.type === 'using' ? defaultRoles(p.settings.kind, [{ key: p.context.item.asset, asset_id: p.context.item.asset, name: p.context.item.title, kind: p.context.item.kind, role: p.context.intent === 'animate' ? 'first_frame' : p.context.intent === 'refine' ? 'source' : undefined }, ...p.attachments]) : p.attachments;
+  const inputs = p.context.type === 'using' ? defaultRoles(p.settings.kind, [{ key: p.context.item.asset, asset_id: p.context.item.asset, name: p.context.item.title, kind: p.context.item.kind, role: p.context.intent === 'animate' ? 'first_frame' : p.context.intent === 'refine' ? (p.context.item.kind === 'video' ? 'reference' : 'source') : undefined }, ...p.attachments]) : p.attachments;
   const problem = p.mode === 'make' ? inputProblem(p.settings.kind, inputs) : p.attachments.some(a => a.progress) ? 'Wait for attachments to finish uploading.' : null;
   const canSend = !p.disabled && !problem && p.text.trim().length > 0;
   const count = p.settings.count, video = isVideoKind(p.settings.kind);

@@ -3,9 +3,11 @@ import type { ChatCard, ChatGroup, JobRecord, Project } from '../api.js';
 import { jobs as jobsApi, pool as poolApi, kindOf, isVideoKind } from '../api.js';
 import { Icon } from '../icons.js';
 import { Media, MenuButton, downloadAsset } from '../ui.js';
-import { latest, titleOf, tileState, shapeClass, isFailed, cardJobs, outputNoun, settingChips } from '../format.js';
+import { latest, titleOf, tileState, shapeClass, isFailed, cardJobs, outputNoun, settingChips, assetName } from '../format.js';
 import { useApp, type ViewerItem } from '../data.js';
 import { styleName, type StyleEntry } from './readiness.js';
+import { readablePrompt } from './checks.js';
+import { roleLabels } from './requests.js';
 
 type Actions = {
   onVariations: (card: ChatCard) => void; onRetryFailed: (card: ChatCard) => void; onBringBack: (card: ChatCard) => void;
@@ -49,7 +51,9 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
     </span>
   </div>;
   // Drafts left out of this make stay reachable whatever happens to the made ones (done, failed or cancelled).
-  const notNowRow = notNow.length > 0 && <div className="notnow"><span>Not made yet:</span>{notNow.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b> <button className="link" onClick={() => actions.onBringBack(c)}>Bring back</button></span>)}</div>;
+  // A later make of the same shot means this left-out draft is history, not missing work.
+  const madeLater = (c: ChatCard) => project.groups.slice(project.groups.indexOf(group) + 1).some(g => g.cards.some(x => latest(x).decision === 'approved' && titleOf(latest(x).request) === titleOf(latest(c).request)));
+  const notNowRow = notNow.length > 0 && <div className="notnow"><span>Left out of this make:</span>{notNow.map(c => <span key={c.id}><b>{titleOf(latest(c).request)}</b>{madeLater(c) ? <span className="faint"> · a newer version was made</span> : null} <button className="link" onClick={() => actions.onBringBack(c)}>{madeLater(c) ? 'Restore this earlier draft' : 'Bring back'}</button></span>)}</div>;
   if (list.length && list.every(j => j.state === 'cancelled')) return <section className="card" id={'card-' + card.id} data-group={group.id}><div className="notnow"><span><b>{title}</b> · cancelled before it was made</span><button className="link" onClick={() => actions.onMakeAgain(card)}>Make again</button></div>{notNowRow}<IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show /></section>;
   if (collapsed) return <section className="card" id={'card-' + card.id}>{head}<div className="strip">{items.map(it => <button key={it.asset} className={'tile ' + shapeClass(r)} onClick={() => app.inspect(it, items)} aria-label={'Open ' + it.title}><Media id={it.asset} kind={it.kind} alt={it.title} /></button>)}</div>{notNowRow}</section>;
   return <section className={'card' + (flash ? ' flash' : '')} id={'card-' + card.id} data-group={group.id} aria-label={title}>
@@ -87,11 +91,11 @@ function gpuWait(pool: ReturnType<typeof useApp>['pool'], role: 'image' | 'video
 }
 
 export function HowItWasMade({ project, card, styles }: { project: Project; card: ChatCard; styles: StyleEntry[] }) {
-  const r = latest(card).request, names = new Map((project.asset_manifest ?? []).map(a => [a.id, a.name]));
+  const r = latest(card).request, { tasks } = useApp();
   return <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--line)' }} className="kv">
-    <span>Prompt</span><div className="prompt">{r.prompt}</div>
+    <span>Prompt</span><div className="prompt">{readablePrompt(r, project, tasks)}</div>
     <span>Settings</span><div>{settingChips(r, id => styleName(styles, id)).map(([, v]) => v).join(' · ')}</div>
-    {(r.references ?? []).length > 0 && <><span>Inputs</span><div>{r.references!.map(x => (names.get(x.asset_id) ?? 'Input') + ' as ' + x.role.replace('_', ' ')).join(', ')}</div></>}
+    {(r.references ?? []).length > 0 && <><span>Inputs</span><div>{r.references!.map(x => '“' + assetName(project, x.asset_id, tasks) + '” as ' + (roleLabels[x.role] ?? x.role).toLowerCase()).join(', ')}</div></>}
     {r.resolved_seeds && <><span>Seeds</span><div>{r.resolved_seeds.join(', ')}</div></>}
   </div>;
 }
@@ -115,7 +119,7 @@ function ResultTile({ job, project, title, siblings, card, actions }: { job: Job
     {video && <span className="state pill" aria-hidden="true"><Icon.Play width={12} height={12} />{r.output.duration_seconds ?? 5} s</span>}
     {/* Touch screens have no hover: one always-visible menu holds the next steps. */}
     <MenuButton label={'Next steps for ' + title} className="pill touch-more" placement="above" items={[
-      { label: 'Refine', hint: 'Change this image with Seed', onSelect: () => app.useResult(item, 'refine') },
+      { label: 'Refine', hint: video ? 'Describe a change; Seed drafts a new take' : 'Describe a change to this image', onSelect: () => app.useResult(item, 'refine') },
       { label: 'Make another now', hint: 'Same settings, a new seed', onSelect: () => actions.onVariations(card) },
       ...(!video ? [{ label: 'Animate', hint: 'Use it as a start frame', onSelect: () => app.useResult(item, 'animate') }] : []),
       { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },

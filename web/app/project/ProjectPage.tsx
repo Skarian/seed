@@ -90,10 +90,11 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     if (context.type === 'draft') extra = { card_id: context.card, revision: context.revision };
     if (context.type === 'using') {
       assets.unshift(context.item.asset);
-      body = (context.intent === 'refine' ? 'Edit this image (“' + context.item.title + '”): ' : context.intent === 'animate' ? 'Animate this image (“' + context.item.title + '”) as the start frame: ' : 'Use “' + context.item.title + '” as an input: ') + body;
+      body = (context.intent === 'refine' ? (context.item.kind === 'video' ? 'Make a new take of this clip (“' + context.item.title + '”): ' : 'Edit this image (“' + context.item.title + '”): ') : context.intent === 'animate' ? 'Animate this image (“' + context.item.title + '”) as the start frame: ' : 'Use “' + context.item.title + '” as an input: ') + body;
     }
     // Refine and Animate mean an operation on that exact image: set the kind before Seed reads the message.
-    const kind = context.type === 'using' ? ({ refine: 'image-to-image', animate: 'reference-to-video' } as Record<string, string>)[context.intent] : undefined;
+    // A clip cannot be edited as an image: refining it drafts a new take that uses the clip as its reference.
+    const kind = context.type === 'using' ? ({ refine: context.item.kind === 'video' ? 'reference-to-video' : 'image-to-image', animate: 'reference-to-video' } as Record<string, string>)[context.intent] : undefined;
     const go = async (addToPlan = false) => {
       lastSent.current = { text: body, assets }; follow.current = true;
       const ok = await run('', async () => {
@@ -122,7 +123,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     const last = substantialRequest(project); if (!last) return;
     // If the model wrote its request as text, its prompt is the best starting point.
     const leaked = fromTurn?.text.match(/prompt\s*[:=]\s*"((?:[^"\\]|\\.){12,})"/)?.[1]?.replace(/\\"/g, '"');
-    setMode('make'); setText(leaked ?? last.text.replace(/^(Edit this image|Animate this image|Use) [^:]*: /, ''));
+    setMode('make'); setText(leaked ?? last.text.replace(/^(Edit this image|Make a new take of this clip|Animate this image|Use) [^:]*: /, ''));
     const kind: Kind = last.assets.length ? (project!.asset_manifest?.find(a => a.id === last.assets[0])?.kind === 'image' && /animat|move|video|clip/i.test(last.text) ? 'animate' : 'edit') : (/video|clip|animat/i.test(last.text) ? 'video' : 'image');
     setSettings({ ...settings, kind });
     setAttachments(defaultRoles(kind, last.assets.map(a => { const m = project!.asset_manifest?.find(x => x.id === a); return { key: a, asset_id: a, name: m?.name ?? 'Input', kind: m?.kind ?? 'image' }; })));
@@ -133,7 +134,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   async function makeDirect() {
     if (!project) return;
     const inputs = defaultRoles(settings.kind, attachments);
-    const all = context.type === 'using' ? defaultRoles(settings.kind, [{ key: context.item.asset, asset_id: context.item.asset, name: context.item.title, kind: context.item.kind, role: context.intent === 'animate' ? 'first_frame' : context.intent === 'refine' ? 'source' : undefined }, ...inputs]) : inputs;
+    const all = context.type === 'using' ? defaultRoles(settings.kind, [{ key: context.item.asset, asset_id: context.item.asset, name: context.item.title, kind: context.item.kind, role: context.intent === 'animate' ? 'first_frame' : context.intent === 'refine' ? (context.item.kind === 'video' ? 'reference' : 'source') : undefined }, ...inputs]) : inputs;
     const request = buildRequest(settings, text, all, titleFromPrompt(text));
     const key = randomKey();
     const go = async () => { const ok = await run('Starting', () => projectsApi.makeDirect(id, request, key)); if (ok) { setText(''); setAttachments([]); if (context.type === 'using') setContext({ type: plan ? 'plan' : 'talk' }); } };
@@ -328,8 +329,8 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
   if (message.role === 'event') return <div className="sys">{message.text}</div>;
   if (message.role === 'user') {
     const names = new Map((project.asset_manifest ?? []).map(a => [a.id, a]));
-    const intent = message.text.match(/^(Edit this image|Animate this image|Use) \(?“[^”]*”\)?[^:]*: /);
-    const label = intent ? (intent[1] === 'Edit this image' ? 'Refine' : intent[1] === 'Animate this image' ? 'Animate' : 'Use as input') : '';
+    const intent = message.text.match(/^(Edit this image|Make a new take of this clip|Animate this image|Use) \(?“[^”]*”\)?[^:]*: /);
+    const label = intent ? (intent[1] === 'Edit this image' ? 'Refine' : intent[1] === 'Make a new take of this clip' ? 'New take' : intent[1] === 'Animate this image' ? 'Animate' : 'Use as input') : '';
     return <div className="msg-you">{label && <span className="kind" style={{ marginRight: 6 }}>{label}</span>}{cleanReply(intent ? message.text.slice(intent[0].length) : message.text)}{message.assets.length > 0 && <div className="attachments">{message.assets.map(a => { const m = names.get(a); return <span className="input-chip" key={a}><Thumb id={a} kind={m?.kind ?? 'image'} alt={m?.name ?? 'Attachment'} /></span>; })}</div>}</div>;
   }
   // Input tokens belong in generation prompts; in a reply, name the input the user attached.

@@ -20,7 +20,7 @@ const emptyGuidance: LoraGuidance = {
   trigger_words: [],
 };
 function submitted() {
-  toast.success('LoRA request submitted · Track it in Activity', { duration: 4500 });
+  toast.success('Style saved · progress is in Activity', { duration: 4500 });
   window.dispatchEvent(new Event('seed:activity-changed'));
 }
 
@@ -31,14 +31,14 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
     <>
       <div className="admin-section-heading admin-lora-heading">
         <div>
-          <h2>Your LoRAs</h2>
-          <p>Manage the adapters available to Generate and Chat.</p>
+          <h2>Your styles</h2>
+          <p>Add a style from Civitai, then choose when Seed may use it.</p>
         </div>
         <button
           className="admin-primary"
           onClick={() => setImporting((current) => (current ? null : {}))}
         >
-          {importing ? 'Close import' : '+ Add LoRA'}
+          {importing ? 'Close' : '+ Add style'}
         </button>
       </div>
       {catalog.error && <p role="alert">{catalog.error}</p>}
@@ -55,7 +55,7 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
         />
       )}
       {!catalog.items ? (
-        <p role="status">Loading LoRAs…</p>
+        <p role="status">Loading styles…</p>
       ) : catalog.items.length ? (
         <div className="admin-loras">
           {catalog.items.map((group) => (
@@ -67,7 +67,7 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
                 catalog.refresh();
               }}
               onDeleted={() => {
-                toast.success('LoRA deleted');
+                toast.success('Style deleted');
                 window.dispatchEvent(new Event('seed:loras-changed'));
               }}
               onChangeFiles={() => {
@@ -84,9 +84,9 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
         !importing && (
           <div className="admin-empty">
             <span aria-hidden="true">✧</span>
-            <h3>No LoRAs yet</h3>
-            <p>Add a Civitai adapter to give Generate and Chat a new subject or style.</p>
-            <button onClick={() => setImporting({})}>Add your first LoRA</button>
+            <h3>No styles yet</h3>
+            <p>Add one from Civitai to give your drafts a recurring look, character or subject.</p>
+            <button onClick={() => setImporting({})}>Add your first style</button>
           </div>
         )
       )}
@@ -119,10 +119,10 @@ function GuidanceFields({
           maxLength={4000}
           value={value.description}
           onChange={(event) => onChange({ ...value, description: event.target.value })}
-          placeholder="Describe what this LoRA does and when to use it."
+          placeholder="Describe the look and when Seed should use it."
         />
       </label>
-      <p className="admin-hint">Chat uses this guidance to choose a LoRA and its strength.</p>
+      <p className="admin-hint">Seed reads this to decide when to suggest the style, and how strongly.</p>
       <label>
         Default strength
         <input
@@ -211,9 +211,9 @@ function ImportLora({
   }
   const selected = Object.values(mapping).filter(Boolean);
   return (
-    <section className="admin-import" aria-label="Import LoRA">
+    <section className="admin-import" aria-label="Add a style">
       <h3>Add from Civitai</h3>
-      <p>Choose a version, then map its files to the workflows you want to use. New workers download enabled LoRAs directly from Civitai when they start.</p>
+      <p>Pick a version, then say what kind of work each file is for. Seed downloads the files to a GPU when it starts.</p>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -300,8 +300,8 @@ function ImportLora({
             </>
           ) : (
             <p role="alert">
-              {version?.base_model ?? 'This model'} is not supported. Choose a Krea 2 or MiniMax H3
-              LoRA.
+              {version?.base_model ?? 'This model'} isn't one Seed can use. Choose a style made for
+              Krea 2 (images) or MiniMax H3 (video).
             </p>
           )}
         </form>
@@ -396,7 +396,7 @@ function LoraEditor({
               disabled={busy}
               onChange={(event) => setEnabled(event.target.checked)}
             />
-            Enabled for Generate and Chat
+            Seed may use this style
           </label>
           <div className="lora-edit-actions">
             <button
@@ -421,15 +421,17 @@ function LoraEditor({
             ))}
           </ul>
           <p className="admin-lora-description">
-            {group.description || 'Add a description to help Chat choose this LoRA.'}
+            {group.description || 'Add a description so Seed knows when to suggest this style.'}
           </p>
           <footer>
             <span className="admin-status">{group.enabled ? 'Enabled' : 'Disabled'}</span>
             <span>Strength {group.default_scale}</span>
             <span>
               {group.files.every((file) => file.compatibility === 'verified')
-                ? 'Runtime verified'
-                : `${group.files.filter((file) => file.compatibility === 'verified').length} of ${group.files.length} mappings tested`}
+                ? 'Used successfully'
+                : group.files.some((file) => file.compatibility === 'verified')
+                  ? `Used with ${group.files.filter((file) => file.compatibility === 'verified').length} of ${group.files.length} kinds of work`
+                  : 'Not used yet'}
             </span>
             {group.source_url && (
               <a href={group.source_url} target="_blank" rel="noopener noreferrer">
@@ -437,15 +439,15 @@ function LoraEditor({
               </a>
             )}
           </footer>
-          <p className="admin-hint">Changes apply to newly started workers. Existing workers keep their prepared LoRAs.</p>
-          {group.files.some(file=>file.source_status==='needs_source')&&<p role="status" className="admin-hint">This older import needs a pinned Civitai source. Choose Change files to reimport it before starting a new worker.</p>}
+          <p className="admin-hint">Changes apply to GPUs you start from now on. A GPU that is already running keeps the version it started with.</p>
+          {group.files.some(file=>file.source_status==='needs_source')&&<p role="status" className="admin-hint">An older version of Seed added this style. Choose source files to add it again before you start a GPU.</p>}
         </>
       )}
       {error && <p role="alert">{error}</p>}
       {deleting && <ConfirmDialog
         title={`Delete ${group.name}?`}
-        description="Remove this LoRA and all its workflow mappings from Admin, Generate, and Chat. Saved media and copies on existing workers stay. Queued requests may need this LoRA reimported."
-        action="Delete LoRA"
+        description="Seed stops offering this style. Results made with it stay in your Library. A running GPU keeps its copy, and queued drafts that use it may fail."
+        action="Delete style"
         onConfirm={async () => {
           await adminApi('/loras/' + encodeURIComponent(group.id), 'DELETE');
           onDeleted();

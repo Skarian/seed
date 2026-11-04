@@ -22,7 +22,7 @@ export function SettingsPage({ section: initial }: { section?: string }) {
     </div>
     <div className="scroll"><div className="col"><div className="page">
       {section === 'keys' && <Keys />}
-      {section === 'styles' && <><p className="muted" style={{ margin: 0 }}>Styles (LoRAs) give drafts a consistent look. Seed suggests them in plans; you can also pick one in Make settings.</p><div className="legacy-admin"><AdminLoras key={app.mode} mode={app.mode} /></div></>}
+      {section === 'styles' && <><p className="muted" style={{ margin: 0 }}>A style is a LoRA from Civitai. It gives drafts a consistent look or a recurring character. Seed suggests styles in plans, and you can pick one in Make settings.</p><div className="legacy-admin"><AdminLoras key={app.mode} mode={app.mode} /></div></>}
       {section === 'access' && <div className="legacy-admin"><AdminAccess /></div>}
       {section === 'content' && <Content />}
     </div></div></div>

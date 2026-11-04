@@ -11,7 +11,9 @@ const mdComponents = {
 };
 /** Tool-call markup a model sometimes writes as text. It is never shown. */
 export const toolMarkup = /<\|?tool_call\|?>[\s\S]*?(<\|?\/?tool_call\|?>|$)|call:[a-z_.]+\{[\s\S]*$/i;
-export function cleanReply(text: string) { return text.replace(toolMarkup, '').replace(/\[([^\]]+)\]\(asset:[^)]+\)/g, '$1').trim(); }
+/** Simple LaTeX the model sometimes writes for arrows and symbols, shown as the characters they mean. */
+const latex: Record<string, string> = { rightarrow: '→', to: '→', leftarrow: '←', Rightarrow: '⇒', times: '×', approx: '≈', le: '≤', ge: '≥', pm: '±', cdot: '·', degree: '°' };
+export function cleanReply(text: string) { return text.replace(toolMarkup, '').replace(/\[([^\]]+)\]\(asset:[^)]+\)/g, '$1').replace(/\$\s*\\([a-zA-Z]+)\s*\$/g, (m, name: string) => latex[name] ?? m).replace(/\\(rightarrow|leftarrow|Rightarrow|times|approx)\b/g, (_m, name: string) => latex[name]!).trim(); }
 export function Markdown({ text, streaming = false }: { text: string; streaming?: boolean }) {
   return <div className="md"><Streamdown mode={streaming ? 'streaming' : 'static'} isAnimating={streaming} controls={false} components={mdComponents} rehypePlugins={[]} skipHtml>{text}</Streamdown></div>;
 }
