@@ -54,6 +54,20 @@ it('keeps the conversation open while approved results render, and a reply-only 
   chat=chats.stop(chat.id,'reply');expect(jobs.all()[0]!.state).not.toBe('cancelled');
 }));
 
+it('makes a plan in one versioned decision, sets the rest aside, and ignores a repeated decision',async()=>fixture(async({chats,jobs,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request:{...request,title:'Quiet lake'}},{operation:'create',request:{...request,prompt:'Another landscape',title:'Misty ridge'}}]);
+  chats.send(chat.id,{version:chat.version,text:'Two ideas',assets:[]});chat=await idle(chats,chat.id);
+  const group=chat.groups[0]!,[a,b]=group.cards;expect(a!.revisions[0]!.request.title).toBe('Quiet lake');
+  await expect(chats.decideAll(chat.id,group.id,[{card:a!.id,revision:1,decision:'approved'}])).rejects.toThrow('Decide every draft');
+  await expect(chats.decideAll(chat.id,group.id,[{card:a!.id,revision:2,decision:'approved'},{card:b!.id,revision:1,decision:'denied'}])).rejects.toThrow('Quiet lake');
+  const decisions=[{card:a!.id,revision:1,decision:'approved' as const},{card:b!.id,revision:1,decision:'denied' as const}];
+  chat=await chats.decideAll(chat.id,group.id,decisions);
+  expect(jobs.all()).toHaveLength(1);expect(chat.groups[0]!.state).toBe('released');
+  chat=await chats.decideAll(chat.id,group.id,decisions);expect(jobs.all()).toHaveLength(1);
+  await expect(chats.decideAll(chat.id,group.id,decisions.map(d=>({...d,decision:'approved' as const})))).rejects.toThrow('already been decided');
+}));
+
 it('holds a whole group until all decisions and submits approved requests once',async()=>fixture(async({chats,jobs,queue,requests})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Another landscape'}}]);

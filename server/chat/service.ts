@@ -318,6 +318,32 @@ export class Chats {
     if(prepare)await this.release(id,group.id,chat.epoch);
     return this.view(id);
   }
+  /**
+   * One versioned decision for a whole plan: every listed card is approved or set aside at its exact revision.
+   * Repeating an already-applied decision (double-click, reconnect) returns the current view without running anything twice.
+   */
+  async decideAll(id:string,groupId:string,decisions:Array<{card:string;revision:number;decision:'approved'|'denied'}>){
+    const chat=this.get(id),group=chat.groups.find(g=>g.id===groupId);
+    if(!group)throw Error('This plan no longer exists.');
+    const listed=new Map(decisions.map(d=>[d.card,d]));
+    if(listed.size!==decisions.length||group.cards.length!==listed.size||group.cards.some(c=>!listed.has(c.id)))throw Error('Decide every draft in this plan.');
+    const stale=group.cards.filter(c=>latest(c).number!==listed.get(c.id)!.revision);
+    if(stale.length)throw Error('Drafts changed since you reviewed them: '+stale.map(c=>latest(c).request.title||'untitled draft').join(', ')+'. Review again.');
+    const applied=group.cards.every(c=>latest(c).decision===listed.get(c.id)!.decision);
+    if(group.state!=='reviewing'){if(applied)return this.view(id);throw Error('This plan has already been decided.');}
+    if(this.tasks.has(id)||this.preparing.has(id))throw Error('Wait for Seed to finish this plan.');
+    for(const card of group.cards){
+      const decision=listed.get(card.id)!.decision,revision=latest(card);
+      if(decision==='approved'&&!revision.approved_snapshot){revision.notes=this.revision(chat,revision.request,revision.number).notes;revision.request.resolved_seeds=seeds(revision.request);revision.approved_snapshot=true;}
+      revision.decision=decision;
+    }
+    delete group.submission_error;
+    const prepare=group.cards.some(c=>latest(c).decision==='approved');
+    chat.activity=prepare?'preparing':'idle';if(!prepare)group.state='released';
+    chat.version++;this.save(chat);
+    if(prepare)await this.release(id,group.id,chat.epoch);
+    return this.view(id);
+  }
   private async release(id:string,groupId:string,epoch:number){
     this.preparing.add(id);
     try{await this.jobs.serialize(async()=>{
