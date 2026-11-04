@@ -226,7 +226,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   // Seed changed the plan and also asked something (often about an unsupported setting): quote it next to Make.
   const lastReply = lastTurn?.transcript?.state === 'completed' ? cleanReply(lastTurn.text) : '';
   // Only for a real decision (a substitution or limit), not a polite "anything else?".
-  const question = plan && !planStale && !unresolved && /\?\s*$/.test(lastReply) && /support|instead|can.?t|cannot|not available|only (offer|support|do)|unable|which (one|option|format)|would you (prefer|like)/i.test(lastReply) && plan.cards.some(c => c.revisions.some(r => r.run_id === lastTurn!.id))
+  // Answering with a button (a fix, or keeping a setting) settles Seed's question too.
+  const answered = plan ? plan.cards.some(c => (latest(c).number > 1 && !latest(c).run_id) || [...acknowledged].some(k => k.startsWith(c.id + ':'))) : false;
+  const question = plan && !planStale && !unresolved && !answered && /\?\s*$/.test(lastReply) && /support|instead|can.?t|cannot|not available|only (offer|support|do)|unable|which (one|option|format)|would you (prefer|like)/i.test(lastReply) && plan.cards.some(c => c.revisions.some(r => r.run_id === lastTurn!.id))
     ? (lastReply.split(/(?<=[.!])\s+/).filter(s => s.includes('?')).at(-1) ?? '').replace(/[*_`#]/g, '').trim().slice(0, 220) : '';
   const planNeed = selectedCards.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs || r.billing);
   // On wide screens the board sits beside the conversation once there are results, unless the person turned that off.
@@ -340,10 +342,10 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
   const stage = running ? stageOf(turn!) : '';
   const reasoning = message.reasoning_text || turn?.steps.filter(s => s.kind === 'reasoning').map(s => s.text).join('\n');
   // A reply that states a limit ("only supports…", "can't…") stays fully visible next to the plan it affects.
-  const long = planAfter && text.length > 220 && !/(only supports?|not supported|isn't supported|can't|cannot|not possible|won't)/i.test(text);
+  const long = planAfter && text.length > 600 && !/(only supports?|not supported|isn't supported|can't|cannot|not possible|won't)/i.test(text);
   return <div className={'msg-seed' + (long && !open ? ' clamped' : '')}>
     <div className="who">Seed{running && <span className="statusline"><span className="dot live" />{stage} · {duration((now - Date.parse(turn!.started_at)) / 1000)}</span>}</div>
-    {running && !text && reasoning && thoughtLine(reasoning) && <p className="thought" aria-live="off">{thoughtLine(reasoning)}</p>}
+    
     {text && <Markdown text={text} streaming={running} />}
     {long && <button className="link" style={{ fontSize: 13 }} aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Show less' : 'Show more'}</button>}
     {!running && turn?.state === 'failed' && <div className="notice error">{turn.error ?? 'Seed stopped with an error.'}<div className="actions"><button className="btn small" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}
@@ -351,11 +353,6 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
     {!running && turn?.state === 'completed' && askedToMake && <div className="notice"><b>Seed couldn't prepare that.</b> Your message and attachments are kept.<div className="actions"><button className="btn small primary" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}
     {reasoning && !running && <details className="thinking"><summary>Show thinking</summary><pre>{reasoning}</pre></details>}
   </div>;
-}
-/** The newest whole, plain sentence of Seed's thinking; fragments of settings or code are never shown. */
-function thoughtLine(reasoning: string) {
-  const plain = reasoning.replace(/[`*_#]/g, '').split(/(?<=[.!?])\s+|\n+/).map(s => s.trim());
-  return plain.reverse().find(s => /^[A-Z][^{}()[\]<>=|\\]{24,160}[.!?]$/.test(s) && !/\w:\s*\S/.test(s) && s.split(' ').length >= 5) ?? '';
 }
 function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
   const last = [...turn.steps].reverse().find(s => s.kind === 'tool');

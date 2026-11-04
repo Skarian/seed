@@ -175,6 +175,8 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .tile .bar { position: absolute; left: 8px; right: 8px; bottom: 8px; display: flex; gap: 6px; flex-wrap: wrap; opacity: 0; transition: opacity .12s; }
 .tile:hover .bar, .tile:focus-within .bar, .tile.selected .bar { opacity: 1; }
 .tile .bar .pill:hover { background: #121311; }
+.tile .touch-more { display: none; }
+@media (hover: none) { .tile .bar { display: none; } .tile .touch-more { z-index: 2; display: grid; place-items: center; position: absolute; right: 6px; bottom: 6px; width: 44px; height: 44px; border-radius: 50%; padding: 0; } }
 .tile.selected { outline: 2px solid var(--accent); outline-offset: -2px; }
 .tile .open { position: absolute; inset: 0; width: 100%; height: 100%; }
 .tile .prog { position: absolute; left: 0; right: 0; bottom: 0; height: 3px; background: #0005; }
@@ -296,6 +298,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .cell figcaption span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .cell figcaption .cap { display: flex; gap: 6px; min-width: 0; }
 .cell figcaption .cap b { flex: none; font-weight: 500; color: var(--muted); }
+.cell figcaption small.note-match { color: var(--muted); font-style: italic; }
 .cell figcaption small { color: var(--faint); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 11.5px; }
 .shelves { overflow-x: auto; flex-wrap: nowrap; padding-bottom: 2px; }
 .grid .tile .badge { position: absolute; left: 6px; bottom: 6px; }

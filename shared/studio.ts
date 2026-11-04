@@ -26,6 +26,8 @@ export interface LibraryAsset {
   /** Its place in a batch, 1-based, when the job was one of several ("2 of 4"). */
   variant?: number;
   variants?: number;
+  /** The owner's note on this asset, when there is one. */
+  note?: string;
 }
 
 export interface AssetOrganization {

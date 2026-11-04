@@ -61,7 +61,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
       <nav className="chips shelves" aria-label="Collections" style={{ flexBasis: '100%' }}>
         <button className={'chip' + (!f.favorites && !f.collection ? ' on' : '')} onClick={() => setF({ ...f, favorites: false, collection: '' })}>Everything</button>
         <button className={'chip' + (f.favorites ? ' on' : '')} onClick={() => setF({ ...f, favorites: !f.favorites, collection: '' })}><Icon.Heart width={13} height={13} />Favorites</button>
-        <NewShelf onCreate={async name => { const c = await collectionsApi.create(app.mode, name); setCols(x => [...x, c]); startFilling(c); }} />
+        <NewShelf compact={cols.length > 0} onCreate={async name => { const c = await collectionsApi.create(app.mode, name); setCols(x => [...x, c]); startFilling(c); }} />
         {cols.map(c => <button key={c.id} className={'chip' + (f.collection === c.id ? ' on' : '')} onClick={() => setF({ ...f, collection: f.collection === c.id ? '' : c.id, favorites: false })}>{c.name} <span className="faint">{c.count}</span></button>)}
       </nav>
       {active.length > 0 && <div className="chips" style={{ flexBasis: '100%' }}>{active.map(([label, clear]) => <button key={label} className="chip on" onClick={clear} aria-label={'Remove filter ' + label}>{label} <Icon.Close width={12} height={12} /></button>)}<button className="chip" onClick={() => setF(none)}>Clear filters</button></div>}
@@ -82,7 +82,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
           {selecting && <span className="check sel" role="checkbox" aria-checked={on} aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, background: on ? 'var(--accent)' : '#121311aa' }}>{on && <Icon.Check />}</span>}
           {a.favorite && <span className="corner" aria-label="Favorite"><Icon.HeartFill width={16} height={16} style={{ color: 'var(--accent)' }} /></span>}
           {a.kind !== 'image' && <span className="badge pill" aria-hidden="true">{a.kind === 'video' ? <><Icon.Play width={11} height={11} />Video</> : '♪ Audio'}</span>}
-        </div>{captions && <figcaption><Caption title={it.title} /><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small></figcaption>}</figure>; })}
+        </div>{captions && <figcaption><Caption title={it.title} /><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small>{query && a.note?.toLowerCase().includes(query.trim().toLowerCase()) && <small className="note-match">Note: {noteExcerpt(a.note, query.trim())}</small>}</figcaption>}</figure>; })}
       </div></section>)}
       {list.cursor && <div style={{ textAlign: 'center', padding: 16 }}><button className="btn" disabled={list.loading} onClick={() => void list.more()}>{list.loading ? 'Loading…' : 'Load more'}</button></div>}
     </div></div>
@@ -118,10 +118,11 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
 }
 
 /** A one-line way to start a new collection from the shelf row. */
-function NewShelf({ onCreate }: { onCreate: (name: string) => Promise<void> }) {
+function NewShelf({ onCreate, compact }: { onCreate: (name: string) => Promise<void>; compact?: boolean }) {
   const [open, setOpen] = useState(false), [name, setName] = useState('');
   const create = () => { if (name.trim()) void onCreate(name.trim()).then(() => { setOpen(false); setName(''); }); };
-  return <><button className="chip" onClick={() => setOpen(true)}><Icon.Plus width={13} height={13} />New collection</button>
+  // Once collections exist, the add button shrinks so the collections themselves stay in view.
+  return <><button className="chip" onClick={() => setOpen(true)} aria-label="New collection" title="New collection"><Icon.Plus width={13} height={13} />{compact ? '' : 'New collection'}</button>
     {open && <Dialog title="New collection" onClose={() => setOpen(false)} footer={<><button className="btn" onClick={() => setOpen(false)}>Cancel</button><button className="btn primary" disabled={!name.trim()} onClick={create}>Create</button></>}>
       <input className="input" autoFocus placeholder="For example: Postcard shortlist" aria-label="New collection name" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => { if (e.key === 'Enter') create(); }} />
     </Dialog>}</>;
@@ -133,6 +134,13 @@ function NewCollection({ onCreate }: { onCreate: (name: string) => Promise<void>
 }
 
 /** A tile title whose version or batch place never truncates away. */
+/** A few words around where the search matched a note. */
+function noteExcerpt(note: string, q: string) {
+  const at = note.toLowerCase().indexOf(q.toLowerCase());
+  const start = Math.max(0, at - 24);
+  return (start ? '…' : '') + note.slice(start, at + q.length + 40).trim() + (at + q.length + 40 < note.length ? '…' : '');
+}
+
 export function Caption({ title }: { title: string }) {
   const m = title.match(/^(.*?)((?: · v\d+)?(?: · \d+ of \d+)?)$/);
   const base = m?.[1] || title, badge = (m?.[2] ?? '').replace(/^ · /, '').trim();

@@ -16,8 +16,8 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
   const [choice, setChoice] = useState<string>(''), [more, setMore] = useState(false), [busy, setBusy] = useState(false);
   const voluntary = action === 'keep it ready';
   // A rental for one task defaults to a short lease; keeping a GPU ready is a deliberate choice with its own defaults.
-  const [idle, setIdle] = useStoredState(voluntary ? 'seed.idleRelease' : 'seed.idleRelease.task', voluntary ? 15 : 5);
-  const [cap, setCap] = useStoredState(voluntary ? 'seed.rentalCap' : 'seed.rentalCap.task', voluntary ? 120 : 60);
+  const [idle, setIdle] = useStoredState('seed.idleRelease.all', 10);
+  const [cap, setCap] = useStoredState('seed.rentalCap.all', 60);
   const [releaseIdle, setReleaseIdle] = useState(true);
   const [key] = useState(randomKey);
   async function load() {

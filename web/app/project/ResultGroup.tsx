@@ -113,6 +113,14 @@ function ResultTile({ job, project, title, siblings, card, actions }: { job: Job
     <Media id={asset} kind={item.kind} alt={title} />
     <button className="open" aria-label={'Open ' + title} onClick={() => app.inspect(item, siblings)} onDoubleClick={() => app.view(item, siblings)} />
     {video && <span className="state pill" aria-hidden="true"><Icon.Play width={12} height={12} />{r.output.duration_seconds ?? 5} s</span>}
+    {/* Touch screens have no hover: one always-visible menu holds the next steps. */}
+    <MenuButton label={'Next steps for ' + title} className="pill touch-more" placement="above" items={[
+      { label: 'Refine', hint: 'Change this image with Seed', onSelect: () => app.useResult(item, 'refine') },
+      { label: 'Make another now', hint: 'Same settings, a new seed', onSelect: () => actions.onVariations(card) },
+      ...(!video ? [{ label: 'Animate', hint: 'Use it as a start frame', onSelect: () => app.useResult(item, 'animate') }] : []),
+      { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },
+      { label: 'Open full screen', onSelect: () => app.view(item, siblings) },
+    ]}><Icon.More width={16} height={16} /></MenuButton>
     <div className="bar">
       <button className="pill" onClick={() => app.useResult(item, 'refine')}><Icon.Pencil width={14} height={14} />Refine</button>
       <button className="pill" onClick={() => actions.onVariations(card)} title="Same settings, a new seed. Starts right away.">Make another now</button>

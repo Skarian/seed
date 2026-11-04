@@ -202,9 +202,10 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
 
 /** What separates A from B: settings, seed, prompt words, and whether one was made from the other. */
 function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
-  const ja = useDetail(a).job, jb = useDetail(b).job;
+  const ja = useDetail(a).job, jb = useDetail(b).job, app = useApp(), styles = useStyles(app.mode);
   if (!ja || !jb) return <div className="diffbar faint">Reading how each was made…</div>;
-  const ca = new Map(settingChips(ja.request, id => id)), cb = new Map(settingChips(jb.request, id => id));
+  const named = (id: string) => styles.find(s => s.id === id)?.name ?? 'a style';
+  const ca = new Map(settingChips(ja.request, named)), cb = new Map(settingChips(jb.request, named));
   const keys = [...new Set([...ca.keys(), ...cb.keys()])].filter(k => ca.get(k) !== cb.get(k));
   const rows: Array<[string, string]> = keys.map(k => [k.startsWith('style') ? 'Style' : k[0]!.toUpperCase() + k.slice(1), `${ca.get(k) ?? '—'} → ${cb.get(k) ?? '—'}`]);
   // What changed creatively comes first; seeds are technical detail.
@@ -213,12 +214,13 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   const technical = rows.length;
   // An edit of the other one: the change that was asked for leads, ahead of engine and size.
   if (childJob) rows.unshift(['Change asked', '“' + (childJob.request.prompt.length > 180 ? childJob.request.prompt.slice(0, 179) + '…' : childJob.request.prompt) + '”']);
-  else if (ja.request.prompt !== jb.request.prompt) { const changes = promptChanges(ja.request.prompt, jb.request.prompt); const set = changes.length > 3 || changes[0] === 'prompt rewritten'; rows.unshift(set ? ['Request', `Two different requests: “${titleOf(ja.request)}” and “${titleOf(jb.request)}”. Shared settings are those not listed here.`] : ['Prompt', changes.join('; ')]); }
-  if (ja.seed !== jb.seed) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
+  else if (ja.request.prompt !== jb.request.prompt) { const changes = promptChanges(ja.request.prompt, jb.request.prompt); const set = changes.length > 3 || changes[0] === 'prompt rewritten'; if (set) { const brief = (p: string) => '“' + (p.length > 140 ? p.slice(0, 139) + '…' : p) + '”'; rows.unshift(['A asks for', brief(ja.request.prompt)], ['B asks for', brief(jb.request.prompt)]); } else rows.unshift(['Prompt', changes.join('; ')]); }
+  // Seeds only matter between takes of the same request.
+  if (ja.seed !== jb.seed && ja.request.prompt === jb.request.prompt) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
   const lineage = jb.request.references?.some(r => r.asset_id === a.asset) ? 'B was made from A' : ja.request.references?.some(r => r.asset_id === b.asset) ? 'A was made from B' : '';
   return <div className="diffbar" aria-label="Differences between A and B">
     {lineage && <span className="chip on">{lineage}</span>}
     {!rows.length && !lineage && <span className="faint">Same prompt and settings{ja.seed === jb.seed ? ' and seed' : ''}.</span>}
-    {rows.map(([k, v], n) => v.length > 70 ? <p key={k} className="diff-text"><b style={{ fontWeight: 600 }}>{k}</b> {v.replace(/<(?:image|Picture|Video|Audio) ?\d+>|\[\[input\d+\]\]/gi, 'the source')}</p> : <span key={k} className={'chip' + (n >= rows.length - technical - (ja.seed !== jb.seed ? 1 : 0) ? ' faint' : '')}><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
+    {rows.map(([k, v], n) => v.length > 70 ? <p key={k} className="diff-text"><b style={{ fontWeight: 600 }}>{k}</b> {v.replace(/<(?:image|Picture|Video|Audio) ?\d+>|\[\[input\d+\]\]/gi, 'the source')}</p> : <span key={k} className={'chip' + (n >= rows.length - technical - (ja.seed !== jb.seed && ja.request.prompt === jb.request.prompt ? 1 : 0) ? ' faint' : '')}><b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}</span>)}
   </div>;
 }

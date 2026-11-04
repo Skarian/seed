@@ -62,6 +62,9 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     out.push({ text: `You asked for ${asked.seconds} seconds; this draft is ${r.output.duration_seconds ?? 5}.`, fixes: [{ label: `Make it ${asked.seconds} s`, patch: x => ({ ...strip(x), output: { ...x.output, duration_seconds: asked.seconds } }) }] });
   if (video && asked.silent !== undefined && (r.audio?.output === 'silent') !== asked.silent)
     out.push({ text: asked.silent ? 'You asked for silence; this draft has sound.' : 'You asked for sound; this draft is silent.', fixes: [{ label: asked.silent ? 'Make it silent' : 'Add sound', patch: x => ({ ...strip(x), audio: { output: asked.silent ? 'silent' : 'generated' } }) }] });
+  // Sound the person never mentioned is a creative choice: say so, and make silence one tap.
+  if (video && asked.silent === undefined && trigger && !/\b(sound|audio|music|ambien\w*|noise|voice|dialog\w*|speak\w*|sings?|score)\b/i.test(trigger.text) && r.audio?.output !== 'silent')
+    out.push({ text: 'Seed added sound to this clip, which you didn’t ask for.', fixes: [{ label: 'Make it silent', patch: x => ({ ...strip(x), audio: { output: 'silent' } }) }, { label: 'Keep the sound', patch: () => ({}) }] });
   // An attachment that the draft does not use (it is made from words only).
   const runMessage = project.messages.findIndex(m => m.id === latest(card).run_id);
   const asking = runMessage > 0 ? [...project.messages.slice(0, runMessage)].reverse().find(m => m.role === 'user') : undefined;

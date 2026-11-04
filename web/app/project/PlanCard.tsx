@@ -33,6 +33,8 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   const kind = kindOf[group.workflow];
   const lastRun = cards.flatMap(c => c.revisions).filter(r => r.number > 1).map(r => r.run_id).filter(Boolean).at(-1);
   const revisedCount = lastRun ? cards.filter(c => latest(c).run_id === lastRun && latest(c).number > 1).length : 0;
+  // Drafts that the same reply added are new, not unchanged.
+  const addedCount = lastRun ? cards.filter(c => c.revisions.length === 1 && c.revisions[0]!.run_id === lastRun).length : 0;
   const working = group.state === 'revising' || group.state === 'assembling';
   // Compact rows lead with what tells drafts apart: words every title starts with are dropped.
   const words = cards.map(c => titleOf(latest(c).request).split(' '));
@@ -46,7 +48,7 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   const short = (r: ChatCard) => titleOf(latest(r).request).split(' ').slice(common).join(' ');
   return <section className={'card' + (flash === group.id ? ' flash' : '')} aria-label={`Plan, ${cards.length} ${cards.length === 1 ? 'draft' : 'drafts'}`} id={'group-' + group.id}>
     <div className="card-head">
-      <b>Plan</b><span className="meta">{cards.length} {cards.length === 1 ? 'draft' : 'drafts'}{working ? ' · Seed is updating it…' : revisedCount ? ` · ${revisedCount} changed, ${cards.length - revisedCount} unchanged in the last revision` : ''}{!working && cards.some(c => c.left_out) ? ` · Seed left ${cards.filter(c => c.left_out).length} out` : ''}</span>
+      <b>Plan</b><span className="meta">{cards.length} {cards.length === 1 ? 'draft' : 'drafts'}{working ? ' · Seed is updating it…' : revisedCount ? ` · last revision: ${[`${revisedCount} changed`, addedCount ? `${addedCount} added` : '', cards.length - revisedCount - addedCount ? `${cards.length - revisedCount - addedCount} unchanged` : ''].filter(Boolean).join(', ')}` : ''}{!working && cards.some(c => c.left_out) ? ` · Seed left ${cards.filter(c => c.left_out).length} out` : ''}</span>
       <span className="end">
         {cards.length > 2 && <button className="btn quiet small" onClick={() => setCompact(c => !c)} aria-pressed={compact}>{compact ? 'Show details' : 'Compact'}</button>}
         <MenuButton label="Plan options" items={[{ label: 'Set this plan aside', hint: 'Drafts are kept under Not made yet; Bring back returns them.', onSelect: onSetAside, disabled: busy }]}><Icon.More /></MenuButton>

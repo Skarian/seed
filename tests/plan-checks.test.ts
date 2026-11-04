@@ -60,3 +60,13 @@ it('edits a structured video prompt in readable form and converts it back exactl
   expect(e.back('Scene: “Lantern” sways gently.\nShot 1: Slow push.')).toBe('integrated_multimodal_description: <Picture 1> sways gently.\n[Shot 1] Slow push.\nnon_diegetic_music: N/A');
   expect(editablePrompt({ workflow: 'text-to-image', prompt: 'A plain prompt' } as any, p)).toBeNull();
 });
+
+it('points out sound nobody asked for, with silence one tap away', () => {
+  const request = { workflow: 'text-to-video', prompt: 'steam rising', output: { aspect: '16:9', size: '768p', duration_seconds: 5 }, count: 1, seed: 'random', mode: 'sfw', audio: { output: 'generated' } };
+  const quiet = checkDraft(card(request) as any, project([message('user', 'A 5-second clip of steam rising'), message('assistant', 'Prepared', 'run')]));
+  const sound = quiet.find(c => c.text.includes('added sound'))!;
+  expect(sound.fixes.map(f => f.label)).toEqual(['Make it silent', 'Keep the sound']);
+  expect(sound.fixes[0]!.patch(request as any)).toMatchObject({ audio: { output: 'silent' } });
+  const asked = checkDraft(card(request) as any, project([message('user', 'A clip of steam rising with soft ambient sound'), message('assistant', 'Prepared', 'run')]));
+  expect(asked.some(c => c.text.includes('added sound'))).toBe(false);
+});
