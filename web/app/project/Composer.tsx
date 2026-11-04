@@ -90,7 +90,7 @@ export function Composer(p: Props) {
         <button aria-pressed={p.mode === 'make'} onClick={() => p.onMode('make')}>Make</button>
       </span>
       {p.replying && p.mode === 'ask' ? <button className="btn" onClick={p.onStopReply}><Icon.Stop />Stop reply</button>
-        : p.mode === 'make' ? <button className="btn primary" disabled={!canSend} onClick={submit} title={touch ? undefined : 'Ctrl+Enter'}>{narrow ? makeLabel.replace(' from this prompt', '') : makeLabel}{!touch && !narrow && <span className="kbd">Ctrl ↵</span>}</button>
+        : p.mode === 'make' ? <>{p.replying && <button className="btn quiet" onClick={p.onStopReply}><Icon.Stop />Stop reply</button>}<button className="btn primary" disabled={!canSend} onClick={submit} title={touch ? undefined : 'Ctrl+Enter'}>{narrow ? makeLabel.replace(' from this prompt', '') : makeLabel}{!touch && !narrow && <span className="kbd">Ctrl ↵</span>}</button></>
           : <button className="send" disabled={!canSend} onClick={submit} aria-label="Send to Seed"><Icon.Send /></button>}
     </div>
     {settingsOpen && <MakeSettingsDialog settings={p.settings} onChange={p.onSettings} styles={p.styles} onClose={() => setSettingsOpen(false)} />}

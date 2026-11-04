@@ -205,7 +205,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         </div>}
         <Composer context={context} onContext={setContext} planOpen={Boolean(plan)} mode={mode} onMode={m => { setMode(m); if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' }); }}
           text={text} onText={setText} attachments={attachments} onAttachments={setAttachments} settings={settings} onSettings={setSettings} styles={styles}
-          replying={replying} disabled={!project ? 'Opening…' : replying && mode === 'ask' ? undefined : undefined} focusToken={focusToken}
+          replying={replying} disabled={!project ? 'Opening…' : replying && mode === 'make' ? 'Seed is still replying. Stop reply to make this now.' : undefined} focusToken={focusToken}
           onSend={() => void send()} onMake={() => void makeDirect()} onStopReply={() => void run('', () => projectsApi.stopReply(id))} onSetAside={() => void setAside()} />
       </div></div>
     </>}
