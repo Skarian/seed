@@ -90,14 +90,22 @@ export function openDatabase(dataDirectory: string) {
   }
 }
 
-export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string, filters: {favorites?:boolean;collection_id?:string} = {}): LibraryAsset[] {
+export type AssetFilters = {favorites?:boolean;collection_id?:string;q?:string;source?:'made'|'uploaded';chat_id?:string;order?:'newest'|'oldest'};
+export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string, filters: AssetFilters = {}): LibraryAsset[] {
+  const oldest = filters.order === 'oldest';
+  const q = filters.q?.trim() ? '%' + filters.q.trim().toLowerCase().replace(/[%_]/g, '') + '%' : null;
   const rows = db.prepare(`WITH items AS (
     SELECT a.id, a.kind, a.name, a.created_at,
+      j.id AS job_id,
+      json_extract(j.snapshot_json, '$.request.title') AS title,
+      json_extract(j.snapshot_json, '$.source.chat_id') AS chat_id,
+      lower(COALESCE(json_extract(j.snapshot_json, '$.request.prompt'), '') || ' ' || COALESCE(json_extract(j.snapshot_json, '$.request.title'), '') || ' ' || COALESCE((SELECT note FROM asset_notes WHERE id=a.id), '') || ' ' || a.name) AS haystack,
       json_extract(a.metadata_json, '$.executor') AS executor,
       json_extract(a.metadata_json, '$.execution_profile') AS execution_profile,
       COALESCE(json_extract(a.metadata_json, '$.mode'), s.mode, 'sfw') AS mode,
       EXISTS(SELECT 1 FROM asset_favorites WHERE asset_id=a.id) AS favorite
     FROM assets a
+    LEFT JOIN jobs j ON j.id=json_extract(a.metadata_json, '$.job_id')
     LEFT JOIN sequence_frames f ON f.asset_id=a.id
     LEFT JOIN sequences s ON s.id=f.sequence_id
     WHERE COALESCE(json_extract(a.metadata_json, '$.state'), 'ready')='ready'
@@ -105,8 +113,11 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
   ) SELECT * FROM items WHERE (? IS NULL OR mode=?) AND (? IS NULL OR kind=?)
     AND (?=0 OR favorite=1)
     AND (? IS NULL OR EXISTS(SELECT 1 FROM collection_assets ca JOIN collections c ON c.id=ca.collection_id WHERE ca.asset_id=items.id AND c.id=? AND c.mode=items.mode))
-    AND (? = '' OR (created_at,id) < (SELECT created_at,id FROM items WHERE id=?))
-    ORDER BY created_at DESC,id DESC LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number}>;
-  return rows.map(({executor,execution_profile,...row})=>({...row,favorite:Boolean(row.favorite),
+    AND (? IS NULL OR haystack LIKE ?)
+    AND (? IS NULL OR (?='made' AND job_id IS NOT NULL) OR (?='uploaded' AND job_id IS NULL))
+    AND (? IS NULL OR chat_id=?)
+    AND (? = '' OR (created_at,id) ${oldest ? '>' : '<'} (SELECT created_at,id FROM items WHERE id=?))
+    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;title:string|null;chat_id:string|null}>;
+  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,title,chat_id,...row})=>({...row,favorite:Boolean(row.favorite),...(job_id?{job_id}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
     ...(executor==='local'||executor==='cloud'?{executor}:{}),...(typeof execution_profile==='string'?{execution_profile}:{})}));
 }

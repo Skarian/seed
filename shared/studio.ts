@@ -17,6 +17,12 @@ export interface LibraryAsset {
   favorite?: boolean;
   executor?: 'local'|'cloud';
   execution_profile?: string;
+  /** The job that made this asset; absent for uploads. */
+  job_id?: string;
+  /** The draft title from the job that made it. */
+  title?: string;
+  /** The project (chat) the job came from. */
+  chat_id?: string;
 }
 
 export interface AssetOrganization {
