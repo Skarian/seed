@@ -20,7 +20,7 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
   // A remembered value that is no longer offered falls back to the default, so menu and summary always agree.
   const idle = idleChoices.some(([v]) => v === storedIdle) ? storedIdle : 15;
   const [cap, setCap] = useStoredState('seed.rentalCap.all', 60);
-  const [releaseIdle, setReleaseIdle] = useState(true);
+  const [releaseIdle, setReleaseIdle] = useState(false);
   const [key] = useState(randomKey);
   async function load() {
     setLoading(true); setError('');
@@ -51,6 +51,9 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
     finally { setBusy(false); }
   }
   const noun = role === 'video' ? 'a video GPU' : 'an image GPU';
+  // The two limits in one sentence: whichever comes first ends the rental.
+  const latest = cap ? new Date(Date.now() + cap * 60_000).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' }) : '';
+  const stopsBy = cap && idle ? `By ${latest} at the latest, or after ${idle} idle minutes if that comes first` : cap ? `By ${latest} at the latest` : idle ? `After ${idle} idle minutes, or when you release it` : 'Only when you release it';
   return <Dialog title={voluntary ? `Start ${noun}` : `This needs ${noun}`} onClose={onClose} footer={<>
     <button className="btn" onClick={onClose}>{voluntary ? 'Cancel' : 'Back to plan'}</button>
     <button className="btn primary" disabled={!selected || busy || expired} onClick={() => void start()}>{busy ? 'Starting…' : voluntary ? `Start ${noun.replace(/^an? /, '')}` : `Start GPU and ${action}`}</button>
@@ -59,14 +62,15 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
     {selected && <div className="receipt">
       <p className="receipt-head"><b>{voluntary ? 'Starts' : 'To ' + action + ', Seed starts'} {noun} at {rate(selected.hourly)}.</b></p>
       <div className="kv">
-        {!voluntary && <><span>This task</span><div>{seconds == null ? 'No time estimate yet for this kind of work. Start-up and model downloads are billed; how long they take isn’t known.' : <>Making takes {estimateText(seconds).replace(/^about /, 'about ')} once it is ready · <b>{selected.hourly * seconds / 3600 < 0.01 ? 'under $0.01' : 'about ' + money(selected.hourly * seconds / 3600)}</b>. Start-up is extra.</>}</div></>}
-        <span>Start-up</span><div>{selected.model_download_bytes ? `Downloads ${gb(selected.model_download_bytes)} of models first. ` : ''}Time not known; it is billed.</div>
+        {!voluntary && <><span>This task</span><div>{seconds == null ? 'No estimate yet for this kind of work.' : <>{estimateText(seconds)} once it is ready · <b>{selected.hourly * seconds / 3600 < 0.01 ? 'under $0.01' : 'about ' + money(selected.hourly * seconds / 3600)}</b></>}</div></>}
+        <span>Start-up</span><div>{selected.model_download_bytes ? `Downloads ${gb(selected.model_download_bytes)} of models first` : 'Starts the machine first'} (billed; how long isn't known)</div>
         <span>Release after</span><div><select className="select" aria-label="Release after" value={cap} onChange={e => setCap(Number(e.target.value))}>{capChoices.map(([v, l]) => <option key={v} value={v}>{l}{v ? ` · about ${money(selected.hourly * v / 60)}` : ''}</option>)}</select></div>
         <span>When idle</span><div><select className="select" aria-label="Release when idle for" value={idle} onChange={e => setIdle(Number(e.target.value))}>{idleChoices.map(([v, l]) => <option key={v} value={v}>{v ? 'Release after ' + l : l}</option>)}</select></div>
+        <span>Stops</span><div>{stopsBy}</div>
         {others.length > 0 && <><span>Both running</span><div><b>{rate(othersRate + selected.hourly)}</b> in total. You already rent {others.map(w => (w.worker_class === 'video' ? 'a video' : 'an image') + ' GPU' + (w.state === 'ready' && !w.current_job_id ? ' (idle)' : '')).join(' and ')}; image and video need different GPUs.
-          {idleOthers.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}><input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} /> Release the idle {idleOthers[0]!.worker_class} GPU when this starts</label>}</div></>}
+          {idleOthers.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}><input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} /> Release the idle {idleOthers[0]!.worker_class} GPU when this starts <span className="faint">(switching back means downloading its models again)</span></label>}</div></>}
       </div>
-      <p className="receipt-note">Nothing is rented until you press Start. These are estimates, not a cap: start-up and transfers aren’t quoted, and an output already running finishes past the limit. Billing continues if you close the browser.</p>
+      <p className="receipt-note">Nothing is rented until you press Start. Costs are estimates, not a cap, and billing continues if you close the browser.</p>
     </div>}
     {loading && <Spinner label="Finding available machines…" />}
     {error && <div className="notice error" role="alert">{error}</div>}

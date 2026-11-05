@@ -22,7 +22,11 @@ async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDa
 
   const pool=fakePool(db,paths).pool;
   const jobs=new Jobs(db,paths,pool);
-  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const ops=queue.shift();if(ops instanceof Error)throw ops;return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='kind'?'choose_kind':op.operation==='brief'?'update_brief':op.operation==='leave_out'?'leave_out_request':op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='kind'?{kind:op.kind}:op.operation==='brief'?{brief:op.brief}:op.operation==='leave_out'?{request_id:op.request_id,left_out:op.left_out}:op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
+  const chats=new Chats(db,paths,jobs,async(_url,init)=>{const body=JSON.parse(String(init?.body));if(JSON.stringify(body.messages[0]).includes('Generate a concise chat title')){titleRequests.push(body);return sse({choices:[{index:0,delta:{content:'Quiet Mountain Landscape'},finish_reason:'stop'}]});}requests.push(body);const queued=queue.shift();if(queued instanceof Error)throw queued;
+    // {say:'…'} is a text-only reply; an array may start with {operation:'say'} to write text before its tool calls.
+    if(queued&&!Array.isArray(queued))return sse({id:'fake-'+requests.length,choices:[{index:0,delta:{content:(queued as any).say},finish_reason:'stop'}]});
+    const said=(queued as any[]|undefined)?.find(o=>o.operation==='say')?.text,ops=(queued as any[]|undefined)?.filter(o=>o.operation!=='say');
+    return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{...(said?{content:said}:{}),tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='kind'?'choose_kind':op.operation==='brief'?'update_brief':op.operation==='leave_out'?'leave_out_request':op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='kind'?{kind:op.kind}:op.operation==='brief'?{brief:op.brief}:op.operation==='leave_out'?{request_id:op.request_id,left_out:op.left_out}:op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
   try{await run({chats,jobs,db,paths,queue,requests,titleRequests});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
 }
 async function idle(chats:Chats,id:string){for(let i=0;i<200;i++){const value=chats.view(id);if(value.activity==='idle')return value;await new Promise(r=>setTimeout(r,5));}throw Error('Agent did not settle.');}
@@ -72,6 +76,30 @@ it('gives Seed a verified receipt of what an edit actually changed',async()=>fix
   queue.push([{operation:'edit',request_id:card.id,changes:{prompt:'A quiet landscape at dusk'}}]);chats.send(chat.id,{version:chat.version,text:'Make it dusk',assets:[]});chat=await idle(chats,chat.id);
   const sent=JSON.stringify(requests.at(-1).messages),at=sent.lastIndexOf('changed'),receipt=sent.slice(at,sent.indexOf(']',at));
   expect(at).toBeGreaterThan(0);expect(receipt).toContain('prompt');expect(receipt).not.toContain('inputs');
+}));
+
+it('keeps a reply written before the last tool call, without model control tokens',async()=>fixture(async({chats,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'say',text:'Here is the plan for your four shots.<|channel>thought <channel|>'},{operation:'create',request}],{say:''});
+  chats.send(chat.id,{version:chat.version,text:'Plan it',assets:[]});chat=await idle(chats,chat.id);
+  const reply=chat.messages.at(-1)!.text;
+  expect(reply).toContain('Here is the plan for your four shots.');expect(reply).not.toContain('channel');
+}));
+
+it('tells the agent to retry when it changes kind and drafts in the same step',async()=>fixture(async({chats,queue,requests})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'kind',kind:'video'},{operation:'create',request}]);
+  chats.send(chat.id,{version:chat.version,text:'Now a clip',assets:[]});chat=await idle(chats,chat.id);
+  const sent=JSON.stringify(requests.at(-1).messages);
+  expect(sent).toContain('Nothing was saved: the kind of work changed to video');expect(sent).not.toContain('This run is no longer active');
+}));
+
+it('refuses input tokens in a draft that cannot take inputs',async()=>fixture(async({chats,queue,requests})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request:{...request,prompt:'Maren as in [[input1]], at the lighthouse'}}]);
+  chats.send(chat.id,{version:chat.version,text:'Same girl as the picture',assets:[]});chat=await idle(chats,chat.id);
+  expect(chat.groups.flatMap(g=>g.cards)).toHaveLength(0);
+  expect(JSON.stringify(requests.at(-1).messages)).toContain('cannot use attached images');
 }));
 
 it('refuses to switch kind while a plan of another kind is open',async()=>fixture(async({chats,queue})=>{

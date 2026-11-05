@@ -82,7 +82,7 @@ export function Composer(p: Props) {
     <div className="tools">
       {p.mode === 'ask' ? (p.planOpen || p.context.type !== 'talk'
         ? <MenuButton label={'Message context: ' + ctxLabel(p.context)} className="ctx" items={ctxItems} placement="above" align="start"><Icon.Chat />{ctxLabel(p.context)} ▾</MenuButton>
-        : <span className="ctx" aria-label="Message context">{<Icon.Chat />}Talking with Seed</span>)
+        : null)
         : <button className="settings-line" onClick={() => setSettingsOpen(true)} aria-label="Make settings"><Icon.Tune />{summary(p.settings, p.styles)}</button>}
       <MenuButton label="Attach" items={[{ label: 'Upload files', hint: 'Images, video or audio', onSelect: () => file.current?.click() }, { label: 'From Library', onSelect: () => setPicker(true) }]} placement="above" align="start"><Icon.Attach /></MenuButton>
       <input ref={file} type="file" hidden multiple accept="image/*,video/*,audio/*" onChange={e => { if (e.target.files) addFiles(e.target.files); e.target.value = ''; }} />

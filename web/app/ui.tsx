@@ -1,4 +1,6 @@
 import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
+import * as RadixDialog from '@radix-ui/react-dialog';
 import { createPortal } from 'react-dom';
 import { Streamdown } from 'streamdown';
 import { Icon } from './icons.js';
@@ -18,68 +20,36 @@ export function Markdown({ text, streaming = false }: { text: string; streaming?
   return <div className="md"><Streamdown mode={streaming ? 'streaming' : 'static'} isAnimating={streaming} controls={false} components={mdComponents} rehypePlugins={[]} skipHtml>{text}</Streamdown></div>;
 }
 
-/* ---------- Popover menu anchored to a button ---------- */
+/* ---------- Menu anchored to a button (Radix: keyboard navigation, typeahead, focus return, roles) ---------- */
 export type MenuItem = { label: string; hint?: string; onSelect: () => void; danger?: boolean; checked?: boolean; disabled?: boolean } | 'divider';
 export function MenuButton({ label, items, children, className = 'icon-btn', align = 'end', placement = 'below' }: { label: string; items: MenuItem[]; children: React.ReactNode; className?: string; align?: 'start' | 'end'; placement?: 'below' | 'above' }) {
-  const [open, setOpen] = useState(false);
-  const anchor = useRef<HTMLButtonElement>(null), menu = useRef<HTMLDivElement>(null);
-  const [pos, setPos] = useState<React.CSSProperties>({ position: 'fixed', top: 0, left: 0, visibility: 'hidden' });
-  useLayoutEffect(() => {
-    if (!open) setPos({ position: 'fixed', top: 0, left: 0, visibility: 'hidden' });
-    if (!open || !anchor.current) return;
-    const r = anchor.current.getBoundingClientRect(), w = Math.min(280, innerWidth - 16);
-    const left = align === 'end' ? Math.max(8, Math.min(r.right - w, innerWidth - w - 8)) : Math.max(8, Math.min(r.left, innerWidth - w - 8));
-    const above = placement === 'above' || r.bottom + 320 > innerHeight;
-    setPos({ position: 'fixed', left, width: w, maxHeight: Math.max(160, above ? r.top - 16 : innerHeight - r.bottom - 16), overflowY: 'auto', ...(above ? { bottom: innerHeight - r.top + 6 } : { top: r.bottom + 6 }) });
-  }, [open, align, placement]);
-  useEffect(() => {
-    if (!open) return;
-    const first = menu.current?.querySelector<HTMLButtonElement>('button:not(:disabled)'); requestAnimationFrame(() => first?.focus({ preventScroll: true }));
-    const close = (e: Event) => { if (!menu.current?.contains(e.target as Node) && !anchor.current?.contains(e.target as Node)) setOpen(false); };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { setOpen(false); anchor.current?.focus(); }
-      if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-        const buttons = [...(menu.current?.querySelectorAll<HTMLButtonElement>('button:not(:disabled)') ?? [])], i = buttons.indexOf(document.activeElement as HTMLButtonElement);
-        buttons[(i + (e.key === 'ArrowDown' ? 1 : -1) + buttons.length) % buttons.length]?.focus(); e.preventDefault();
-      }
-    };
-    document.addEventListener('pointerdown', close); document.addEventListener('keydown', key);
-    return () => { document.removeEventListener('pointerdown', close); document.removeEventListener('keydown', key); };
-  }, [open]);
-  return <>
-    <button ref={anchor} className={className} aria-label={label} title={label} aria-haspopup="menu" aria-expanded={open} onClick={e => { e.stopPropagation(); setOpen(o => !o); }}>{children}</button>
-    {open && createPortal(<div ref={menu} className="menu" role="menu" style={pos}>
-      {items.map((item, i) => item === 'divider' ? <hr key={i} /> : <button key={i} role={item.checked === undefined ? 'menuitem' : 'menuitemradio'} aria-checked={item.checked} disabled={item.disabled} className={item.danger ? 'danger' : ''} onClick={e => { e.stopPropagation(); setOpen(false); item.onSelect(); }}>
-        <span>{item.label}{item.hint && <small>{item.hint}</small>}</span>
-      </button>)}
-    </div>, document.body)}
-  </>;
+  return <DropdownMenu.Root modal={false}>
+    <DropdownMenu.Trigger asChild><button className={className} aria-label={label} title={label} onClick={e => e.stopPropagation()}>{children}</button></DropdownMenu.Trigger>
+    <DropdownMenu.Portal>
+      <DropdownMenu.Content className="menu" side={placement === 'above' ? 'top' : 'bottom'} align={align} sideOffset={6} collisionPadding={8} onClick={e => e.stopPropagation()}>
+        {items.map((item, i) => item === 'divider' ? <DropdownMenu.Separator key={i} className="menu-sep" />
+          : item.checked === undefined
+            ? <DropdownMenu.Item key={i} disabled={item.disabled} className={'menu-item' + (item.danger ? ' danger' : '')} onSelect={() => item.onSelect()}><span>{item.label}{item.hint && <small>{item.hint}</small>}</span></DropdownMenu.Item>
+            : <DropdownMenu.CheckboxItem key={i} checked={item.checked} disabled={item.disabled} className={'menu-item' + (item.danger ? ' danger' : '')} onSelect={() => item.onSelect()}><span>{item.label}{item.hint && <small>{item.hint}</small>}</span></DropdownMenu.CheckboxItem>)}
+      </DropdownMenu.Content>
+    </DropdownMenu.Portal>
+  </DropdownMenu.Root>;
 }
 
-/* ---------- Dialog (a bottom sheet on phones) ---------- */
+/* ---------- Dialog, a bottom sheet on phones (Radix: focus trap and return, Escape, labelling, scroll lock) ---------- */
 export function Dialog({ title, onClose, children, footer, wide = false, sheet = true, label }: { title: React.ReactNode; onClose: () => void; children: React.ReactNode; footer?: React.ReactNode; wide?: boolean; sheet?: boolean; label?: string }) {
-  const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const opener = document.activeElement as HTMLElement | null;
-    const node = ref.current; node?.querySelector<HTMLElement>('[autofocus], input, textarea, select, button:not(.close)')?.focus({ preventScroll: true });
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape') { e.stopPropagation(); onClose(); }
-      if (e.key === 'Tab' && node) {
-        const f = [...node.querySelectorAll<HTMLElement>('button:not(:disabled), input, select, textarea, a[href], [tabindex]:not([tabindex="-1"])')];
-        if (!f.length) return; const first = f[0]!, last = f.at(-1)!;
-        if (e.shiftKey && document.activeElement === first) { last.focus(); e.preventDefault(); } else if (!e.shiftKey && document.activeElement === last) { first.focus(); e.preventDefault(); }
-      }
-    };
-    document.addEventListener('keydown', key, true);
-    return () => { document.removeEventListener('keydown', key, true); opener?.focus?.(); };
-  }, []);
-  return createPortal(<div className={`backdrop ${sheet ? 'sheet' : ''}`} onPointerDown={e => { if (e.target === e.currentTarget) onClose(); }}>
-    <div ref={ref} className={`dialog ${wide ? 'wide' : ''}`} role="dialog" aria-modal="true" aria-label={label ?? (typeof title === 'string' ? title : undefined)}>
-      <div className="dialog-head"><h2>{title}</h2><button className="icon-btn close" aria-label="Close" onClick={onClose}><Icon.Close /></button></div>
-      <div className="dialog-body">{children}</div>
-      {footer && <div className="dialog-foot">{footer}</div>}
-    </div>
-  </div>, document.body);
+  return <RadixDialog.Root open onOpenChange={open => { if (!open) onClose(); }}>
+    <RadixDialog.Portal>
+      <RadixDialog.Overlay className={`backdrop ${sheet ? 'sheet' : ''}`}>
+        <RadixDialog.Content className={`dialog ${wide ? 'wide' : ''}`} aria-describedby={undefined} {...(label ? { 'aria-label': label } : {})}
+          onOpenAutoFocus={e => { const node = e.currentTarget as HTMLElement | null; const first = node?.querySelector<HTMLElement>('[autofocus], input, textarea, select, button:not(.close)'); if (first) { e.preventDefault(); first.focus({ preventScroll: true }); } }}>
+          <div className="dialog-head"><RadixDialog.Title asChild><h2>{title}</h2></RadixDialog.Title><RadixDialog.Close asChild><button className="icon-btn close" aria-label="Close"><Icon.Close /></button></RadixDialog.Close></div>
+          <div className="dialog-body">{children}</div>
+          {footer && <div className="dialog-foot">{footer}</div>}
+        </RadixDialog.Content>
+      </RadixDialog.Overlay>
+    </RadixDialog.Portal>
+  </RadixDialog.Root>;
 }
 export function Confirm({ title, body, action, danger = false, onConfirm, onClose, busy = false }: { title: string; body: React.ReactNode; action: string; danger?: boolean; onConfirm: () => void; onClose: () => void; busy?: boolean }) {
   return <Dialog title={title} onClose={onClose} footer={<><button className="btn" onClick={onClose}>Cancel</button><button className={`btn ${danger ? 'danger' : 'primary'}`} disabled={busy} onClick={onConfirm}>{action}</button></>}>{body}</Dialog>;

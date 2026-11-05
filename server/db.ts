@@ -93,7 +93,9 @@ export function openDatabase(dataDirectory: string) {
 export type AssetFilters = {favorites?:boolean;collection_id?:string;q?:string;source?:'made'|'uploaded';chat_id?:string;order?:'newest'|'oldest'};
 export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string, filters: AssetFilters = {}): LibraryAsset[] {
   const oldest = filters.order === 'oldest';
-  const q = filters.q?.trim() ? '%' + filters.q.trim().toLowerCase().replace(/[%_]/g, '') + '%' : null;
+  // Search matches every word, in any order and anywhere in the prompt, title or note ("Maren brick-red").
+  const terms = (filters.q ?? '').toLowerCase().replace(/[%_]/g, '').split(/\s+/).filter(Boolean).map(w => '%' + w + '%');
+  const q = terms[0] ?? null, more = terms.slice(1);
   const rows = db.prepare(`WITH items AS (
     SELECT a.id, a.kind, a.name, a.created_at,
       j.id AS job_id,
@@ -106,7 +108,9 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
       json_extract(a.metadata_json, '$.execution_profile') AS execution_profile,
       COALESCE(json_extract(a.metadata_json, '$.mode'), s.mode, 'sfw') AS mode,
       EXISTS(SELECT 1 FROM asset_favorites WHERE asset_id=a.id) AS favorite,
-      (SELECT note FROM asset_notes WHERE id=a.id) AS note
+      (SELECT note FROM asset_notes WHERE id=a.id) AS note,
+      json_extract(a.metadata_json, '$.width') AS width,
+      json_extract(a.metadata_json, '$.height') AS height
     FROM assets a
     LEFT JOIN jobs j ON j.id=json_extract(a.metadata_json, '$.job_id')
     LEFT JOIN sequence_frames f ON f.asset_id=a.id
@@ -116,11 +120,11 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
   ) SELECT * FROM items WHERE (? IS NULL OR mode=?) AND (? IS NULL OR kind=?)
     AND (?=0 OR favorite=1)
     AND (? IS NULL OR EXISTS(SELECT 1 FROM collection_assets ca JOIN collections c ON c.id=ca.collection_id WHERE ca.asset_id=items.id AND c.id=? AND c.mode=items.mode))
-    AND (? IS NULL OR haystack LIKE ?)
+    AND (? IS NULL OR haystack LIKE ?)${more.map(() => ' AND haystack LIKE ?').join('')}
     AND (? IS NULL OR (?='made' AND job_id IS NOT NULL) OR (?='uploaded' AND job_id IS NULL))
     AND (? IS NULL OR chat_id=?)
     AND (? = '' OR (created_at,id) ${oldest ? '>' : '<'} (SELECT created_at,id FROM items WHERE id=?))
-    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null;note:string|null}>;
-  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,title,chat_id,submission_index,batch_count,note,...row})=>({...row,favorite:Boolean(row.favorite),...(note?{note}:{}),...(Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id?{job_id}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
+    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,...more,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null;note:string|null;width:number|null;height:number|null}>;
+  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,title,chat_id,submission_index,batch_count,note,width,height,...row})=>({...row,favorite:Boolean(row.favorite),...(note?{note}:{}),...(width&&height?{width:Number(width),height:Number(height)}:{}),...(Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id?{job_id}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
     ...(executor==='local'||executor==='cloud'?{executor}:{}),...(typeof execution_profile==='string'?{execution_profile}:{})}));
 }

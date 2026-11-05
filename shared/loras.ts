@@ -10,10 +10,23 @@ export type LoraSourceManifest = {
 };
 export const loraWorkflowLabels: Record<LoraRoute, string> = {
   image: 'Images',
-  fl: 'Text / frame-guided video',
-  ref: 'Reference video',
+  fl: 'Clips from words or a start frame',
+  ref: 'Clips that follow a reference',
 };
 export const loraFamilyLabels: Record<LoraFamily, string> = { krea2: 'Krea 2', h3: 'MiniMax H3' };
+/**
+ * A suggested use for each file of a style, so a normal import needs no expert routing. Names decide when they can
+ * ("ref", "i2v"); otherwise one file takes the first use, and as many files as uses take them in order. Unclear
+ * cases stay unassigned for the owner to choose.
+ */
+export function suggestLoraMapping(family: LoraFamily, files: LoraFilePreview[]): Record<number, LoraRoute> {
+  const routes = familyRoutes(family), usable = files.filter(f => f.supported), out: Record<number, LoraRoute> = {};
+  const hint = (name: string): LoraRoute | undefined => family === 'krea2' ? 'image' : /ref(erence)?[^a-z]|[-_]ref\b|reference/i.test(name) ? 'ref' : /(^|[^a-z])(t2v|i2v|fl|frame|text)([^a-z]|$)/i.test(name) ? 'fl' : undefined;
+  for (const f of usable) { const r = hint(f.name); if (r && !Object.values(out).includes(r)) out[f.id] = r; }
+  const left = routes.filter(r => !Object.values(out).includes(r)), unassigned = usable.filter(f => !out[f.id]);
+  if (unassigned.length && unassigned.length <= left.length && (usable.length === 1 || usable.length === routes.length)) unassigned.forEach((f, i) => { out[f.id] = left[i]!; });
+  return out;
+}
 export function familyRoutes(family: LoraFamily): LoraRoute[] {
   return family === 'krea2' ? ['image'] : ['fl', 'ref'];
 }

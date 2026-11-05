@@ -76,7 +76,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
           : <button className="btn primary" onClick={() => void projectsApi.create(app.mode).then(p => { app.refreshProjects(); app.go({ name: 'project', id: p.id, view: 'conversation' }); })}>Start a project</button>}</>}
       </div></div>}
       {groups.map(([day, list2]) => <section key={day}><div className="day">{day}</div><div className={'grid library-grid' + (dense ? ' dense' : '')}>
-        {list2.map(a => { const it = items.find(i => i.asset === a.id)!, on = selected.includes(a.id); return <figure key={a.id} className="cell"><div className={'tile' + (on ? ' selected' : '')}>
+        {list2.map(a => { const it = items.find(i => i.asset === a.id)!, on = selected.includes(a.id); const ratio = a.width && a.height ? Math.min(2.4, Math.max(0.45, a.width / a.height)) : 1; return <figure key={a.id} className="cell" style={{ flexGrow: ratio, flexBasis: ratio * (dense ? 120 : 190) }}><div className={'tile' + (on ? ' selected' : '')} style={{ aspectRatio: String(ratio) }}>
           <Media id={a.id} kind={a.kind} alt={it.title} />
           <button className="open" aria-label={selecting ? (on ? 'Deselect ' : 'Select ') + it.title : 'Open ' + it.title} onClick={() => selecting ? toggle(a.id) : app.inspect(it, items)} />
           {selecting && <span className="check sel" role="checkbox" aria-checked={on} aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, background: on ? 'var(--accent)' : '#121311aa' }}>{on && <Icon.Check />}</span>}

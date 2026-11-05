@@ -68,9 +68,9 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
         <span className="grow"><b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU</b> · {rate(w.hourly)}<br /><span className="muted" style={{ fontSize: 13.5 }}>Up {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} so far · {w.gpu} on {w.provider === 'vast' ? 'Vast' : 'RunPod'}</span></span>
       </div>
       <div className="muted" style={{ fontSize: 13.5 }}>{w.current_activity ?? workerLabel[w.state] ?? w.state}{startupNote(w)}{w.state === 'ready' ? idleNote(w) : ''}</div>
-      {w.actions.includes('finish') && <div className="row">
-        {!w.quit_mode && <button className="btn" style={{ flex: 1 }} onClick={() => setLimits(w)}>Limits…</button>}
-        <button className="btn" style={{ flex: 1 }} onClick={() => setRelease(w)}>Release…</button>
+      {w.actions.includes('finish') && <div className="row" style={{ justifyContent: 'flex-end' }}>
+        {!w.quit_mode && <button className="btn small" onClick={() => setLimits(w)}>Limits…</button>}
+        <button className="btn small" onClick={() => setRelease(w)}>Release…</button>
       </div>}
       {w.preparation && !w.preparation.error && w.state === 'preparing' && w.preparation.bytes_total > 0 && <div className="meter" aria-label="Model download progress"><i style={{ width: Math.round(w.preparation.bytes_done / w.preparation.bytes_total * 100) + '%' }} /></div>}
       {(w.issue || w.preparation?.error) && <div className="notice error">{w.issue?.message ?? w.preparation?.error}

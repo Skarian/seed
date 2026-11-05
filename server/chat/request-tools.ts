@@ -119,6 +119,9 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
   for(const [from,to] of [['loras','loras'],['prompt','prompt'],['seed','seed'],['batch_size','count'],['note','note'],['title','title'],['mode','mode']])if(Object.hasOwn(value,from!))request[to!]=value[from!];
   for(const [from,to] of [['aspect_ratio','aspect'],['duration_seconds','duration_seconds']])if(Object.hasOwn(value,from!))request.output[to!]=value[from!];
   if(Object.hasOwn(value,'audio_output'))request.audio={...(request.audio??{}),output:value.audio_output};
+  // A kind that cannot take inputs must not carry input tokens: they would look like a reference that is never used.
+  if(!usesInputs(context.workflow)&&typeof request.prompt==='string'&&/\[\[[^\]]+\]\]|<(?:Picture|Video|Audio) \d+>/.test(request.prompt))
+    add('prompt','This kind of draft cannot use attached images, so an input token here would do nothing.','Remove the token and describe the look in words, or choose the edit kind to use the image as its source.');
   // Resolved output seeds belong to the source job, not a changed batch or starting seed.
   if(Object.hasOwn(value,'seed')||Object.hasOwn(value,'batch_size'))delete request.resolved_seeds;
   if(Object.hasOwn(value,'inputs')){

@@ -218,7 +218,10 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const selectedCards = plan ? plan.cards.filter(c => (selection[c.id] ?? !c.left_out) && !readiness(latest(c).request, app.pool, styles).blocked) : [];
   const outputs = selectedCards.reduce((n, c) => n + latest(c).request.count, 0);
   const planReady = plan && plan.state === 'reviewing' && !replying;
-  const unresolved = plan ? selectedCards.flatMap(c => checkDraft(c, project!, plan.cards.length).filter(x => x.fixes.length && !x.soft && !acknowledged.has(c.id + ':' + x.text))).length : 0;
+  const openChecks = plan ? selectedCards.flatMap(c => checkDraft(c, project!, plan.cards.length).filter(x => x.fixes.length && !x.soft && !acknowledged.has(c.id + ':' + x.text))) : [];
+  const unresolved = openChecks.length;
+  // The final button names what the person is accepting, not just "anyway".
+  const anyway = openChecks.every(c => c.text.includes('added sound')) ? 'Make with sound' : openChecks.every(c => c.text.includes('not used by this draft')) ? 'Make without the attached image' : 'Make anyway';
   // Seed answered the latest message without changing the plan (often a clarifying question):
   // the plan still shows the earlier version, so running it is a secondary, clearly named choice.
   const lastTurn = project ? [...project.messages].reverse().find(m => m.role === 'assistant' && m.transcript) : undefined;
@@ -241,7 +244,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   return <>
     <Header project={project} view={view} split={split} canSplit={canSplit} onBeside={setBeside} onRename={() => setRenaming(true)} onDelete={() => setConfirmDelete(true)} />
     {view === 'results' && project && !split ? <ResultsView project={project} /> : <div className={split ? 'split' : 'single'}><div className="convo">
-      {project && <BriefBar project={project} busy={replying || Boolean(busy)} onSaved={p => { projectRef.current = p; setProject(p); }} />}
+      {project && <BriefBar project={project} busy={replying || Boolean(busy)} onSaved={p => { projectRef.current = p; setProject(p); }}
+        openDrafts={plan?.cards.length ?? 0} onUpdateDrafts={() => void run('', () => projectsApi.send(projectRef.current ?? project, { text: 'I changed the brief. Update every open draft so it matches the brief now, change nothing else, and tell me exactly what changed in each one. Do not run anything.', assets: [] }))} />}
       <div className="scroll" ref={scroller} onScroll={e => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div className="col">
           {!project ? <div className="stream"><span className="statusline"><span className="dot live" />Opening…</span></div>
@@ -262,9 +266,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         {plan && (planStale || question) && <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>{planStale ? 'Seed asked a question before changing the plan. The plan shows the earlier version until you answer.' : <>Seed asked: “{question}” Answer below, or make the plan as it is.</>}</div>}
         {plan && !(app.narrow && typing) && <div className="makebar">
           <button className="sum" onClick={() => { const first = selectedCards[0]; if (first) setFlash(first.id); }} aria-label="Show the selected drafts">
-            <b>Make selected · {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}</b> · {selectedCards.length} of {plan.cards.length} drafts{selectedCards.length && planSeconds(selectedCards) !== null ? ' · ' + estimateText(planSeconds(selectedCards)) : ''}{planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
+            <b>{plan.cards.length === 1 ? 'Make ' : 'Make selected · '}{outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}</b>{plan.cards.length > 1 ? ` · ${selectedCards.length} of ${plan.cards.length} drafts` : ''}{selectedCards.length && planSeconds(selectedCards) !== null ? ' · ' + estimateText(planSeconds(selectedCards)) : ''}{planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
           </button>
-          <button className={planStale || question || unresolved ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : question ? 'Make as it is' : unresolved ? 'Make anyway' : 'Make selected'}</button>
+          <button className={planStale || question || unresolved ? 'btn' : 'btn primary'} disabled={!planReady || !selectedCards.length || Boolean(busy)} onClick={() => void makePlan()}>{busy === 'Making' ? 'Starting…' : replying ? 'Seed is updating…' : planStale ? 'Make this earlier version' : question ? 'Make as it is' : unresolved ? anyway : 'Make selected'}</button>
         </div>}
         {queued && <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>Your message below sends as soon as Seed finishes this reply. <button className="link" onClick={() => setQueued(false)}>Don't send it</button></div>}
         <Composer context={context} onContext={setContext} planOpen={Boolean(plan)} mode={mode} onMode={m => { setMode(m); if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' }); if (m === 'make' && context.type === 'using' && context.intent !== 'input') setSettings({ ...settings, kind: context.intent === 'animate' ? 'animate' : 'edit' }); }}
@@ -349,6 +353,7 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
   return <div className={'msg-seed' + (long && !open ? ' clamped' : '')}>
     <div className="who">Seed{running && <span className="statusline"><span className="dot live" />{stage} · {duration((now - Date.parse(turn!.started_at)) / 1000)}</span>}</div>
     
+    {!running && toolFailed && text && <p className="faint" style={{ margin: '0 0 4px', fontSize: 13 }}>Seed's reply below wasn't carried out: no drafts were saved.</p>}
     {text && <Markdown text={text} streaming={running} />}
     {long && <button className="link" style={{ fontSize: 13 }} aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Show less' : 'Show more'}</button>}
     {!running && turn?.state === 'failed' && <div className="notice error">{friendlyError(turn.error)}<div className="actions"><button className="btn small" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}
@@ -402,7 +407,13 @@ function buildTimeline(project: Project): TimelineItem[] {
   // always the current object at the end, so revising it never rewrites the history above.
   const at = (item: TimelineItem, index: number): number => {
     if (item.type === 'message') return Date.parse(item.message.created_at) || index;
-    if (isOpenPlan(item.group)) return Infinity;
+    // The open plan sits after the reply that last changed it, so a later answer to a question appears below it,
+    // where the person is reading, instead of above it off screen. The Make bar stays pinned either way.
+    if (isOpenPlan(item.group)) {
+      const runs = new Set(item.group.cards.flatMap(c => c.revisions.map(r => r.run_id)).filter(Boolean));
+      const changedBy = project.messages.filter(m => runs.has(m.id)).at(-1);
+      return changedBy ? (Date.parse(changedBy.created_at) || index) + 0.5 : Infinity;
+    }
     const made = project.jobs.filter(j => item.group.cards.some(c => c.revisions.some(r => r.job_ids.includes(j.id)))).map(j => Date.parse(j.created_at)).filter(Number.isFinite);
     if (made.length) return Math.min(...made);
     const prev = out.slice(0, index).reverse().find(x => x.type === 'message') as { message: ChatMessage } | undefined;

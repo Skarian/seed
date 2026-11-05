@@ -75,12 +75,18 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     out.push({ text: 'Seed added sound to this clip, which you didn’t ask for.', fixes: [{ label: 'Make it silent', patch: x => ({ ...strip(x), audio: { output: 'silent' } }) }, { label: 'Keep the sound', patch: () => ({}) }] });
   // Brief details that apply to this draft but are missing from its prompt. Words only: this checks the request, not the picture.
   const gaps = briefGaps(r.prompt, project.brief ?? '');
-  if (gaps.length) out.push({ soft: true, text: `Brief details this draft doesn't mention: ${gaps.join('; ')}. Fine if they can't be seen in this shot.`, fixes: [{ label: gaps.length === 1 ? 'Add it to the prompt' : 'Add them to the prompt', patch: x => ({ ...strip(x), prompt: x.prompt.replace(/\s+$/, '') + (/[.!?]$/.test(x.prompt.trim()) ? ' ' : '. ') + gaps.map(g => g[0]!.toUpperCase() + g.slice(1)).join('. ') + '.' }) }, { label: 'Leave as is', patch: () => ({}) }] });
+  if (gaps.length) out.push({ soft: true, text: `Continuity check: this prompt doesn't mention ${gaps.join(', ')}.`, fixes: [{ label: gaps.length === 1 ? 'Include this detail' : 'Include these details', patch: x => ({ ...strip(x), prompt: x.prompt.replace(/\s+$/, '') + (/[.!?]$/.test(x.prompt.trim()) ? ' ' : '. ') + gaps.map(g => g[0]!.toUpperCase() + g.slice(1)).join('. ') + '.' }) }, { label: 'Not visible in this shot', patch: () => ({}) }] });
   // An attachment that the draft does not use (it is made from words only).
   const runMessage = at;
   const asking = runMessage > 0 ? [...project.messages.slice(0, runMessage)].reverse().find(m => m.role === 'user') : undefined;
   const used = new Set((r.references ?? []).map(x => x.asset_id));
-  const unused = (asking?.assets ?? []).filter(a => !used.has(a));
+  // Every message that shaped this draft counts: an image attached at the start is still unused after a follow-up.
+  const askedBy = (runId: string) => {
+    const reply = project.messages.findIndex(m => m.id === runId);
+    return reply > 0 ? [...project.messages.slice(0, reply)].reverse().find(m => m.role === 'user') : undefined;
+  };
+  const attached = card.revisions.flatMap(v => (v.run_id ? askedBy(v.run_id)?.assets : undefined) ?? []);
+  const unused = [...new Set([...(asking?.assets ?? []), ...attached])].filter(a => !used.has(a));
   if (unused.length && !(r.references ?? []).length) out.push({ text: `Your attached ${unused.length === 1 ? 'image is' : 'files are'} not used by this draft; it is made from words only.`, fixes: [{ label: 'Make it as an edit of the attached image', patch: () => ({}), action: 'edit-myself', assets: unused }] });
   return out;
 }
@@ -115,7 +121,10 @@ export function briefGaps(prompt: string, brief: string) {
       const named = new RegExp('\\b' + m[1]!.split(' ')[0] + '\\b', 'i').test(prompt);
       if (named) anyNamed = true;
       if (!(named || (generic && anyNamed))) continue;
-      for (const part of m[2]!.split(/[,;]|\.\s/).map(p => p.trim().replace(/\.$/, '')).filter(p => p.length > 2 && !/^\d+(\s*years?\s*old)?$/i.test(p)))
+      // A distant figure shows no freckles or scars: in a wide or tiny framing only the outfit and props are checked.
+      const far = /\b(extreme wide|wide shot|wide establishing|establishing|tiny|small in (the )?frame|silhouette|distant|aerial|from afar)\b/i.test(prompt);
+      if (far && !generic) continue;
+      for (const part of m[2]!.split(/[,;]|\.\s/).map(p => p.trim().replace(/\.$/, '').replace(/^(and|or|with)\s+/i, '')).filter(p => p.length > 2 && !/^\d+(\s*years?\s*old)?$/i.test(p)))
         if (!mentions(prompt, part)) out.push(part.charAt(0).toLowerCase() + part.slice(1));
     } else if (/rule|always|never|constraint/.test(section)) {
       if (item.length <= 80 && !mentions(prompt, item)) out.push(item.charAt(0).toLowerCase() + item.slice(1).replace(/\.$/, ''));
@@ -135,7 +144,9 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   text = text.replace(/^(\s*)([a-z]+(?:_[a-z]+)+)\s*:\s*/gm, (_m, space: string, key: string) => space + (headings[key] ?? key.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())) + ': ');
   // Only a shot tag that starts a line is a heading; one inside a sentence just names the shot.
   // Inside a video prompt, [Shot N] numbers the parts of this one clip, not the film's shots.
-  return text.replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:').replace(/\[Shot (\d+)\]/g, 'part $1');
+  return text.replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:').replace(/\[Shot (\d+)\]/g, 'part $1')
+    // The video engine's own scaffolding sentence says nothing to a person; the source is shown beside the draft.
+    .replace(/For the target video, at [\d.]+ seconds into the target video,[^.]*?(?:is )?(?:fully )?referenced\.\s*/gi, '');
 }
 
 const sections: Array<[string, string]> = [['integrated_multimodal_description', 'Scene'], ['subject_definitions', 'Subjects'], ['scene_anchor', 'Setting'], ['action_timeline', 'Action'], ['camera_path', 'Camera'], ['overall_soundscape', 'Sound'], ['non_diegetic_music', 'Music'], ['retention_analysis', 'Keep'], ['detailed_description', 'Detail']];

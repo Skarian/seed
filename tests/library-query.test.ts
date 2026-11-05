@@ -21,6 +21,7 @@ it('searches prompts, titles and notes, and filters by source and project',()=>f
   expect(ids({})).toEqual(['a-upload','a-ridge','a-lake']);
   expect(ids({q:'LAKE'})).toEqual(['a-lake']);
   expect(ids({q:'misty ridge'})).toEqual(['a-ridge']);
+  expect(ids({q:'ridge misty'})).toEqual(['a-ridge']);
   expect(ids({q:'lighthouse'})).toEqual(['a-upload']);
   expect(listAssets(db,'',50,'sfw',undefined,{q:'lighthouse'})[0]!.note).toBe('Reference sketch of a lighthouse');
   expect(listAssets(db,'',50,'sfw',undefined,{q:'lake'})[0]!.note).toBeUndefined();

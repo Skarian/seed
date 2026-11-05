@@ -6,6 +6,7 @@ import {
   type LoraGuidance,
   type LoraGroup,
   type LoraVersionPreview,
+  suggestLoraMapping,
 } from '../shared/loras.js';
 import { adminApi } from './admin-api.js';
 import { useLoraCatalog } from './hooks/use-lora-catalog.js';
@@ -177,7 +178,8 @@ function ImportLora({
     [error, setError] = useState('');
   function chooseVersion(next: LoraVersionPreview) {
     setVersion(next);
-    setMapping({});
+    // Start from a suggested use for each file; the owner can change any of them.
+    setMapping(next.family ? suggestLoraMapping(next.family, next.files) : {});
     setDetails((current) => ({ ...current, trigger_words: next.trigger_words }));
     setError('');
   }

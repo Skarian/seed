@@ -173,7 +173,8 @@ export function useAssets(query: AssetQuery | null) {
 
 /* ---------- App-wide context ---------- */
 export type Toast = { id: number; text: string; action?: { label: string; run: () => void } };
-export type ViewerItem = { asset: string; kind: 'image' | 'video' | 'audio'; title: string; job?: JobRecord; project?: string };
+/** `sequence`: part of a play-in-order run, so the viewer moves to the next clip when one ends. */
+export type ViewerItem = { asset: string; kind: 'image' | 'video' | 'audio'; title: string; job?: JobRecord; project?: string; sequence?: boolean };
 export type AppContextValue = {
   route: Route; go: (r: Route, replace?: boolean) => void;
   mode: Mode; setMode: (m: Mode) => void;

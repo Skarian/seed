@@ -28,6 +28,9 @@ export interface LibraryAsset {
   variants?: number;
   /** The owner's note on this asset, when there is one. */
   note?: string;
+  /** Pixel size, when known, so grids can show the whole frame. */
+  width?: number;
+  height?: number;
 }
 
 export interface AssetOrganization {

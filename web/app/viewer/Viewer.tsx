@@ -124,7 +124,7 @@ export function Inspector({ item, siblings, onClose, onPick }: { item: ViewerIte
     <div className="vtop"><button className="btn small close" onClick={onClose} aria-label="Close details"><Icon.Close />Close</button><b>{item.title}</b>
       {siblings.length > 1 && <span className="history"><button aria-label="Previous result" disabled={i <= 0} onClick={() => onPick(siblings[i - 1]!)}><Icon.Back /></button>{i + 1}/{siblings.length}<button aria-label="Next result" disabled={i >= siblings.length - 1} onClick={() => onPick(siblings[i + 1]!)}><Icon.Next /></button></span>}</div>
     <div className="body">
-      <button className="hero" onClick={() => app.view(item, siblings)} aria-label={'Open ' + item.title + ' full screen'} style={{ display: 'block' }}><Media id={item.asset} kind={item.kind} alt={item.title} large /></button>
+      <button className="hero" onClick={() => app.view(item, siblings)} aria-label={'Open ' + item.title + ' full screen'} style={{ display: 'block' }}><Media id={item.asset} kind={item.kind} alt={item.title} large />{item.kind === 'video' && <span className="hero-play" aria-hidden="true"><Icon.Play width={22} height={22} /></span>}</button>
       <AssetPanel item={item} onClosed={onClose} />
     </div>
   </aside>;
@@ -161,7 +161,7 @@ export function Viewer({ item, siblings, onClose, onPick }: { item: ViewerItem; 
       <span className="no-phone"><StatusControl /></span>
     </div>
     <div className="stage" onTouchStart={e => { touch.current = e.touches[0]!.clientX; }} onTouchEnd={e => { if (touch.current === null || zoom > 1) return; const dx = e.changedTouches[0]!.clientX - touch.current; if (Math.abs(dx) > 50) step(dx < 0 ? 1 : -1); touch.current = null; }}>
-      {item.kind === 'video' && !before ? <video ref={videoRef} src={media.content(shown)} controls playsInline autoPlay aria-label={item.title} />
+      {item.kind === 'video' && !before ? <video ref={videoRef} src={media.content(shown)} controls playsInline autoPlay aria-label={item.title} onEnded={() => { if (item.sequence && i >= 0 && i < siblings.length - 1) step(1); }} />
         : <img src={item.kind === 'image' || before ? media.preview(shown, true) : media.content(shown)} alt={before ? 'Before: the source image' : item.title} style={{ transform: `scale(${zoom})`, transition: 'transform .15s', cursor: zoom > 1 ? 'zoom-out' : 'zoom-in' }} onClick={() => setZoom(z => z === 1 ? 2 : 1)} onError={e => { (e.currentTarget as HTMLImageElement).src = media.content(shown); }} />}
       {i > 0 && <button className="nav-arrow prev" aria-label="Previous" onClick={() => step(-1)}><Icon.Back /></button>}
       {i >= 0 && i < siblings.length - 1 && <button className="nav-arrow next" aria-label="Next" onClick={() => step(1)}><Icon.Next /></button>}

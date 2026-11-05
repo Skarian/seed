@@ -24,12 +24,24 @@ import { compactConversation, settingsOnlyMessage, type ConversationSummary } fr
 /** Agent snapshots mirror the flat tool fields; canonical requests remain persisted unchanged. */
 function agentRequest(request:ImageRequest,assets:ToolAsset[]=[]){
   const bindings=new Map([...toolPromptBindings(request.references??[])].map(([id,label])=>[label,'[['+id+']]']));
-  const prompt=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?request.prompt.replace(toolPromptReferencePattern,label=>bindings.get(label)??label):request.prompt;
+  const prompt=referenceMode()==='stable'?request.prompt.replace(toolPromptReferencePattern,label=>bindings.get(label)??label):request.prompt;
   return {prompt,batch_size:request.count,seed:request.seed,aspect_ratio:request.output.aspect,loras:request.loras??[],
     ...(request.title?{title:request.title}:{}),...(request.note?{note:request.note}:{}),...(request.mode==='nsfw'?{mode:request.mode}:{}),
     ...(isVideoWorkflow(request.workflow)?{duration_seconds:request.output.duration_seconds,audio_output:request.audio?.output,steps:videoSteps(request),detail:videoDetail(request)}:{}),
     ...(request.references?{inputs:request.references.map(ref=>({id:ref.id,asset:assets.find(a=>a.asset_id===ref.asset_id)?.handle??ref.asset_id,role:ref.role,
       ...(ref.framing?{framing:ref.framing}:{}),...(ref.range??{}),...(ref.kind==='video'?{include_audio:Boolean(ref.include_audio)}:{})}))}:{})};
+}
+/**
+ * The reply a person sees: text after the agent's last tool call, or, when it wrote nothing after it, everything it
+ * wrote in the turn (a reply written before a final tool call must not disappear). Model control tokens are removed.
+ */
+/** How the agent refers to inputs in prompts. Read in one place (tests switch it per case). */
+function referenceMode():'stable'|'direct'{return process.env.SEED_AGENT_REFERENCE_MODE==='direct'?'direct':'stable';}
+function replyText(steps:Array<{kind:string;text?:string}>){
+  const clean=(t:string)=>t.replace(/<\|?\/?[a-z_]+\|?>/gi,'').replace(/^\s*thought\s*$/gim,'').trim();
+  const lastTool=steps.map(s=>s.kind).lastIndexOf('tool');
+  const after=steps.slice(lastTool+1).filter(s=>s.kind==='text').map(s=>clean(s.text??'')).filter(Boolean).join('\n');
+  return after||steps.filter(s=>s.kind==='text').map(s=>clean(s.text??'')).filter(Boolean).join('\n\n');
 }
 interface StoredChat extends ChatView {title_manual?:boolean;title_accounting?:ChatAccounting[];title_error?:string;summary?:ConversationSummary;runs:Array<{id:string;workflow?:ChatWorkflow|null;source_assets?:string[];target_request_id?:string;prompt:ReturnType<typeof chatPromptSnapshot>;accounting:ChatAccounting[];messages:AgentMessage[];state:string;summary?:ConversationSummary}>}
 const terminal=['completed','failed','cancelled'];
@@ -139,7 +151,7 @@ export class Chats {
   private workflowTools(id:string,epoch:number,workflow:ChatWorkflow,runId:string,assets:ToolAsset[],target?:string):AgentTool[] {
     const initial=this.get(id),snapshots=new Map(initial.groups.flatMap(g=>g.cards).map(c=>[c.id,latest(c).number]));
     const schemas=requestToolSchemas(workflow,initial.mode,this.jobs.loras.list(initial.mode).filter(l=>l.source_status==='ready').some(l=>workflow==='text-to-image'?l.route==='image':workflow==='text-to-video'?l.route==='fl':l.route!=='image'));
-    const referenceMode=process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct';
+    const mode=referenceMode();
     const leaveOut:AgentTool={name:'leave_out_request',label:'Leave out request',
       description:'Leave a draft out of the open plan (left_out true), or put it back (left_out false). Use it whenever the user narrows the plan, drops a direction or asks for fewer drafts, so the plan matches what you say. The draft stays visible to the user, unselected, and is not deleted. Copy request_id from the current review.',
       parameters:{type:'object',additionalProperties:false,properties:{request_id:{type:'string'},left_out:{type:'boolean'}},required:['request_id','left_out']} as any,
@@ -161,7 +173,9 @@ export class Chats {
       execute:async(_call,raw)=>{
         try{
           const current=this.get(id);
-          if(current.epoch!==epoch||current.workflow!==workflow)throw Error('This run is no longer active.');
+          if(current.epoch!==epoch)throw Error('This run is no longer active.');
+          // choose_kind in the same step switched the tools: say so, so the agent retries instead of claiming success.
+          if(current.workflow!==workflow)throw Error(`Nothing was saved: the kind of work changed to ${Object.entries(chatKinds).find(([,w])=>w===current.workflow)?.[0]??'another kind'} earlier in this step, so this ${workflow} draft no longer applies. Call create_request again now with the tools for the new kind, then tell the user what was saved.`);
           let group=openGroup(current);
           if(group&&group.workflow!==workflow)throw Error('Resolve the current review before changing workflows.');
           const value=raw as Record<string,unknown>;
@@ -169,7 +183,7 @@ export class Chats {
           const card=editId?group?.cards.find(c=>c.id===editId):undefined;
           if(editId&&!card)throw Error('Request not found. Use a request_id listed in current review. A failed create has no request_id.');
           if(card&&snapshots.get(card.id)!==latest(card).number)throw Error('Request changed after this agent started. Read the current request before editing; no changes were saved.');
-          const request=prepareToolRequest({workflow,mode:current.mode,assets,previous:card?latest(card).request:undefined,referenceMode},value);
+          const request=prepareToolRequest({workflow,mode:current.mode,assets,previous:card?latest(card).request:undefined,referenceMode:mode},value);
           for(const ref of request.references??[])if(!current.assets.includes(ref.asset_id))throw Error('Input is not attached to this chat.');
           this.assertAssets(current,[...new Set((request.references??[]).map(r=>r.asset_id))]);
           validateChatReferences(request);
@@ -199,7 +213,7 @@ export class Chats {
   send(id:string,input:{version:number;text:string;assets:string[];mention_bindings?:MentionBinding[];card_id?:string;revision?:number;attach_request?:boolean;keep_plan?:boolean}){
     const chat=this.get(id);this.checkVersion(chat,input.version);if(this.agentBusy(chat))throw Error('Seed is still replying. Wait for it or stop it, then send.');
     if(!input.text.trim()||input.text.length>16000)throw Error('Write a message of 1–16000 characters.');
-    const key=chatCredential(this.paths);if(!key)throw Error('Add your OpenRouter key in Admin → Credentials.');
+    const key=chatCredential(this.paths);if(!key)throw Error('Add your OpenRouter key in Settings → API keys.');
     for(const job of this.jobIds(chat).map(id=>this.jobs.get(id)))for(const asset of job?.outputs??[])if(!chat.assets.includes(asset))chat.assets.push(asset);
     this.assertAssets(chat,input.assets);
     for(const asset of input.assets)if(!chat.assets.includes(asset))chat.assets.push(asset);
@@ -215,7 +229,7 @@ export class Chats {
     const selected=[...new Set([...input.assets,...mentionBindings.map(binding=>binding.asset_id),...inherited,...(!input.assets.length&&!inherited.length&&!settingsOnlyMessage(input.text)?priorInputs:[])])];
     if(selected.filter(id=>this.jobs.media.get(id)?.kind==='image').length>9)throw Error('Choose at most nine images for this message.');
     const snapshot=chatPromptSnapshot(this.paths,chat.mode,chat.workflow);
-    snapshot.system+='\n\n'+requestToolRules(process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct',chat.workflow??undefined);
+    snapshot.system+='\n\n'+requestToolRules(referenceMode(),chat.workflow??undefined);
     snapshot.hash=createHash('sha256').update(JSON.stringify({version:snapshot.version,system:snapshot.system,summarySystem:snapshot.summarySystem})).digest('hex');
     chat.messages.push({id:randomUUID(),role:'user',text:input.text,mention_bindings:mentionBindings,assets:input.assets,...(input.attach_request&&target?{request_attachment:{card_id:target.id,revision:latest(target).number,request:structuredClone(latest(target).request),notes:structuredClone(latest(target).notes)}}:{}),created_at:now()});
     const needsTitle=chat.messages.filter(m=>m.role==='user').length===1&&!chat.title_manual;
@@ -240,7 +254,7 @@ export class Chats {
       const manifest=this.contextAssets(chat),group=openGroup(chat);
       const toolAssets=manifest.map((a,index)=>({handle:'input'+(index+1),asset_id:a.id,kind:a.kind as 'image'|'video'|'audio',duration_seconds:Number(a.metadata?.duration)||undefined})).filter(a=>a.kind);
       const defaultLabels=toolInputLabels(toolAssets.map(a=>({id:a.handle,asset_id:a.asset_id,kind:a.kind,role:'reference' as const})));
-      const availableInputs=toolAssets.map(a=>({...a,...(process.env.SEED_AGENT_REFERENCE_MODE==='direct'?{prompt_label:defaultLabels.get(a.handle)}:{}),...(a.kind==='video'?{soundtrack_token:'[['+a.handle+':audio]]',soundtrack_usage:'Set include_audio true to use this soundtrack.'}:{}),prompt_token:'[['+a.handle+']]',name:manifest.find(m=>m.id===a.asset_id)?.name}));
+      const availableInputs=toolAssets.map(a=>({...a,...(referenceMode()==='direct'?{prompt_label:defaultLabels.get(a.handle)}:{}),...(a.kind==='video'?{soundtrack_token:'[['+a.handle+':audio]]',soundtrack_usage:'Set include_audio true to use this soundtrack.'}:{}),prompt_token:'[['+a.handle+']]',name:manifest.find(m=>m.id===a.asset_id)?.name}));
 
       const account=(value:ChatAccounting)=>{const c=this.get(id),r=c.runs.find(r=>r.id===runId)!;const prior=value.id?r.accounting.findIndex(v=>v.id===value.id):-1;if(prior<0)r.accounting.push(value);else r.accounting[prior]=value;this.save(c);};
       const history=chat.messages.filter(m=>m.role!=='event'&&m.id!==runId).map(m=>({role:m.role==='assistant'?'assistant':'user',...agentMentionContext(m.text,m.mention_bindings,toolAssets,chat.groups.flatMap(g=>g.cards).filter(c=>contextCardIds.includes(c.id)).map(c=>({card_id:c.id,revision:latest(c).number,references:latest(c).request.references??[]})))}));
@@ -285,7 +299,7 @@ export class Chats {
           return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
         }};
       const chooseKind:AgentTool={name:'choose_kind',label:'Choose kind',
-        description:'Choose what kind of media to prepare before creating requests: image (a new still from words), edit (change an existing image; needs an image input), video (a new clip from words only), animate (a clip guided by image, video or audio inputs, such as a start frame). Call it once before create_request whenever the needed kind differs from the active kind. It does not generate media.',
+        description:'Choose what kind of media to prepare before creating requests: image (a new still from words), edit (change an existing image; needs an image input), video (a new clip from words only), animate (a clip guided by image, video or audio inputs, such as a start frame). Call it on its own, wait for its result, and only then call create_request, whenever the needed kind differs from the active kind. It does not generate media.',
         parameters:{type:'object',additionalProperties:false,properties:{kind:{type:'string',enum:Object.keys(chatKinds)}},required:['kind']} as any,
         execute:async(_call,raw)=>{
           const kind=String((raw as {kind?:unknown}).kind) as keyof typeof chatKinds,workflow=chatKinds[kind];
@@ -296,7 +310,7 @@ export class Chats {
           if(open&&open.cards.length&&open.workflow!==workflow)throw Error(JSON.stringify({ok:false,error:'An open plan of another kind is waiting for the user. Revise that plan, or ask the user to make it or set it aside before planning a different kind.',open_plan_kind:Object.entries(chatKinds).find(([,w])=>w===open.workflow)?.[0]}));
           if(current.workflow!==workflow){current.workflow=workflow;current.version++;this.save(current);}
           const next=chatPromptSnapshot(this.paths,current.mode,workflow);
-          nextTurn={systemPrompt:next.system+'\n\n'+requestToolRules(process.env.SEED_AGENT_REFERENCE_MODE!=='direct'?'stable':'direct',workflow),tools:[chooseKind,updateBrief,...kindTools(workflow)]};
+          nextTurn={systemPrompt:next.system+'\n\n'+requestToolRules(referenceMode(),workflow),tools:[chooseKind,updateBrief,...kindTools(workflow)]};
           const result={ok:true,kind,available_loras:loraCatalog(workflow),next_action:'Prepare the drafts now with create_request, or edit_request for an existing draft.'};
           return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
         }};
@@ -312,9 +326,7 @@ export class Chats {
         if(event.type==='message_update'&&Date.now()-lastUpdate<100)return;
         const c=this.get(id);if(c.epoch!==epoch)return;const message=c.messages.find(m=>m.id===runId);if(!message?.transcript)return;
         recordTurnEvent(message.transcript,event,messageIndex);
-        // Text following the latest tool is the currently streamed response.
-        const steps=message.transcript.steps,lastTool=steps.map(s=>s.kind).lastIndexOf('tool');
-        message.text=steps.slice(lastTool+1).filter(s=>s.kind==='text').map(s=>s.text??'').join('\n');
+        message.text=replyText(message.transcript.steps);
         this.save(c);lastUpdate=Date.now();
       });
       await agent.prompt('Conversation and application context (data):\n'+context,images);
@@ -326,7 +338,7 @@ export class Chats {
         if(final?.role==='assistant'&&['error','aborted','length'].includes(final.stopReason)){this.save(current);throw Error(final.stopReason==='length'?'Agent output limit reached. Send feedback to continue.':final.errorMessage?.includes('timed out')?'The model response timed out after 10 minutes. Saved request changes are preserved; send a follow-up to continue.':final.errorMessage||'The model response was interrupted. Send a follow-up to continue.');}
         const toolResults=agent.state.messages.filter(m=>m.role==='toolResult');
         const message=current.messages.find(m=>m.id===runId)!;
-        if(message.transcript){finishTurn(message.transcript,toolResults.at(-1)?.isError?'failed':'completed');const lastTool=message.transcript.steps.map(s=>s.kind).lastIndexOf('tool');message.text=message.transcript.steps.slice(lastTool+1).filter(s=>s.kind==='text').map(s=>s.text??'').join('\n');message.reasoning_text=message.transcript.steps.filter(s=>s.kind==='reasoning').map(s=>s.text??'').join('\n');}
+        if(message.transcript){finishTurn(message.transcript,toolResults.at(-1)?.isError?'failed':'completed');message.text=replyText(message.transcript.steps);message.reasoning_text=message.transcript.steps.filter(s=>s.kind==='reasoning').map(s=>s.text??'').join('\n');}
         for(const card of current.groups.flatMap(g=>g.cards))for(const revision of card.revisions)if(revision.run_id===runId)revision.after_message_id=current.messages.at(-1)?.id??null;
         const pending=openGroup(current);if(pending){if(pending.cards.length){pending.state='reviewing';for(const card of pending.cards)if(card.timeline_start&&card.timeline_start>latest(card).number)card.timeline_start=latest(card).number;}else current.groups=current.groups.filter(g=>g.id!==pending.id);}
         current.activity='idle';current.partial='';current.partial_reasoning='';

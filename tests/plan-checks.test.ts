@@ -87,12 +87,12 @@ it('keeps a draft’s checks after the owner edits it by hand', () => {
 
 it('lists brief details a draft leaves out, and adds them in one step', () => {
   const brief = ['# The Last Tide', '', '**Characters**', '- **Mara**: 32 years old, warm brown skin, short black curly bob, small scar through her left eyebrow.', '- **Wardrobe**: Mustard-yellow waxed raincoat over a dark teal sweater, brass compass on a red cord.', '', '## Rules', '- No text anywhere'].join('\n');
-  const prompt = 'Wide shot of Mara, warm brown skin and short black curls, in a mustard waxed raincoat over a teal sweater, brass compass on a red cord, at the lighthouse.';
+  const prompt = 'Medium shot of Mara, warm brown skin and short black curls, in a mustard waxed raincoat over a teal sweater, brass compass on a red cord, at the lighthouse.';
   expect(briefGaps(prompt, brief)).toEqual(['small scar through her left eyebrow', 'no text anywhere']);
   expect(briefGaps('An empty stormy sea at dawn, no text.', brief)).toEqual([]);
   const request = { workflow: 'text-to-image', prompt, output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' };
-  const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.text.startsWith('Brief details'))!;
-  expect(check.text).toBe("Brief details this draft doesn't mention: small scar through her left eyebrow; no text anywhere. Fine if they can't be seen in this shot.");
+  const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.text.startsWith('Continuity check'))!;
+  expect(check.text).toBe("Continuity check: this prompt doesn't mention small scar through her left eyebrow, no text anywhere.");
   expect(check.soft).toBe(true);
   expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt + ' Small scar through her left eyebrow. No text anywhere.');
 });
@@ -102,4 +102,17 @@ it('reads shape words about faces, rooms and camera moves as description, not ca
   expect(askedFor([message('user', 'A portrait of Mira at dusk')] as any).aspect).toBeUndefined();
   expect(askedFor([message('user', 'Make it square please')] as any).aspect).toBe('1:1');
   expect(askedFor([message('user', 'Make it portrait for phones')] as any).aspect).toBe('portrait');
+});
+
+it('still flags an attached image the draft never used after a follow-up revision', () => {
+  const p = project([message('user', 'A poster of her from this', 'ask', ['asset-a']), message('assistant', 'Prepared', 'run1'), message('user', 'Make the sky darker', 'ask2'), message('assistant', 'Updated', 'run2')]);
+  const request = { workflow: 'text-to-image', prompt: 'poster', output: { aspect: '4:5', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' };
+  const c = { id: 'card', workflow: 'text-to-image', revisions: [{ number: 1, request, notes: {}, decision: 'undecided', job_ids: [], run_id: 'run1' }, { number: 2, request: { ...request, prompt: 'poster, darker sky' }, notes: {}, decision: 'undecided', job_ids: [], run_id: 'run2' }] };
+  expect(checkDraft(c as any, p).some(x => x.text.includes('not used by this draft'))).toBe(true);
+});
+
+it('does not ask a distant figure for face details, and drops a stray "and"', () => {
+  const brief = ['## Characters', '- Maren: freckles, copper braid, a wool scarf, and black rubber boots'].join('\n');
+  expect(briefGaps('Extreme wide shot: Maren tiny in frame on the cliff, wool scarf', brief)).toEqual([]);
+  expect(briefGaps('Close-up of Maren, copper braid', brief)).toEqual(['freckles', 'a wool scarf', 'black rubber boots']);
 });

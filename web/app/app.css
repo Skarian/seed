@@ -236,12 +236,13 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .dialog-head h2 { font-size: 17px; margin: 0; flex: 1; }
 .dialog-body { padding: 16px; overflow: auto; display: flex; flex-direction: column; gap: 12px; }
 .dialog-foot { display: flex; gap: 8px; justify-content: flex-end; padding: 12px 16px; border-top: 1px solid var(--line); flex-wrap: wrap; }
-.menu { position: absolute; z-index: 80; background: var(--s2); border: 1px solid var(--line2); border-radius: 12px; padding: 4px; min-width: 220px; box-shadow: 0 16px 40px #0009; }
-.menu button { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 12px; border-radius: 8px; min-height: 40px; font-size: 14px; }
-.menu button:hover, .menu button:focus-visible { background: var(--s3); outline: none; }
-.menu button[aria-checked="true"]::after { content: "✓"; margin-left: auto; color: var(--accent); }
+.menu { z-index: 80; background: var(--s2); border: 1px solid var(--line2); border-radius: 12px; padding: 4px; min-width: 220px; max-width: min(320px, calc(100vw - 16px)); max-height: var(--radix-dropdown-menu-content-available-height); overflow-y: auto; box-shadow: 0 16px 40px #0009; }
+.menu .menu-item { display: flex; align-items: center; gap: 10px; width: 100%; text-align: left; padding: 9px 12px; border-radius: 8px; min-height: 44px; font-size: 14px; cursor: pointer; outline: none; user-select: none; }
+.menu .menu-item[data-highlighted] { background: var(--s3); }
+.menu .menu-item[data-disabled] { opacity: .45; cursor: default; }
+.menu .menu-item[data-state="checked"]::after { content: "✓"; margin-left: auto; color: var(--accent); }
 .menu small { display: block; color: var(--muted); font-size: 12.5px; }
-.menu hr { border: 0; border-top: 1px solid var(--line); margin: 4px 0; }
+.menu .menu-sep { height: 1px; background: var(--line); margin: 4px 0; }
 .menu .danger { color: var(--red); }
 .panel { position: fixed; z-index: 45; top: 64px; right: 16px; width: min(440px, calc(100vw - 32px)); max-height: calc(100vh - 88px); background: var(--s1); border: 1px solid var(--line2); border-radius: 16px; box-shadow: 0 24px 60px #000b; display: flex; flex-direction: column; overflow: hidden; }
 .option { display: flex; gap: 12px; align-items: flex-start; border: 1px solid var(--line2); border-radius: 11px; padding: 11px 12px; text-align: left; width: 100%; }
@@ -470,7 +471,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 
 /* Header: the project title keeps its room; activity text truncates instead of pushing it out. */
 @media (min-width: 700px) { .head h1 { min-width: 96px; flex: 0 1 auto; } }
-.head .status { min-width: 0; max-width: min(46%, 420px); flex: 0 1 auto; overflow: hidden; }
+.head .status { min-width: 9em; max-width: min(46%, 420px); flex: 0 1 auto; overflow: hidden; }
 .head .status > span:not(.dot) { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .head .status > span.rate { flex: none; overflow: visible; }
 
@@ -512,7 +513,7 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .lane-cell figcaption { font-size: 12px; color: var(--muted); padding: 2px 2px 0; }
 .lane-empty { font-size: 12.5px; }
 /* Grid tiles show the whole frame, so a widescreen composition is never cropped to a square */
-.board .grid .tile img, .board .grid .tile video, .library-grid .tile img, .library-grid .tile video { object-fit: contain; background: #0d0e0c; }
+.board .grid .tile img, .board .grid .tile video { object-fit: contain; background: #0d0e0c; }
 @media (max-width: 699px) { .lane { grid-template-columns: minmax(0, 1fr); } .lane-strip .tile { height: 112px; } }
 
 /* Empty project: everything wraps inside the phone width */
@@ -525,3 +526,84 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 }
 .check-note.soft { color: var(--muted); background: var(--s2); }
 @media (max-width: 699px) { .composer textarea { max-height: 24vh; } }
+/* Radix checkbox state, and the compact row's open button beside it */
+.check[data-state="checked"] { background: var(--accent); border-color: var(--accent); }
+.check[data-disabled] { opacity: .4; }
+.check:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.check { position: relative; } .check::before { content: ""; position: absolute; inset: -11px; }
+.compact-row .compact-open { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; text-align: left; min-height: 44px; }
+
+/* Library: justified rows, every tile at its media's own shape (no crop, no bars) */
+.grid.library-grid { display: flex; flex-wrap: wrap; gap: 8px; }
+.grid.library-grid::after { content: ""; flex-grow: 1000; }
+.grid.library-grid .cell { min-width: 0; }
+.grid.library-grid .tile { aspect-ratio: auto; width: 100%; }
+@media (max-width: 699px) { .grid.library-grid .cell { flex-basis: 40% !important; } }
+
+/* ---------- Visual refresh: calmer surfaces, clearer type, fewer lines ---------- */
+:root { --muted: #b6b9ac; --faint: #969a8b; --line: #2b2f27; --line2: #3a3f34; }
+.serif { font-family: var(--sans); font-weight: 650; letter-spacing: -.015em; }
+.head h1 { font-size: 19px; }
+.empty h2 { font-size: 28px; }
+/* Cards hold their parts with space, not with dividers */
+.card { border-color: var(--line); }
+.card-head { border-bottom: 0; padding: 14px 16px 6px; }
+.shared { border-bottom: 0; padding: 4px 16px 12px; }
+.drafts { gap: 10px; padding: 0 12px 12px; background: none; }
+.draft { background: var(--s2); border-radius: 10px; padding: 14px; }
+.notnow { border-top: 0; }
+/* Chips are quiet labels, not outlined buttons */
+.chip { border-color: transparent; background: var(--s2); color: var(--muted); }
+.chip.on { background: var(--accent-soft); border-color: transparent; color: var(--text); }
+button.chip:hover { background: var(--s3); color: var(--text); }
+.btn { border-radius: 10px; border-color: var(--line2); }
+.btn.small { min-height: 34px; }
+.makebar { background: var(--s1); border-color: var(--line); }
+.composer { border-color: var(--line2); }
+.notice { border-color: #e8c36a40; }
+.drafts .compact-row { background: var(--s2); border-radius: 10px; }
+.check-note.plan-wide { margin: 4px 16px 8px; }
+
+/* ---------- Settings › Styles and Other devices: the older admin components, in Seed's own design ---------- */
+.legacy-admin { display: grid; gap: 16px; }
+.legacy-admin h2, .legacy-admin h3 { font-weight: 600; letter-spacing: -.01em; }
+.legacy-admin h2 { font-size: 17px; margin: 0 0 4px; } .legacy-admin h3 { font-size: 16px; margin: 0; }
+.legacy-admin p { color: var(--muted); line-height: 1.5; }
+.legacy-admin .admin-section-heading, .legacy-admin .admin-lora-heading { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.legacy-admin .admin-section-heading p, .legacy-admin .admin-lora-heading p { margin: 0; }
+.legacy-admin .admin-loras { display: grid; gap: 12px; }
+.legacy-admin .admin-lora-card, .legacy-admin .admin-access-card, .legacy-admin .admin-import { background: var(--s1); border: 1px solid var(--line); border-radius: var(--r); padding: 16px; display: grid; gap: 12px; }
+.legacy-admin .admin-lora-card header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
+.legacy-admin .admin-lora-card h3 small { color: var(--faint); font-weight: 400; margin-left: 6px; font-size: 13px; }
+.legacy-admin .admin-lora-card footer { display: flex; gap: 8px 14px; align-items: center; flex-wrap: wrap; font-size: 12.5px; color: var(--muted); border-top: 1px solid var(--line); padding-top: 12px; }
+.legacy-admin .admin-lora-card footer a { margin-left: auto; color: var(--accent); }
+.legacy-admin .lora-supported-workflows { display: flex; gap: 6px; flex-wrap: wrap; list-style: none; margin: 0; padding: 0; }
+.legacy-admin .lora-supported-workflows li { font-size: 12.5px; background: var(--s2); color: var(--muted); border-radius: 999px; padding: 2px 10px; }
+.legacy-admin .admin-lora-description { margin: 0; color: var(--text); }
+.legacy-admin .admin-hint { font-size: 12.5px; color: var(--faint); margin: 0; }
+.legacy-admin .admin-status { font-size: 12px; border-radius: 999px; padding: 2px 9px; background: var(--s2); color: var(--muted); }
+.legacy-admin .admin-status.ready { background: var(--accent-soft); color: var(--accent); }
+/* Buttons and fields look and behave like the rest of Seed */
+.legacy-admin button { display: inline-flex; align-items: center; justify-content: center; gap: 6px; min-height: 36px; padding: 6px 12px; border-radius: 10px; border: 1px solid var(--line2); font-size: 13.5px; background: none; }
+.legacy-admin button:hover:not(:disabled) { background: var(--s2); }
+.legacy-admin button:disabled { opacity: .45; }
+.legacy-admin .admin-primary { background: var(--accent); border-color: var(--accent); color: var(--accent-ink); font-weight: 650; }
+.legacy-admin .admin-primary:hover:not(:disabled) { background: #d2ef9f; }
+.legacy-admin .admin-primary:disabled { background: var(--s3); border-color: var(--s3); color: var(--muted); opacity: 1; }
+.legacy-admin .admin-destructive { color: var(--red); border-color: #f1948355; }
+.legacy-admin input:not([type=checkbox]), .legacy-admin select, .legacy-admin textarea { background: var(--bg); border: 1px solid var(--line2); border-radius: 9px; padding: 9px 12px; min-height: 40px; width: 100%; min-width: 0; color: var(--text); }
+.legacy-admin input:focus, .legacy-admin select:focus, .legacy-admin textarea:focus { outline: none; border-color: var(--accent); }
+.legacy-admin input[type=checkbox] { accent-color: var(--accent); width: 18px; height: 18px; }
+.legacy-admin label { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.legacy-admin .admin-checkbox { display: flex; align-items: center; gap: 8px; color: var(--text); }
+.legacy-admin form { display: grid; gap: 14px; }
+.legacy-admin .admin-form-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap: 14px; }
+.legacy-admin .lora-edit-actions, .legacy-admin .lora-card-actions, .legacy-admin .admin-access-actions { display: flex; gap: 8px; flex-wrap: wrap; }
+.legacy-admin table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.legacy-admin th, .legacy-admin td { text-align: left; padding: 8px 6px; border-bottom: 1px solid var(--line); }
+.legacy-admin th { color: var(--muted); font-weight: 500; }
+.legacy-admin .admin-empty { text-align: center; padding: 40px 20px; border: 1px dashed var(--line2); border-radius: var(--r); }
+.legacy-admin .admin-local-address h3 { font-size: 13px; color: var(--muted); font-weight: 500; margin-bottom: 4px; }
+.legacy-admin .admin-local-address a { color: var(--accent); overflow-wrap: anywhere; }
+.legacy-admin [role=alert] { color: var(--red); font-size: 13px; }
+.hero { position: relative; } .hero-play { position: absolute; inset: 0; margin: auto; width: 56px; height: 56px; border-radius: 50%; background: #121311cc; display: grid; place-items: center; }

@@ -36,7 +36,7 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
     <Media id={it.asset} kind={it.kind} alt={it.title} />
     <button className="open" aria-label={'Open ' + it.title} onClick={() => app.inspect(it, items)} />
     <button className="sel check big" role="checkbox" aria-checked={on} aria-label={'Select ' + it.title + ' to compare'} onClick={() => toggle(it.asset)}>{on && <Icon.Check />}</button>
-    <span className="corner">{fav.has(it.asset) && <span className="pill" aria-label="Chosen"><Icon.HeartFill width={12} height={12} style={{ color: 'var(--accent)' }} /></span>}</span>
+    <span className="corner">{fav.has(it.asset) && <span className="pill" aria-label="Favorite"><Icon.HeartFill width={12} height={12} style={{ color: 'var(--accent)' }} /></span>}</span>
     {it.kind === 'video' && <span className="badge pill" aria-hidden="true"><Icon.Play width={11} height={11} />{it.job?.request.output.duration_seconds ?? 5} s</span>}
   </div><figcaption><span>{it.title}</span>{it.job?.request && <small>{it.kind === 'video' ? 'Video' : 'Image'}{it.job.request.workflow === 'image-to-image' ? ' · edit' : it.job.request.workflow === 'reference-to-video' ? ' · animated' : ''}</small>}</figcaption></figure>; };
   const shotOf = (title: string) => { const m = title.match(/\bshot\s*(\d{1,3})\b/i); return m ? Number(m[1]) : null; };
@@ -52,25 +52,37 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
   };
   // Oldest first inside a shot, so the newest take is last, like a strip of film.
   // Takes are numbered in the order they were made (and their place in a batch), the same everywhere.
-  const made = (it: ViewerItem) => (it.job ? Date.parse(it.job.created_at) * 100 + (it.job.submission_index ?? 0) : 0);
-  for (const it of [...items].sort((a, b) => made(a) - made(b))) { const s = shotFor(it.job ? titleOf(it.job.request) : it.title); (it.kind === 'video' ? s.clips : s.images).push(it); }
+  // A batch is ordered by its place (take 1 before take 2), even when its jobs finished or were saved out of order.
+  const batchStart = new Map<string, number>();
+  for (const j of project.jobs) { const key = j.submission_id || j.id, t = Date.parse(j.created_at); if (!batchStart.has(key) || t < batchStart.get(key)!) batchStart.set(key, t); }
+  const made = (it: ViewerItem): [number, number] => it.job ? [batchStart.get(it.job.submission_id || it.job.id) ?? Date.parse(it.job.created_at), it.job.submission_index ?? 0] : [0, 0];
+  for (const it of [...items].sort((a, b) => { const x = made(a), y = made(b); return x[0] - y[0] || x[1] - y[1]; })) { const s = shotFor(it.job ? titleOf(it.job.request) : it.title); (it.kind === 'video' ? s.clips : s.images).push(it); }
   for (const j of running) shotFor(titleOf(j.request)).making.push(j);
   for (const t of planned) shotFor(t).planned.push(t);
   const shotList = [...shots.values()].sort((a, b) => (a.n ?? 1e6) - (b.n ?? 1e6));
+  // The cut: each numbered shot's chosen clip (or its newest), in story order.
+  const cut: ViewerItem[] = shotList.filter(s => s.n !== null && s.clips.length).map(s => ({ ...(s.clips.find(c => fav.has(c.asset)) ?? s.clips.at(-1)!), sequence: true }));
+  // A clip names the keyframe take it started from, so the board shows which take became which clip.
+  const fromTake = (it: ViewerItem) => {
+    const start = it.job?.request.references?.find(r => r.role === 'first_frame')?.asset_id; if (!start) return '';
+    const shot = shotList.find(s => s.clips.includes(it)); const at = shot ? shot.images.findIndex(x => x.asset === start) : -1;
+    return at >= 0 ? ` from Take ${at + 1}` : '';
+  };
   const lane = (its: ViewerItem[]) => its.map((it, take) => { const on = selected.includes(it.asset); return <figure key={it.asset} className="cell lane-cell"><div className={'tile ' + (it.job ? shapeClass(it.job.request, it.job.output_dimensions?.width, it.job.output_dimensions?.height) : 'square') + (on ? ' selected' : '')}>
     <Media id={it.asset} kind={it.kind} alt={it.title} />
     <button className="open" aria-label={'Open ' + it.title} onClick={() => app.inspect(it, items)} />
     <button className="sel check big" role="checkbox" aria-checked={on} aria-label={'Select ' + it.title + ' to compare'} onClick={() => toggle(it.asset)}>{on && <Icon.Check />}</button>
-    <span className="corner">{fav.has(it.asset) && <span className="pill" aria-label="Chosen"><Icon.HeartFill width={12} height={12} style={{ color: 'var(--accent)' }} /></span>}</span>
+    <span className="corner">{fav.has(it.asset) && <span className="pill" aria-label="Favorite"><Icon.HeartFill width={12} height={12} style={{ color: 'var(--accent)' }} /></span>}</span>
     {it.kind === 'video' && <span className="badge pill" aria-hidden="true"><Icon.Play width={11} height={11} />{it.job?.request.output.duration_seconds ?? 5} s</span>}
-  </div><figcaption>{its.length > 1 ? `Take ${take + 1}` : ''}{fav.has(it.asset) ? (its.length > 1 ? ' · ' : '') + 'chosen' : ''}</figcaption></figure>; });
+  </div><figcaption>{its.length > 1 ? `Take ${take + 1}` : ''}{fav.has(it.asset) ? (its.length > 1 ? ' · ' : '') + 'favorite' : ''}{fromTake(it)}</figcaption></figure>; });
   const groups = new Map<string, ViewerItem[]>();
   if (grouped) for (const it of items) { const key = it.job ? titleOf(it.job.request) : it.title; groups.set(key, [...(groups.get(key) ?? []), it]); }
   return <div className={embedded ? 'board' : 'board full'}>
     <div className="toolbar">
       {embedded && <b style={{ marginRight: 4 }}>Board</b>}
-      <div className="seg" role="group" aria-label="Show">{([['all', 'All'], ['fav', 'Chosen'], ['image', 'Images'], ['video', 'Videos']] as const).map(([k, l]) => <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === 'fav' ? <Icon.Heart width={14} height={14} /> : null}{l}</button>)}</div>
+      <div className="seg" role="group" aria-label="Show">{([['all', 'All'], ['fav', 'Favorites'], ['image', 'Images'], ['video', 'Videos']] as const).map(([k, l]) => <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>{k === 'fav' ? <Icon.Heart width={14} height={14} /> : null}{l}</button>)}</div>
       <span style={{ flex: 1 }} />
+      {view === 'shots' && cut.length > 1 && <button className="btn small" onClick={() => app.view(cut[0]!, cut)}><Icon.Play width={14} height={14} />Play in order</button>}
       <div className="seg" role="group" aria-label="Arrange"><button aria-pressed={view === 'shots'} onClick={() => setView('shots')}>By shot</button><button aria-pressed={view === 'grid'} onClick={() => setView('grid')}>Grid</button></div>
       {view === 'grid' && <button className="btn small quiet" aria-pressed={grouped} onClick={() => setGrouped(!grouped)}>{grouped ? 'Grouped by request' : 'All together'}</button>}
       <div className="seg no-phone" role="group" aria-label="Tile size">{(['s', 'm', 'l'] as const).map(k => <button key={k} aria-pressed={size === k} aria-label={{ s: 'Small tiles', m: 'Medium tiles', l: 'Large tiles' }[k]} onClick={() => setSize(k)}>{k.toUpperCase()}</button>)}</div>
@@ -80,12 +92,12 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
       {view === 'shots' && (items.length > 0 || running.length > 0 || planned.length > 0) && <div className="shots">{shotList.map(s => {
         const chosenImage = s.images.some(i => fav.has(i.asset)), chosenClip = s.clips.some(i => fav.has(i.asset));
         const reference = s.n === null && !s.clips.length && !s.planned.length;
-        const stage = reference ? 'Reference' : s.making.length ? 'Making now' : s.clips.length ? (chosenClip ? 'Clip chosen' : `${s.clips.length} ${s.clips.length === 1 ? 'clip' : 'clips'}`) : s.images.length ? (chosenImage ? 'Keyframe chosen · no clip yet' : 'Keyframe made · no clip yet') : s.planned.length ? 'In the plan, not made yet' : '';
+        const stage = filter !== 'all' ? (filter === 'fav' ? 'Favorites in this shot' : filter === 'image' ? 'Keyframes in this shot' : 'Clips in this shot') : reference ? 'Reference' : s.making.length ? 'Making now' : s.clips.length ? (chosenClip ? 'Favorite clip' : `${s.clips.length} ${s.clips.length === 1 ? 'clip' : 'clips'}`) : s.images.length ? (chosenImage ? 'Favorite keyframe · no clip yet' : 'Keyframe made · no clip yet') : s.planned.length ? 'In the plan, not made yet' : '';
         return <section key={(s.n ?? '') + s.name} className="shot-row" aria-label={(s.n !== null ? 'Shot ' + s.n + ': ' : '') + s.name}>
           <div className="shot-head">{s.n !== null && <b className="shot-n">Shot {s.n}</b>}<span className="shot-name">{s.name}</span><span className="faint">{stage}</span></div>
           <div className="shot-lanes">
             {(s.images.length > 0 || !s.clips.length) && <div className="lane"><span className="lane-label">{reference ? 'Images' : 'Keyframes'}</span><div className="lane-strip">{lane(s.images)}{!s.images.length && <span className="faint lane-empty">{s.planned.length ? 'Planned' : 'None yet'}</span>}</div></div>}
-            {!reference && (s.clips.length > 0 || s.images.length > 0) && <div className="lane"><span className="lane-label">Clips</span><div className="lane-strip">{lane(s.clips)}{!s.clips.length && <span className="faint lane-empty">None yet. Animate a keyframe to make one.</span>}</div></div>}
+            {!reference && (s.clips.length > 0 || s.images.length > 0) && <div className="lane"><span className="lane-label">Clips</span><div className="lane-strip">{lane(s.clips)}{!s.clips.length && <span className="faint lane-empty">{filter === 'all' || filter === 'video' ? 'None yet. Animate a keyframe to make one.' : 'None in this view'}</span>}</div></div>}
             {s.making.length > 0 && <div className="lane"><span className="lane-label">Making</span><div className="lane-strip">{s.making.map(j => { const st = tileState(j); return <span key={j.id} className="chip"><span className={'dot ' + (st.tone === 'wait' ? 'amber' : 'live')} /> {st.label}</span>; })}</div></div>}
           </div>
         </section>; })}</div>}
@@ -93,9 +105,9 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
         {running.map(j => { const s = tileState(j); return <figure key={j.id} className="cell"><div className={`tile pending shimmer ${shapeClass(j.request)}`} style={{ aspectRatio: '1' }}><span className="state pill"><span className={'dot ' + (s.tone === 'wait' ? 'amber' : 'live')} />{s.label.split(' · ')[0]}</span>{s.percent !== undefined && <div className="prog"><i style={{ width: s.percent + '%' }} /></div>}</div><figcaption><span>{titleOf(j.request)}</span><small>{s.label}</small></figcaption></figure>; })}
       </div></section>}
       {view === 'grid' && planned.length > 0 && filter === 'all' && <section><div className="day">In the plan, not made yet</div><div className="chips">{planned.map(t => <span key={t} className="chip">{t}</span>)}</div></section>}
-      {list.loaded && !items.length && !running.length && !planned.length && <div className="empty" style={{ minHeight: 240 }}><div><h2 className="serif" style={{ fontSize: 22 }}>{filter === 'fav' ? 'Nothing chosen yet' : 'Nothing made yet'}</h2><p>{filter === 'fav' ? 'Tap ♥ on a result to mark it as the one you want.' : 'Everything made in this project gathers here.'}</p>{filter !== 'all' && <button className="btn" onClick={() => setFilter('all')}>Show all</button>}</div></div>}
+      {list.loaded && !items.length && !running.length && !planned.length && <div className="empty" style={{ minHeight: 240 }}><div><h2 className="serif" style={{ fontSize: 22 }}>{filter === 'fav' ? 'No favorites yet' : 'Nothing made yet'}</h2><p>{filter === 'fav' ? 'Tap ♥ on a result to mark it as the one you want.' : 'Everything made in this project gathers here.'}</p>{filter !== 'all' && <button className="btn" onClick={() => setFilter('all')}>Show all</button>}</div></div>}
       {view === 'grid' && items.length > 0 && (grouped
-        ? [...groups.entries()].map(([title, its]) => <section key={title}><div className="day">{title} <span className="faint" style={{ fontWeight: 400 }}>· {its.length}{its.some(i => fav.has(i.asset)) ? ' · chosen ♥' : ''}</span></div><div className="grid" style={grid}>{its.map(tile)}</div></section>)
+        ? [...groups.entries()].map(([title, its]) => <section key={title}><div className="day">{title} <span className="faint" style={{ fontWeight: 400 }}>· {its.length}{its.some(i => fav.has(i.asset)) ? ' · favorite ♥' : ''}</span></div><div className="grid" style={grid}>{its.map(tile)}</div></section>)
         : <section>{(running.length > 0 || planned.length > 0) && <div className="day">Made</div>}<div className="grid" style={grid}>{items.map(tile)}</div></section>)}
       {list.cursor && <div style={{ textAlign: 'center', padding: 16 }}><button className="btn" disabled={list.loading} onClick={() => void list.more()}>{list.loading ? 'Loading…' : 'Load more'}</button></div>}
     </div></div>

@@ -93,7 +93,7 @@ export function createChatAgent(options: {
   /** Replaces the system prompt and tools before the next model request, e.g. after the agent chooses a kind. */
   nextTurn?: () => { systemPrompt: string; tools: AgentTool[] } | undefined;
 }) {
-  if (!options.apiKey.trim()) throw new Error('Add your OpenRouter key in Admin → Credentials.');
+  if (!options.apiKey.trim()) throw new Error('Add your OpenRouter key in Settings → API keys.');
   let turns = 0;
   let currentTools: AgentTool[] = options.tools ?? (options.tool ? [options.tool] : []);
   return new Agent({
