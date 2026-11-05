@@ -71,7 +71,7 @@ export function outputsOf(cards: ChatCard[], decided: (c: ChatCard) => boolean) 
 export const outputNoun = (r: ImageRequest | undefined, n: number) => !r ? plural(n, 'output') : isVideoKind(kindOfRequest(r)) ? plural(n, 'clip') : plural(n, 'image');
 
 /** What changed between two revisions, in plain words. */
-export function changesBetween(a: ChatRevision | undefined, b: ChatRevision, styleName: (id: string) => string) {
+export function changesBetween(a: ChatRevision | undefined, b: ChatRevision, styleName: (id: string) => string, inputName: (asset: string) => string = () => 'another image') {
   if (!a) return [];
   const x = a.request, y = b.request, out: string[] = [];
   if (x.count !== y.count) out.push(`${x.count} → ${y.count} ${isVideoKind(kindOfRequest(y)) ? 'clips' : 'images'}`);
@@ -82,6 +82,8 @@ export function changesBetween(a: ChatRevision | undefined, b: ChatRevision, sty
   const xs = (x.loras ?? []).map(l => l.id).join(), ys = (y.loras ?? []).map(l => l.id).join();
   if (xs !== ys) out.push(ys ? 'style: ' + (y.loras ?? []).map(l => styleName(l.id)).join(', ') : 'style removed');
   if ((x.references ?? []).length !== (y.references ?? []).length) out.push(`${(x.references ?? []).length} → ${(y.references ?? []).length} inputs`);
+  // A swapped source is the change that matters most to continuity: name both images.
+  else (y.references ?? []).forEach((ref, i) => { const old = x.references![i]; if (old && old.asset_id !== ref.asset_id) out.push(`${(ref.role === 'first_frame' ? 'start frame' : ref.role === 'last_frame' ? 'end frame' : ref.role === 'source' ? 'source' : 'reference')}: “${inputName(old.asset_id)}” → “${inputName(ref.asset_id)}”`); });
   if (x.target !== y.target) out.push('runs on ' + targetLabel(y.target));
   if (x.prompt !== y.prompt) out.push(...promptChanges(x.prompt, y.prompt));
   if (x.title !== y.title && y.title && x.title) out.push(`renamed “${x.title}” → “${y.title}”`);

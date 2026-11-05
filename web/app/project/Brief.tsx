@@ -36,7 +36,7 @@ export function BriefBar({ project, busy, onSaved }: { project: Project; busy: b
           placeholder={'## Characters\nMara: 32, short black curly bob, scar through her left eyebrow, mustard raincoat\n\n## Rules\nNo text anywhere\n\n## Shots\n1. Wide, Mara at the lighthouse at dawn'} autoFocus />
         {error && <p className="changed" role="alert">{error}</p>}
         <div className="actions"><button className="btn small" onClick={() => { setEditing(false); setText(brief); }}>Cancel</button><button className="btn small primary" disabled={busy || text.trim() === brief.trim()} onClick={() => void save()}>Save brief</button></div>
-        <p className="faint" style={{ margin: 0, fontSize: 12.5 }}>Seed reads the brief before every reply and keeps drafts consistent with it. Changing it does not change drafts that already exist; ask Seed to update them.</p>
+        <p className="faint" style={{ margin: 0, fontSize: 12.5 }}>Seed uses the brief when it plans new drafts. Check each draft and result for continuity. Changing the brief does not change drafts that already exist; ask Seed to update them.</p>
       </> : <>
         {brief ? <div className="brief-text"><Markdown text={shown} /></div> : <p className="faint" style={{ margin: 0 }}>No brief yet. Tell Seed who is in your story, where it happens and what must always or never appear, and it writes the brief. You can also write it yourself.</p>}
         <div className="actions"><button className="btn small" disabled={busy} onClick={() => setEditing(true)}>{brief ? 'Edit brief' : 'Write the brief'}</button>{busy && <span className="faint" style={{ fontSize: 12.5 }}>You can edit once Seed finishes replying.</span>}</div>

@@ -8,6 +8,7 @@ import { latest, titleOf, settingChips, changesBetween, outputNoun, assetName } 
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
 import { checkDraft, readablePrompt, editablePrompt, type Check } from './checks.js';
+import { LibraryPicker } from '../library/LibraryPicker.js';
 
 export type Selection = Record<string, boolean>;
 type Props = {
@@ -54,7 +55,11 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
       <b>Plan</b><span className="meta">{cards.length} {cards.length === 1 ? 'draft' : 'drafts'}{working ? ' · Seed is updating it…' : revisedCount ? ` · last revision: ${[`${revisedCount} changed`, addedCount ? `${addedCount} added` : '', cards.length - revisedCount - addedCount ? `${cards.length - revisedCount - addedCount} unchanged` : ''].filter(Boolean).join(', ')}` : ''}{!working && cards.some(c => c.left_out) ? ` · Seed left ${cards.filter(c => c.left_out).length} out` : ''}</span>
       <span className="end">
         {cards.length > 2 && <button className="btn quiet small" onClick={() => setCompact(c => !c)} aria-pressed={compact}>{compact ? 'Show details' : 'Compact'}</button>}
-        <MenuButton label="Plan options" items={[{ label: 'Set this plan aside', hint: 'Drafts are kept under Not made yet; Bring back returns them.', onSelect: onSetAside, disabled: busy }]}><Icon.More /></MenuButton>
+        <MenuButton label="Plan options" items={[
+          // One size for every draft at once, so a batch change is one step, not one editor per draft.
+          ...sizeOptions(cards[0] ? latest(cards[0]).request.workflow : 'text-to-image', cards[0] ? latest(cards[0]).request.output.aspect : '16:9').map(o => ({ label: 'All drafts: ' + o.label, hint: 'Set this size on every draft', onSelect: () => { void (async () => { for (const c of cards) { const req = latest(c).request; if (req.output.size === o.id) continue; const { workflow: _w, mode: _m, resolved_seeds: _s, ...rest } = req as typeof req & { resolved_seeds?: unknown }; if (!(await onRevise(c, { ...rest, output: { ...req.output, size: o.id } }))) break; } })(); }, disabled: busy || working })),
+          'divider' as const,
+          { label: 'Set this plan aside', hint: 'Drafts are kept under Not made yet; Bring back returns them.', onSelect: onSetAside, disabled: busy }]}><Icon.More /></MenuButton>
       </span>
     </div>
     {oneSource && <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: 13 }}>All {cards.length} drafts use “{assetName(project, oneSource, everywhere)}” as their source. Its framing and look guide each result; check every take.</p>}
@@ -68,7 +73,7 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
         const rev = latest(card), r = rev.request, on = selection[card.id] ?? !card.left_out, blocked = Boolean(ready[i]?.blocked);
         const own = chips[i]!.filter(([k]) => !sharedKeys.has(k));
         const prior = card.revisions.at(-2);
-        const changed = rev.number > 1 && prior ? changesBetween(prior, rev, name) : [];
+        const changed = rev.number > 1 && prior ? changesBetween(prior, rev, name, a => assetName(project, a, everywhere)) : [];
         const toggle = () => !blocked && onSelection({ ...selection, [card.id]: !on });
         if (compact && open !== card.id) return <button key={card.id} className="compact-row" onClick={() => setOpen(card.id)} aria-label={`${titleOf(r)}, ${on && !blocked ? 'selected' : 'not selected'}. Show details`}>
           <span className="check" role="checkbox" aria-checked={on && !blocked} aria-label={'Include ' + titleOf(r)} onClick={e => { e.stopPropagation(); toggle(); }}>{on && !blocked && <Icon.Check />}</span>
@@ -93,6 +98,7 @@ function Draft({ quietSource, skip, label, project, card, on, blocked, busy, onT
 }) {
   const [view, setView] = useState(card.revisions.length - 1);
   const shown = card.revisions[view] ?? latest(card), r = shown.request, current = view === card.revisions.length - 1;
+  const [swap, setSwap] = useState<string | null>(null), [showSoft, setShowSoft] = useState(false);
   const [editing, setEditing] = useState(false), [full, setFull] = useState(false), { split, tasks, narrow } = useApp();
   const inputs = r.references ?? [];
   // An edit or animation runs on its own engine and size; say so next to the source it came from.
@@ -126,11 +132,13 @@ function Draft({ quietSource, skip, label, project, card, on, blocked, busy, onT
       : <>
         <p className={'excerpt' + (full ? ' full' : '')}>{skip && current && !full ? '… ' + readablePrompt(r, project, tasks).split(/\s+/).slice(skip).join(' ') : readablePrompt(r, project, tasks)}</p>
         {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
-        {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const name = assetName(project, ref.asset_id, tasks); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={name} /><span><b>{roleLabels[ref.role] ?? ref.role}</b> · {name}{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
+        {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const name = assetName(project, ref.asset_id, tasks); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={name} /><span><b>{roleLabels[ref.role] ?? ref.role}</b> · {name}{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span>{current && !busy && ref.kind === 'image' && <button className="link" style={{ fontSize: 12.5, marginLeft: 6 }} onClick={() => setSwap(ref.id)} aria-label={'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ': ' + name}>Change</button>}</span>; })}</div>}
+        {swap && <LibraryPicker inProject={project.id} onlyKind="image" heading={'Choose a new ' + (roleLabels[inputs.find(x => x.id === swap)?.role ?? ''] ?? 'input').toLowerCase()} onClose={() => setSwap(null)} onPick={items => { const a = items[0], id = swap; setSwap(null); if (!a || !id) return; const { workflow: _w, mode: _m, resolved_seeds: _s, ...rest } = r as typeof r & { resolved_seeds?: unknown }; void onRevise({ ...rest, references: inputs.map(x => x.id === id ? { ...x, asset_id: a.id, kind: a.kind } : x) }); }} />}
         {departure && !quietSource && <p className="faint" style={{ margin: 0, fontSize: 13 }}>{departure}</p>}
         {own.length > 0 && <div className="chips">{own.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</div>}
         {current && changed.length > 0 && <p className="changed">What changed: {changed.join(' · ')}</p>}
-        {current && checks.map(c => <div className={'check-note' + (c.soft ? ' soft' : '')} role="status" key={c.text}><span>{c.soft ? '' : '⚠ '}{c.text}</span>{c.fixes.map(f => <button key={f.label} className="btn small" disabled={busy} onClick={() => { if (f.action === 'edit-myself') { onEditMyself(f.assets ?? []); return; } const patch = f.patch(r); if (Object.keys(patch).length) void onRevise(patch); else onAcknowledge(c.text); }}>{f.label}</button>)}</div>)}
+        {current && checks.some(c => c.soft) && !showSoft && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 12.5 }} onClick={() => setShowSoft(true)}>Brief check: {checks.filter(c => c.soft).length === 1 ? 'a note' : 'notes'}</button>}
+        {current && checks.filter(c => !c.soft || showSoft).map(c => <div className={'check-note' + (c.soft ? ' soft' : '')} role="status" key={c.text}><span>{c.soft ? '' : '⚠ '}{c.text}</span>{c.fixes.map(f => <button key={f.label} className="btn small" disabled={busy} onClick={() => { if (f.action === 'edit-myself') { onEditMyself(f.assets ?? []); return; } const patch = f.patch(r); if (Object.keys(patch).length) void onRevise(patch); else onAcknowledge(c.text); }}>{f.label}</button>)}</div>)}
         {ready && <span className={'ready ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'warn' : 'bad')}><span className={'dot ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'amber' : 'red')} />{ready.label}</span>}
       </>}
     <span className="sr-only">{kindLabel} · {outputNoun(r, r.count)}</span>

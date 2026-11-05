@@ -364,7 +364,7 @@ function friendlyError(error?: string | null) {
   if (/rate.?limit|429|too many/i.test(e)) return 'The model service is busy right now. Nothing was made. Try again in a minute.';
   if (/network|fetch failed|ECONN|socket|5\d\d|upstream|unavailable/i.test(e)) return 'Seed lost its connection to the model service. Nothing was made. Try again.';
   if (/credit|payment|402|insufficient/i.test(e)) return 'The model service needs more credit on your OpenRouter account. Nothing was made.';
-  return e ? `Seed stopped: ${e}. Nothing was made.` : 'Seed stopped before finishing. Nothing was made.';
+  return e ? `Seed stopped: ${e}. Nothing was made.` : 'Seed couldn’t finish that. Drafts without a new version are unchanged, and nothing was made.';
 }
 function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
   const last = [...turn.steps].reverse().find(s => s.kind === 'tool');

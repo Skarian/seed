@@ -116,7 +116,10 @@ export class Chats {
   }
   private contextAssets(chat:StoredChat){return chat.assets.map(id=>{const asset=this.jobs.media.get(id);const own=this.db.prepare('SELECT note FROM asset_notes WHERE id=?').get(id) as {note:string}|undefined;
     const inherited=this.db.prepare('SELECT n.note FROM sequence_frames f JOIN asset_notes n ON n.id=f.sequence_id WHERE f.asset_id=?').get(id) as {note:string}|undefined;
-    return {id,name:asset?.name??'Missing media',kind:asset?.kind,metadata:asset?.metadata,note:own?.note||inherited?.note||''};});}
+    // A generated result is named by the draft that made it and its take, so Seed can tell "Shot 2 · take 1" from "Shot 1".
+    const job=typeof asset?.metadata?.job_id==='string'?this.jobs.get(asset.metadata.job_id):undefined;
+    const title=job?.request.title?`${job.request.title}${(job.request.count??1)>1?` · take ${(job.submission_index??0)+1} of ${job.request.count}`:''}`:undefined;
+    return {id,name:title??asset?.name??'Missing media',kind:asset?.kind,metadata:asset?.metadata,note:own?.note||inherited?.note||''};});}
   private request(chat:StoredChat,workflow:ChatWorkflow,raw:unknown,previous?:ImageRequest):ImageRequest{
     const value=raw as Record<string,unknown>;
     if(!value||typeof value!=='object'||Array.isArray(value))throw Error('Provide request settings.');
@@ -172,7 +175,7 @@ export class Chats {
           validateChatReferences(request);
           if(request.workflow!=='image-to-image')this.jobs.loras.resolve(request.loras,loraRoute(request),request.mode);
           if(!group){group={id:randomUUID(),after_message_id:[...current.messages].reverse().find(m=>m.role==='user')?.id??null,workflow,state:'assembling',cards:[]};current.groups.push(group);}
-          let saved:ChatCard;
+          let saved:ChatCard;const before=card?latest(card).request:undefined;
           if(card){
             card.revisions.push(this.revision(current,request,latest(card).number+1,latest(card).source_job_id));saved=card;
           }else{
@@ -182,7 +185,12 @@ export class Chats {
           latest(saved).run_id=runId;snapshots.set(saved.id,latest(saved).number);if(target===saved.id)target=undefined;
           delete group.submission_error;
           this.save(current);
-          const result={ok:true,saved:true,status:'draft saved for review; nothing has been generated yet',next_action:'Tell the user the draft is ready to review and that nothing has been made yet. Do not describe the image or video as changed or finished.',request_id:saved.id,revision:latest(saved).number,request:agentRequest(request,assets),reference_labels:Object.fromEntries(toolInputLabels(request.references??[]))};
+          // A verified receipt: what actually changed and which named images the draft now uses. Replies must match it.
+          const named=(refs:ImageRequest['references'])=>(refs??[]).map(r=>({role:r.role,image:this.contextAssets(current).find(a=>a.id===r.asset_id)?.name??'an input'}));
+          const changed=before?(['prompt','title','count','output','audio','loras','seed','detail'] as const).filter(k=>JSON.stringify((before as any)[k])!==JSON.stringify((request as any)[k])).map(String):[];
+          const inputsBefore=named(before?.references),inputsNow=named(request.references);
+          if(before&&JSON.stringify(inputsBefore)!==JSON.stringify(inputsNow))changed.push('inputs');
+          const result={ok:true,saved:true,status:'draft saved for review; nothing has been generated yet',next_action:before?'Report only the fields listed in changed, and name the images in inputs_now. If something the user asked for is not in changed, say plainly that it was not changed.':'Tell the user the draft is ready to review and that nothing has been made yet. Name the images in inputs_now.',...(before?{changed,inputs_before:inputsBefore}:{}),inputs_now:inputsNow,request_id:saved.id,revision:latest(saved).number,request:agentRequest(request,assets),reference_labels:Object.fromEntries(toolInputLabels(request.references??[]))};
           return {content:[{type:'text' as const,text:JSON.stringify(result)}],details:result};
         }catch(error){throw Error(JSON.stringify(requestToolResultError(error,operation)));}
       }
@@ -326,7 +334,7 @@ export class Chats {
       this.save(current);
     }catch(error){const current=this.get(id);current.runs.find(r=>r.id===runId)!.state='failed';if(current.epoch===epoch){const message=current.messages.find(m=>m.id===runId);if(message?.transcript){finishTurn(message.transcript,'failed');message.transcript.error=(error as Error).message;}current.error=(error as Error).message;current.activity='idle';const pending=openGroup(current);if(pending?.cards.length){pending.state='reviewing';for(const card of pending.cards)if(card.timeline_start&&card.timeline_start>latest(card).number)card.timeline_start=latest(card).number;}}this.save(current);}
   }
-  revise(id:string,cardId:string,number:number,raw:unknown){const chat=this.get(id);if(this.tasks.has(id)||this.preparing.has(id))throw Error('Wait for the request to finish preparing.');const group=openGroup(chat),card=group?.cards.find(c=>c.id===cardId);if(!group||!card||latest(card).number!==number)throw Error('Request changed or already started.');card.revisions.push(this.revision(chat,this.request(chat,card.workflow,raw,latest(card).request),number+1,latest(card).source_job_id));delete group.submission_error;chat.version++;this.save(chat);return this.view(id);}
+  revise(id:string,cardId:string,number:number,raw:unknown){const chat=this.get(id);for(const job of this.jobIds(chat).map(j=>this.jobs.get(j)))for(const asset of job?.outputs??[])if(!chat.assets.includes(asset))chat.assets.push(asset);if(this.tasks.has(id)||this.preparing.has(id))throw Error('Wait for the request to finish preparing.');const group=openGroup(chat),card=group?.cards.find(c=>c.id===cardId);if(!group||!card||latest(card).number!==number)throw Error('Request changed or already started.');card.revisions.push(this.revision(chat,this.request(chat,card.workflow,raw,latest(card).request),number+1,latest(card).source_job_id));delete group.submission_error;chat.version++;this.save(chat);return this.view(id);}
   async decide(id:string,cardId:string,number:number,decision:'approved'|'denied'){
     const chat=this.get(id);if(this.tasks.has(id)||this.preparing.has(id))throw Error('Wait for this chat to finish.');const group=openGroup(chat),card=group?.cards.find(c=>c.id===cardId);
     if(!group||group.state!=='reviewing'||!card||latest(card).number!==number)throw Error('Review the current completed proposal.');

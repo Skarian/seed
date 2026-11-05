@@ -65,6 +65,15 @@ it('plans with reasoning off by default, which is faster with no measured loss i
   expect(requests[0].reasoning).toEqual({enabled:false});
 }));
 
+it('gives Seed a verified receipt of what an edit actually changed',async()=>fixture(async({chats,queue,requests})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'A landscape',assets:[]});chat=await idle(chats,chat.id);
+  const card=chat.groups[0]!.cards[0]!;
+  queue.push([{operation:'edit',request_id:card.id,changes:{prompt:'A quiet landscape at dusk'}}]);chats.send(chat.id,{version:chat.version,text:'Make it dusk',assets:[]});chat=await idle(chats,chat.id);
+  const sent=JSON.stringify(requests.at(-1).messages),at=sent.lastIndexOf('changed'),receipt=sent.slice(at,sent.indexOf(']',at));
+  expect(at).toBeGreaterThan(0);expect(receipt).toContain('prompt');expect(receipt).not.toContain('inputs');
+}));
+
 it('refuses to switch kind while a plan of another kind is open',async()=>fixture(async({chats,queue})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'A landscape',assets:[]});chat=await idle(chats,chat.id);

@@ -524,3 +524,4 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
   .viewer .kv > span, .inspector .kv > span { margin-top: 10px; font-size: 12.5px; }
 }
 .check-note.soft { color: var(--muted); background: var(--s2); }
+@media (max-width: 699px) { .composer textarea { max-height: 24vh; } }

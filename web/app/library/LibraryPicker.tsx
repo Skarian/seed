@@ -6,20 +6,21 @@ import { Dialog, Media } from '../ui.js';
 import { assetTitle, Caption } from './LibraryPage.js';
 
 /** Attach from the Library without leaving the composer. Same shelves and filters as the Library; unsent text stays put. */
-export function LibraryPicker({ onClose, onPick }: { onClose: () => void; onPick: (items: Array<LibraryAsset & { title?: string }>) => void }) {
+/** Pick media from the Library. A fixed project and kind narrow it, for example to replace a draft's start frame. */
+export function LibraryPicker({ onClose, onPick, inProject, onlyKind, heading }: { onClose: () => void; onPick: (items: Array<LibraryAsset & { title?: string }>) => void; inProject?: string; onlyKind?: 'image' | 'video'; heading?: string }) {
   const app = useApp();
-  const [q, setQ] = useState(''), [query, setQuery] = useState(''), [kind, setKind] = useState<'' | 'image' | 'video' | 'audio'>('');
-  const [shelf, setShelf] = useState<'' | 'fav' | string>(''), [project, setProject] = useState('');
+  const [q, setQ] = useState(''), [query, setQuery] = useState(''), [kind, setKind] = useState<'' | 'image' | 'video' | 'audio'>(onlyKind ?? '');
+  const [shelf, setShelf] = useState<'' | 'fav' | string>(''), [project, setProject] = useState(inProject ?? '');
   const [cols, setCols] = useState<AssetCollection[]>([]);
   const [chosen, setChosen] = useState<LibraryAsset[]>([]);
   useEffect(() => { const t = setTimeout(() => setQuery(q), 250); return () => clearTimeout(t); }, [q]);
   useEffect(() => { void collectionsApi.list(app.mode).then(setCols).catch(() => {}); }, [app.mode]);
   const list = useAssets({ mode: app.mode, q: query || undefined, kind: kind || undefined, favorites: shelf === 'fav' || undefined, collection_id: shelf && shelf !== 'fav' ? shelf : undefined, chat_id: project || undefined });
-  const toggle = (a: LibraryAsset) => setChosen(c => c.some(x => x.id === a.id) ? c.filter(x => x.id !== a.id) : [...c, a]);
-  return <Dialog title="Attach from Library" wide onClose={onClose} footer={<><span className="muted" style={{ marginRight: 'auto' }}>{chosen.length ? `${chosen.length} chosen` : ''}</span><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!chosen.length} onClick={() => onPick(chosen.map(a => ({ ...a, title: assetTitle(a) })))}>Attach {chosen.length || ''}</button></>}>
+  const toggle = (a: LibraryAsset) => setChosen(c => c.some(x => x.id === a.id) ? c.filter(x => x.id !== a.id) : heading ? [a] : [...c, a]);
+  return <Dialog title={heading ?? 'Attach from Library'} wide onClose={onClose} footer={<><span className="muted" style={{ marginRight: 'auto' }}>{chosen.length ? `${chosen.length} chosen` : ''}</span><button className="btn" onClick={onClose}>Cancel</button><button className="btn primary" disabled={!chosen.length} onClick={() => onPick(chosen.map(a => ({ ...a, title: assetTitle(a) })))}>Attach {chosen.length || ''}</button></>}>
     <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
       <label className="search-box" style={{ flex: 1, minWidth: 200 }}><Icon.Search /><input type="search" placeholder="Search prompts, titles and notes" aria-label="Search the Library" value={q} onChange={e => setQ(e.target.value)} autoFocus /></label>
-      <select className="select" style={{ width: 'auto', maxWidth: 220 }} aria-label="Project" value={project} onChange={e => setProject(e.target.value)}><option value="">All projects</option>{app.projectList.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}</select>
+      {!inProject && <select className="select" style={{ width: 'auto', maxWidth: 220 }} aria-label="Project" value={project} onChange={e => setProject(e.target.value)}><option value="">All projects</option>{app.projectList.map(p => <option key={p.id} value={p.id}>{p.title}</option>)}</select>}
     </div>
     <nav className="chips shelves" aria-label="Collections">
       <button className={'chip' + (!shelf ? ' on' : '')} onClick={() => setShelf('')}>Everything</button>

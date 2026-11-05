@@ -96,3 +96,10 @@ it('lists brief details a draft leaves out, and adds them in one step', () => {
   expect(check.soft).toBe(true);
   expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt + ' Small scar through her left eyebrow. No text anywhere.');
 });
+
+it('reads shape words about faces, rooms and camera moves as description, not canvas', () => {
+  expect(askedFor([message('user', 'Mira has a square face and a tall lighthouse behind her; a wide establishing shot')] as any).aspect).toBeUndefined();
+  expect(askedFor([message('user', 'A portrait of Mira at dusk')] as any).aspect).toBeUndefined();
+  expect(askedFor([message('user', 'Make it square please')] as any).aspect).toBe('1:1');
+  expect(askedFor([message('user', 'Make it portrait for phones')] as any).aspect).toBe('portrait');
+});

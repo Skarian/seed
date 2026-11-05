@@ -18,7 +18,12 @@ export function askedFor(messages: ChatMessage[]) {
       const ratio = t.match(/\b(\d{1,2}):(\d{1,2})\b/);
       if (ratio && !['4:5', '1:1', '16:9', '9:16'].includes(ratio[0]) && Number(ratio[1]) > 0 && Number(ratio[2]) > 0 && Number(ratio[1]) <= 32 && Number(ratio[2]) <= 32) { said.other = ratio[0]; continue; }
       const exact = t.match(/\b(4:5|1:1|16:9|9:16)\b/)?.[1] as Aspect | undefined;
-      said.aspect = exact ?? (/\bsquare\b/.test(t) ? '1:1' : /\b(portrait|vertical|tall)\b/.test(t) ? 'portrait' : /\b(landscape|horizontal|widescreen|wide)\b/.test(t) ? 'landscape' : undefined);
+      // Shape words describe the frame, not a face, a room or a camera move: "square face", "a wide shot" and
+      // "a portrait of Mara" are not canvas requests.
+      const square = /\bsquare\b(?![\s-]*(?:face|faced|jaw|chin|shoulders?|head|glasses|neck|window|room|tower|stones?|tiles?|building))/.test(t);
+      const portrait = /\b(?:vertical|portrait(?!\s+of\b)(?![\s-]*(?:lens|lighting|mode)))\b/.test(t) && !/\bportrait(?:\s+orientation)?\s+of\b/.test(t);
+      const landscape = /\b(?:landscape|horizontal|widescreen)\b(?![\s-]*(?:painting|photography|artist|of\b))/.test(t);
+      said.aspect = exact ?? (square ? '1:1' : portrait ? 'portrait' : landscape ? 'landscape' : undefined);
     }
     if (said.seconds === undefined) { const s = t.match(/\b(\d{1,2})[- ]?(?:seconds?|secs?|s)\b/); if (s) said.seconds = Number(s[1]); }
     if (said.silent === undefined) { if (/\b(silent|no sound|no audio|without (?:sound|audio)|mute)\b/.test(t)) said.silent = true; else if (/\b(with sound|with audio|sound of|soundtrack)\b/.test(t)) said.silent = false; }

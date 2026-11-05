@@ -51,7 +51,9 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
     const s = shots.get(key)!; if (!s.name && n !== null) s.name = title.replace(/^.*?\bshot\s*\d+\s*[:·.-]?\s*/i, '').trim(); return s;
   };
   // Oldest first inside a shot, so the newest take is last, like a strip of film.
-  for (const it of [...items].reverse()) { const s = shotFor(it.job ? titleOf(it.job.request) : it.title); (it.kind === 'video' ? s.clips : s.images).push(it); }
+  // Takes are numbered in the order they were made (and their place in a batch), the same everywhere.
+  const made = (it: ViewerItem) => (it.job ? Date.parse(it.job.created_at) * 100 + (it.job.submission_index ?? 0) : 0);
+  for (const it of [...items].sort((a, b) => made(a) - made(b))) { const s = shotFor(it.job ? titleOf(it.job.request) : it.title); (it.kind === 'video' ? s.clips : s.images).push(it); }
   for (const j of running) shotFor(titleOf(j.request)).making.push(j);
   for (const t of planned) shotFor(t).planned.push(t);
   const shotList = [...shots.values()].sort((a, b) => (a.n ?? 1e6) - (b.n ?? 1e6));
@@ -77,12 +79,13 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
     <div className="scroll"><div className={embedded ? 'boardpad' : 'col'} style={embedded ? undefined : { maxWidth: 1400, paddingBottom: 24 }}>
       {view === 'shots' && (items.length > 0 || running.length > 0 || planned.length > 0) && <div className="shots">{shotList.map(s => {
         const chosenImage = s.images.some(i => fav.has(i.asset)), chosenClip = s.clips.some(i => fav.has(i.asset));
-        const stage = s.making.length ? 'Making now' : s.clips.length ? (chosenClip ? 'Clip chosen' : `${s.clips.length} ${s.clips.length === 1 ? 'clip' : 'clips'}`) : s.images.length ? (chosenImage ? 'Keyframe chosen · no clip yet' : 'Keyframe made · no clip yet') : s.planned.length ? 'In the plan, not made yet' : '';
+        const reference = s.n === null && !s.clips.length && !s.planned.length;
+        const stage = reference ? 'Reference' : s.making.length ? 'Making now' : s.clips.length ? (chosenClip ? 'Clip chosen' : `${s.clips.length} ${s.clips.length === 1 ? 'clip' : 'clips'}`) : s.images.length ? (chosenImage ? 'Keyframe chosen · no clip yet' : 'Keyframe made · no clip yet') : s.planned.length ? 'In the plan, not made yet' : '';
         return <section key={(s.n ?? '') + s.name} className="shot-row" aria-label={(s.n !== null ? 'Shot ' + s.n + ': ' : '') + s.name}>
           <div className="shot-head">{s.n !== null && <b className="shot-n">Shot {s.n}</b>}<span className="shot-name">{s.name}</span><span className="faint">{stage}</span></div>
           <div className="shot-lanes">
-            {(s.images.length > 0 || !s.clips.length) && <div className="lane"><span className="lane-label">Keyframes</span><div className="lane-strip">{lane(s.images)}{!s.images.length && <span className="faint lane-empty">{s.planned.length ? 'Planned' : 'None yet'}</span>}</div></div>}
-            {(s.clips.length > 0 || s.images.length > 0) && <div className="lane"><span className="lane-label">Clips</span><div className="lane-strip">{lane(s.clips)}{!s.clips.length && <span className="faint lane-empty">None yet. Animate a keyframe to make one.</span>}</div></div>}
+            {(s.images.length > 0 || !s.clips.length) && <div className="lane"><span className="lane-label">{reference ? 'Images' : 'Keyframes'}</span><div className="lane-strip">{lane(s.images)}{!s.images.length && <span className="faint lane-empty">{s.planned.length ? 'Planned' : 'None yet'}</span>}</div></div>}
+            {!reference && (s.clips.length > 0 || s.images.length > 0) && <div className="lane"><span className="lane-label">Clips</span><div className="lane-strip">{lane(s.clips)}{!s.clips.length && <span className="faint lane-empty">None yet. Animate a keyframe to make one.</span>}</div></div>}
             {s.making.length > 0 && <div className="lane"><span className="lane-label">Making</span><div className="lane-strip">{s.making.map(j => { const st = tileState(j); return <span key={j.id} className="chip"><span className={'dot ' + (st.tone === 'wait' ? 'amber' : 'live')} /> {st.label}</span>; })}</div></div>}
           </div>
         </section>; })}</div>}
