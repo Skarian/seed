@@ -40,6 +40,7 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
     <span className="title">{title}</span><span className="meta">{status}{group.direct ? ' · made directly' : ''}</span>
     <span className="end">
       {running.length > 1 && <button className="btn small" onClick={() => { void Promise.all(running.map(j => jobsApi.cancel(j.id))).then(() => app.refreshTasks()); app.toast(`Cancelled ${running.length} · finished results are kept, the GPU keeps running`); }}>Cancel remaining {running.length}</button>}
+      {!app.split && done.length > 1 && <button className="btn quiet small" onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })} title="See these results large, side by side">Review all</button>}
       {collapsed ? <button className="btn quiet small" onClick={onExpand}>Show</button> : <button className="btn quiet small" aria-expanded={how} onClick={() => setHow(h => !h)}>How it was made</button>}
       <MenuButton label={'Options for ' + title} items={[
         { label: 'Make another now', hint: 'Same settings, a new seed. Starts right away on the GPU.', onSelect: () => actions.onVariations(card) },

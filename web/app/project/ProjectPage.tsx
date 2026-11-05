@@ -14,6 +14,7 @@ import { readiness, type StyleEntry } from './readiness.js';
 import { buildRequest, defaultMake, defaultRoles, type Attachment, type MakeSettings } from './requests.js';
 import { useStyles } from './styles.js';
 import { checkDraft } from './checks.js';
+import { BriefBar } from './Brief.js';
 
 const openStates = ['reviewing', 'revising', 'assembling'];
 const isOpenPlan = (g: ChatGroup) => openStates.includes(g.state) && !g.direct;
@@ -240,6 +241,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   return <>
     <Header project={project} view={view} split={split} canSplit={canSplit} onBeside={setBeside} onRename={() => setRenaming(true)} onDelete={() => setConfirmDelete(true)} />
     {view === 'results' && project && !split ? <ResultsView project={project} /> : <div className={split ? 'split' : 'single'}><div className="convo">
+      {project && <BriefBar project={project} busy={replying || Boolean(busy)} onSaved={p => { projectRef.current = p; setProject(p); }} />}
       <div className="scroll" ref={scroller} onScroll={e => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div className="col">
           {!project ? <div className="stream"><span className="statusline"><span className="dot live" />Opening…</span></div>

@@ -21,7 +21,7 @@ export function registerChats(app:FastifyInstance,chats:Chats,configured:()=>boo
     const timer=setInterval(()=>reply.raw.write(': heartbeat\n\n'),25000);reply.raw.on('close',()=>{clearInterval(timer);unsubscribe();streams.delete(reply.raw);});
   });
   app.get('/api/v1/chats/:id',perform(r=>chats.view(id(r))));
-  app.patch('/api/v1/chats/:id',{schema:{body:object({version,title:{type:'string',minLength:1,maxLength:120},workflow:{enum:[null,...workflowIds]},reasoning:{type:'boolean'}},['version'])}},perform(r=>chats.settings(id(r),r.body.version,r.body as {title?:string;workflow?:ChatWorkflow|null;reasoning?:boolean})));
+  app.patch('/api/v1/chats/:id',{schema:{body:object({version,title:{type:'string',minLength:1,maxLength:120},workflow:{enum:[null,...workflowIds]},reasoning:{type:'boolean'},brief:{type:'string',maxLength:8000}},['version'])}},perform(r=>chats.settings(id(r),r.body.version,r.body as {title?:string;workflow?:ChatWorkflow|null;reasoning?:boolean;brief?:string})));
   app.delete('/api/v1/chats/:id',perform(r=>{chats.delete(id(r));return {deleted:true};}));
   app.post('/api/v1/chats/:id/stop',{schema:{body:object({scope:{enum:['chat','reply']}},[])}},perform(r=>chats.stop(id(r),r.body.scope)));
   app.post('/api/v1/chats/:id/messages',{bodyLimit:256*1024,schema:{body:object({version,text,assets:{type:'array',maxItems:24,items:{type:'string'}},mention_bindings:{type:'array',maxItems:100,items:object({token:{type:'string'},asset_id:{type:'string'},input_id:{type:'string'},channel:{enum:['audio']}},['token','asset_id'])},card_id:{type:'string'},revision:version,attach_request:{type:'boolean'},keep_plan:{type:'boolean'}},['version','text','assets'])}},perform(r=>chats.send(id(r),r.body)));

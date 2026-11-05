@@ -13,6 +13,8 @@ export interface ChatMessage {id:string;role:'user'|'assistant'|'event';text:str
 export interface ChatView {
   id:string;title:string;mode:ChatMode;workflow:ChatWorkflow|null;version:number;epoch:number;
   reasoning:boolean;messages:ChatMessage[];groups:ChatGroup[];assets:string[];
+  /** The project's lasting brief (Markdown): story, characters, locations, look, rules, shots. Kept by Seed and the owner. */
+  brief?:string;brief_updated_by?:'you'|'seed';brief_updated_at?:string;
   partial?:string;partial_reasoning?:string;
   activity:'idle'|'thinking'|'preparing'|'generating';error:string|null;
   created_at:string;updated_at:string;

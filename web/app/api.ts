@@ -52,6 +52,7 @@ export const projects = {
   get: (id: string, signal?: AbortSignal) => pj('chats/' + id, { signal }),
   setKind: (p: Project, workflow: string) => pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, workflow } }),
   rename: (p: Project, title: string) => pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, title } }),
+  setBrief: (p: Project, brief: string) => pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, brief } }),
   remove: (id: string) => api<{ deleted: boolean }>('chats/' + id, { method: 'DELETE' }),
   send: (p: Project, body: { text: string; assets: string[]; card_id?: string; revision?: number; keep_plan?: boolean }) =>
     pj('chats/' + p.id + '/messages', { body: { version: p.version, ...body } }),
