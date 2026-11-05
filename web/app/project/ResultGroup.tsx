@@ -425,7 +425,7 @@ export function HowItWasMade({ project, card, styles }: { project: Project; card
       )}
       {r.resolved_seeds && (
         <>
-          <span>Seeds</span>
+          <span>{r.resolved_seeds.length === 1 ? 'Seed' : 'Seeds'}</span>
           <div>{r.resolved_seeds.join(', ')}</div>
         </>
       )}

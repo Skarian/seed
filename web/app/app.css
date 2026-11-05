@@ -2821,6 +2821,7 @@ h2.subhead {
   gap: 10px;
   padding: 0 12px 12px;
   background: none;
+  align-items: start;
 }
 .draft {
   background: var(--s2);
@@ -3157,4 +3158,29 @@ button.chip:hover {
 }
 .btn:disabled {
   opacity: 0.45;
+}
+
+/* What changed is information, not a warning */
+.draft .changed {
+  color: var(--muted);
+}
+.draft .changed::before {
+  content: '';
+}
+/* Settings: description under its heading, compact segmented control */
+.legacy-admin .admin-section-heading {
+  flex-direction: column;
+  gap: 4px;
+}
+.box .seg {
+  align-self: flex-start;
+}
+.cell figcaption small.note-match {
+  font-style: normal;
+}
+.cell figcaption mark {
+  background: var(--accent-soft);
+  color: var(--text);
+  border-radius: 3px;
+  padding: 0 2px;
 }

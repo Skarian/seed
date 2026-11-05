@@ -167,12 +167,6 @@ export function Composer(p: Props) {
             checked: p.context.type === 'keep',
             onSelect: () => p.onContext({ type: 'keep' }),
           },
-          'divider' as const,
-          {
-            label: 'Set this plan aside',
-            hint: 'Drafts are kept under Not made yet; Bring back returns them.',
-            onSelect: p.onSetAside,
-          },
         ]
       : [
           {

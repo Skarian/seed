@@ -36,7 +36,7 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
           <p>Add a style from Civitai, then choose when Seed may use it.</p>
         </div>
         <button
-          className="admin-primary"
+          className={importing ? undefined : 'admin-primary'}
           onClick={() => setImporting((current) => (current ? null : {}))}
         >
           {importing ? 'Close' : '+ Add style'}

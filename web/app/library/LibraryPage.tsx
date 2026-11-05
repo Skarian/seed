@@ -339,7 +339,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
                     <figure
                       key={a.id}
                       className="cell"
-                      style={{ flexGrow: ratio, flexBasis: ratio * (dense ? 120 : 190) }}
+                      style={{ flexGrow: ratio, flexBasis: ratio * (dense ? 110 : 150) }}
                     >
                       <div className={'tile' + (on ? ' selected' : '')} style={{ aspectRatio: String(ratio) }}>
                         <Media id={a.id} kind={a.kind} alt={it.title} />
@@ -389,10 +389,14 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
                             {app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}
                           </small>
                           {query && a.note?.toLowerCase().includes(query.trim().toLowerCase()) && (
-                            <small className="note-match">Note: {noteExcerpt(a.note, query.trim())}</small>
+                            <small className="note-match">
+                              Note: <Highlight text={noteExcerpt(a.note, query.trim())} words={query} />
+                            </small>
                           )}
                           {query && !a.note?.toLowerCase().includes(query.trim().toLowerCase()) && a.prompt_match && (
-                            <small className="note-match">Prompt: {a.prompt_match}</small>
+                            <small className="note-match">
+                              Prompt: <Highlight text={a.prompt_match} words={query} />
+                            </small>
                           )}
                         </figcaption>
                       )}
@@ -526,7 +530,6 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
                   ['', 'All'],
                   ['image', 'Images'],
                   ['video', 'Videos'],
-                  ['audio', 'Audio'],
                 ] as const
               ).map(([k, l]) => (
                 <button key={k} aria-pressed={f.kind === k} onClick={() => setF({ ...f, kind: k })}>
@@ -551,17 +554,6 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
               ))}
             </div>
           </div>
-          <button
-            className="option"
-            role="checkbox"
-            aria-checked={f.favorites}
-            onClick={() => setF({ ...f, favorites: !f.favorites })}
-          >
-            <span className="check" aria-checked={f.favorites}>
-              {f.favorites && <Icon.Check />}
-            </span>
-            <span>Favorites only</span>
-          </button>
           <label className="field">
             <span>Collection</span>
             <select className="select" value={f.collection} onChange={e => setF({ ...f, collection: e.target.value })}>
@@ -710,11 +702,22 @@ function NewCollection({ onCreate }: { onCreate: (name: string) => Promise<void>
   );
 }
 
-/** A tile title whose version or batch place never truncates away. */
-/** A few words around where the search matched a note. */
+/** Marks each searched word inside an excerpt, so it is clear why a result matched. */
+function Highlight({ text, words }: { text: string; words: string }) {
+  const terms = words
+    .trim()
+    .split(/\s+/)
+    .filter(Boolean)
+    .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+  if (!terms.length) return <>{text}</>;
+  const parts = text.split(new RegExp(`(${terms.join('|')})`, 'gi'));
+  return <>{parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : p))}</>;
+}
+
+/** A few words around where the search matched a note, starting on a whole word. */
 function noteExcerpt(note: string, q: string) {
   const at = note.toLowerCase().indexOf(q.toLowerCase());
-  const start = Math.max(0, at - 24);
+  const start = at > 24 ? note.lastIndexOf(' ', at - 24) + 1 : 0;
   return (
     (start ? '…' : '') + note.slice(start, at + q.length + 40).trim() + (at + q.length + 40 < note.length ? '…' : '')
   );

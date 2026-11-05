@@ -415,7 +415,7 @@ function LocalCard() {
           {s?.supported !== false &&
             s &&
             (!s.installed ? (
-              <button className="btn primary" disabled={busy || s.state === 'running'} onClick={() => setConfirm(true)}>
+              <button className="btn" disabled={busy || s.state === 'running'} onClick={() => setConfirm(true)}>
                 {s.state === 'running' ? 'Setting up…' : s.state === 'failed' ? 'Resume setup' : 'Set up'}
               </button>
             ) : !w?.enabled || w.paused ? (

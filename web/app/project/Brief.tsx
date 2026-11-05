@@ -72,7 +72,7 @@ export function BriefBar({
         <b>Brief</b>
         {fresh && <span className="dot amber" aria-label="Updated by Seed" />}
         <span className="faint brief-sum">
-          {brief ? summary : 'Characters, places, look and shots. Seed fills this in as you decide them.'}
+          {brief ? summary : 'Characters, places, look and shots. Seed fills in the brief as you decide.'}
         </span>
         {project.brief_updated_at && (
           <span className="faint brief-when">

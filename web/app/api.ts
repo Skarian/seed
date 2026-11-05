@@ -96,8 +96,16 @@ export const media = {
     '/api/v1/assets/' + encodeURIComponent(id) + '/preview' + (large ? '?size=1280' : ''),
 };
 
-/** The server names new chats "New chat"; in Seed they are projects. */
-const named = <T extends { title: string }>(p: T): T => (p.title === 'New chat' ? { ...p, title: 'New project' } : p);
+/** The server names new chats "New chat"; in Seed an untitled project is named by its day, so several stay distinguishable. */
+const named = <T extends { title: string; created_at?: string }>(p: T): T =>
+  p.title === 'New chat'
+    ? {
+        ...p,
+        title:
+          'Untitled · ' +
+          new Date(p.created_at ?? Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+      }
+    : p;
 const pj = (path: string, init?: Parameters<typeof api>[1]) => api<Project>(path, init).then(named);
 export const projects = {
   list: (mode: string) => api<{ items: ProjectSummary[] }>('chats?mode=' + mode).then(r => r.items.map(named)),

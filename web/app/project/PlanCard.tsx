@@ -122,8 +122,7 @@ export function PlanCard({
                 cards[0] ? latest(cards[0]).request.workflow : 'text-to-image',
                 cards[0] ? latest(cards[0]).request.output.aspect : '16:9',
               ).map(o => ({
-                label: 'All drafts: ' + o.label,
-                hint: 'Set this size on every draft',
+                label: 'Make every draft ' + o.label,
                 onSelect: () => {
                   void (async () => {
                     for (const c of cards) {
