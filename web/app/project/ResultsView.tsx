@@ -29,6 +29,7 @@ export function ResultsView({
   // A film or set made of numbered shots is shown shot by shot, in story order; anything else as one grid.
   const [viewPref, setView] = useStoredState<'auto' | 'shots' | 'grid'>('seed.results.view', 'auto');
   const [selected, setSelected] = useState<string[]>([]);
+  const [comparing, setComparing] = useState(false);
   const list = useAssets({
     mode: app.mode,
     chat_id: project.id,
@@ -217,7 +218,7 @@ export function ResultsView({
   const fromTake = (s: Shot, it: ViewerItem) => {
     const start = it.job?.request.references?.find(r => r.role === 'first_frame')?.asset_id;
     const n = start ? takeNumber(s, start) : 0;
-    return n ? ` from Take ${n}` : '';
+    return n ? ` · from keyframe take ${n}` : '';
   };
   const lane = (s: Shot, its: ViewerItem[], kind: 'image' | 'clip') => {
     const takes = takesOf(its),
@@ -232,7 +233,7 @@ export function ResultsView({
       const label = crop
         ? `Crop${takeNumber(s, from!) && takes.length > 1 ? ' of Take ' + takeNumber(s, from!) : ''}`
         : takes.length > 1
-          ? `Take ${take + 1}`
+          ? `${kind === 'clip' ? 'Clip' : 'Take'} ${take + 1}`
           : kind === 'clip'
             ? 'Clip'
             : s.n === null
@@ -351,7 +352,7 @@ export function ResultsView({
       groups.set(key, [...(groups.get(key) ?? []), it]);
     }
   return (
-    <div className={embedded ? 'board' : 'board full'}>
+    <div className={(embedded ? 'board' : 'board full') + (comparing ? ' selecting' : '')}>
       <div className="toolbar">
         {embedded && <b style={{ marginRight: 4 }}>Board</b>}
         <div className="seg" role="group" aria-label="Show">
@@ -403,8 +404,13 @@ export function ResultsView({
         </div>
         <button
           className={'btn primary small' + (selected.length ? '' : ' no-phone')}
-          disabled={selected.length !== 2}
+          aria-pressed={selected.length < 2 ? comparing : undefined}
           onClick={() => {
+            // Before two are chosen, the button starts choosing: every take shows its box until two are ticked.
+            if (selected.length < 2) {
+              setComparing(c => !c);
+              return;
+            }
             const [a, b] = selected.map(id => items.find(i => i.asset === id)!);
             if (a && b) app.compare(a, b);
           }}

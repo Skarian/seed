@@ -343,7 +343,7 @@ button.chip:hover {
   margin-bottom: 8px;
 }
 .rail .section {
-  font-size: 0.7188rem;
+  font-size: 0.75rem;
   color: var(--faint);
   padding: 12px 10px 4px;
   text-transform: uppercase;
@@ -1200,7 +1200,7 @@ button.chip:hover {
   white-space: nowrap;
 }
 .kbd {
-  font-size: 0.7188rem;
+  font-size: 0.75rem;
   opacity: 0.7;
   font-weight: 500;
 }
@@ -1757,7 +1757,7 @@ button.chip:hover {
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  font-size: 0.7188rem;
+  font-size: 0.75rem;
 }
 .shelves {
   overflow-x: auto;
@@ -1967,7 +1967,7 @@ h2.subhead {
     min-height: 56px;
   }
   .rail .nav .txt {
-    font-size: 0.6875rem;
+    font-size: 0.75rem;
     text-align: center;
     white-space: normal;
     line-height: 1.15;
@@ -2096,7 +2096,7 @@ h2.subhead {
     align-items: center;
     justify-content: center;
     gap: 2px;
-    font-size: 0.7188rem;
+    font-size: 0.75rem;
     color: var(--muted);
   }
   .tabbar button[aria-current='page'] {
@@ -3526,7 +3526,7 @@ textarea::placeholder {
   position: absolute;
   right: 4px;
   bottom: 2px;
-  font-size: 0.6563rem;
+  font-size: 0.75rem;
   color: #f4f3ecdd;
   text-shadow: 0 1px 2px #000;
 }
@@ -3658,4 +3658,8 @@ textarea::placeholder {
     display: flex;
     align-items: center;
   }
+}
+/* Choosing two to compare: every take shows its box. */
+.board.selecting .tile .check.big {
+  opacity: 1 !important;
 }

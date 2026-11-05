@@ -423,7 +423,10 @@ const identity =
 export function briefGapList(prompt: string, brief: string): Array<{ who?: string; text: string }> {
   if (!brief.trim()) return [];
   const out: Array<{ who?: string; text: string }> = [];
-  const closeUp = /\b(close-?up|insert|macro|detail shot)\b/i.test(prompt),
+  const closeUp =
+      /\b(close-?up|insert|macro|detail shot|waist-?up|chest-?up|head and shoulders|medium close|bust|tight on)\b/i.test(
+        prompt,
+      ),
     hands = closeUp && /\bhands?\b/i.test(prompt);
   let section = '',
     anyNamed = false,
@@ -503,7 +506,7 @@ export function addBriefDetails(prompt: string, gaps: Array<{ who?: string; text
       .join(', ');
     // Names in a brief are often capitalised differently ("MARA"); match any case, and when the prompt never names the
     // character, add the details as a sentence of their own so the fix always changes the prompt.
-    const at = out.search(new RegExp('\\b' + who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'));
+    const at = out.search(new RegExp('\\b' + who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "\\b(?!['’]s\\b)", 'i'));
     // "Mara, with a mustard raincoat," or, for a detail that is an action, "Mara, who carries a tin lantern,".
     const joiner = /^(?:carries|carry|wears|wear|has|have|holds|hold|is|are|keeps|walks|rides|uses)\b/i.test(details)
       ? 'who'

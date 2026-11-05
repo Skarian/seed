@@ -218,3 +218,12 @@ it('does not ask a picture to show personality', () => {
   const gaps = briefGapList('Odile in the tram doorway.', brief).map(g => g.text);
   expect(gaps).toEqual(['silver bob', 'tortoiseshell glasses']);
 });
+
+it('never splits a possessive when adding details, and leaves legwear out of a waist-up shot', () => {
+  expect(addBriefDetails('Close on Mara’s gloved hands around the lantern.', [{ who: 'Mara', text: 'mustard raincoat' }])).toBe(
+    'Close on Mara’s gloved hands around the lantern. Mara: mustard raincoat.',
+  );
+  const brief = '## Characters\n- Mara: mustard raincoat, navy trousers, scuffed boots';
+  const gaps = briefGapList('A waist-up reference of Mara on the pier.', brief).map(g => g.text);
+  expect(gaps).toEqual(['mustard raincoat']);
+});
