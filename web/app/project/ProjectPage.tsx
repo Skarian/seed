@@ -1455,6 +1455,15 @@ function Message({
           Seed's reply below wasn't carried out: no drafts were saved.
         </p>
       )}
+      {/* A reply that says the brief was saved, when this turn did not save it, is corrected right here. */}
+      {!running &&
+        turn &&
+        /\b(updated|saved|recorded|added|wrote|captured|organi[sz]ed|stored)\b[^.]{0,60}\bbrief\b/i.test(text) &&
+        !turn.steps.some(s => s.kind === 'tool' && s.name === 'update_brief' && s.state === 'succeeded') && (
+          <p className="faint" role="note" style={{ margin: '0 0 4px', fontSize: '0.8125rem' }}>
+            The brief was not changed in this reply. Ask Seed to save it, or open Brief to write it.
+          </p>
+        )}
       {text && <Markdown text={text} streaming={running} />}
       {long && (
         <button

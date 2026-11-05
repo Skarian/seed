@@ -94,7 +94,7 @@ it('lists brief details a draft leaves out, and adds them in one step', () => {
   const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.code === 'continuity')!;
   expect(check.text).toBe('Missing from this prompt: Mara’s small scar through her left eyebrow; “no text anywhere”.');
   expect(check.soft).toBe(true);
-  expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara', 'Mara, with small scar through her left eyebrow,') + ' No text anywhere.');
+  expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara,', 'Mara, with small scar through her left eyebrow,') + ' No text anywhere.');
 });
 
 it('reads shape words about faces, rooms and camera moves as description, not canvas', () => {
@@ -235,4 +235,12 @@ it('words appended at the end of a clip prompt go into the picture, not the soun
   expect(out).toContain('[Shot 1] Slow push in. Hold on her face for the last second.');
   expect(out).toContain('overall_soundscape: Silence.');
   expect(out.endsWith('non_diegetic_music: Soft strings.')).toBe(true);
+});
+
+it('bulk continuity fixes stay grammatical and keep shot-specific rules to their shot', () => {
+  const brief = '## Characters\n- Mara: female, late 40s, weathered mustard oilskin coat, navy knitted jumper\n\n## Rules\n- The amber light in Shot 4 is a slow three-second fade\n- No text anywhere';
+  const prompt = 'Medium shot of Mara, standing on the pier.';
+  const gaps = briefGapList(prompt, brief);
+  expect(gaps.map(g => g.text)).toEqual(['weathered mustard oilskin coat', 'navy knitted jumper', 'no text anywhere']);
+  expect(addBriefDetails(prompt, gaps)).toBe('Medium shot of Mara, with weathered mustard oilskin coat, navy knitted jumper, standing on the pier. No text anywhere.');
 });

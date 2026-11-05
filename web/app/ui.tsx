@@ -6,6 +6,26 @@ import { Streamdown } from 'streamdown';
 import { Icon } from './icons.js';
 import { media } from './api.js';
 
+/** The last button, link or field the user pressed (a tap does not always focus it on touch screens). */
+let lastPressed: HTMLElement | null = null;
+if (typeof document !== 'undefined')
+  document.addEventListener(
+    'pointerdown',
+    e => {
+      const el = (e.target as HTMLElement | null)?.closest<HTMLElement>(
+        'button,a[href],[role=button],[role=tab],input,select,textarea',
+      );
+      if (el) lastPressed = el;
+    },
+    true,
+  );
+/** What opened an overlay: the focused control, or else the control just pressed. */
+function openerNow(): HTMLElement | null {
+  const active = document.activeElement as HTMLElement | null;
+  if (active && active !== document.body) return active;
+  return lastPressed?.isConnected ? lastPressed : null;
+}
+
 /* ---------- Markdown for Seed's replies ---------- */
 const mdComponents = {
   a: ({ href, children }: any) => (
@@ -69,9 +89,10 @@ export function Markdown({ text, streaming = false }: { text: string; streaming?
 export function useModalFocus(ref: React.RefObject<HTMLElement | null>) {
   const opener = useRef<{ el: HTMLElement | null; name: string | null } | null>(null);
   if (opener.current === null && typeof document !== 'undefined') {
-    const el = document.activeElement as HTMLElement | null;
-    opener.current =
-      el && el !== document.body ? { el, name: el.getAttribute('aria-label') } : { el: null, name: null };
+    const el = openerNow();
+    opener.current = el
+      ? { el, name: el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 60) ?? null }
+      : { el: null, name: null };
   }
   useEffect(() => {
     const trap = (e: KeyboardEvent) => {
@@ -106,7 +127,9 @@ export function useModalFocus(ref: React.RefObject<HTMLElement | null>) {
         const target = el?.isConnected
           ? el
           : name
-            ? document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(name)}"]`)
+            ? (document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(name)}"]`) ??
+              [...document.querySelectorAll<HTMLElement>('main button')].find(b => b.textContent?.trim() === name) ??
+              null)
             : null;
         target?.focus({ preventScroll: true });
       });
@@ -156,15 +179,26 @@ export function MenuButton({
   align?: 'start' | 'end';
   placement?: 'below' | 'above';
 }) {
+  const trigger = useRef<HTMLButtonElement>(null);
   return (
     <DropdownMenu.Root modal={false}>
       <DropdownMenu.Trigger asChild>
-        <button className={className} aria-label={label} title={label} onClick={e => e.stopPropagation()}>
+        <button ref={trigger} className={className} aria-label={label} title={label} onClick={e => e.stopPropagation()}>
           {children}
         </button>
       </DropdownMenu.Trigger>
       <DropdownMenu.Portal>
         <DropdownMenu.Content
+          // Closing returns focus to the menu button, unless an item has already moved focus on purpose (a dialog).
+          onCloseAutoFocus={e => {
+            const active = document.activeElement;
+            if (active && active !== document.body && !active.closest('[role=menu]')) {
+              e.preventDefault();
+              return;
+            }
+            e.preventDefault();
+            trigger.current?.focus({ preventScroll: true });
+          }}
           className="menu"
           side={placement === 'above' ? 'top' : 'bottom'}
           align={align}
@@ -230,7 +264,7 @@ export function Dialog({
   // element was re-rendered meanwhile (a saved draft remounts), find its replacement by the same accessible name.
   const opener = useRef<{ el: HTMLElement | null; name: string | null }>({ el: null, name: null });
   if (!opener.current.el && typeof document !== 'undefined') {
-    let el = document.activeElement as HTMLElement | null;
+    let el = openerNow();
     // Opened from a menu item: the item disappears with the menu, so return to the button that opened the menu.
     const menu = el?.closest<HTMLElement>('[role="menu"]');
     const trigger = menu?.getAttribute('aria-labelledby');

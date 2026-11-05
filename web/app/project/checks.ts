@@ -422,7 +422,7 @@ const headAndFace =
   /\b(hair|bob|braid|curls?|fringe|bangs|freckles?|eyes?|face|scar|beard|eyebrows?|glasses|age|years?)\b/i;
 /** Who the person is ("10-year-old girl") is covered once the prompt uses their name. */
 const identity =
-  /\b(\d+[- ]year[- ]old|years? old|girl|boy|woman|man|child|kid|teen(ager)?|keeper|lighthouse keeper)\b/i;
+  /\b(\d+[- ]year[- ]old|years? old|girl|boy|woman|man|child|kid|teen(ager)?|keeper|lighthouse keeper|female|male|non-binary|adult|elderly|(?:early|mid|late) \d0s|in (?:her|his|their) \d0s|\d0s)\b/i;
 
 /** Missing brief details with the character they belong to (none for rules), so a fix can place them beside the name. */
 export function briefGapList(prompt: string, brief: string): Array<{ who?: string; text: string }> {
@@ -494,7 +494,7 @@ export function briefGapList(prompt: string, brief: string): Array<{ who?: strin
     } else if (/rule|always|never|constraint/.test(section)) {
       // A rule about the project as a whole ("keep wardrobe consistent across shots") is not a visible detail to
       // put in one prompt; only concrete rules ("no text anywhere") are checked.
-      if (item.length <= 80 && !abstractRule.test(item) && !mentions(prompt, item))
+      if (item.length <= 80 && !abstractRule.test(item) && !/\bshots?\s*\d/i.test(item) && !mentions(prompt, item))
         out.push({ text: item.charAt(0).toLowerCase() + item.slice(1).replace(/\.$/, '') });
     }
   }
@@ -516,8 +516,12 @@ export function addBriefDetails(prompt: string, gaps: Array<{ who?: string; text
     const joiner = /^(?:carries|carry|wears|wear|has|have|holds|hold|is|are|keeps|walks|rides|uses)\b/i.test(details)
       ? 'who'
       : 'with';
-    if (at >= 0) out = out.slice(0, at + who.length) + `, ${joiner} ${details},` + out.slice(at + who.length);
-    else out += (/[.!?]$/.test(out) ? ' ' : '. ') + `${nameCase(who)}: ${details}.`;
+    if (at >= 0) {
+      const after = out.slice(at + who.length);
+      // No doubled punctuation: before a comma or full stop the inserted phrase ends without its own comma.
+      const close = /^\s*[,.;:!?]/.test(after) ? '' : ',';
+      out = out.slice(0, at + who.length) + `, ${joiner} ${details}${close}` + after;
+    } else out += (/[.!?]$/.test(out) ? ' ' : '. ') + `${nameCase(who)}: ${details}.`;
   }
   const rules = gaps.filter(g => !g.who).map(g => g.text[0]!.toUpperCase() + g.text.slice(1));
   return rules.length ? out + (/[.!?]$/.test(out) ? ' ' : '. ') + rules.join('. ') + '.' : out;
