@@ -394,7 +394,11 @@ export function briefGapList(prompt: string, brief: string): Array<{ who?: strin
         if (!mentions(prompt, part)) out.push({ who: lastName, text: part.charAt(0).toLowerCase() + part.slice(1) });
       }
     } else if (/rule|always|never|constraint/.test(section)) {
-      if (item.length <= 80 && !mentions(prompt, item))
+      // A rule about the project as a whole ("keep wardrobe consistent across shots") is not a visible detail to
+      // put in one prompt; only concrete rules ("no text anywhere") are checked.
+      const abstract =
+        /\b(continuity|consisten\w*|maintain|ensure|match(es|ing)?|same as|across (all |every |the )?(shots|scenes|frames)|every shot|each shot)\b/i;
+      if (item.length <= 80 && !abstract.test(item) && !mentions(prompt, item))
         out.push({ text: item.charAt(0).toLowerCase() + item.slice(1).replace(/\.$/, '') });
     }
   }

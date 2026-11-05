@@ -125,6 +125,32 @@ export function Composer(p: Props) {
       : p.attachments.some(a => a.progress)
         ? 'Wait for attachments to finish uploading.'
         : null;
+  // The usual fix for an attached image in the wrong mode is one step: use it as the source (Edit) or start frame (Animate).
+  const firstImage = p.attachments.find(a => a.kind === 'image' && a.asset_id);
+  const asRole = (role: 'source' | 'first_frame') =>
+    p.onAttachments(list =>
+      list.map(a =>
+        a.key === firstImage!.key ? { ...a, role } : a.role === role ? { ...a, role: 'reference' as const } : a,
+      ),
+    );
+  const inputFix =
+    p.mode !== 'make' || !problem || !firstImage
+      ? null
+      : p.settings.kind === 'image' || p.settings.kind === 'edit'
+        ? {
+            label: `Edit “${firstImage.name}” with this prompt`,
+            run: () => {
+              p.onSettings({ ...p.settings, kind: 'edit' });
+              asRole('source');
+            },
+          }
+        : {
+            label: `Animate “${firstImage.name}” with this prompt`,
+            run: () => {
+              p.onSettings({ ...p.settings, kind: 'animate' });
+              asRole('first_frame');
+            },
+          };
   const canSend = !p.disabled && !problem && p.text.trim().length > 0;
   const count = p.settings.count,
     video = isVideoKind(p.settings.kind);
@@ -280,6 +306,14 @@ export function Composer(p: Props) {
       {(problem || p.disabled) && p.text.trim() && (
         <p className="faint" role="status" style={{ margin: '0 8px', fontSize: 13 }}>
           {p.disabled ?? problem}
+          {!p.disabled && inputFix && (
+            <>
+              {' '}
+              <button type="button" className="link" onClick={inputFix.run}>
+                {inputFix.label}
+              </button>
+            </>
+          )}
         </p>
       )}
       <div className="tools">

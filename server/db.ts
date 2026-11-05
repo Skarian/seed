@@ -99,7 +99,8 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
   const rows = db.prepare(`WITH items AS (
     SELECT a.id, a.kind, a.name, a.created_at,
       j.id AS job_id,
-      json_extract(a.metadata_json, '$.source_asset_id') AS source_asset_id,
+      -- Only a crop or picked frame (no job of its own) is derived; an edit's source input is not its origin.
+      CASE WHEN json_extract(a.metadata_json, '$.job_id') IS NULL THEN json_extract(a.metadata_json, '$.source_asset_id') END AS source_asset_id,
       json_extract(a.metadata_json, '$.crop.shape') AS crop_shape,
       json_extract(j.snapshot_json, '$.request.title') AS title,
       json_extract(j.snapshot_json, '$.source.chat_id') AS chat_id,
@@ -115,7 +116,7 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
       json_extract(a.metadata_json, '$.height') AS height,
       json_extract(j.snapshot_json, '$.request.prompt') AS prompt
     FROM assets a
-    LEFT JOIN assets src ON src.id=json_extract(a.metadata_json, '$.source_asset_id')
+    LEFT JOIN assets src ON json_extract(a.metadata_json, '$.job_id') IS NULL AND src.id=json_extract(a.metadata_json, '$.source_asset_id')
     LEFT JOIN jobs j ON j.id=COALESCE(json_extract(a.metadata_json, '$.job_id'), json_extract(src.metadata_json, '$.job_id'))
     LEFT JOIN sequence_frames f ON f.asset_id=a.id
     LEFT JOIN sequences s ON s.id=f.sequence_id

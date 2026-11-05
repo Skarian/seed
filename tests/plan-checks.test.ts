@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, silencedPrompt } from '../web/app/project/checks.js';
+import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, silencedPrompt, briefGapList } from '../web/app/project/checks.js';
 
 // Synthetic fixtures only.
 const message = (role: 'user' | 'assistant', text: string, id = Math.random().toString(36), assets: string[] = []) => ({ id, role, text, assets, created_at: '2026-11-04T00:00:00Z' });
@@ -151,4 +151,10 @@ it('making a clip silent also rewrites its Sound section', () => {
 
 it('silences the video format’s own soundscape field', () => {
   expect(silencedPrompt('integrated_multimodal_description: steam.\noverall_soundscape: kettle hiss\nnon_diegetic_music: N/A')).toBe('integrated_multimodal_description: steam.\noverall_soundscape: Silence.\nnon_diegetic_music: N/A');
+});
+
+it('does not treat a project-wide continuity rule as a missing detail', () => {
+  const brief = '## Rules\n- Maintain strict continuity of Nia’s wardrobe across shots\n- No text anywhere';
+  const gaps = briefGapList('A wide shot of a harbour at dusk', brief).map(g => g.text);
+  expect(gaps).toEqual(['no text anywhere']);
 });

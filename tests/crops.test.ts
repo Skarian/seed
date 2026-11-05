@@ -61,6 +61,29 @@ it('saves a crop as a new image linked to its original, its job and its project'
     expect(item.variant).toBeUndefined();
     const uploaded = (await app.inject({ url: '/api/v1/assets?mode=sfw&source=uploaded', headers: { host: headers.host } })).json().items;
     expect(uploaded).toEqual([]);
+    // An edit made from this image has its own job: it is an ordinary result, not a crop of its source.
+    db.prepare('INSERT INTO jobs VALUES (?,?,?,?,?,?,?,?)').run(
+      'job-2',
+      'image-to-image',
+      'completed',
+      JSON.stringify({ request: { title: 'Shot 3: Edited', prompt: 'synthetic edit', count: 1 }, source: { chat_id: 'chat-1' }, submission_index: 0 }),
+      now,
+      now,
+      'sub-2',
+      0,
+    );
+    db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run(
+      'edit-out',
+      'image',
+      'edit.png',
+      'media/outputs/edit.png',
+      JSON.stringify({ state: 'ready', mode: 'sfw', job_id: 'job-2', source_asset_id: 'source', width: 400, height: 200 }),
+      now,
+    );
+    const all = (await app.inject({ url: '/api/v1/assets?mode=sfw', headers: { host: headers.host } })).json().items;
+    const edit = all.find((a: { id: string }) => a.id === 'edit-out');
+    expect(edit).toMatchObject({ job_id: 'job-2', title: 'Shot 3: Edited' });
+    expect(edit.source_asset_id).toBeUndefined();
   } finally {
     db.close();
     await app.close();

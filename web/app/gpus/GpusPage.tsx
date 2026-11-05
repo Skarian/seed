@@ -91,7 +91,7 @@ function LimitsDialog({ worker, onClose }: { worker: PoolWorker; onClose: () => 
         <select className="select" value={cap} onChange={e => setCap(Number(e.target.value))}>
           {caps.map(v => (
             <option key={v} value={v}>
-              {v ? `At ${at(v)} (${v / 60} ${v === 60 ? 'hour' : 'hours'} after it started)` : 'No time limit'}
+              {v ? `At ${at(v)} · ${duration(v * 60)} after it started` : 'No time limit'}
             </option>
           ))}
         </select>

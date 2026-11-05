@@ -101,7 +101,7 @@ export function AssetPanel({
   const memberOf = allCols.filter(c => detail?.collection_ids?.includes(c.id));
   // A crop or a picked frame remembers the asset it came from; link back to it (and its project) instead of "Uploaded".
   const derivedFrom = (() => {
-    const from = typeof detail?.source_asset_id === 'string' ? detail.source_asset_id : '';
+    const from = !detail?.job_id && typeof detail?.source_asset_id === 'string' ? detail.source_asset_id : '';
     if (!from) return null;
     const made = app.tasks.find(j => j.outputs.includes(from));
     const crop = detail?.crop as { shape?: string } | undefined;
@@ -124,10 +124,14 @@ export function AssetPanel({
     video = item.kind === 'video';
   const fav = Boolean(detail?.favorite);
   const source = job?.source;
+  // Repeating repeats the whole batch: say how many will be made.
+  const againCount = job?.request.count ?? 1;
+  const againLabel =
+    againCount > 1 ? `Make ${againCount} more ${item.kind === 'video' ? 'clips' : 'images'} now` : 'Make another now';
   // A crop or picked frame belongs to the project of the image it came from.
   const home =
     source ??
-    (typeof detail?.source_asset_id === 'string'
+    (!detail?.job_id && typeof detail?.source_asset_id === 'string'
       ? app.tasks.find(j => j.outputs.includes(detail.source_asset_id as string))?.source
       : undefined);
   async function variations() {
@@ -144,8 +148,8 @@ export function AssetPanel({
     ...(actionsOnly && source?.card_id
       ? [
           {
-            label: 'Make another now',
-            hint: 'Same settings, a new seed.',
+            label: againLabel,
+            hint: (job?.request.count ?? 1) > 1 ? 'The same batch again, new seeds.' : 'Same settings, a new seed.',
             onSelect: () => {
               onClosed?.();
               app.useResult({ ...item, job }, 'more');
@@ -221,7 +225,7 @@ export function AssetPanel({
               app.useResult({ ...item, job }, 'more');
             }}
           >
-            Make another now
+            {againLabel}
           </button>
         )}
         {!video && (
@@ -1039,6 +1043,14 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
           Click to zoom both · A/B keys
         </span>
         <span style={{ flex: 1 }} />
+        <button
+          className="btn small"
+          aria-pressed={zoom > 1}
+          onClick={() => setZoom(z => (z === 1 ? 2 : 1))}
+          title="Zoom both to 2×, or back to fit"
+        >
+          Zoom 2×
+        </button>
         <button className="btn small" aria-pressed={diff} onClick={() => setDiff(d => !d)}>
           Differences
         </button>

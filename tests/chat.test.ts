@@ -95,12 +95,13 @@ it('keeps an explanation written before the drafts when a closing line follows t
   expect(reply.indexOf('To keep Mara')).toBeLessThan(reply.indexOf('The drafts are ready'));
 }));
 
-it('tells the agent to retry when it changes kind and drafts in the same step',async()=>fixture(async({chats,queue,requests})=>{
+it('saves a draft as the new kind when the agent changes kind and drafts in the same step',async()=>fixture(async({chats,queue,requests})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'kind',kind:'video'},{operation:'create',request}]);
   chats.send(chat.id,{version:chat.version,text:'Now a clip',assets:[]});chat=await idle(chats,chat.id);
   const sent=JSON.stringify(requests.at(-1).messages);
-  expect(sent).toContain('Nothing was saved: the kind of work changed to video');expect(sent).not.toContain('This run is no longer active');
+  expect(sent).not.toContain('Nothing was saved');expect(sent).not.toContain('This run is no longer active');
+  const cards=chat.groups.flatMap(g=>g.cards);expect(cards).toHaveLength(1);expect(cards[0]!.workflow).toBe('text-to-video');
 }));
 
 it('refuses input tokens in a draft that cannot take inputs',async()=>fixture(async({chats,queue,requests})=>{

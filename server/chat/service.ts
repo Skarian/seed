@@ -538,11 +538,9 @@ export class Chats {
           try {
             const current = this.get(id);
             if (current.epoch !== epoch) throw Error('This run is no longer active.');
-            // choose_kind in the same step switched the tools: say so, so the agent retries instead of claiming success.
-            if (current.workflow !== workflow)
-              throw Error(
-                `Nothing was saved: the kind of work changed to ${Object.entries(chatKinds).find(([, w]) => w === current.workflow)?.[0] ?? 'another kind'} earlier in this step, so this ${workflow} draft no longer applies. Call create_request again now with the tools for the new kind, then tell the user what was saved.`,
-              );
+            // choose_kind earlier in this step switched the kind of work: the draft is saved as that kind (its
+            // fields are checked again for it), so the agent never reports drafts that were silently dropped.
+            const kind: ChatWorkflow = current.workflow ?? workflow;
             // A plan can hold several kinds of work (keyframes, their edits and their animations); each draft has its own.
             let group = openGroup(current);
             const value = raw as Record<string, unknown>;
@@ -558,11 +556,11 @@ export class Chats {
               );
             // Editing a draft with another kind's tools changes its kind in place (a shot becomes an edit of a
             // reference, or its animation): it starts from that kind's defaults and keeps its title and prompt.
-            const changesKind = Boolean(card && card.workflow !== workflow);
+            const changesKind = Boolean(card && card.workflow !== kind);
             const prior = card ? latest(card).request : undefined;
             const request = prepareToolRequest(
               {
-                workflow,
+                workflow: kind,
                 mode: current.mode,
                 assets,
                 previous: changesKind ? undefined : prior,
@@ -582,7 +580,7 @@ export class Chats {
               group = {
                 id: randomUUID(),
                 after_message_id: [...current.messages].reverse().find(m => m.role === 'user')?.id ?? null,
-                workflow,
+                workflow: kind,
                 state: 'assembling',
                 cards: [],
               };
@@ -592,7 +590,7 @@ export class Chats {
             const before = card ? latest(card).request : undefined;
             if (card) {
               card.revisions.push(this.revision(current, request, latest(card).number + 1, latest(card).source_job_id));
-              card.workflow = workflow;
+              card.workflow = kind;
               saved = card;
             } else {
               if (group.cards.length >= 16) throw Error('A review supports at most 16 requests.');
@@ -606,7 +604,7 @@ export class Chats {
                 throw Error(
                   `A draft titled "${request.title}" is already in this plan (request_id ${twin.id}). Change it with edit_request instead of creating another, or give the new draft a different title if it is truly separate work.`,
                 );
-              saved = { id: randomUUID(), workflow, revisions: [this.revision(current, request, 1)] };
+              saved = { id: randomUUID(), workflow: kind, revisions: [this.revision(current, request, 1)] };
               group.cards.push(saved);
             }
             latest(saved).run_id = runId;

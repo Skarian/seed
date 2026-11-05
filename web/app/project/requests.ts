@@ -103,12 +103,14 @@ export function inputProblem(kind: Kind, list: Attachment[]) {
   if (kind === 'edit') {
     if (!list.some(a => a.kind === 'image')) return 'Edit needs one source image. Attach an image, or switch to Image.';
     if (list.some(a => a.kind !== 'image')) return 'Edit uses images only. Remove the video or audio.';
-    if (list.filter(a => a.role === 'source').length !== 1) return 'Edit needs exactly one source image.';
+    if (list.filter(a => a.role === 'source').length !== 1) return 'Choose which attached image to edit.';
     if (list.length > 10) return 'Edit takes up to 10 images.';
   }
   if (kind === 'animate' && !list.length) return 'Animate needs at least one image, video or audio input.';
   if ((kind === 'image' || kind === 'video') && list.length)
-    return `${kind === 'image' ? 'Image' : 'Video'} makes from words only. Switch to ${kind === 'image' ? 'Edit' : 'Animate'} to use inputs.`;
+    return kind === 'image'
+      ? 'A new image is made from words only, so it can’t use the attachment.'
+      : 'A new clip is made from words only, so it can’t use the attachment.';
   if (list.some(a => a.progress || a.error || !a.asset_id)) return 'Wait for attachments to finish uploading.';
   return null;
 }
