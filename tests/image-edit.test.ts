@@ -13,6 +13,7 @@ import {fakePool} from './fake-pool.js';
 import {inputLabels,remapReferences} from '../shared/reference-labels.js';
 import {WorkerPool} from '../server/pool.js';
 import {Loras} from '../server/loras.js';
+import {capabilityFor,executionProfile,executionRoute,supportsWorkflow,KLEIN_PROFILE} from '../shared/workflows.js';
 const request={workflow:'image-to-image',mode:'sfw',prompt:'Make the sky pink, preserving the person.',references:[{id:'source',asset_id:'photo',kind:'image',role:'source'}],output:{aspect:'source',size:'1mp'},seed:'42',count:1};
 it('requires exactly one image source and rejects unsupported controls',()=>{
   expect(imageRequest(request).workflow).toBe('image-to-image');
@@ -109,3 +110,33 @@ it('prepares EXIF-rotated inputs with a separate image editing cache recipe',asy
  await editingWorker(f);const accepted=await f.jobs.submit(request,'rotate-qwen-edit');await f.settle();const job=f.jobs.get(accepted.jobs[0].id);
  expect(job.state).toBe('completed');expect(await sharp(job.prepared[0].file).metadata()).toMatchObject({width:128,height:256});
 }));
+
+it('FLUX 3 Image Klein makes a new shot at the draft shape from reference images, following the official template',()=>{
+  const klein=imageRequest({...request,engine:'klein',output:{aspect:'16:9',size:'image-768'},references:[...request.references,{id:'mara',asset_id:'sheet',kind:'image',role:'reference'}]});
+  expect(klein).toMatchObject({engine:'klein',output:{aspect:'16:9',size:'image-768'}});
+  expect(()=>imageRequest({...request,output:{aspect:'16:9',size:'image-768'}})).toThrow();
+  expect(()=>imageRequest({...request,engine:'other'})).toThrow();
+  expect([executionProfile(klein),executionRoute(klein),capabilityFor(klein)]).toEqual([KLEIN_PROFILE,'image-klein','image-to-image:klein']);
+  expect(capabilityFor(request as any)).toBe('image-to-image');
+  expect(supportsWorkflow({worker_class:'image',workflows:['text-to-image','image-to-image']},'image-to-image:klein')).toBe(false);
+  expect(supportsWorkflow({worker_class:'image',workflows:['image-to-image:klein']},'image-to-image:klein')).toBe(true);
+  const refs=[{id:'source',role:'source',filename:'a.png',width:1024,height:1024},{id:'mara',role:'reference',filename:'b.png',width:1024,height:1536}] as any;
+  const g:any=graphFor(klein,'job','42',[],refs);
+  expect(g['2'].inputs).toMatchObject({clip_name:'qwen3vl_4b_int8_convrot.safetensors',type:'flux3'});
+  expect(g['6']).toEqual({class_type:'EmptyFlux2LatentImage',inputs:{width:1344,height:768,batch_size:1}});
+  expect(g['7'].inputs).toMatchObject({latent_image:['6',0],positive:['10',0],negative:['10',1],steps:16,cfg:1,sampler_name:'euler',scheduler:'simple'});
+  expect(g['10'].inputs).toMatchObject({negative:['5',0],resolution:'resize','resolution.megapixels':1,'images.image0':['100',0],'images.image1':['101',0]});
+  expect(g['5'].class_type).toBe('ConditioningZeroOut');
+  // Kept at the source shape, the canvas follows the source image.
+  const same:any=graphFor(imageRequest({...request,engine:'klein'}),'job','42',[],[{...refs[0],width:2000,height:1000}]);
+  expect([same['6'].inputs.width,same['6'].inputs.height]).toEqual([1440,736]);
+});
+it('new edit drafts use Klein, saved Qwen drafts keep Qwen, and the tool can switch',()=>{
+  const ctx={workflow:'image-to-image' as const,mode:'sfw' as const,assets:[{handle:'input1',asset_id:'photo',kind:'image' as const}]};
+  const fresh=prepareToolRequest(ctx,{prompt:'Mara at the door [[input1]]',inputs:[{asset:'input1',role:'source'}],aspect_ratio:'16:9'});
+  expect(fresh).toMatchObject({engine:'klein',output:{aspect:'16:9'}});
+  const old={...fresh,engine:undefined,output:{aspect:'source',size:'1mp'}} as any;delete old.engine;
+  expect(prepareToolRequest({...ctx,previous:old},{request_id:'card',prompt:'Brighter [[input1]]'}).engine).toBeUndefined();
+  expect(prepareToolRequest({...ctx,previous:old},{request_id:'card',engine:'klein'}).engine).toBe('klein');
+  expect(requestToolSchemas('image-to-image','sfw').create.properties.engine).toBeDefined();
+});

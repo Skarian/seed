@@ -30,7 +30,7 @@ export function editDimensions(width: number, height: number, size: ImageSize = 
 export function resolveDimensions(workflow: string, size: ResolutionSize, aspect: string, source?: Dimensions): Dimensions {
   const preset = (catalog[resolutionFamily(workflow)] as ResolutionPreset[]).find(p => p.id === size);
   if (!preset) throw Error('Unsupported resolution.');
-  if (workflow === 'image-to-image') {
+  if (workflow === 'image-to-image' && aspect === 'source') {
     if (!source) throw Error('Choose a source image first.');
     return editDimensions(source.width, source.height, size as ImageSize);
   }

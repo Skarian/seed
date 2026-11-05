@@ -1,6 +1,6 @@
 import {localExecutor,type ExecutionWorker} from './executors.js';
 import { Media, type PreparedReference, probe } from "./media.js";
-import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, supportsWorkflow, QWEN_PROFILE, QWEN_SETTINGS } from "../shared/workflows.js";
+import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, supportsWorkflow, capabilityFor, usesKlein, QWEN_PROFILE, QWEN_SETTINGS, KLEIN_PROFILE, KLEIN_SETTINGS } from "../shared/workflows.js";
 import { workerClassFor } from "../shared/pool.js";
 import { Loras, digest, sourceReady, type LoraSelection } from "./loras.js";
 import { WorkerPool } from "./pool.js";
@@ -63,7 +63,7 @@ export class Jobs {
             j.state === "queued" && j.request.target!=='local' &&
             j.worker &&
             workerClassFor(j.request.workflow) === w.worker_class &&
-            (supportsWorkflow(w,j.request.workflow) || (!w.ready_at && !w.workflows)) &&
+            (supportsWorkflow(w,capabilityFor(j.request)) || (!w.ready_at && !w.workflows)) &&
             (!w.finish_before || j.created_at <= w.finish_before) &&
             j.worker.loras.every((l) =>
               (w.adapters_frozen ? w.installed_loras : w.requested_loras).some(
@@ -230,7 +230,7 @@ export class Jobs {
       // Compatibility for known saved graphs from before envelope persistence. No catalog lookups.
       const route = executionRoute(job.request), graph = job.worker.graph as Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
       const video = isVideoWorkflow(job.request.workflow), output = graph[video ? '14' : '9'];
-      const model = route === 'image' ? 'krea2_turbo_int8_convrot.safetensors' : route === 'image-edit' ? 'qwen_image_2.1_int8_convrot.safetensors' : `minimax_h3_${route}2va_pruned_int8_convrot.safetensors`;
+      const model = route === 'image' ? 'krea2_turbo_int8_convrot.safetensors' : route === 'image-edit' ? 'qwen_image_2.1_int8_convrot.safetensors' : route === 'image-klein' ? 'flux3-image-klein-int8-convrot.safetensors' : `minimax_h3_${route}2va_pruned_int8_convrot.safetensors`;
       if (graph['1']?.class_type !== 'UNETLoader' || graph['1']?.inputs?.unet_name !== model ||
         output?.class_type !== (video ? 'SeedVideoSave' : 'SaveImage') || output.inputs?.filename_prefix !== `seed/${executionId(job)}/${video ? 'video' : 'image'}`)
         throw Error('The saved submission format is not supported.');
@@ -880,7 +880,7 @@ export class Jobs {
     if (this.get(job.id)?.worker?.quit_now) return;
     if (this.finishCancellation(job)) return;
     Object.assign(metadata, {
-      ...(job.request.workflow==='image-to-image'?{runtime_profile:QWEN_PROFILE,runtime_settings:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{}),
+      ...(job.request.workflow==='image-to-image'?{runtime_profile:usesKlein(job.request)?KLEIN_PROFILE:QWEN_PROFILE,runtime_settings:usesKlein(job.request)?KLEIN_SETTINGS:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{}),
       job_id: job.id,
       mode: job.request.mode,
       mime_type: output.mime_type,

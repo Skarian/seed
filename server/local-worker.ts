@@ -8,7 +8,7 @@ import {enginePhase,workerPhaseLabel} from '../shared/generation-progress.js';
 import {LocalRuntime,type StopOutcome} from './local-runtime.js';
 import {engineSpec,hardwareProfile} from './hardware.js';
 import type {ImageRequest} from './workflows.js';
-import {executionProfile,loraRoute} from '../shared/workflows.js';
+import {capabilityFor,executionProfile,loraRoute} from '../shared/workflows.js';
 import {readdirSync} from 'node:fs';
 import path from 'node:path';
 import {Loras} from './loras.js';
@@ -73,7 +73,7 @@ export class LocalWorker {
       const available=this.adapterSources(request);
       if(request.loras.some(selected=>!available.some(source=>source.id===selected.id&&source.revision===selected.revision)))return false;
     }
-    return Boolean(this.get()?.workflows.includes(request.workflow));
+    return Boolean(this.get()?.workflows.includes(capabilityFor(request)));
   }
   async enable(enabled:boolean){
     if(this.changing)throw Error('Wait for the local worker operation to finish.');

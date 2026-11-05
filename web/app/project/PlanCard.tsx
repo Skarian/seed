@@ -746,7 +746,7 @@ function DraftEditor({
         />
       </label>
       <div className="row">
-        {r.output.aspect !== 'source' && (
+        {(r.output.aspect !== 'source' || (r.workflow === 'image-to-image' && r.engine === 'klein')) && (
           <label className="field">
             <span>Shape</span>
             <select
@@ -755,14 +755,16 @@ function DraftEditor({
               value={f.aspect}
               onChange={e => set({ aspect: e.target.value as never })}
             >
-              {r.workflow === 'text-to-image' ? (
+              {r.workflow !== 'text-to-image' && r.workflow !== 'image-to-image' ? null : (
                 <>
+                  {r.workflow === 'image-to-image' && <option value="source">Same as the source</option>}
                   <option value="16:9">Landscape 16:9</option>
                   <option value="1:1">Square 1:1</option>
                   <option value="4:5">Portrait 4:5</option>
                   <option value="9:16">Tall portrait 9:16</option>
                 </>
-              ) : (
+              )}
+              {(r.workflow === 'text-to-video' || r.workflow === 'reference-to-video') && (
                 <>
                   <option value="16:9">Landscape 16:9</option>
                   <option value="9:16">Portrait 9:16</option>

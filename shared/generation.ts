@@ -17,6 +17,8 @@ type GenerationFields = {
   loras?: LoraSelection[];
   /** Its place in a film or set: shot number, cast, framing, delivery shape. */
   shot?: ShotFields;
+  /** Edit drafts only: "klein" for FLUX 3 Image Klein; left out for Qwen Image Edit. */
+  engine?: "klein";
   /** A short name for the draft in the user's words, e.g. "Cat on the sill". */
   title?: string;
   note?: string;
@@ -96,7 +98,8 @@ type Output = {
   format?: "video" | "images";
 };
 export type GenerationRequest = GenerationFields & (
-  | { workflow: "image-to-image"; output: Output & { aspect: "source"; size: ImageSize } }
+  // FLUX 3 Image Klein reads the images as references and can make any image shape; Qwen keeps the source shape.
+  | { workflow: "image-to-image"; output: Output & { aspect: "source" | ImageAspect; size: ImageSize } }
   | { workflow: "text-to-image"; output: Output & { aspect: ImageAspect } }
   | { workflow: "text-to-video" | "reference-to-video"; output: Output & { aspect: "16:9" | "9:16" } }
 );
@@ -106,7 +109,11 @@ export type ImageRequest = GenerationRequest;
 /** Form edits stay in their workflow; workflow changes create/restore a separate draft. */
 export function patchGeneration(request:GenerationRequest, patch:Partial<GenerationRequest>):GenerationRequest {
   const fields={...request,...patch};
-  if(request.workflow==='image-to-image')return {...fields,workflow:'image-to-image',output:{aspect:'source',size:(patch.output?.size??request.output.size) as ImageSize},loras:undefined,audio:undefined,steps:undefined,detail:undefined};
+  if(request.workflow==='image-to-image'){
+    const klein=(fields as {engine?:string}).engine==='klein';
+    const aspect=klein?((patch.output?.aspect??request.output.aspect) as ImageAspect|'source'):'source';
+    return {...fields,workflow:'image-to-image',output:{aspect,size:(patch.output?.size??request.output.size) as ImageSize},loras:undefined,audio:undefined,steps:undefined,detail:undefined};
+  }
   if(request.workflow==='text-to-image'){delete fields.steps;delete fields.detail;}
   const output=patch.output??request.output;
   return {...fields,workflow:request.workflow,output:{...output,aspect:output.aspect==='source'?request.output.aspect:output.aspect}} as GenerationRequest;

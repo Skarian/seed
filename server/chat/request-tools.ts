@@ -126,11 +126,21 @@ export function requestToolSchemas(workflow: ChatWorkflow, mode: ChatMode, hasLo
       description: 'random, or the starting seed as a string; last batch seed must be <=9007199254740991.',
     }),
     aspect_ratio: enumOf(
-      editingImage ? ['source'] : workflow === 'text-to-image' ? [...imageAspects] : ['16:9', '9:16'],
-      workflow === 'text-to-image'
-        ? '16:9 is landscape; 9:16 is tall portrait; 1:1 is square; 4:5 is portrait (posters, social).'
-        : '16:9 is landscape; 9:16 is portrait.',
+      editingImage ? ['source', ...imageAspects] : workflow === 'text-to-image' ? [...imageAspects] : ['16:9', '9:16'],
+      editingImage
+        ? 'source keeps the source image’s shape. With engine klein, a new shape (16:9, 9:16, 1:1, 4:5) makes a new picture that uses the images as references; with engine qwen only source is allowed.'
+        : workflow === 'text-to-image'
+          ? '16:9 is landscape; 9:16 is tall portrait; 1:1 is square; 4:5 is portrait (posters, social).'
+          : '16:9 is landscape; 9:16 is portrait.',
     ),
+    ...(editingImage
+      ? {
+          engine: enumOf(
+            ['klein', 'qwen'],
+            'klein is FLUX 3 Image Klein (default): best for new shots of a character or place from reference images, at any shape, and for most edits. qwen is Qwen Image Edit, kept for older drafts.',
+          ),
+        }
+      : {}),
     title: Type.String({
       minLength: 1,
       maxLength: 80,
@@ -323,6 +333,7 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     'aspect_ratio',
     'note',
     'shot',
+    ...(context.workflow === 'image-to-image' ? ['engine'] : []),
     ...(video ? ['duration_seconds', 'audio_output', 'steps', 'detail'] : []),
     ...(usesInputs(context.workflow) ? ['inputs'] : []),
     ...(context.mode === 'nsfw' ? ['mode'] : []),
@@ -353,6 +364,16 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
           : {}),
       };
   request.workflow = context.workflow;
+  // New edit drafts use FLUX 3 Image Klein; saved drafts keep their engine unless the tool names one.
+  if (context.workflow === 'image-to-image') {
+    const engine = Object.hasOwn(value, 'engine')
+      ? value.engine
+      : context.previous
+        ? ((context.previous as { engine?: string }).engine ?? 'qwen')
+        : 'klein';
+    if (engine === 'klein') request.engine = 'klein';
+    else delete request.engine;
+  }
   if (Object.hasOwn(value, 'steps')) request.steps = value.steps;
   if (Object.hasOwn(value, 'detail')) request.detail = value.detail;
   for (const [from, to] of [

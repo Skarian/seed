@@ -28,7 +28,7 @@ export type MakeSettings = {
 /** The model behind each kind, in plain words. */
 export const engines: Record<Kind, string> = {
   image: 'Krea 2: fast stills, photographic or illustrated',
-  edit: 'Qwen Image Edit: follows edit instructions and keeps the rest of the source',
+  edit: 'FLUX 3 Image Klein: edits a picture, or makes a new shot of the same character or place from reference images',
   video: 'MiniMax H3: 5 to 15 second clips, with sound if you want it',
   animate: 'MiniMax H3: clips guided by your images, video or audio',
 };
@@ -145,7 +145,8 @@ export function buildRequest(
     count: settings.count,
     ...(settings.target !== 'auto' ? { target: settings.target } : {}),
   };
-  if (kind === 'edit') return { ...base, references, output: { aspect: 'source', size: settings.imageSize } };
+  if (kind === 'edit')
+    return { ...base, engine: 'klein' as const, references, output: { aspect: 'source', size: settings.imageSize } };
   if (!video)
     return {
       ...base,
@@ -196,7 +197,9 @@ export function revisedRequest(r: ImageRequest, f: EditableFields): Record<strin
     seed: f.seed || 'random',
     output: {
       ...r.output,
-      ...(r.output.aspect === 'source' ? {} : { aspect: f.aspect }),
+      ...(r.output.aspect === 'source' && !(r.workflow === 'image-to-image' && r.engine === 'klein')
+        ? {}
+        : { aspect: f.aspect }),
       size: f.size,
       ...(video ? { duration_seconds: f.duration } : {}),
     },

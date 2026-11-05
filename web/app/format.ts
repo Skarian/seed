@@ -90,7 +90,9 @@ export function settingChips(r: ImageRequest, styleName: (id: string) => string)
     ['kind', kindLabels[kind]],
     [
       'engine',
-      ({ image: 'Krea 2', edit: 'Qwen Image Edit', video: 'MiniMax H3', animate: 'MiniMax H3' } as const)[kind],
+      kind === 'edit' && r.engine !== 'klein'
+        ? 'Qwen Image Edit'
+        : ({ image: 'Krea 2', edit: 'FLUX 3 Image Klein', video: 'MiniMax H3', animate: 'MiniMax H3' } as const)[kind],
     ],
     ['shape', shapeLabel(r)],
     ['size', sizeLabel(r)],

@@ -186,3 +186,22 @@ def test_native_export_rejects_image_only_and_unknown_dimensions(tmp_path, monke
     with pytest.raises(ValueError, match='canvas dimensions'):
         module.SeedVideoSave().save(Pixels(124, height, width), {}, 5, 'seed/job/video', 'silent', export_version='native-v1')
     assert not (tmp_path / 'seed').exists()
+
+
+def test_klein_edit_checks_its_inputs_and_canvas(tmp_path, monkeypatch):
+    adapters = module_at('seed_resolution_klein_adapters', 'adapters.py')
+    monkeypatch.setenv('SEED_WORKER_CLASS', '')
+    graph = {
+        '6': {'class_type': 'EmptyFlux2LatentImage', 'inputs': {'width': 1344, 'height': 768, 'batch_size': 1}},
+        '100': {'class_type': 'SeedLoadEditImage', 'inputs': {'image': 'seed/job/source.png', 'size': 'image-768'}},
+        '101': {'class_type': 'SeedLoadEditImage', 'inputs': {'image': 'seed/job/sheet.png', 'size': '1mp'}},
+    }
+    adapters.validate_adapters(tmp_path, graph, [], 'image-klein')
+    for width, height in ((1350, 768), (8192, 768), (128, 128)):
+        bad = {**graph, '6': {'class_type': 'EmptyFlux2LatentImage', 'inputs': {'width': width, 'height': height, 'batch_size': 1}}}
+        with pytest.raises(ValueError):
+            adapters.validate_adapters(tmp_path, bad, [], 'image-klein')
+    with pytest.raises(ValueError):
+        adapters.validate_adapters(tmp_path, {**graph, '6': {'class_type': 'EmptyLatentImage', 'inputs': {}}}, [], 'image-klein')
+    with pytest.raises(ValueError):
+        adapters.validate_adapters(tmp_path, graph, [{'sha256': 'x'}], 'image-klein')

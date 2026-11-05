@@ -1,3 +1,4 @@
+import { capabilityFor } from '../shared/workflows.js';
 import type Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -50,7 +51,7 @@ export class WorkerPool {
   claimExecutor(job:string,request:ImageRequest,loras:LoraSelection[],created_at:string):ExecutionWorker|null {
     if(request.target!=='local'){
       const video=request.workflow.endsWith('video');
-      const rented=this.claim(job,video?'video':'image',loras,created_at,request.workflow);
+      const rented=this.claim(job,video?'video':'image',loras,created_at,capabilityFor(request));
       if(rented)return rented;
     }
     return request.target==='cloud'?null:this.local?.claim(job,request)??null;
@@ -977,7 +978,7 @@ export class WorkerPool {
   ) {
     return this.db.transaction(() => {
       const w = this.all().find(
-        (w) => !w.current_job_id && this.compatible(w, role, loras, created_at) && (workflow!=='image-to-image'||w.workflows?.includes(workflow)),
+        (w) => !w.current_job_id && this.compatible(w, role, loras, created_at) && (!workflow?.startsWith('image-to-image')||w.workflows?.includes(workflow)),
       );
       if (!w) return null;
       const id = randomUUID();
