@@ -494,3 +494,30 @@ button.chip:hover { color: var(--text); border-color: var(--muted); }
 .receipt-note { margin: 0; color: var(--muted); font-size: 12.5px; }
 .receipt-more { font-size: 13px; color: var(--muted); }
 .receipt-more p { margin: 6px 0 0; }
+
+/* Results by shot: one row per numbered shot, keyframes and clips side by side, in story order */
+.shots { display: grid; gap: 10px; padding-top: 8px; }
+.shot-row { border: 1px solid var(--line); border-radius: var(--r); background: var(--s1); padding: 10px 12px; display: grid; gap: 8px; }
+.shot-head { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+.shot-head .shot-n { flex: none; }
+.shot-head .shot-name { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.shot-head .faint { flex: none; font-size: 12.5px; }
+.shot-lanes { display: grid; gap: 6px; }
+.lane { display: grid; grid-template-columns: 76px minmax(0, 1fr); align-items: center; gap: 8px; }
+.lane-label { font-size: 12px; color: var(--muted); }
+.lane-strip { display: flex; gap: 8px; overflow-x: auto; scrollbar-width: thin; min-height: 32px; align-items: center; }
+.lane-strip .lane-cell { flex: none; }
+.lane-strip .tile { height: 132px; width: auto; max-height: none; }
+.lane-empty { font-size: 12.5px; }
+/* Grid tiles show the whole frame, so a widescreen composition is never cropped to a square */
+.board .grid .tile img, .board .grid .tile video { object-fit: contain; background: #0d0e0c; }
+@media (max-width: 699px) { .lane { grid-template-columns: minmax(0, 1fr); } .lane-strip .tile { height: 112px; } }
+
+/* Empty project: everything wraps inside the phone width */
+.empty > div { min-width: 0; max-width: 100%; }
+.empty .chip { white-space: normal; text-align: left; max-width: 100%; }
+/* Phone details: labels above their values, so long prompts and notes get the full width */
+@media (max-width: 699px) {
+  .viewer .kv, .inspector .kv { grid-template-columns: minmax(0, 1fr); gap: 2px; }
+  .viewer .kv > span, .inspector .kv > span { margin-top: 10px; font-size: 12.5px; }
+}

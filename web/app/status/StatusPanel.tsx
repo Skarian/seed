@@ -34,7 +34,7 @@ export function StatusPanel({ tab, onTab, onClose }: { tab: 'tasks' | 'gpus'; on
     const tone = live.length ? (tileState(live[0]!).tone === 'wait' ? 'amber' : 'live') : failed.length ? 'red' : 'off';
     return <div key={j.submission_id || j.id} className="task" style={{ cursor: project ? 'pointer' : undefined }} onClick={() => { if (project) { onClose(); app.go({ name: 'project', id: project.id, view: 'conversation', focus: j.source?.card_id }); } }}>
       {out ? <span className="thumb"><Thumb id={out} kind={video ? 'video' : 'image'} alt="" /></span> : <span className="thumb" style={{ display: 'grid', placeItems: 'center' }}><span className={'dot ' + tone} /></span>}
-      <span className="t"><b>{titleOf(j.request)}{list.length > 1 ? ` · ${list.length} ${video ? 'clips' : 'images'}` : ''}</b><small>{s}{project ? ' · ' + project.title : ''} · {relativeTime(list.at(-1)!.updated_at)}</small></span>
+      <span className="t"><b>{titleOf(j.request)}{list.length > 1 ? ` · ${list.length} ${video ? 'clips' : 'images'}` : ''}</b><small>{video ? 'Clip' : 'Image'} · {s}{project ? ' · ' + project.title : ''} · {relativeTime(list.at(-1)!.updated_at)}</small></span>
       {live.length > 0 && <button className="btn small" onClick={e => { e.stopPropagation(); void Promise.all(live.map(x => jobsApi.cancel(x.id))).then(app.refreshTasks); app.toast(`Cancelled ${live.length} · finished results are kept, the GPU keeps running`); }}>{live.length > 1 ? `Cancel remaining ${live.length}` : 'Cancel'}</button>}
       {project && <Icon.Next />}
     </div>;

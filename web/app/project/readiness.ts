@@ -22,7 +22,7 @@ export function readiness(r: ImageRequest, snapshot: PoolSnapshot | null, styles
   const workers = (snapshot?.workers ?? []).filter(w => w.worker_class === cls && !w.quit_mode && ['ready', 'generating', 'saving', 'starting', 'preparing'].includes(w.state) && (r.workflow !== 'image-to-image' || !w.workflows || w.workflows.includes(r.workflow)));
   const withStyles = workers.filter(w => ['starting', 'preparing'].includes(w.state) || loras.every(l => w.installed_loras.some(i => i.id === l.id && i.revision === l.revision)));
   const noun = cls === 'video' ? 'video GPU' : 'image GPU';
-  if (withStyles.length) return { tone: 'ok', label: `Runs on the running ${noun}${withStyles[0]!.state === 'ready' ? '' : ' (' + withStyles[0]!.state + ')'}`, billing: true };
+  if (withStyles.length) return { tone: 'ok', label: withStyles[0]!.state === 'ready' || withStyles[0]!.state === 'generating' || withStyles[0]!.state === 'saving' ? `${noun[0]!.toUpperCase() + noun.slice(1)} ready` : `${noun[0]!.toUpperCase() + noun.slice(1)} starting`, billing: true };
   if (workers.length) return { tone: 'warn', label: `Needs a new ${noun}: the running one doesn't have this style`, needs: cls };
   return { tone: 'warn', label: `Needs ${cls === 'video' ? 'a video' : 'an image'} GPU`, needs: cls };
 }

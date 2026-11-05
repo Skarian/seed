@@ -58,6 +58,13 @@ it('keeps a project brief that Seed and the owner both update, and gives it to S
   expect(()=>chats.settings(chat.id,chat.version,{brief:'x'.repeat(8001)})).toThrow(/8000/);
 }));
 
+it('plans with reasoning off by default, which is faster with no measured loss in draft quality',async()=>fixture(async({chats,queue,requests})=>{
+  let chat=chats.create('sfw');expect(chat.reasoning).toBe(false);
+  queue.push([{operation:'kind',kind:'image'}],[{operation:'create',request}]);
+  chats.send(chat.id,{version:chat.version,text:'One quiet landscape image, please',assets:[]});chat=await idle(chats,chat.id);
+  expect(requests[0].reasoning).toEqual({enabled:false});
+}));
+
 it('refuses to switch kind while a plan of another kind is open',async()=>fixture(async({chats,queue})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'A landscape',assets:[]});chat=await idle(chats,chat.id);

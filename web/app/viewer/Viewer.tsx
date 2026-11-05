@@ -94,9 +94,11 @@ function NoteField({ asset, note, onSaved }: { asset: string; note: { note: stri
   const [value, setValue] = useState(note?.note ?? ''), [saved, setSaved] = useState('');
   useEffect(() => setValue(note?.note ?? ''), [note?.revision, asset]);
   if (!note) return <span className="faint">…</span>;
-  return <textarea className="textarea note" style={{ minHeight: 56, height: Math.min(320, 56 + Math.ceil(value.length / 48) * 20) }} value={value} placeholder="Add a note (searchable in the Library)" aria-label="Note"
-    onChange={e => { setValue(e.target.value); setSaved(''); }}
-    onBlur={() => { if (value !== note.note) void assetsApi.saveNote(asset, value, note.revision).then(n => { onSaved(n); setSaved('Saved'); }).catch(e => setSaved((e as Error).message)); }} />;
+  // Notes save when you leave the box; the line under it says so, so closing the panel never feels risky.
+  return <div style={{ display: 'grid', gap: 4 }}><textarea className="textarea note" style={{ minHeight: 56, height: Math.min(320, 56 + Math.ceil(value.length / 48) * 20) }} value={value} placeholder="Add a note (searchable in the Library)" aria-label="Note"
+    onChange={e => { setValue(e.target.value); setSaved(e.target.value === note.note ? '' : 'Saves when you leave this box'); }}
+    onBlur={() => { if (value !== note.note) { setSaved('Saving…'); void assetsApi.saveNote(asset, value, note.revision).then(n => { onSaved(n); setSaved('Saved'); }).catch(e => setSaved((e as Error).message)); } }} />
+    {saved && <span className="faint" role="status" style={{ fontSize: 12.5 }}>{saved}</span>}</div>;
 }
 
 function CollectionChoices({ asset, cols, detail, onChanged }: { asset: string; cols: AssetCollection[]; detail: AssetDetail | null; onChanged: () => void }) {
@@ -184,7 +186,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
     </div>
     <figcaption>
       <button className="btn" aria-pressed={favs[x.asset]} aria-label={(favs[x.asset] ? 'Remove ' : 'Add ') + letter + ' to favorites'} onClick={() => void assetsApi.favorite(x.asset, !favs[x.asset]).then(() => setFavs(f => ({ ...f, [x.asset]: !f[x.asset] })))}>{favs[x.asset] ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>
-      <button className="btn primary" onClick={() => { onClose(); app.useResult(x, 'refine'); }}>Continue from {letter}</button>
+      <button className="btn primary" onClick={() => { onClose(); app.useResult(x, 'refine'); }}>Refine {letter}</button>
     </figcaption>
   </figure>;
   return <div className="viewer" role="dialog" aria-modal="true" aria-label="Compare two results">

@@ -70,3 +70,9 @@ it('points out sound nobody asked for, with silence one tap away', () => {
   const asked = checkDraft(card(request) as any, project([message('user', 'A clip of steam rising with soft ambient sound'), message('assistant', 'Prepared', 'run')]));
   expect(asked.some(c => c.text.includes('added sound'))).toBe(false);
 });
+
+it('turns a shot tag into a heading only at the start of a line', () => {
+  const r = { workflow: 'reference-to-video', prompt: '[Shot 1] Mara climbs the stairs.\nThe lamp glows (as in [Shot 2]).', output: { aspect: '16:9', size: '768p' }, count: 1, seed: 'random', mode: 'sfw', references: [] };
+  expect(readablePrompt(r as any, project([]))).toBe('Shot 1: Mara climbs the stairs.\nThe lamp glows (as in Shot 2).');
+  expect(editablePrompt(r as any, project([]))).toBeNull();
+});

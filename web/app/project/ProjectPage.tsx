@@ -245,7 +245,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       <div className="scroll" ref={scroller} onScroll={e => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div className="col">
           {!project ? <div className="stream"><span className="statusline"><span className="dot live" />Opening…</span></div>
-            : !timeline.length ? <EmptyProject onStarter={t => { setText(t); setFocusToken(n => n + 1); }} />
+            : !timeline.length ? <EmptyProject making={mode === 'make'} onStarter={t => { setText(t); setFocusToken(n => n + 1); }} />
               : <div className="stream">
                 {timeline.map(item => <LocalBoundary key={item.type === 'message' ? item.message.id : item.group.id} label={item.type === 'message' ? 'This message' : 'This plan or result'}>{item.type === 'message' ? <Message key={item.message.id} message={item.message} project={project} planAfter={item.groupsAfter.some(isOpenPlan)} onRetry={() => void retry()} onMakeItMyself={() => makeItMyself(item.message)} />
                   : isOpenPlan(item.group) ? <PlanCard key={item.group.id} project={project} group={item.group} snapshot={app.pool} styles={styles} busy={Boolean(busy) || replying} selection={selection} onSelection={setSelection} flash={flash}
@@ -309,14 +309,14 @@ function RenameDialog({ project, onClose, onSaved }: { project: Project; onClose
   </Dialog>;
 }
 
-function EmptyProject({ onStarter }: { onStarter: (t: string) => void }) {
+function EmptyProject({ onStarter, making }: { onStarter: (t: string) => void; making: boolean }) {
   const { pool } = useApp();
   const local = pool?.local, cloud = pool?.summary.active ?? 0;
-  const starters = ['A set of four postcards for a small café, warm hand-painted style', 'Turn a photo I attach into a watercolor painting', 'A 5-second clip of waves rolling onto a beach at dusk', 'Three logo ideas for a bakery called Crumb'];
+  const starters = ['A short film in four shots: help me plan the keyframes', 'One character in three different scenes, same look every time', 'Animate an image I attach into a 5-second clip', 'Turn a photo I attach into a watercolor painting'];
   return <div className="empty">
     <div>
       <h2 className="serif">What are we making?</h2>
-      <p>Describe it in your own words. Seed plans it and asks before anything runs.</p>
+      <p>{making ? 'Describe exactly what to make. Make now starts it with the settings below.' : 'Describe it in your own words. Seed plans it with you and asks before anything runs.'}</p>
       <div className="chips">{starters.map(s => <button key={s} className="chip" onClick={() => onStarter(s)}>{s}</button>)}</div>
       <p className="faint" style={{ marginTop: 18, fontSize: 13.5 }}>{local?.enabled ? 'Seed PC is ready · no rental fee' : cloud ? `${cloud} cloud GPU on` : 'No GPU yet. Seed offers one, with its price, when you make something.'}</p>
     </div>
@@ -351,11 +351,20 @@ function Message({ message, project, planAfter, onRetry, onMakeItMyself }: { mes
     
     {text && <Markdown text={text} streaming={running} />}
     {long && <button className="link" style={{ fontSize: 13 }} aria-expanded={open} onClick={() => setOpen(o => !o)}>{open ? 'Show less' : 'Show more'}</button>}
-    {!running && turn?.state === 'failed' && <div className="notice error">{turn.error ?? 'Seed stopped with an error.'}<div className="actions"><button className="btn small" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}
+    {!running && turn?.state === 'failed' && <div className="notice error">{friendlyError(turn.error)}<div className="actions"><button className="btn small" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}
     {!running && turn?.state === 'stopped' && <p className="faint" style={{ margin: '4px 0 0', fontSize: 13 }}>Stopped.</p>}
     {!running && turn?.state === 'completed' && askedToMake && <div className="notice"><b>Seed couldn't prepare that.</b> Your message and attachments are kept.<div className="actions"><button className="btn small primary" onClick={onRetry}>Try again</button><button className="btn small" onClick={onMakeItMyself}>Make it myself</button></div></div>}
     {reasoning && !running && <details className="thinking"><summary>Show thinking</summary><pre>{reasoning}</pre></details>}
   </div>;
+}
+/** Errors from the model service, in words that say what happened to the person's work. */
+function friendlyError(error?: string | null) {
+  const e = error ?? '';
+  if (/timeout|timed out|ETIMEDOUT|idle/i.test(e)) return 'Seed couldn’t finish this reply in time. Nothing was made and nothing new was rented. Try again.';
+  if (/rate.?limit|429|too many/i.test(e)) return 'The model service is busy right now. Nothing was made. Try again in a minute.';
+  if (/network|fetch failed|ECONN|socket|5\d\d|upstream|unavailable/i.test(e)) return 'Seed lost its connection to the model service. Nothing was made. Try again.';
+  if (/credit|payment|402|insufficient/i.test(e)) return 'The model service needs more credit on your OpenRouter account. Nothing was made.';
+  return e ? `Seed stopped: ${e}. Nothing was made.` : 'Seed stopped before finishing. Nothing was made.';
 }
 function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
   const last = [...turn.steps].reverse().find(s => s.kind === 'tool');
@@ -374,7 +383,12 @@ function buildTimeline(project: Project): TimelineItem[] {
   // A plan hangs off the user's message that asked for it; show it after Seed's reply to that message.
   let deferred: ChatGroup[] = [];
   const flush = () => { for (const g of deferred) { out.push({ type: 'group', group: g }); placed.add(g.id); } deferred = []; };
+  // A reply that failed and was retried with the same message collapses to one line, so the request is not shown twice.
+  const retried = new Set<string>();
+  project.messages.forEach((m, i) => { const reply = project.messages[i + 1], again = project.messages[i + 2];
+    if (m.role === 'user' && reply?.role === 'assistant' && reply.transcript?.state === 'failed' && again?.role === 'user' && again.text === m.text && !after(reply.id).length && !after(m.id).length) { retried.add(m.id); retried.add(reply.id); } });
   project.messages.forEach((m, i) => {
+    if (retried.has(m.id)) { if (m.role === 'assistant') out.push({ type: 'message', message: { ...m, role: 'event', text: 'Seed couldn’t finish a reply, so you tried again. Nothing was made.' } as ChatMessage, groupsAfter: [] }); return; }
     if (m.role === 'assistant' && !m.text && !m.transcript) return;
     const groups = after(m.id), next = project.messages[i + 1];
     if (m.role === 'user' && next?.role === 'assistant') { flush(); out.push({ type: 'message', message: m, groupsAfter: [] }); deferred = groups; return; }

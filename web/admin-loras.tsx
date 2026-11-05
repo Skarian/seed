@@ -20,7 +20,7 @@ const emptyGuidance: LoraGuidance = {
   trigger_words: [],
 };
 function submitted() {
-  toast.success('Style saved · progress is in Activity', { duration: 4500 });
+  toast.success('Style saved. GPUs you start from now on can use it.', { duration: 4500 });
   window.dispatchEvent(new Event('seed:activity-changed'));
 }
 
@@ -122,14 +122,14 @@ function GuidanceFields({
           placeholder="Describe the look and when Seed should use it."
         />
       </label>
-      <p className="admin-hint">Seed reads this to decide when to suggest the style, and how strongly.</p>
+      <p className="admin-hint">Seed reads this to decide when to suggest the style, and how strongly. Strength goes from 0 to 4 in steps of 0.05; most styles look right between 0.5 and 1.</p>
       <label>
         Default strength
         <input
           type="number"
           min={0}
           max={4}
-          step={0.1}
+          step={0.05}
           value={value.default_scale}
           onChange={(event) => onChange({ ...value, default_scale: Number(event.target.value) })}
         />

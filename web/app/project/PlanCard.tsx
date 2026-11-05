@@ -161,7 +161,7 @@ function DraftEditor({ card, project, styles, busy, onCancel, onSave }: { card: 
       {style && <label className="field"><span>Style strength</span><input className="input" type="number" min={0} max={4} step={0.1} value={style.scale} onChange={e => set({ loras: [{ ...style, scale: Number(e.target.value) }] })} /></label>}
       <label className="field"><span>Runs on</span><select aria-label="Runs on" className="select" value={f.target} onChange={e => set({ target: e.target.value as 'auto' | 'local' | 'cloud' })}><option value="auto">Auto</option><option value="local">Seed PC</option><option value="cloud">Cloud GPU</option></select></label>
     </div>
-    {engine && <p className="faint" style={{ margin: 0, fontSize: 13 }}>Engine: {engine}. Seed uses it for every {kindLabels[kind].toLowerCase()} draft, so there is nothing to choose here. To make a different kind of thing, ask Seed.</p>}
+    {engine && <p className="faint" style={{ margin: 0, fontSize: 13 }}>{video ? 'Video' : 'Image'} model: {engine}</p>}
     <details><summary className="faint">Advanced</summary>{readable && <div className="field" style={{ marginTop: 8 }}><span>Prompt as the model receives it</span><div className="prompt" style={{ whiteSpace: 'pre-wrap', fontSize: 12.5 }}>{readable.back(f.prompt)}</div></div>}<label className="field" style={{ marginTop: 8 }}><span>Seed (random, or a number to repeat a result)</span><input className="input" value={f.seed} onChange={e => set({ seed: e.target.value })} /></label></details>
     <div className="buttons"><button type="button" className="btn" onClick={onCancel}>Cancel</button><button className="btn primary" disabled={busy || saving || !f.prompt.trim()}>{saving ? 'Saving…' : 'Save edit'}</button></div>
   </form>;
