@@ -646,15 +646,26 @@ export class Chats {
             const inputsBefore = named(before?.references),
               inputsNow = named(request.references);
             if (before && JSON.stringify(inputsBefore) !== JSON.stringify(inputsNow)) changed.push('inputs');
+            // A words-only draft made while the user attached images: say so in the result, so the reply cannot claim otherwise.
+            const attached = [...current.messages].reverse().find(m => m.role === 'user')?.assets ?? [];
+            const wordsOnly =
+              (request.workflow === 'text-to-image' || request.workflow === 'text-to-video') &&
+              attached.some(a => this.jobs.media.get(a)?.kind === 'image');
             const result = {
               ok: true,
               saved: true,
-              status: 'draft saved for review; nothing has been generated yet',
+              status: 'draft saved for review; this draft has not been made yet',
               next_action: before
                 ? 'Report only the fields listed in changed, and name the images in inputs_now. If something the user asked for is not in changed, say plainly that it was not changed.'
-                : 'Tell the user the draft is ready to review and that nothing has been made yet. Name the images in inputs_now.',
+                : 'Tell the user the draft is ready to review and has not been made yet. Name the images in inputs_now.',
               ...(before ? { changed, inputs_before: inputsBefore } : {}),
               inputs_now: inputsNow,
+              ...(wordsOnly
+                ? {
+                    words_only:
+                      'The user attached images, but this draft is made from words only and does not use them. Do not say it uses or follows the attached image. If the user wants the image to guide this shot, call choose_kind with edit (or animate) and edit_request this draft with the image as its input; otherwise tell them plainly that this draft is words only.',
+                  }
+                : {}),
               request_id: saved.id,
               revision: latest(saved).number,
               request: agentRequest(request, assets),

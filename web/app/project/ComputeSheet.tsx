@@ -126,6 +126,12 @@ export function ComputeSheet({
       onClose={onClose}
       footer={
         <>
+          {/* A failed start is said beside the button that failed, never only above the fold. */}
+          {error && (
+            <span className="ready bad" role="alert" style={{ marginRight: 'auto', fontSize: 13 }}>
+              {error}
+            </span>
+          )}
           <button className="btn" onClick={onClose}>
             {voluntary ? 'Cancel' : 'Back to plan'}
           </button>
@@ -235,11 +241,7 @@ export function ComputeSheet({
         </div>
       )}
       {loading && <Spinner label="Finding available machines…" />}
-      {error && (
-        <div className="notice error" role="alert">
-          {error}
-        </div>
-      )}
+
       {!loading && !items.length && !error && (
         <div className="notice">
           No machines are available right now

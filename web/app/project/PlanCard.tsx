@@ -714,11 +714,17 @@ function DraftEditor({
       </label>
       <label className="field">
         <span>Prompt</span>
+        {/* The prompt is the main thing being edited: it gets the focus and room for a long shot description. */}
         <textarea
-          className="textarea"
+          className="textarea prompt-editor"
           value={f.prompt}
+          autoFocus
+          onFocus={e => {
+            const end = e.currentTarget.value.length;
+            e.currentTarget.setSelectionRange(end, end);
+          }}
           onChange={e => set({ prompt: e.target.value })}
-          rows={Math.min(10, Math.max(3, Math.ceil(f.prompt.length / 70)))}
+          rows={Math.min(18, Math.max(6, Math.ceil(f.prompt.length / 60)))}
         />
       </label>
       <div className="row">

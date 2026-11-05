@@ -1055,6 +1055,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       )}
       {compute && (
         <ComputeSheet
+          key={compute.role + compute.action}
           role={compute.role}
           action={compute.action}
           seconds={compute.seconds}
@@ -1416,8 +1417,10 @@ function Message({
   // A reply that states a limit ("only supports…", "can't…") stays fully visible next to the plan it affects.
   const long =
     planAfter &&
-    text.length > 600 &&
-    !/(only supports?|not supported|isn't supported|can't|cannot|not possible|won't)/i.test(text);
+    text.length > 1200 &&
+    !/(only supports?|not supported|isn.t supported|can.t|cannot|not possible|won.t|doesn.t|does not|unable|limitation|words only|keeps? the source|crop|guarantee)/i.test(
+      text,
+    );
   return (
     <div
       className={'msg-seed' + (long && !open ? ' clamped' : '')}

@@ -110,6 +110,7 @@ function Keys() {
           description={d.description}
           url={d.keyUrl}
           configured={settings.credentials[d.id]?.configured}
+          validation={settings.credentials[d.id]?.validation}
           onChange={c => setSettings(s => s && { ...s, credentials: c })}
         />
       ))}
@@ -130,6 +131,7 @@ function Key({
   description,
   url,
   configured,
+  validation,
   onChange,
 }: {
   id: CredentialField;
@@ -137,6 +139,7 @@ function Key({
   description: string;
   url: string;
   configured: boolean;
+  validation?: 'unchecked' | 'valid' | 'invalid';
   onChange: (c: CredentialStatuses) => void;
 }) {
   const [value, setValue] = useState(''),
@@ -185,7 +188,18 @@ function Key({
             {description}
           </span>
         </span>
-        <span className={'chip ' + (configured ? 'on' : '')}>{configured ? 'Connected' : 'Not connected'}</span>
+        {/* Saved is not the same as working: the badge says what is known. */}
+        <span className={'chip ' + (configured && !error && validation !== 'invalid' ? 'on' : '')}>
+          {!configured
+            ? 'Not set'
+            : validation === 'invalid'
+              ? 'Key not accepted'
+              : error
+                ? 'Key saved · test failed'
+                : validation === 'valid' || message === 'Connection works.'
+                  ? 'Key works'
+                  : 'Key saved'}
+        </span>
       </div>
       {/* A connected key is one compact row; the paste field appears only to add or replace a key. */}
       {(!configured || replacing) && (

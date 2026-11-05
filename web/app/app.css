@@ -3583,3 +3583,31 @@ textarea::placeholder {
 .draft.off .excerpt {
   color: var(--muted);
 }
+
+/* Activity rows: the whole row (thumbnail, title, state) is one button; Cancel is its own button beside it. */
+.task .task-open {
+  display: flex;
+  flex: 1;
+  min-width: 0;
+  gap: 10px;
+  align-items: center;
+  padding: 0;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.task .task-open:disabled {
+  cursor: default;
+}
+.task .task-open .t {
+  flex: 1;
+  min-width: 0;
+}
+.prompt-editor {
+  min-height: 9em;
+  max-height: 55dvh;
+  line-height: 1.5;
+}

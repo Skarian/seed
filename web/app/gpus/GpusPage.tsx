@@ -280,6 +280,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
       )}
       {start && (
         <ComputeSheet
+          key={start}
           role={start}
           action="keep it ready"
           onClose={() => setStart(null)}

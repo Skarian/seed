@@ -60,7 +60,8 @@ export function StatusPanel({
       project = app.projectList.find(p => p.id === j.source?.chat_id);
     const done = list.filter(x => x.state === 'completed'),
       live = list.filter(x => tileState(x).cancellable),
-      failed = list.filter(x => tileState(x).tone === 'bad');
+      failed = list.filter(x => tileState(x).tone === 'bad'),
+      cancelled = list.filter(x => x.state === 'cancelled');
     const s =
       list.length === 1
         ? tileState(j).label
@@ -68,41 +69,47 @@ export function StatusPanel({
           ? `${done.length} of ${list.length} done · ${tileState(live[0]!).label}`
           : failed.length
             ? `${done.length} of ${list.length} done · ${failed.length} failed`
-            : `${done.length} of ${list.length} done`;
+            : cancelled.length
+              ? `Cancelled · ${done.length} of ${list.length} made`
+              : `${done.length} of ${list.length} done`;
     const out = done[0]?.outputs[0],
       video = isVideoKind(kindOf[j.request.workflow]);
     const tone = live.length ? (tileState(live[0]!).tone === 'wait' ? 'amber' : 'live') : failed.length ? 'red' : 'off';
     return (
-      <div
-        key={j.submission_id || j.id}
-        className="task"
-        style={{ cursor: project ? 'pointer' : undefined }}
-        onClick={() => {
-          if (project) {
-            onClose();
-            app.go({ name: 'project', id: project.id, view: 'conversation', focus: j.source?.card_id });
-          }
-        }}
-      >
-        {out ? (
-          <span className="thumb">
-            <Thumb id={out} kind={video ? 'video' : 'image'} alt="" />
+      // The row opens its project: a real button, so it works from the keyboard. Cancel sits beside it.
+      <div key={j.submission_id || j.id} className="task">
+        <button
+          type="button"
+          className="task-open"
+          disabled={!project}
+          onClick={() => {
+            if (project) {
+              onClose();
+              app.go({ name: 'project', id: project.id, view: 'conversation', focus: j.source?.card_id });
+            }
+          }}
+        >
+          {out ? (
+            <span className="thumb">
+              <Thumb id={out} kind={video ? 'video' : 'image'} alt="" />
+            </span>
+          ) : (
+            <span className="thumb" style={{ display: 'grid', placeItems: 'center' }}>
+              <span className={'dot ' + tone} />
+            </span>
+          )}
+          <span className="t">
+            <b>
+              {titleOf(j.request)}
+              {list.length > 1 ? ` · ${list.length} ${video ? 'clips' : 'images'}` : ''}
+            </b>
+            <small>
+              {video ? 'Clip' : 'Image'} · {s}
+              {project ? ' · ' + project.title : ''} · {relativeTime(list.at(-1)!.updated_at)}
+            </small>
           </span>
-        ) : (
-          <span className="thumb" style={{ display: 'grid', placeItems: 'center' }}>
-            <span className={'dot ' + tone} />
-          </span>
-        )}
-        <span className="t">
-          <b>
-            {titleOf(j.request)}
-            {list.length > 1 ? ` · ${list.length} ${video ? 'clips' : 'images'}` : ''}
-          </b>
-          <small>
-            {video ? 'Clip' : 'Image'} · {s}
-            {project ? ' · ' + project.title : ''} · {relativeTime(list.at(-1)!.updated_at)}
-          </small>
-        </span>
+          {project && <Icon.Next />}
+        </button>
         {live.length > 0 && (
           <button
             className="btn small"
@@ -115,7 +122,6 @@ export function StatusPanel({
             {live.length > 1 ? `Cancel remaining ${live.length}` : 'Cancel'}
           </button>
         )}
-        {project && <Icon.Next />}
       </div>
     );
   };

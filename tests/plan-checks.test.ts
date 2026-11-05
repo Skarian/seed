@@ -164,3 +164,17 @@ it('the continuity fix changes the prompt even when the brief writes the name in
   expect(out).toBe('Mara (carries a small tin storm lantern) walks the pier at dusk.');
   expect(addBriefDetails('Hands grip a lantern.', [{ who: 'Eli', text: 'green oilskin' }])).toBe('Hands grip a lantern. Eli: green oilskin.');
 });
+
+it('reads portrait framing as composition, not as a request for a portrait canvas', () => {
+  expect(askedFor([message('user', 'Make Shot 2 a 65mm three-quarter portrait framing of Mara')] as any).aspect).toBeUndefined();
+  expect(askedFor([message('user', 'Use portrait framing for the close-up')] as any).aspect).toBeUndefined();
+  expect(askedFor([message('user', 'A portrait shot of the keeper')] as any).aspect).toBeUndefined();
+  expect(askedFor([message('user', 'Make it portrait, please')] as any).aspect).toBe('portrait');
+  expect(askedFor([message('user', 'A vertical poster')] as any).aspect).toBe('portrait');
+});
+
+it('reads "she has …" as the detail itself and skips instructions inside a character line', () => {
+  const brief = '## Characters\n- Mara: short black curls, she has a silver triangular earring, preserve Mara’s specific wardrobe and accessories';
+  const gaps = briefGapList('Mara walks along the pier with short black curls.', brief).map(g => g.text);
+  expect(gaps).toEqual(['a silver triangular earring']);
+});

@@ -74,10 +74,14 @@ export function askedFor(messages: ChatMessage[]) {
         /\bsquare\b(?![\s-]*(?:face|faced|jaw|chin|shoulders?|head|glasses|neck|window|room|tower|stones?|tiles?|building))/.test(
           t,
         );
+      // "Portrait framing", "a three-quarter portrait", "a portrait shot" and "vertical pan" describe the picture, not
+      // the canvas: only a shape word that stands for the frame itself counts. ("A wide landscape shot" is a frame.)
+      const composition = (extra: string) =>
+        `(?![\\s-]*(?:lens|lighting|mode|framing|framed|composition|close-?up|crop|style|pose|angle|pan|tilt|move|lines?|stripes?|painting|photography|artist|of\\b${extra}))`;
       const portrait =
-        /\b(?:vertical|portrait(?!\s+of\b)(?![\s-]*(?:lens|lighting|mode)))\b/.test(t) &&
+        new RegExp('(?<!three-quarter |3/4 |profile )\\b(?:vertical|portrait)\\b' + composition('|shot')).test(t) &&
         !/\bportrait(?:\s+orientation)?\s+of\b/.test(t);
-      const landscape = /\b(?:landscape|horizontal|widescreen)\b(?![\s-]*(?:painting|photography|artist|of\b))/.test(t);
+      const landscape = new RegExp('\\b(?:landscape|horizontal|widescreen)\\b' + composition('')).test(t);
       said.aspect = exact ?? (square ? '1:1' : portrait ? 'portrait' : landscape ? 'landscape' : undefined);
     }
     if (said.seconds === undefined) {
@@ -392,19 +396,21 @@ export function briefGapList(prompt: string, brief: string): Array<{ who?: strin
           p
             .trim()
             .replace(/\.$/, '')
-            .replace(/^(and|or|with)\s+/i, ''),
+            .replace(/^(and|or|with)\s+/i, '')
+            // "She has a silver earring" is the detail "a silver earring".
+            .replace(/^(?:she|he|they|it)\s+(?:has|have|wears|wear|is|are|carries|carry)\s+/i, ''),
         )
         .filter(p => p.length > 2 && !/^\d+(\s*years?\s*old)?$/i.test(p))) {
         if ((named && identity.test(part)) || (closeUp && lowerBody.test(part)) || (hands && headAndFace.test(part)))
           continue;
+        // An instruction ("preserve her specific wardrobe") is not a visible detail to add to one prompt.
+        if (abstractRule.test(part)) continue;
         if (!mentions(prompt, part)) out.push({ who: lastName, text: part.charAt(0).toLowerCase() + part.slice(1) });
       }
     } else if (/rule|always|never|constraint/.test(section)) {
       // A rule about the project as a whole ("keep wardrobe consistent across shots") is not a visible detail to
       // put in one prompt; only concrete rules ("no text anywhere") are checked.
-      const abstract =
-        /\b(continuity|consisten\w*|maintain|ensure|match(es|ing)?|same as|across (all |every |the )?(shots|scenes|frames)|every shot|each shot)\b/i;
-      if (item.length <= 80 && !abstract.test(item) && !mentions(prompt, item))
+      if (item.length <= 80 && !abstractRule.test(item) && !mentions(prompt, item))
         out.push({ text: item.charAt(0).toLowerCase() + item.slice(1).replace(/\.$/, '') });
     }
   }
@@ -553,3 +559,7 @@ export const nameCase = (name: string) =>
   name === name.toUpperCase() || name === name.toLowerCase()
     ? name.toLowerCase().replace(/(^|[\s'’-])\p{L}/gu, c => c.toUpperCase())
     : name;
+
+/** Instructions about keeping things consistent, as opposed to visible details. */
+const abstractRule =
+  /\b(continuity|consisten\w*|maintain|ensure|preserve|specific|match(es|ing)?|same as|across (all |every |the )?(shots|scenes|frames)|every shot|each shot)\b/i;
