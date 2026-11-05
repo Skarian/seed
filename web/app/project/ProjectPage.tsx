@@ -786,6 +786,10 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       {view === 'results' && project && !split ? (
         <ResultsView
           project={project}
+          onAsk={text => {
+            app.go({ name: 'project', id: project.id, view: 'conversation' });
+            void run('', () => projectsApi.send(projectRef.current ?? project, { text, assets: [] }));
+          }}
           onChanged={p => {
             projectRef.current = p;
             setProject(p);
@@ -1052,6 +1056,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
             <ResultsView
               project={project}
               embedded
+              onAsk={text => void run('', () => projectsApi.send(projectRef.current ?? project, { text, assets: [] }))}
               onChanged={p => {
                 projectRef.current = p;
                 setProject(p);

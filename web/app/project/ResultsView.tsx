@@ -7,6 +7,7 @@ import { Icon } from '../icons.js';
 import { Media } from '../ui.js';
 import { titleOf, latest, tileState, shapeClass } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
+import { CastStrip } from './Cast.js';
 import type { ImageRequest } from '../../../shared/generation.js';
 
 /** A draft that records its shot is placed by that record; older drafts fall back to the "Shot N: Name" title. */
@@ -24,10 +25,13 @@ export function ResultsView({
   project,
   embedded = false,
   onChanged,
+  onAsk,
 }: {
   project: Project;
   embedded?: boolean;
   onChanged?: (p: Project) => void;
+  /** Sends a message to Seed in this project's conversation. */
+  onAsk?: (text: string) => void;
 }) {
   const app = useApp();
   const [filter, setFilter] = useState<'all' | 'fav' | 'image' | 'video'>('all');
@@ -431,6 +435,22 @@ export function ResultsView({
           className={embedded ? 'boardpad' : 'col'}
           style={embedded ? undefined : { maxWidth: 1400, paddingBottom: 24 }}
         >
+          {filter === 'all' && (
+            <CastStrip
+              brief={project.brief}
+              picks={picks}
+              images={items.filter(i => i.kind === 'image')}
+              busy={picking}
+              onChoose={(key, asset) => void choose(key, asset)}
+              onAsk={onAsk}
+              onOpen={it =>
+                app.view(
+                  it,
+                  items.filter(i => i.kind === 'image'),
+                )
+              }
+            />
+          )}
           {view === 'shots' && (items.length > 0 || running.length > 0 || planned.length > 0) && (
             <div className="shots">
               {numbered.length > 1 && filter === 'all' && (

@@ -127,6 +127,7 @@ it('FLUX 3 Image Klein makes a new shot at the draft shape from reference images
   expect(g['7'].inputs).toMatchObject({latent_image:['6',0],positive:['10',0],negative:['10',1],steps:16,cfg:1,sampler_name:'euler',scheduler:'simple'});
   expect(g['10'].inputs).toMatchObject({negative:['5',0],resolution:'resize','resolution.megapixels':1,'images.image0':['100',0],'images.image1':['101',0]});
   expect(g['5'].class_type).toBe('ConditioningZeroOut');
+  expect(graphFor({...klein,prompt:'The girl from <image1> at the door of <image2>.'},'job','42',[],refs)['4']!.inputs.text).toBe('The girl from image 1 at the door of image 2.');
   // Kept at the source shape, the canvas follows the source image.
   const same:any=graphFor(imageRequest({...request,engine:'klein'}),'job','42',[],[{...refs[0],width:2000,height:1000}]);
   expect([same['6'].inputs.width,same['6'].inputs.height]).toEqual([1440,736]);

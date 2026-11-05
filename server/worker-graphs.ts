@@ -135,7 +135,7 @@ function kleinGraph(request:ImageRequest,id:string,seed:string,refs:PreparedRefe
     '1':{class_type:'UNETLoader',inputs:{unet_name:'flux3-image-klein-int8-convrot.safetensors',weight_dtype:'default'}},
     '2':{class_type:'CLIPLoader',inputs:{clip_name:'qwen3vl_4b_int8_convrot.safetensors',type:'flux3',device:'default'}},
     '3':{class_type:'VAELoader',inputs:{vae_name:'flux2-vae.safetensors'}},
-    '4':{class_type:'CLIPTextEncode',inputs:{clip:['2',0],text:request.prompt}},
+    '4':{class_type:'CLIPTextEncode',inputs:{clip:['2',0],text:request.prompt.replace(/<image([1-9][0-9]?)>/g,'image $1')}},
     '5':{class_type:'ConditioningZeroOut',inputs:{conditioning:['4',0]}},
     '6':{class_type:'EmptyFlux2LatentImage',inputs:{width,height,batch_size:1}},
     '10':{class_type:'ReferenceMultiLatent',inputs:{positive:['4',0],negative:['5',0],vae:['3',0],resolution:'resize','resolution.megapixels':1}},

@@ -29,6 +29,7 @@ import { chatCredential } from './credentials.js';
 import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js';
 import { chatReferenceLabels, preserveChatLabels, validateChatReferences } from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
+import { castFromBrief, referenceKey } from '../../shared/cast.js';
 
 /** Agent snapshots mirror the flat tool fields; canonical requests remain persisted unchanged. */
 function agentRequest(request: ImageRequest, assets: ToolAsset[] = []) {
@@ -373,10 +374,15 @@ export class Chats {
     this.save(chat);
     return this.view(id);
   }
-  /** Choose (or clear) the take used for a shot. Not an agent setting: allowed while Seed replies, no version check. */
+  /**
+   * Choose (or clear) the take used for a shot ("<shot>:image" or "<shot>:clip"), or the approved reference image of a
+   * character or place in the brief ("ref:<Name>"). Not an agent setting: allowed while Seed replies, no version check.
+   */
   pick(id: string, key: string, asset: string | null) {
     const chat = this.get(id);
-    if (!/^.{1,130}:(image|clip)$/.test(key)) throw Error('Choose a shot.');
+    if (!/^(?:.{1,130}:(image|clip)|ref:[^\n]{1,60})$/.test(key)) throw Error('Choose a shot.');
+    if (key.startsWith('ref:') && asset && this.jobs.media.get(asset)?.kind !== 'image')
+      throw Error('A reference must be an image.');
     const picks = { ...(chat.picks ?? {}) };
     if (asset) {
       const known =
@@ -448,7 +454,11 @@ export class Chats {
         : undefined;
       const chosen = Object.entries(chat.picks ?? {})
         .filter(([, a]) => a === id)
-        .map(([k]) => `chosen ${k.endsWith(':clip') ? 'clip' : 'keyframe'} for Shot ${k.split(':')[0]}`);
+        .map(([k]) =>
+          k.startsWith('ref:')
+            ? `approved reference for ${k.slice(4)}`
+            : `chosen ${k.endsWith(':clip') ? 'clip' : 'keyframe'} for Shot ${k.split(':')[0]}`,
+        );
       return {
         id,
         name: title ?? asset?.name ?? 'Missing media',
@@ -1193,6 +1203,14 @@ export class Chats {
       const available_loras = loraCatalog(chat.workflow);
       const context = JSON.stringify({
         project_brief: chat.brief || null,
+        // Each character and place in the brief, and whether the owner has approved a reference image for it.
+        cast_and_places: castFromBrief(chat.brief).map(e => ({
+          name: e.name,
+          kind: e.kind,
+          reference: chat.picks?.[referenceKey(e.name)]
+            ? `approved: the input whose chosen_for is “approved reference for ${e.name}”`
+            : 'none yet',
+        })),
         delivery_frame: chat.frame
           ? `The owner delivers this project at ${chat.frame}; drafts are made at the closest supported shape and cropped to it afterwards, so keep important action inside a ${chat.frame} frame.`
           : null,

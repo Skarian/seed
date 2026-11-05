@@ -3687,3 +3687,71 @@ textarea::placeholder {
   flex: none;
   accent-color: var(--accent);
 }
+
+/* Cast & places: each character and place in the brief with its approved reference image. */
+.cast-strip {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--s1);
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.cast-cells {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
+  gap: 8px;
+}
+.cast-cell {
+  display: grid;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--s2);
+}
+.cast-cell.done {
+  border-color: var(--line2);
+}
+.cast-thumb {
+  aspect-ratio: 4 / 5;
+  width: 100%;
+  border-radius: 8px;
+  overflow: hidden;
+  border: 0;
+  padding: 0;
+  background: var(--s3, var(--s1));
+  display: grid;
+  place-items: center;
+  color: inherit;
+  cursor: pointer;
+}
+.cast-thumb:disabled {
+  cursor: default;
+}
+.cast-thumb img,
+.cast-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.cast-thumb .faint {
+  font-size: 0.75rem;
+}
+.cast-text {
+  display: grid;
+  gap: 2px;
+  min-width: 0;
+}
+.cast-text small {
+  font-size: 0.75rem;
+}
+.cast-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}

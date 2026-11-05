@@ -264,3 +264,13 @@ it('checks the look of the place a shot is set in, not only its characters', () 
   // A close-up shows too little of the place.
   expect(briefGapList('Close-up of Mara in a mustard oilskin coat.', brief, { cast: ['Mara'], place: 'Lighthouse', framing: 'close-up' })).toEqual([]);
 });
+
+it('reads the cast and places from the brief, folding wardrobe lines into the character above', async () => {
+  const { castFromBrief } = await import('../shared/cast.js');
+  const brief = '# Salt Lamp\n## Characters\n- **Maren** (12): black bob, freckles\n- Wardrobe: mustard oilskin raincoat\n- Tomas: white beard\n\n## Places\n- The Lighthouse: white tower, red door\n\n## Rules\n- No text: anywhere\n';
+  expect(castFromBrief(brief)).toEqual([
+    { kind: 'character', name: 'Maren', look: 'black bob, freckles; mustard oilskin raincoat' },
+    { kind: 'character', name: 'Tomas', look: 'white beard' },
+    { kind: 'place', name: 'The Lighthouse', look: 'white tower, red door' },
+  ]);
+});
