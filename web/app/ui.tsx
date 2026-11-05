@@ -40,6 +40,7 @@ export function cleanReply(text: string) {
       .replace(/\\(rightarrow|leftarrow|Rightarrow|times|approx)\b/g, (_m, name: string) => latex[name]!)
       // Engine field names that slip into a reply read as the app's own words.
       .replace(/`?\bfirst_frame\b`?/g, 'start frame')
+      .replace(/\s*<\s*Subject\s*\d+\s*>/gi, '')
       .replace(/`?\blast_frame\b`?/g, 'end frame')
       .trim()
   );

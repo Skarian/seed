@@ -94,7 +94,7 @@ it('lists brief details a draft leaves out, and adds them in one step', () => {
   const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.text.startsWith('Continuity check'))!;
   expect(check.text).toBe('Continuity check, not in this prompt: for Mara, small scar through her left eyebrow; “no text anywhere”.');
   expect(check.soft).toBe(true);
-  expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara', 'Mara (small scar through her left eyebrow)') + ' No text anywhere.');
+  expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara', 'Mara, with small scar through her left eyebrow,') + ' No text anywhere.');
 });
 
 it('reads shape words about faces, rooms and camera moves as description, not canvas', () => {
@@ -161,7 +161,7 @@ it('does not treat a project-wide continuity rule as a missing detail', () => {
 
 it('the continuity fix changes the prompt even when the brief writes the name in capitals', () => {
   const out = addBriefDetails('Mara walks the pier at dusk.', [{ who: 'MARA', text: 'carries a small tin storm lantern' }]);
-  expect(out).toBe('Mara (carries a small tin storm lantern) walks the pier at dusk.');
+  expect(out).toBe('Mara, who carries a small tin storm lantern, walks the pier at dusk.');
   expect(addBriefDetails('Hands grip a lantern.', [{ who: 'Eli', text: 'green oilskin' }])).toBe('Hands grip a lantern. Eli: green oilskin.');
 });
 
@@ -211,4 +211,10 @@ it('does not ask for the details of a character the prompt puts out of frame', (
   const brief = '## Characters\n- Asha: mustard scarf, left-ear cuff\n\n## Rules\n- No text anywhere';
   const gaps = briefGapList('The empty bench after departure; Asha is out of frame, only her flower remains on the slats.', brief).map(g => g.text);
   expect(gaps).toEqual(['no text anywhere']);
+});
+
+it('does not ask a picture to show personality', () => {
+  const brief = '## Characters\n- Odile: silver bob, tortoiseshell glasses, calm, dry humour, kind';
+  const gaps = briefGapList('Odile in the tram doorway.', brief).map(g => g.text);
+  expect(gaps).toEqual(['silver bob', 'tortoiseshell glasses']);
 });

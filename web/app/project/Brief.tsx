@@ -95,6 +95,18 @@ export function BriefBar({
                   '## Characters\nMara: 32, short black curly bob, scar through her left eyebrow, mustard raincoat\n\n## Rules\nNo text anywhere\n\n## Shots\n1. Wide, Mara at the lighthouse at dawn'
                 }
                 autoFocus
+                onFocus={e => {
+                  const end = e.currentTarget.value.length;
+                  e.currentTarget.setSelectionRange(end, end);
+                }}
+                // Escape leaves the editor without saving, like Cancel.
+                onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    setEditing(false);
+                    setText(brief);
+                  }
+                }}
               />
               {error && (
                 <p className="changed" role="alert">

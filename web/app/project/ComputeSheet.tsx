@@ -81,7 +81,9 @@ export function ComputeSheet({
   const expired = selected && Date.parse(selected.expires_at) <= Date.now();
   const local = pool?.local;
   const others = (pool?.workers ?? []).filter(w => w.state !== 'released' && !w.quit_mode);
-  const idleOthers = others.filter(w => w.worker_class !== role && w.state === 'ready' && !w.current_job_id);
+  // Any idle GPU can be released when this one starts, including one of the same kind it replaces (for example one
+  // started before a new style was added).
+  const idleOthers = others.filter(w => w.state === 'ready' && !w.current_job_id);
   const othersRate = others.reduce((n, w) => n + w.hourly, 0);
   async function start() {
     if (!selected) return;
@@ -211,7 +213,7 @@ export function ComputeSheet({
             <div>{stopsBy}</div>
             {others.length > 0 && (
               <>
-                <span>Both running</span>
+                <span>{others.length === 1 ? 'Both running' : `All ${others.length + 1} running`}</span>
                 <div>
                   <b>{rate(othersRate + selected.hourly)}</b> in total. You already rent{' '}
                   {others
@@ -222,12 +224,16 @@ export function ComputeSheet({
                         (w.state === 'ready' && !w.current_job_id ? ' (idle)' : ''),
                     )
                     .join(' and ')}
-                  ; image and video need different GPUs.
+                  {others.some(w => w.worker_class !== role)
+                    ? '; image and video need different GPUs.'
+                    : '; the running one cannot take this work (for example a style added after it started).'}
                   {idleOthers.length > 0 && (
                     <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
                       <input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} />{' '}
-                      Release the idle {idleOthers[0]!.worker_class} GPU when this starts{' '}
-                      <span className="faint">(switching back means downloading its models again)</span>
+                      {idleOthers.length === 1
+                        ? `Release the idle ${idleOthers[0]!.worker_class} GPU when this starts`
+                        : `Release the ${idleOthers.length} idle GPUs when this starts`}{' '}
+                      <span className="faint">(using them again means downloading their models again)</span>
                     </label>
                   )}
                 </div>

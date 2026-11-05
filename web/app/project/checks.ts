@@ -147,7 +147,18 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   const at = project.messages.findIndex(m => m.id === origin);
   const trigger = at > 0 ? [...project.messages.slice(0, at)].reverse().find(m => m.role === 'user') : undefined;
   const forAll = siblings <= 1 || /\b(all|every|each|both|them)\b/i.test(trigger?.text ?? '');
-  const asked = trigger && forAll ? askedFor([trigger]) : {};
+  const asked: ReturnType<typeof askedFor> = trigger && forAll ? askedFor([trigger]) : {};
+  // A delivery ratio Seed cannot make (2.39:1) belongs to the whole film, not to one message: the project's delivery
+  // frame, or else the latest message that names one, applies to every draft alike (so revising one shot cannot move it).
+  if (!asked.other && !video) {
+    const latestOther = [...project.messages]
+      .reverse()
+      .filter(m => m.role === 'user')
+      .map(m => askedFor([m]).other)
+      .find(Boolean);
+    const other = latestOther ?? project.frame;
+    if (other) asked.other = other;
+  }
   const aspect = r.output.aspect;
   if (asked.aspect && aspect !== 'source') {
     const portrait = aspect === '9:16' || aspect === '4:5';
@@ -293,7 +304,9 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       ],
     });
   // Brief details that apply to this draft but are missing from its prompt. Words only: this checks the request, not the picture.
-  const gaps = briefGapList(r.prompt, project.brief ?? '');
+  // A clip that starts from a keyframe takes the characters' look from that image; their words need no check.
+  const fromFrame = r.workflow === 'reference-to-video' && (r.references ?? []).some(x => x.role === 'first_frame');
+  const gaps = fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '');
   if (gaps.length) {
     const whose = [...new Set(gaps.map(g => g.who).filter(Boolean))];
     const parts = [
@@ -466,6 +479,8 @@ export function briefGapList(prompt: string, brief: string): Array<{ who?: strin
           continue;
         // An instruction ("preserve her specific wardrobe") is not a visible detail to add to one prompt.
         if (abstractRule.test(part)) continue;
+        // Personality is not something a picture shows ("calm, dry humour", "curious").
+        if (personality.test(part)) continue;
         if (!mentions(prompt, part)) out.push({ who: lastName, text: part.charAt(0).toLowerCase() + part.slice(1) });
       }
     } else if (/rule|always|never|constraint/.test(section)) {
@@ -489,7 +504,11 @@ export function addBriefDetails(prompt: string, gaps: Array<{ who?: string; text
     // Names in a brief are often capitalised differently ("MARA"); match any case, and when the prompt never names the
     // character, add the details as a sentence of their own so the fix always changes the prompt.
     const at = out.search(new RegExp('\\b' + who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'));
-    if (at >= 0) out = out.slice(0, at + who.length) + ` (${details})` + out.slice(at + who.length);
+    // "Mara, with a mustard raincoat," or, for a detail that is an action, "Mara, who carries a tin lantern,".
+    const joiner = /^(?:carries|carry|wears|wear|has|have|holds|hold|is|are|keeps|walks|rides|uses)\b/i.test(details)
+      ? 'who'
+      : 'with';
+    if (at >= 0) out = out.slice(0, at + who.length) + `, ${joiner} ${details},` + out.slice(at + who.length);
     else out += (/[.!?]$/.test(out) ? ' ' : '. ') + `${nameCase(who)}: ${details}.`;
   }
   const rules = gaps.filter(g => !g.who).map(g => g.text[0]!.toUpperCase() + g.text.slice(1));
@@ -530,6 +549,8 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   // Inside a video prompt, [Shot N] numbers the parts of this one clip, not the film's shots.
   return (
     text
+      // <Subject 1> tags label people for the video model; a person reads the name alone.
+      .replace(/\s*<\s*Subject\s*\d+\s*>/gi, '')
       .replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:')
       .replace(/\[Shot (\d+)\]/g, 'part $1')
       // The video engine's own scaffolding sentence says nothing to a person; the source is shown beside the draft.
@@ -624,3 +645,7 @@ export const nameCase = (name: string) =>
 /** Instructions about keeping things consistent, as opposed to visible details. */
 const abstractRule =
   /\b(continuity|consisten\w*|maintain|ensure|preserve|specific|match(es|ing)?|same as|across (all |every |the )?(shots|scenes|frames)|every shot|each shot)\b/i;
+
+/** Character traits that describe a personality, not something a picture shows. */
+const personality =
+  /\b(calm|kind|kindly|gentle|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|nervous|proud|lonely|thoughtful|playful|sarcastic|optimistic|melancholic|personality|temperament|loves|likes|hates|fears|dreams of)\b/i;

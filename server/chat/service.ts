@@ -451,7 +451,8 @@ export class Chats {
         .map(([k]) => `chosen ${k.endsWith(':clip') ? 'clip' : 'keyframe'} for Shot ${k.split(':')[0]}`);
       return {
         id,
-        name: (title ?? asset?.name ?? 'Missing media') + (chosen.length ? ' · ' + chosen.join(', ') : ''),
+        name: title ?? asset?.name ?? 'Missing media',
+        ...(chosen.length ? { chosen_for: chosen.join(', ') } : {}),
         kind: asset?.kind,
         metadata: asset?.metadata,
         note: own?.note || inherited?.note || '',
@@ -537,6 +538,16 @@ export class Chats {
           throw Error(
             JSON.stringify({ ok: false, error: 'Request not found. Use a request_id listed in the current review.' }),
           );
+        // A plan always keeps at least one selected draft: leaving out every draft would leave "Make 0 images" while the
+        // reply says the plan is ready. To drop the whole plan, the user sets it aside.
+        if (value.left_out !== false && !card.left_out && group!.cards.filter(c => !c.left_out).length <= 1)
+          throw Error(
+            JSON.stringify({
+              ok: false,
+              error:
+                'This is the last selected draft, so it stays in. To change it, edit it; if the user wants no drafts at all, tell them to set the plan aside.',
+            }),
+          );
         if (value.left_out === false) delete card.left_out;
         else card.left_out = true;
         const kept = group!.cards.filter(c => !c.left_out).length;
@@ -548,6 +559,46 @@ export class Chats {
           drafts_selected: kept,
           drafts_left_out: group!.cards.length - kept,
           next_action: 'Describe the plan by the drafts still selected.',
+        };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
+      },
+    };
+    // The order of drafts in the plan is the order of the film or book: the agent can set it.
+    const orderTool: AgentTool = {
+      name: 'order_requests',
+      label: 'Order drafts',
+      description:
+        'Put the drafts of the open plan in a new order (for example story or page order). Send every request_id of the current review once, in the new order.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { request_ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 16 } },
+        required: ['request_ids'],
+      } as any,
+      execute: async (_call, raw) => {
+        const current = this.get(id);
+        if (current.epoch !== epoch) throw Error('This run is no longer active.');
+        const group = openGroup(current);
+        const ids = ((raw as { request_ids?: unknown }).request_ids ?? []) as unknown[];
+        const cards = group?.cards ?? [];
+        if (
+          !group ||
+          ids.length !== cards.length ||
+          new Set(ids).size !== ids.length ||
+          ids.some(x => !cards.some(c => c.id === x))
+        )
+          throw Error(
+            JSON.stringify({
+              ok: false,
+              error: 'Send every request_id of the current review exactly once, in the new order.',
+            }),
+          );
+        group.cards = ids.map(x => cards.find(c => c.id === x)!);
+        this.save(current);
+        const result = {
+          ok: true,
+          order: group.cards.map(c => latest(c).request.title ?? c.id),
+          next_action: 'Say the new order in one short sentence.',
         };
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
       },
@@ -708,6 +759,7 @@ export class Chats {
         },
       })),
       leaveOut,
+      orderTool,
     ];
   }
   send(
@@ -970,6 +1022,9 @@ export class Chats {
           : {}),
         prompt_token: '[[' + a.handle + ']]',
         name: manifest.find(m => m.id === a.asset_id)?.name,
+        ...(manifest.find(m => m.id === a.asset_id)?.chosen_for
+          ? { chosen_for: manifest.find(m => m.id === a.asset_id)!.chosen_for }
+          : {}),
       }));
 
       const account = (value: ChatAccounting) => {

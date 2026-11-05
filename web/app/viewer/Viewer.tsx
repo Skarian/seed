@@ -662,8 +662,18 @@ export function Inspector({
   const i = siblings.findIndex(s => s.asset === item.asset);
   // Escape closes the panel only when nothing inside it (a menu, a dialog, a field) has already handled the key,
   // and focus returns to the result it was opened from. Enter on the image opens it full screen (the button does that).
-  const latest = useRef({ onClose, item });
-  latest.current = { onClose, item };
+  const latest = useRef({ onClose, item, onPick, siblings, i });
+  latest.current = { onClose, item, onPick, siblings, i };
+  // Closing (Escape or the Close button) returns focus to the result it was opened from.
+  const close = () => {
+    const title = latest.current.item.title;
+    latest.current.onClose();
+    requestAnimationFrame(() =>
+      document
+        .querySelector<HTMLElement>(`[aria-label="${CSS.escape('Open ' + title)}"]`)
+        ?.focus({ preventScroll: true }),
+    );
+  };
   // Opening the panel moves focus to its title, so keyboard and screen-reader users land in what they opened.
   const heading = useRef<HTMLHeadingElement>(null);
   useEffect(() => {
@@ -673,19 +683,24 @@ export function Inspector({
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       if (
-        e.key !== 'Escape' ||
+        !['Escape', 'ArrowLeft', 'ArrowRight'].includes(e.key) ||
         e.defaultPrevented ||
-        target.closest('input,textarea,select,[role=menu],[role=dialog]') ||
-        document.querySelector('[role=menu]')
+        target.closest('input,textarea,select,[role=menu],[role=dialog],[role=slider],video') ||
+        document.querySelector('[role=menu],[role=dialog]')
       )
         return;
-      const title = latest.current.item.title;
-      latest.current.onClose();
-      requestAnimationFrame(() =>
-        document
-          .querySelector<HTMLElement>(`[aria-label="${CSS.escape('Open ' + title)}"]`)
-          ?.focus({ preventScroll: true }),
-      );
+      // The arrows move through the results only while focus is in the panel (elsewhere they belong to the page).
+      if (e.key !== 'Escape') {
+        if (!target.closest('.inspector')) return;
+        const { siblings: list, i: at, onPick: pick } = latest.current;
+        const next = list[at + (e.key === 'ArrowRight' ? 1 : -1)];
+        if (next) {
+          e.preventDefault();
+          pick(next);
+        }
+        return;
+      }
+      close();
     };
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
@@ -693,7 +708,7 @@ export function Inspector({
   return (
     <aside className="inspector" aria-label={'Details: ' + item.title}>
       <div className="vtop">
-        <button className="btn small close" onClick={onClose} aria-label="Close details">
+        <button className="btn small close" onClick={close} aria-label="Close details">
           <Icon.Close />
           Close
         </button>
@@ -1048,7 +1063,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
           </button>
         </div>
         <span className="faint no-phone no-touch" style={{ fontSize: '0.8125rem' }}>
-          Click to zoom both · A/B keys
+          Click a picture to zoom both
         </span>
         <span style={{ flex: 1 }} />
         <button

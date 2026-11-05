@@ -37,7 +37,7 @@ it('lets the agent choose the kind of work, then prepare drafts with that kindâ€
   chats.send(chat.id,{version:chat.version,text:'One quiet landscape image, please',assets:[]});chat=await idle(chats,chat.id);
   expect(chat.error).toBeNull();expect(chat.workflow).toBe('text-to-image');
   expect(requests[0].tools.map((t:any)=>t.function.name)).toEqual(['choose_kind','update_brief']);
-  expect(requests[1].tools.map((t:any)=>t.function.name)).toEqual(['choose_kind','update_brief','create_request','edit_request','leave_out_request']);
+  expect(requests[1].tools.map((t:any)=>t.function.name)).toEqual(['choose_kind','update_brief','create_request','edit_request','leave_out_request','order_requests']);
   expect(requests[1].messages[0].content).toContain('Active workflow: text-to-image');
   expect(chat.groups).toHaveLength(1);expect(chat.groups[0]!.workflow).toBe('text-to-image');expect(chat.groups[0]!.cards).toHaveLength(1);
 }));
@@ -190,7 +190,7 @@ it('holds a whole group until all decisions and submits approved requests once',
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Another landscape'}}]);
   chats.send(chat.id,{version:chat.version,text:'Two ideas',assets:[]});chat=await idle(chats,chat.id);
-  expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.map((t:any)=>t.function.name).join()==='choose_kind,update_brief,create_request,edit_request,leave_out_request')).toBe(true);
+  expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.map((t:any)=>t.function.name).join()==='choose_kind,update_brief,create_request,edit_request,leave_out_request,order_requests')).toBe(true);
   expect(chat.groups[0]!.after_message_id).toBe(chat.messages.filter(m=>m.role==='user').at(-1)!.id);expect(chat.messages.filter(m=>m.role==='assistant').at(-1)?.reasoning_text).toContain('I will prepare the requested scene.');const cards=chat.groups[0]!.cards;expect(cards).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[1]!.id,1,'denied');expect(jobs.all()).toHaveLength(1);
@@ -536,4 +536,15 @@ it('saves a new clip silent when nobody asked for sound, and tells the agent',as
   chats.send(chat.id,{version:chat.version,text:'A five-second clip of fog drifting over the pier',assets:[]});chat=await idle(chats,chat.id);
   const card=chat.groups[0]!.cards[0]!;expect(card.revisions.at(-1)!.request.audio?.output).toBe('silent');
   expect(JSON.stringify(requests.at(-1).messages)).toContain('Saved silent');
+}));
+
+it('keeps the last selected draft in the plan and lets the agent reorder drafts',async()=>fixture(async({chats,queue,requests})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request:{...request,title:'Page 2'}},{operation:'create',request:{...request,title:'Page 1'}}]);
+  chats.send(chat.id,{version:chat.version,text:'Two pages',assets:[]});chat=await idle(chats,chat.id);
+  const [a,b]=chat.groups[0]!.cards;
+  queue.push([{operation:'leave_out',request_id:a!.id,left_out:true},{operation:'leave_out',request_id:b!.id,left_out:true}]);
+  chats.send(chat.id,{version:chat.version,text:'Drop both',assets:[]});chat=await idle(chats,chat.id);
+  expect(chat.groups[0]!.cards.filter(c=>!c.left_out)).toHaveLength(1);
+  expect(JSON.stringify(requests.at(-1).messages)).toContain('last selected draft');
 }));

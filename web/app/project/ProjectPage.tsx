@@ -59,10 +59,15 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const doneCount = project?.jobs.filter(j => j.state === 'completed').length ?? 0,
     seenDone = useRef<number | null>(null);
   useEffect(() => {
+    seenDone.current = null;
+  }, [id]);
+  useEffect(() => {
+    // Count from the project as it first loads: results that already exist are not news.
+    if (!project) return;
     if (seenDone.current !== null && doneCount > seenDone.current)
       setAnnounce(`${doneCount - seenDone.current} ${doneCount - seenDone.current === 1 ? 'result' : 'results'} ready`);
     seenDone.current = doneCount;
-  }, [doneCount]);
+  }, [doneCount, Boolean(project)]);
   // "/" jumps to the message box from anywhere in the project, as in chat apps.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
