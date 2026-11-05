@@ -7,6 +7,13 @@ import { Icon } from '../icons.js';
 import { Media } from '../ui.js';
 import { titleOf, latest, tileState, shapeClass } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
+import type { ImageRequest } from '../../../shared/generation.js';
+
+/** A draft that records its shot is placed by that record; older drafts fall back to the "Shot N: Name" title. */
+const boardTitle = (r: ImageRequest | undefined) =>
+  r?.shot?.number
+    ? `Shot ${r.shot.number}: ${r.shot.name ?? titleOf(r).replace(/^.*?\bshot\s*\d+\s*[:·.-]?\s*/i, '')}`
+    : titleOf(r);
 
 /**
  * The project board: every result in one packed grid (or grouped by request), work in progress
@@ -74,7 +81,7 @@ export function ResultsView({
       : [];
   const planned = project.groups
     .filter(g => ['reviewing', 'revising', 'assembling'].includes(g.state) && !g.direct)
-    .flatMap(g => g.cards.map(c => titleOf(latest(c).request)));
+    .flatMap(g => g.cards.map(c => boardTitle(latest(c).request)));
   const toggle = (id: string) => setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s.slice(-1), id]));
   const min = { s: embedded ? 110 : 120, m: 170, l: 260 }[size];
   const grid = { gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))` };
@@ -129,9 +136,9 @@ export function ResultsView({
     return m ? Number(m[1]) : null;
   };
   const allTitles = [
-    ...items.map(it => (it.job ? titleOf(it.job.request) : it.title)),
+    ...items.map(it => (it.job ? boardTitle(it.job.request) : it.title)),
     ...planned,
-    ...running.map(j => titleOf(j.request)),
+    ...running.map(j => boardTitle(j.request)),
   ];
   const hasShots = allTitles.some(t => shotOf(t) !== null);
   const view = viewPref === 'auto' ? (hasShots ? 'shots' : 'grid') : viewPref;
@@ -187,10 +194,10 @@ export function ResultsView({
       y = made(b);
     return x[0] - y[0] || x[1] - y[1];
   })) {
-    const s = shotFor(it.job ? titleOf(it.job.request) : it.title);
+    const s = shotFor(it.job ? boardTitle(it.job.request) : it.title);
     (it.kind === 'video' ? s.clips : s.images).push(it);
   }
-  for (const j of running) shotFor(titleOf(j.request)).making.push(j);
+  for (const j of running) shotFor(boardTitle(j.request)).making.push(j);
   for (const t of planned) shotFor(t).planned.push(t);
   const shotList = [...shots.values()].sort((a, b) => (a.n ?? 1e6) - (b.n ?? 1e6));
   // Previous and next in the viewer follow the board as it is shown: shot by shot, keyframes then clips.

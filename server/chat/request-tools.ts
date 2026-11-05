@@ -1,4 +1,4 @@
-import { imageAspects } from '../../shared/generation.js';
+import { imageAspects, normalizeShot } from '../../shared/generation.js';
 import { isVideoWorkflow, usesInputs } from '../../shared/workflows.js';
 import { randomUUID } from 'node:crypto';
 import { Type } from '@earendil-works/pi-ai';
@@ -138,6 +138,50 @@ export function requestToolSchemas(workflow: ChatWorkflow, mode: ChatMode, hasLo
         'A short name for this draft in the user’s own words, 2-6 words, e.g. "Cat on the sill". Always include it; it is shown on the draft and its results.',
     }),
     note: Type.String({ maxLength: 4000, description: 'A note saved with generated assets. Empty text clears it.' }),
+    shot: Type.Object(
+      {
+        number: Type.Optional(
+          Type.Integer({ minimum: 1, maximum: 999, description: 'Shot or page number in the film or set.' }),
+        ),
+        name: Type.Optional(
+          Type.String({ maxLength: 60, description: 'Short shot name without the number, e.g. "Causeway Wide".' }),
+        ),
+        cast: Type.Optional(
+          Type.Array(Type.String({ maxLength: 40 }), {
+            maxItems: 12,
+            description: 'Characters visible in this shot, by the names the brief uses.',
+          }),
+        ),
+        offscreen: Type.Optional(
+          Type.Array(Type.String({ maxLength: 40 }), {
+            maxItems: 12,
+            description: 'Characters in the scene but deliberately out of frame.',
+          }),
+        ),
+        place: Type.Optional(Type.String({ maxLength: 60, description: 'The place, by the name the brief uses.' })),
+        framing: Type.Optional(
+          Type.String({
+            maxLength: 60,
+            description: 'Framing in film terms: wide, medium, close-up, insert, two-shot.',
+          }),
+        ),
+        lens_mm: Type.Optional(
+          Type.Integer({ minimum: 4, maximum: 1200, description: 'Lens in millimetres when the user named one.' }),
+        ),
+        delivery: Type.Optional(
+          Type.String({
+            pattern: '^\\d{1,2}(\\.\\d{1,2})?:\\d{1,2}(\\.\\d{1,2})?$',
+            description:
+              'The shape the user will deliver at when it differs from aspect_ratio, e.g. "2.39:1" for a film made at 16:9 and cropped later.',
+          }),
+        ),
+      },
+      {
+        additionalProperties: false,
+        description:
+          'For films, sequences and image sets: which shot this draft is and who is in it. Fill it on every draft of a multi-shot project. During edits, send only fields that change.',
+      },
+    ),
     ...(video
       ? {
           steps: Type.Integer({
@@ -278,6 +322,7 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     'seed',
     'aspect_ratio',
     'note',
+    'shot',
     ...(video ? ['duration_seconds', 'audio_output', 'steps', 'detail'] : []),
     ...(usesInputs(context.workflow) ? ['inputs'] : []),
     ...(context.mode === 'nsfw' ? ['mode'] : []),
@@ -326,6 +371,16 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
   ])
     if (Object.hasOwn(value, from!)) request.output[to!] = value[from!];
   if (Object.hasOwn(value, 'audio_output')) request.audio = { ...(request.audio ?? {}), output: value.audio_output };
+  // Shot details merge field by field, so an edit that names only the lens keeps the cast and number.
+  if (Object.hasOwn(value, 'shot')) {
+    try {
+      const shot = normalizeShot({ ...(context.previous?.shot ?? {}), ...(value.shot ?? {}) });
+      if (shot) request.shot = shot;
+      else delete request.shot;
+    } catch (error) {
+      add('shot', (error as Error).message);
+    }
+  }
   // A kind that cannot take inputs must not carry input tokens: they would look like a reference that is never used.
   if (
     !usesInputs(context.workflow) &&

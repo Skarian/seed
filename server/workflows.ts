@@ -1,6 +1,6 @@
 import { videoRequest } from './video.js';
 import { editRequest } from './image-edit.js';
-import { imageAspects, type ImageRequest } from '../shared/generation.js';
+import { imageAspects, normalizeShot, type ImageRequest } from '../shared/generation.js';
 export type {ImageRequest} from '../shared/generation.js';
 import { randomBytes } from 'node:crypto';
 import { isResolutionSize } from '../shared/resolution.js';
@@ -11,6 +11,11 @@ export function imageRequest(value: unknown): ImageRequest {
     const {target,...rest}=value as ImageRequest;
     if(!['auto','local','cloud'].includes(target as string))throw Error('Choose Auto, This PC, or Cloud.');
     return {...imageRequest(rest),target};
+  }
+  if(value && typeof value==='object' && 'shot' in value){
+    const {shot,...rest}=value as ImageRequest;
+    const fields=normalizeShot(shot);
+    return {...imageRequest(rest),...(fields?{shot:fields}:{})};
   }
   if(value && typeof value==='object' && ('note' in value || 'title' in value || 'resolved_seeds' in value || 'loras' in value)) {
     const {note,title,resolved_seeds,loras,...rest}=value as ImageRequest;

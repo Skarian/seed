@@ -45,7 +45,7 @@ export function isAppPage(pathname: string) {
   return ['/', '/index.html', '/library', '/chat', '/admin', '/projects', '/gpus', '/settings'].includes(pathname)
     || /^\/projects\/[\w-]{1,64}$/.test(pathname);
 }
-export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; poolDependencies?: PoolDependencies; providerFetch?:typeof fetch; chatFetch?:typeof fetch }) {
+export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; poolDependencies?: PoolDependencies; providerFetch?:typeof fetch; chatFetch?:typeof fetch; /** Test harness: the real local GPU worker alongside offline cloud providers. */ localWorker?: boolean }) {
   const access = new HttpAccess(options.paths, options.host ?? '127.0.0.1', options.port);
   prepareStorage(options.paths);
   const releaseCoordinator=acquireCoordinator(options.paths);
@@ -56,7 +56,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   const dependencies=options.poolDependencies??{providers:createProviders(options.paths,options.providerFetch,diagnostics),worker:new PoolWorkerDriver(options.paths,diagnostics)};
   const pool=new WorkerPool(db,options.paths,new Loras(options.paths),dependencies,diagnostics);
   const localSetup=new LocalSetup(options.paths);
-  if(!options.poolDependencies)pool.local=new LocalWorker(db,options.paths);
+  if(!options.poolDependencies||options.localWorker)pool.local=new LocalWorker(db,options.paths);
   const jobs=new Jobs(db,options.paths,pool);
   const imports=new LoraImports(options.paths,jobs.loras,options.providerFetch);
   const activity=new Activity(options.paths);

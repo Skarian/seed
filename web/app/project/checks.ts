@@ -3,6 +3,7 @@ import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
 import { sizeChoices, resolveDimensions } from '../../../shared/resolution.js';
+import type { ShotFields } from '../../../shared/generation.js';
 
 /** The shapes Crop offers, including film ratios; checks promise a crop only to one of these. */
 export const cropShapes = [
@@ -306,7 +307,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   // Brief details that apply to this draft but are missing from its prompt. Words only: this checks the request, not the picture.
   // A clip that starts from a keyframe takes the characters' look from that image; their words need no check.
   const fromFrame = r.workflow === 'reference-to-video' && (r.references ?? []).some(x => x.role === 'first_frame');
-  const gaps = fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '');
+  const gaps = fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '', r.shot);
   if (gaps.length) {
     const whose = [...new Set(gaps.map(g => g.who).filter(Boolean))];
     const parts = [
@@ -425,12 +426,20 @@ const identity =
   /\b(\d+[- ]year[- ]old|years? old|girl|boy|woman|man|child|kid|teen(ager)?|keeper|lighthouse keeper|female|male|non-binary|adult|elderly|(?:early|mid|late) \d0s|in (?:her|his|their) \d0s|\d0s)\b/i;
 
 /** Missing brief details with the character they belong to (none for rules), so a fix can place them beside the name. */
-export function briefGapList(prompt: string, brief: string): Array<{ who?: string; text: string }> {
+export function briefGapList(prompt: string, brief: string, shot?: ShotFields): Array<{ who?: string; text: string }> {
   if (!brief.trim()) return [];
   const out: Array<{ who?: string; text: string }> = [];
+  // A draft that records its shot says who is in frame and how it is framed; the wording is read only for older drafts.
+  const framing = shot?.framing ?? prompt;
+  const inShot = (first: string) => {
+    const has = (list?: string[]) => list?.some(n => n.split(' ')[0]!.toLowerCase() === first.toLowerCase());
+    if (has(shot?.offscreen)) return false;
+    if (shot?.cast) return Boolean(has(shot.cast));
+    return undefined;
+  };
   const closeUp =
       /\b(close-?up|insert|macro|detail shot|waist-?up|chest-?up|head and shoulders|medium close|bust|tight on)\b/i.test(
-        prompt,
+        framing,
       ),
     hands = closeUp && /\bhands?\b/i.test(prompt);
   let section = '',
@@ -454,15 +463,19 @@ export function briefGapList(prompt: string, brief: string): Array<{ who?: strin
       const generic = /^(wardrobe|costume|outfit|props?|look|appearance)$/i.test(m[1]!);
       const first = m[1]!.split(' ')[0]!;
       // A character the prompt puts out of the picture ("Asha is out of frame", "without Asha") has nothing to check.
-      const absent = new RegExp(
-        `\\b${first}\\b[^.]{0,60}\\b(?:out of (?:the )?frame|off[- ]?(?:screen|camera|frame)|not (?:in|visible)|absent|has (?:gone|left)|already gone)|\\b(?:without|no sign of|absence of|empty of)\\s+${first}\\b`,
-        'i',
-      ).test(prompt);
+      const listed = inShot(first);
+      const absent =
+        listed === false ||
+        (listed === undefined &&
+          new RegExp(
+            `\\b${first}\\b[^.]{0,60}\\b(?:out of (?:the )?frame|off[- ]?(?:screen|camera|frame)|not (?:in|visible)|absent|has (?:gone|left)|already gone)|\\b(?:without|no sign of|absence of|empty of)\\s+${first}\\b`,
+            'i',
+          ).test(prompt));
       if (absent) {
         lastName = undefined;
         continue;
       }
-      const named = new RegExp('\\b' + first + '\\b', 'i').test(prompt);
+      const named = listed ?? new RegExp('\\b' + first + '\\b', 'i').test(prompt);
       if (named) {
         anyNamed = true;
         lastName = m[1]!.split(' ')[0];
@@ -470,7 +483,9 @@ export function briefGapList(prompt: string, brief: string): Array<{ who?: strin
       if (!(named || (generic && anyNamed))) continue;
       // A distant figure shows no freckles or scars: in a wide or tiny framing only the outfit and props are checked.
       const far =
-        /\b(extreme wide|wide shot|wide establishing|establishing|silhouette|distant|aerial|from afar)\b/i.test(prompt);
+        /\b(extreme wide|wide shot|wide establishing|establishing|silhouette|distant|aerial|from afar)\b/i.test(
+          framing,
+        ) || /^wide$/i.test(shot?.framing?.trim() ?? '');
       if (far && !generic) continue;
       for (const part of m[2]!
         .split(/[,;]|\.\s/)

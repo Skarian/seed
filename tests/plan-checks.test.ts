@@ -244,3 +244,13 @@ it('bulk continuity fixes stay grammatical and keep shot-specific rules to their
   expect(gaps.map(g => g.text)).toEqual(['weathered mustard oilskin coat', 'navy knitted jumper', 'no text anywhere']);
   expect(addBriefDetails(prompt, gaps)).toBe('Medium shot of Mara, with weathered mustard oilskin coat, navy knitted jumper, standing on the pier. No text anywhere.');
 });
+
+it('reads who is in frame and the framing from the shot record before the wording', () => {
+  const brief = '## Characters\n- Mara: weathered mustard oilskin coat, small scar through her left eyebrow\n- Ines: red knitted hat\n';
+  // The words never name Ines, but the record says she is in the shot: her hat is checked.
+  expect(briefGapList('Two figures on the pier at dusk.', brief, { cast: ['Ines'] }).map(g => g.text)).toEqual(['red knitted hat']);
+  // Mara is named in the words but recorded as out of frame: nothing about her is checked.
+  expect(briefGapList('Ines waits on the pier while Mara calls from the boat.', brief, { cast: ['Ines'], offscreen: ['Mara'] }).map(g => g.text)).toEqual(['red knitted hat']);
+  // A recorded wide framing checks the outfit only, never a scar.
+  expect(briefGapList('Mara walks the causeway.', brief, { cast: ['Mara'], framing: 'wide' }).map(g => g.text)).toEqual([]);
+});

@@ -295,3 +295,17 @@ it('normalizes redundant standalone audio flags and aliases without changing sou
   expect(()=>compileStablePrompt('[[image1:audio]]',refs)).toThrow('not available');
   expect(()=>compileStablePrompt('[[video1:audio]]',refs.map(r=>r.kind==='video'?{...r,include_audio:false}:r))).toThrow('not available');
 });
+
+describe('shot details',()=>{
+  const image={workflow:'text-to-image' as const,mode:'sfw' as const,assets:[]};
+  it('saves shot details and merges edits field by field',()=>{
+    const first=prepareToolRequest(image,{prompt:'A girl on a causeway.',title:'Shot 1: Causeway',shot:{number:1,name:'Causeway',cast:['Maren'],framing:'wide',delivery:'2.39:1'}});
+    expect(first.shot).toEqual({number:1,name:'Causeway',cast:['Maren'],framing:'wide',delivery:'2.39:1'});
+    const edited=prepareToolRequest({...image,previous:first},{request_id:'card',shot:{lens_mm:85,framing:'close-up'}});
+    expect(edited.shot).toEqual({number:1,name:'Causeway',cast:['Maren'],framing:'close-up',delivery:'2.39:1',lens_mm:85});
+    expect(imageRequest(edited).shot).toEqual(edited.shot);
+    expect(()=>prepareToolRequest(image,{prompt:'x',shot:{delivery:'wide'}})).toThrow();
+    expect(()=>imageRequest({...first,shot:{number:0}})).toThrow(/number/);
+    expect(requestToolSchemas('text-to-image','sfw').create.properties.shot).toBeDefined();
+  });
+});
