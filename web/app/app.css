@@ -3632,3 +3632,30 @@ textarea::placeholder {
     min-height: 44px;
   }
 }
+
+/* Results by shot on wide screens: keyframes and clips side by side, larger, so the shot uses the width it has. */
+@media (min-width: 1000px) {
+  .board.full .shot-lanes {
+    grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+    column-gap: 16px;
+  }
+  .board.full .lane-strip .tile {
+    height: 168px;
+  }
+}
+@media (min-width: 1400px) {
+  .board.full .lane-strip .tile {
+    height: 200px;
+  }
+}
+/* Phone: the A/B switch and the Advanced disclosure take a full touch target. */
+@media (max-width: 700px) {
+  .seg.phone-only > button {
+    min-width: 48px;
+  }
+  .editor details > summary {
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+  }
+}

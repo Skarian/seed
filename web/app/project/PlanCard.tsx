@@ -446,7 +446,8 @@ function Draft({
             <Icon.Back style={{ transform: 'rotate(90deg)' }} />
           </button>
         )}
-        {!editing && (
+        {/* Stays rendered while its dialog is open, so closing the dialog returns focus here. */}
+        {
           <button
             className="btn small quiet"
             disabled={busy}
@@ -459,7 +460,7 @@ function Draft({
             <Icon.Pencil />
             Edit
           </button>
-        )}
+        }
         <MenuButton
           label={'Options for ' + titleOf(r)}
           items={[
@@ -734,9 +735,12 @@ function DraftEditor({
           className="textarea prompt-editor"
           value={f.prompt}
           autoFocus
-          onFocus={e => {
-            const end = e.currentTarget.value.length;
-            e.currentTarget.setSelectionRange(end, end);
+          // The caret starts at the end once, when the editor opens; later focus (a click mid-text, select-all) is left alone.
+          ref={el => {
+            if (el && !el.dataset.placed) {
+              el.dataset.placed = '1';
+              el.setSelectionRange(el.value.length, el.value.length);
+            }
           }}
           onChange={e => set({ prompt: e.target.value })}
           rows={Math.min(18, Math.max(6, Math.ceil(f.prompt.length / 60)))}

@@ -95,9 +95,12 @@ export function BriefBar({
                   '## Characters\nMara: 32, short black curly bob, scar through her left eyebrow, mustard raincoat\n\n## Rules\nNo text anywhere\n\n## Shots\n1. Wide, Mara at the lighthouse at dawn'
                 }
                 autoFocus
-                onFocus={e => {
-                  const end = e.currentTarget.value.length;
-                  e.currentTarget.setSelectionRange(end, end);
+                // The caret starts at the end once, when the editor opens; later focus (a click mid-text, select-all) is left alone.
+                ref={el => {
+                  if (el && !el.dataset.placed) {
+                    el.dataset.placed = '1';
+                    el.setSelectionRange(el.value.length, el.value.length);
+                  }
                 }}
                 // Escape leaves the editor without saving, like Cancel.
                 onKeyDown={e => {

@@ -669,6 +669,10 @@ export class Chats {
               !soundAsked &&
               prior?.audio?.output !== request.audio?.output;
             if (silenced) request.audio = { ...request.audio, output: 'silent' };
+            // A silent clip must not keep describing sound: its sound section reads "Silence." (the model would
+            // otherwise be told one thing by the setting and another by the words).
+            if (isVideoWorkflow(request.workflow) && request.audio?.output === 'silent')
+              request.prompt = silentSoundSection(request.prompt);
             if (request.workflow !== 'image-to-image')
               this.jobs.loras.resolve(request.loras, loraRoute(request), request.mode);
             if (!group) {
@@ -1144,7 +1148,7 @@ export class Chats {
         active_kind: Object.entries(chatKinds).find(([, w]) => w === chat.workflow)?.[0] ?? null,
         available_loras,
         worker_policy:
-          'Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not invent prices or per-image costs; when asked about cost or time, say that the plan bar shows the time estimate for the selected drafts and the rental screen shows the hourly rate before anything starts, and explain the billing facts. Billing facts: cloud GPUs are rented by the hour from the moment they start, including the first model download and any idle time, until they are released (by the owner, the idle release or the time limit). There are no credits and no per-image charges; never describe costs in credits. The rental screen shows the hourly rate and limits, and its cost figures are estimates, not a cap. The Seed PC costs nothing per hour.',
+          'Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not invent prices or per-image costs; when asked about cost or time, say that the rental screen shows the hourly rate and the stop time before anything starts; a time estimate appears in the plan bar only once Seed has measured that kind of work, so never promise one. Explain the billing facts. Count drafts and takes separately (four drafts with two takes each make eight images). Billing facts: cloud GPUs are rented by the hour from the moment they start, including the first model download and any idle time, until they are released (by the owner, the idle release or the time limit). There are no credits and no per-image charges; never describe costs in credits. The rental screen shows the hourly rate and limits, and its cost figures are estimates, not a cap. The Seed PC costs nothing per hour.',
         last_attempt,
         earlier_conversation_summary: compact.summary?.text,
         conversation: compact.recent,
@@ -1690,4 +1694,23 @@ export class Chats {
     for (const [id] of this.agents) this.stop(id);
     await Promise.allSettled([...this.tasks.values()]);
   }
+}
+
+/** Rewrites a prompt's sound section (overall_soundscape:, Sound:) to "Silence." unless it already says so. */
+export function silentSoundSection(prompt: string) {
+  const lines = prompt.split('\n');
+  const head = /^\s*(?:overall_soundscape|sound|audio)\s*:/i;
+  const at = lines.findIndex(l => head.test(l));
+  if (at < 0) return prompt;
+  let end = at + 1;
+  while (
+    end < lines.length &&
+    lines[end]!.trim() &&
+    !/^\s*(?:[a-z]+(?:_[a-z]+)+|[A-Z][\w ]{1,24})\s*:|^\s*\[Shot \d+\]/.test(lines[end]!)
+  )
+    end++;
+  const label = lines[at]!.match(head)![0];
+  const rest = lines.slice(at, end).join(' ').slice(label.length).trim();
+  if (/^(silence|silent|none|n\/a)\.?$/i.test(rest)) return prompt;
+  return [...lines.slice(0, at), label + ' Silence.', ...lines.slice(end)].join('\n');
 }

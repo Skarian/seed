@@ -487,13 +487,25 @@ export function ResultsView({
                           <span className="lane-label">Clips</span>
                           <div className="lane-strip">
                             {lane(s, s.clips, 'clip')}
-                            {!s.clips.length && (
-                              <span className="faint lane-empty">
-                                {filter === 'all' || filter === 'video'
-                                  ? 'None yet. Animate a keyframe to make one.'
-                                  : 'None in this view'}
-                              </span>
-                            )}
+                            {!s.clips.length &&
+                              (() => {
+                                // The next step is offered right here: animate the chosen keyframe (or the newest).
+                                const start = chosen(s, 'image') ?? takesOf(s.images).at(-1);
+                                return (
+                                  <span className="faint lane-empty">
+                                    {filter === 'all' || filter === 'video' ? 'None yet.' : 'None in this view'}{' '}
+                                    {start && (filter === 'all' || filter === 'video') && (
+                                      <button
+                                        className="btn small"
+                                        onClick={() => app.useResult(start, 'animate')}
+                                        aria-label={`Animate ${start.title}`}
+                                      >
+                                        Animate {chosen(s, 'image') ? 'the chosen keyframe' : 'the keyframe'}
+                                      </button>
+                                    )}
+                                  </span>
+                                );
+                              })()}
                           </div>
                         </div>
                       )}

@@ -548,3 +548,11 @@ it('keeps the last selected draft in the plan and lets the agent reorder drafts'
   expect(chat.groups[0]!.cards.filter(c=>!c.left_out)).toHaveLength(1);
   expect(JSON.stringify(requests.at(-1).messages)).toContain('last selected draft');
 }));
+
+it('a silent clip does not keep describing sound in its prompt',async()=>fixture(async({chats,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-video'});
+  queue.push([{operation:'create',request:{prompt:'integrated_multimodal_description: Fog over the pier.\noverall_soundscape: Low rumble of the ocean, wind whistling.\nnon_diegetic_music: N/A',seed:'random',count:1,output:{aspect:'16:9',duration_seconds:5},audio:{output:'silent'}}}]);
+  chats.send(chat.id,{version:chat.version,text:'A quiet five-second clip of fog, silent',assets:[]});chat=await idle(chats,chat.id);
+  const p=chat.groups[0]!.cards[0]!.revisions.at(-1)!.request.prompt;
+  expect(p).toContain('overall_soundscape: Silence.');expect(p).not.toContain('rumble');
+}));
