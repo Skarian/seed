@@ -308,7 +308,7 @@ function ImportLora({
             </>
           ) : (
             <p role="alert">
-              This style is made for {version?.base_model ?? 'another model'}, which Seed doesn’t use. Choose a style made for
+              This style is for a model Seed doesn’t run. Choose one made for
               Krea 2 (images) or MiniMax H3 (video).
             </p>
           )}

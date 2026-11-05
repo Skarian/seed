@@ -91,8 +91,8 @@ it('lists brief details a draft leaves out, and adds them in one step', () => {
   expect(briefGaps(prompt, brief)).toEqual(['small scar through her left eyebrow', 'no text anywhere']);
   expect(briefGaps('An empty stormy sea at dawn, no text.', brief)).toEqual([]);
   const request = { workflow: 'text-to-image', prompt, output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' };
-  const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.text.startsWith('Continuity check'))!;
-  expect(check.text).toBe('Continuity check, not in this prompt: for Mara, small scar through her left eyebrow; “no text anywhere”.');
+  const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.code === 'continuity')!;
+  expect(check.text).toBe('Missing from this prompt: Mara’s small scar through her left eyebrow; “no text anywhere”.');
   expect(check.soft).toBe(true);
   expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara', 'Mara, with small scar through her left eyebrow,') + ' No text anywhere.');
 });
@@ -226,4 +226,13 @@ it('never splits a possessive when adding details, and leaves legwear out of a w
   const brief = '## Characters\n- Mara: mustard raincoat, navy trousers, scuffed boots';
   const gaps = briefGapList('A waist-up reference of Mara on the pier.', brief).map(g => g.text);
   expect(gaps).toEqual(['mustard raincoat']);
+});
+
+it('words appended at the end of a clip prompt go into the picture, not the sound section', () => {
+  const r = { workflow: 'text-to-video', prompt: 'integrated_multimodal_description: Fog over the pier.\n[Shot 1] Slow push in.\noverall_soundscape: Silence.\nnon_diegetic_music: Soft strings.', references: [] } as any;
+  const e = editablePrompt(r, project([]))!;
+  const out = e.back(e.text + ' Hold on her face for the last second.');
+  expect(out).toContain('[Shot 1] Slow push in. Hold on her face for the last second.');
+  expect(out).toContain('overall_soundscape: Silence.');
+  expect(out.endsWith('non_diegetic_music: Soft strings.')).toBe(true);
 });

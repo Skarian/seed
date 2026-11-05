@@ -310,19 +310,24 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   if (gaps.length) {
     const whose = [...new Set(gaps.map(g => g.who).filter(Boolean))];
     const parts = [
-      ...whose.map(
-        w =>
-          `for ${nameCase(w!)}, ${gaps
+      ...whose.map(w =>
+        // "Maren's green rubber boots", or for an action, "Maren carries a tin lantern".
+        (() => {
+          const details = gaps
             .filter(g => g.who === w)
             .map(g => g.text)
-            .join(', ')}`,
+            .join(', ');
+          return /^(?:carries|carry|wears|wear|has|have|holds|hold|is|are|keeps|walks|rides|uses)\b/i.test(details)
+            ? `${nameCase(w!)} ${details}`
+            : `${nameCase(w!)}’s ${details}`;
+        })(),
       ),
       ...gaps.filter(g => !g.who).map(g => `“${g.text}”`),
     ];
     out.push({
       code: 'continuity',
       soft: true,
-      text: `Continuity check, not in this prompt: ${parts.join('; ')}.`,
+      text: `Missing from this prompt: ${parts.join('; ')}.`,
       fixes: [
         {
           label:
@@ -606,6 +611,15 @@ export function editablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   const back = (edited: string) => {
     if (edited === text) return r.prompt;
     let out = edited;
+    // Words added at the very end describe the picture: they go before the trailing Sound / Music sections, where a
+    // later "make it silent" would otherwise replace them.
+    if (edited.startsWith(text) && edited.length > text.length) {
+      const added = edited.slice(text.length).trim();
+      const tail = text.search(
+        /\n\s*(?:Sound|Music):[^\n]*(?:\n(?!\s*(?:Scene|Subjects|Setting|Action|Camera|Part \d+):)[^\n]*)*\s*$/,
+      );
+      if (added && tail > 0) out = text.slice(0, tail).replace(/\s+$/, '') + ' ' + added + text.slice(tail);
+    }
     if (scaffolds.length) {
       const lead = scaffolds.join(' ').trim() + ' ';
       out = /^(\s*)Scene:\s*/m.test(out) ? out.replace(/^(\s*)Scene:\s*/m, '$1Scene: ' + lead) : lead + out;

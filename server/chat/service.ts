@@ -603,6 +603,47 @@ export class Chats {
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
       },
     };
+    // The owner's choice of take for a shot, made by Seed when the owner asks in words ("use take 2 for shot 2").
+    const chooseTake: AgentTool = {
+      name: 'choose_take',
+      label: 'Choose take',
+      description:
+        'Mark a made result as the chosen take for a numbered shot, when the user asks (for example "use take 2 for shot 2"). Give the shot number and the input handle of the result (an image is the chosen keyframe, a video the chosen clip). Use it once per shot the user names.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { shot: { type: 'string', maxLength: 8 }, input: { type: 'string', maxLength: 20 } },
+        required: ['shot', 'input'],
+      } as any,
+      execute: async (_call, raw) => {
+        const current = this.get(id);
+        if (current.epoch !== epoch) throw Error('This run is no longer active.');
+        const value = raw as { shot?: unknown; input?: unknown };
+        const shot = String(value.shot ?? '')
+          .replace(/^shot\s*/i, '')
+          .trim();
+        const asset = assets.find(
+          a =>
+            a.handle ===
+            String(value.input ?? '')
+              .replace(/[[\]]/g, '')
+              .trim(),
+        );
+        if (!/^\d{1,3}$/.test(shot) || !asset || (asset.kind !== 'image' && asset.kind !== 'video'))
+          throw Error(
+            JSON.stringify({ ok: false, error: 'Give a shot number and the input handle of a made image or clip.' }),
+          );
+        const view = this.pick(id, shot + ':' + (asset.kind === 'video' ? 'clip' : 'image'), asset.asset_id);
+        const result = {
+          ok: true,
+          shot,
+          chosen: asset.kind === 'video' ? 'clip' : 'keyframe',
+          picks: Object.keys(view.picks ?? {}),
+          next_action: 'Say in one short sentence which take is now chosen for the shot.',
+        };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
+      },
+    };
     return [
       ...(['create', 'edit'] as const).map((operation): AgentTool => ({
         name: operation + '_request',
@@ -671,7 +712,16 @@ export class Chats {
             if (silenced) request.audio = { ...request.audio, output: 'silent' };
             // A silent clip must not keep describing sound: its sound section reads "Silence." (the model would
             // otherwise be told one thing by the setting and another by the words).
-            if (isVideoWorkflow(request.workflow) && request.audio?.output === 'silent')
+            // Only when the clip becomes silent in this change (or Seed wrote new sound text): a sound section the
+            // previous version already had, including anything the owner typed there, is left as it was.
+            const priorSound = prior ? silentSoundSection(prior.prompt) === prior.prompt : true;
+            if (
+              isVideoWorkflow(request.workflow) &&
+              request.audio?.output === 'silent' &&
+              (silenced ||
+                prior?.audio?.output !== 'silent' ||
+                (priorSound && silentSoundSection(request.prompt) !== request.prompt))
+            )
               request.prompt = silentSoundSection(request.prompt);
             if (request.workflow !== 'image-to-image')
               this.jobs.loras.resolve(request.loras, loraRoute(request), request.mode);
@@ -764,6 +814,7 @@ export class Chats {
       })),
       leaveOut,
       orderTool,
+      chooseTake,
     ];
   }
   send(

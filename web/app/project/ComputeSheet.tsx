@@ -135,7 +135,7 @@ export function ComputeSheet({
             </span>
           )}
           <button className="btn" onClick={onClose}>
-            {voluntary ? 'Cancel' : 'Back to plan'}
+            {voluntary ? 'Cancel' : 'Back'}
           </button>
           <button className="btn primary" disabled={!selected || busy || expired} onClick={() => void start()}>
             {busy ? 'Starting…' : voluntary ? `Start ${noun.replace(/^an? /, '')}` : `Start GPU and ${action}`}
@@ -228,12 +228,14 @@ export function ComputeSheet({
                     ? '; image and video need different GPUs.'
                     : '; the running one cannot take this work (for example a style added after it started).'}
                   {idleOthers.length > 0 && (
-                    <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}>
-                      <input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} />{' '}
-                      {idleOthers.length === 1
-                        ? `Release the idle ${idleOthers[0]!.worker_class} GPU when this starts`
-                        : `Release the ${idleOthers.length} idle GPUs when this starts`}{' '}
-                      <span className="faint">(using them again means downloading their models again)</span>
+                    <label className="release-row">
+                      <input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} />
+                      <span>
+                        {idleOthers.length === 1
+                          ? `Release the idle ${idleOthers[0]!.worker_class} GPU when this starts`
+                          : `Release the ${idleOthers.length} idle GPUs when this starts`}{' '}
+                        <span className="faint">(using them again means downloading their models again)</span>
+                      </span>
                     </label>
                   )}
                 </div>

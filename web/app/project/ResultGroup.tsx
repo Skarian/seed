@@ -141,7 +141,7 @@ function CardResults({
   const status = running.length
     ? `${done.length} of ${list.length} done · making`
     : [
-        done.length ? `${done.length} completed` : '',
+        done.length ? (done.length === list.length ? 'Done' : `${done.length} done`) : '',
         failed.length ? `${failed.length} failed` : '',
         cancelled.length ? `${cancelled.length} cancelled` : '',
       ]
@@ -152,10 +152,7 @@ function CardResults({
       <span className="title" role="heading" aria-level={3}>
         {title}
       </span>
-      <span className="meta">
-        {status}
-        {group.direct ? ' · made directly' : ''}
-      </span>
+      <span className="meta">{status}</span>
       <span className="end">
         {running.length > 1 && (
           <button
@@ -248,8 +245,12 @@ function CardResults({
         <span key={c.id}>
           <b>{titleOf(latest(c).request)}</b>
           {madeLater(c) ? <span className="faint"> · a newer version was made</span> : null}{' '}
-          <button className="link" onClick={() => actions.onBringBack(c)}>
-            {madeLater(c) ? 'Restore this earlier draft' : 'Bring back'}
+          <button
+            className="link"
+            onClick={() => actions.onBringBack(c)}
+            aria-label={(madeLater(c) ? 'Use this earlier version of ' : 'Bring back ') + titleOf(latest(c).request)}
+          >
+            {madeLater(c) ? 'Use this earlier version' : 'Bring back'}
           </button>
         </span>
       ))}

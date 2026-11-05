@@ -207,9 +207,8 @@ export function PlanCard({
           return (
             <div className="check-note plan-wide preflight" role="status">
               <span>
-                Continuity: {missing.length === 1 ? '1 selected draft is' : `${missing.length} selected drafts are`}{' '}
-                missing details from the brief (
-                {missing.map(m => short(m.card) || titleOf(latest(m.card).request)).join(', ')}). Words guide the
+                {missing.length === 1 ? '1 draft leaves' : `${missing.length} drafts leave`} out details from your
+                brief: {missing.map(m => short(m.card) || titleOf(latest(m.card).request)).join(', ')}. Words guide the
                 result; check each take.
               </span>
               <button

@@ -3663,3 +3663,27 @@ textarea::placeholder {
 .board.selecting .tile .check.big {
   opacity: 1 !important;
 }
+
+/* Result tiles clip their contents: their focus ring is drawn inside, so it is always visible (WCAG 2.4.7). */
+.tile .open:focus-visible,
+.tile .check.big:focus-visible,
+.board-cell:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: -3px;
+}
+/* The idle-GPU release choice: one row, a real-size checkbox, text that wraps beside it. */
+.release-row {
+  display: flex;
+  gap: 10px;
+  align-items: flex-start;
+  margin-top: 8px;
+  min-height: 44px;
+  cursor: pointer;
+}
+.release-row input {
+  width: 20px;
+  height: 20px;
+  margin: 2px 0 0;
+  flex: none;
+  accent-color: var(--accent);
+}

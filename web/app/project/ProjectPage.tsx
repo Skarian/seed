@@ -123,7 +123,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
 
   // Composer state survives navigation per project.
   const [text, setText] = useStoredState('seed.draft.' + id, '');
-  const [mode, setMode] = useState<'ask' | 'make'>('ask');
+  // The mode is kept with the text it was written for, so a reload never sends a direct-make prompt to the planner.
+  const [mode, setMode] = useStoredState<'ask' | 'make'>('seed.mode.' + id, 'ask');
   const [settings, setSettings] = useStoredState<MakeSettings>('seed.make.' + id, defaultMake);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   // Finished attachments survive a reload, like the text beside them (uploads still in progress do not).
