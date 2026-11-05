@@ -424,11 +424,19 @@ function Draft({
         </span>
         {card.revisions.length > 1 && (
           <span className="history" aria-label="Draft history">
-            <button aria-label="Earlier version" disabled={view === 0} onClick={() => setView(v => v - 1)}>
+            <button
+              aria-label={'Earlier version of ' + titleOf(r)}
+              disabled={view === 0}
+              onClick={() => setView(v => v - 1)}
+            >
               <Icon.Back />
             </button>
             {view + 1}/{card.revisions.length}
-            <button aria-label="Later version" disabled={current} onClick={() => setView(v => v + 1)}>
+            <button
+              aria-label={'Later version of ' + titleOf(r)}
+              disabled={current}
+              onClick={() => setView(v => v + 1)}
+            >
               <Icon.Next />
             </button>
           </span>
@@ -515,6 +523,7 @@ function Draft({
             className="link"
             style={{ alignSelf: 'flex-start', fontSize: '0.8125rem' }}
             aria-expanded={full}
+            aria-label={(full ? 'Show less of ' : 'Show full prompt for ') + titleOf(r)}
             onClick={() => setFull(f => !f)}
           >
             {full ? 'Show less' : 'Show full prompt'}

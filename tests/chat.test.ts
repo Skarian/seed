@@ -529,3 +529,11 @@ it('a full final answer stands alone, so text written before the tools ran canno
   chats.send(chat.id,{version:chat.version,text:'Plan the posters',assets:[]});chat=await idle(chats,chat.id);
   expect(chat.messages.at(-1)!.text).toBe(final);
 }));
+
+it('saves a new clip silent when nobody asked for sound, and tells the agent',async()=>fixture(async({chats,queue,requests})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-video'});
+  queue.push([{operation:'create',request:{prompt:'Fog drifts over the pier',seed:'random',count:1,output:{aspect:'16:9',duration_seconds:5},audio:{output:'generated'}}}]);
+  chats.send(chat.id,{version:chat.version,text:'A five-second clip of fog drifting over the pier',assets:[]});chat=await idle(chats,chat.id);
+  const card=chat.groups[0]!.cards[0]!;expect(card.revisions.at(-1)!.request.audio?.output).toBe('silent');
+  expect(JSON.stringify(requests.at(-1).messages)).toContain('Saved silent');
+}));

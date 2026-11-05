@@ -206,3 +206,9 @@ it('offers the closest size when the user asked for exact pixels', () => {
   const patched = check.fixes[0]!.patch(req as any) as any;
   expect(patched.output.size).not.toBe('image-768');
 });
+
+it('does not ask for the details of a character the prompt puts out of frame', () => {
+  const brief = '## Characters\n- Asha: mustard scarf, left-ear cuff\n\n## Rules\n- No text anywhere';
+  const gaps = briefGapList('The empty bench after departure; Asha is out of frame, only her flower remains on the slats.', brief).map(g => g.text);
+  expect(gaps).toEqual(['no text anywhere']);
+});

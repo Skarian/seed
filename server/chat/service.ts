@@ -601,6 +601,23 @@ export class Chats {
               if (!current.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
             this.assertAssets(current, [...new Set((request.references ?? []).map(r => r.asset_id))]);
             validateChatReferences(request);
+            // Sound nobody asked for is a creative change: a new clip stays silent unless the user's recent messages
+            // ask for sound (an existing draft keeps the sound it already had).
+            const askedText = current.messages
+              .filter(m => m.role === 'user')
+              .slice(-3)
+              .map(m => m.text)
+              .join(' ');
+            const soundAsked =
+              /\b(sound|audio|music|score|soundtrack|ambien\w*|noise|voice|dialog\w*|speak\w*|sings?|hear|footsteps|waves crashing)\b/i.test(
+                askedText,
+              ) && !/\b(silent|no sound|no audio|without (?:sound|audio)|mute)\b/i.test(askedText);
+            const silenced =
+              isVideoWorkflow(request.workflow) &&
+              request.audio?.output !== 'silent' &&
+              !soundAsked &&
+              prior?.audio?.output !== request.audio?.output;
+            if (silenced) request.audio = { ...request.audio, output: 'silent' };
             if (request.workflow !== 'image-to-image')
               this.jobs.loras.resolve(request.loras, loraRoute(request), request.mode);
             if (!group) {
@@ -667,6 +684,12 @@ export class Chats {
                 : 'Tell the user the draft is ready to review and has not been made yet. Name the images in inputs_now.',
               ...(before ? { changed, inputs_before: inputsBefore } : {}),
               inputs_now: inputsNow,
+              ...(silenced
+                ? {
+                    saved_silent:
+                      'Saved silent: the user did not ask for sound. Say the clip is silent and that sound can be added if they want it; do not describe any sound design.',
+                  }
+                : {}),
               ...(wordsOnly
                 ? {
                     words_only:

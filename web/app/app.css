@@ -3611,3 +3611,24 @@ textarea::placeholder {
   max-height: 55dvh;
   line-height: 1.5;
 }
+
+/* Draft titles break between words, never mid-word; when space is short the controls move under the title. */
+.draft .top {
+  flex-wrap: wrap;
+  row-gap: 4px;
+}
+.draft .name {
+  overflow-wrap: break-word;
+  word-break: normal;
+  flex: 1 1 12em;
+}
+/* Two drafts side by side only when each has room for a readable title and prompt. */
+.drafts {
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
+}
+@media (max-width: 700px) {
+  .draft .history button {
+    min-width: 44px;
+    min-height: 44px;
+  }
+}

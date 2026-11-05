@@ -431,7 +431,17 @@ export function briefGapList(prompt: string, brief: string): Array<{ who?: strin
       if (!m) continue;
       // "Wardrobe:" or "Props:" lines belong to the characters above them.
       const generic = /^(wardrobe|costume|outfit|props?|look|appearance)$/i.test(m[1]!);
-      const named = new RegExp('\\b' + m[1]!.split(' ')[0] + '\\b', 'i').test(prompt);
+      const first = m[1]!.split(' ')[0]!;
+      // A character the prompt puts out of the picture ("Asha is out of frame", "without Asha") has nothing to check.
+      const absent = new RegExp(
+        `\\b${first}\\b[^.]{0,60}\\b(?:out of (?:the )?frame|off[- ]?(?:screen|camera|frame)|not (?:in|visible)|absent|has (?:gone|left)|already gone)|\\b(?:without|no sign of|absence of|empty of)\\s+${first}\\b`,
+        'i',
+      ).test(prompt);
+      if (absent) {
+        lastName = undefined;
+        continue;
+      }
+      const named = new RegExp('\\b' + first + '\\b', 'i').test(prompt);
       if (named) {
         anyNamed = true;
         lastName = m[1]!.split(' ')[0];
