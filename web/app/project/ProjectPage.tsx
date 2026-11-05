@@ -121,6 +121,24 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const [mode, setMode] = useState<'ask' | 'make'>('ask');
   const [settings, setSettings] = useStoredState<MakeSettings>('seed.make.' + id, defaultMake);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  // Finished attachments survive a reload, like the text beside them (uploads still in progress do not).
+  useEffect(() => {
+    try {
+      setAttachments(JSON.parse(localStorage.getItem('seed.attach.' + id) ?? '[]'));
+    } catch {
+      setAttachments([]);
+    }
+  }, [id]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(
+        'seed.attach.' + id,
+        JSON.stringify(attachments.filter(a => a.asset_id && !a.progress && !a.error)),
+      );
+    } catch {
+      /* memory only */
+    }
+  }, [attachments]);
   const [context, setContext] = useState<ComposerContext>({ type: 'talk' });
   const [selection, setSelection] = useState<Selection>({});
   const [compute, setCompute] = useState<null | {

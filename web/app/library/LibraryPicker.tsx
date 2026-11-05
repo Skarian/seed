@@ -72,7 +72,7 @@ export function LibraryPicker({
       }
     >
       <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
-        <label className="search-box" style={{ flex: 1, minWidth: 200 }}>
+        <label className="search-box" style={{ flex: '1 1 200px', minWidth: 0 }}>
           <Icon.Search />
           <input
             type="search"
@@ -86,7 +86,7 @@ export function LibraryPicker({
         {!inProject && (
           <select
             className="select"
-            style={{ width: 'auto', maxWidth: 220 }}
+            style={{ width: 'auto', maxWidth: '100%', minWidth: 0 }}
             aria-label="Project"
             value={project}
             onChange={e => setProject(e.target.value)}
@@ -100,7 +100,11 @@ export function LibraryPicker({
           </select>
         )}
       </div>
-      <nav className="chips shelves" aria-label="Collections" style={{ flex: 'none', minHeight: 36 }}>
+      <nav
+        className="chips shelves"
+        aria-label="Collections"
+        style={{ flex: 'none', minHeight: 36, minWidth: 0, maxWidth: '100%', overflowX: 'auto' }}
+      >
         <button className={'chip' + (!shelf ? ' on' : '')} onClick={() => setShelf('')}>
           Everything
         </button>

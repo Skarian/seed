@@ -89,7 +89,21 @@ function replyText(steps: Array<{ kind: string; text?: string }>) {
     .filter(s => s.kind === 'text')
     .map(s => clean(s.text ?? ''))
     .filter(Boolean);
-  return [...new Set(parts)].join('\n\n');
+  // The model often restates its summary after the tools ran. A part that mostly repeats another (same words, a few
+  // changed) is kept once, in its longer form, at the place it first appeared.
+  const words = (t: string) => new Set(t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);
+  const kept: string[] = [];
+  for (const part of parts) {
+    const w = words(part);
+    const twin = kept.findIndex(k => {
+      const kw = words(k);
+      const shared = [...w].filter(x => kw.has(x)).length;
+      return shared / Math.max(1, Math.min(w.size, kw.size)) >= 0.8;
+    });
+    if (twin < 0) kept.push(part);
+    else if (part.length > kept[twin]!.length) kept[twin] = part;
+  }
+  return kept.join('\n\n');
 }
 interface StoredChat extends ChatView {
   title_manual?: boolean;
@@ -1034,7 +1048,7 @@ export class Chats {
         active_kind: Object.entries(chatKinds).find(([, w]) => w === chat.workflow)?.[0] ?? null,
         available_loras,
         worker_policy:
-          'Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not quote per-generation costs. Billing facts: cloud GPUs are rented by the hour from the moment they start, including the first model download and any idle time, until they are released (by the owner, the idle release or the time limit). There are no credits and no per-image charges; never describe costs in credits. The rental screen shows the hourly rate and limits, and its cost figures are estimates, not a cap. The Seed PC costs nothing per hour.',
+          'Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not invent prices or per-image costs; when asked about cost or time, say that the plan bar shows the time estimate for the selected drafts and the rental screen shows the hourly rate before anything starts, and explain the billing facts. Billing facts: cloud GPUs are rented by the hour from the moment they start, including the first model download and any idle time, until they are released (by the owner, the idle release or the time limit). There are no credits and no per-image charges; never describe costs in credits. The rental screen shows the hourly rate and limits, and its cost figures are estimates, not a cap. The Seed PC costs nothing per hour.',
         last_attempt,
         earlier_conversation_summary: compact.summary?.text,
         conversation: compact.recent,

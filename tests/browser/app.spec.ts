@@ -250,3 +250,37 @@ test('the project options menu works from the keyboard', async ({ page }) => {
   await expect(menu).toHaveCount(0);
   await expect(button).toBeFocused();
 });
+
+test('the full-screen viewer follows the shots in order and answers the arrow keys and Escape', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'desktop', 'keyboard test');
+  await ensureIdleImageGpu(page);
+  const project = await apiProject(page);
+  for (const [title, scene] of [['Shot 2: B', 'a road'], ['Shot 1: A', 'a field']] as const) {
+    await makeImages(page, project, title, `Synthetic test frame of ${scene}`);
+  }
+  await allCompleted(page, project, 2);
+  await page.goto(`/projects/${project}?view=results`);
+  await page.getByRole('group', { name: 'Arrange' }).getByRole('button', { name: 'By shot' }).click();
+  await page.getByRole('button', { name: /^Open Shot 1: A/ }).click();
+  await page.getByRole('button', { name: /^Open Shot 1: A.* full screen$/ }).click();
+  const viewer = page.getByRole('dialog', { name: /^Shot 1: A/ });
+  await expect(viewer).toBeVisible();
+  await page.keyboard.press('ArrowRight');
+  await expect(page.getByRole('dialog', { name: /^Shot 2: B/ })).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.getByRole('dialog', { name: /^Shot 2: B/ })).toHaveCount(0);
+});
+
+test('the Library picker fits a phone screen and its Attach button is reachable', async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== 'phone', 'phone layout');
+  await newProject(page);
+  await page.getByRole('button', { name: /Attach/ }).first().click();
+  await page.getByRole('menuitem', { name: /Library/ }).click();
+  const dialog = page.getByRole('dialog');
+  await expect(dialog).toBeVisible();
+  const box = await dialog.boundingBox();
+  expect(box!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+  const attach = dialog.getByRole('button', { name: /^Attach/ });
+  const a = await attach.boundingBox();
+  expect(a!.x + a!.width).toBeLessThanOrEqual(page.viewportSize()!.width);
+});

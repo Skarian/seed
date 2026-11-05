@@ -50,7 +50,10 @@ function LimitsDialog({ worker, onClose }: { worker: PoolWorker; onClose: () => 
   const caps = [
     ...capChoices.map(([v]) => v as number),
     ...(worker.max_minutes && !capChoices.some(([v]) => v === worker.max_minutes) ? [worker.max_minutes] : []),
-  ].sort((a, b) => (a || 1e9) - (b || 1e9));
+  ]
+    // A stop time already behind us is not a choice (except the one currently set, so the select can show it).
+    .filter(v => !v || v === worker.max_minutes || start + v * 60000 > Date.now())
+    .sort((a, b) => (a || 1e9) - (b || 1e9));
   const past = cap > 0 && start + cap * 60000 <= Date.now();
   async function save() {
     try {
@@ -63,7 +66,7 @@ function LimitsDialog({ worker, onClose }: { worker: PoolWorker; onClose: () => 
   }
   return (
     <Dialog
-      title={'Limits for the ' + worker.gpu}
+      title={`Limits for the ${worker.worker_class === 'video' ? 'video' : 'image'} GPU (${worker.gpu})`}
       onClose={onClose}
       footer={
         <>
@@ -287,7 +290,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
       {release &&
         (release.state === 'ready' && !release.current_job_id ? (
           <Confirm
-            title={`Release the ${release.gpu}?`}
+            title={`Release the ${release.worker_class === 'video' ? 'video' : 'image'} GPU (${release.gpu})?`}
             action="Release"
             onClose={() => setRelease(null)}
             body={
@@ -303,7 +306,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
           />
         ) : (
           <Confirm
-            title={`Release the ${release.gpu}?`}
+            title={`Release the ${release.worker_class === 'video' ? 'video' : 'image'} GPU (${release.gpu})?`}
             action="Finish current work, then release"
             onClose={() => setRelease(null)}
             body={

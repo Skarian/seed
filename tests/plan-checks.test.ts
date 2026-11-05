@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, silencedPrompt, briefGapList } from '../web/app/project/checks.js';
+import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, silencedPrompt, briefGapList, addBriefDetails } from '../web/app/project/checks.js';
 
 // Synthetic fixtures only.
 const message = (role: 'user' | 'assistant', text: string, id = Math.random().toString(36), assets: string[] = []) => ({ id, role, text, assets, created_at: '2026-11-04T00:00:00Z' });
@@ -92,7 +92,7 @@ it('lists brief details a draft leaves out, and adds them in one step', () => {
   expect(briefGaps('An empty stormy sea at dawn, no text.', brief)).toEqual([]);
   const request = { workflow: 'text-to-image', prompt, output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' };
   const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.text.startsWith('Continuity check'))!;
-  expect(check.text).toBe('Continuity check, not in this prompt: Mara’s small scar through her left eyebrow; “no text anywhere”.');
+  expect(check.text).toBe('Continuity check, not in this prompt: for Mara, small scar through her left eyebrow; “no text anywhere”.');
   expect(check.soft).toBe(true);
   expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara', 'Mara (small scar through her left eyebrow)') + ' No text anywhere.');
 });
@@ -157,4 +157,10 @@ it('does not treat a project-wide continuity rule as a missing detail', () => {
   const brief = '## Rules\n- Maintain strict continuity of Nia’s wardrobe across shots\n- No text anywhere';
   const gaps = briefGapList('A wide shot of a harbour at dusk', brief).map(g => g.text);
   expect(gaps).toEqual(['no text anywhere']);
+});
+
+it('the continuity fix changes the prompt even when the brief writes the name in capitals', () => {
+  const out = addBriefDetails('Mara walks the pier at dusk.', [{ who: 'MARA', text: 'carries a small tin storm lantern' }]);
+  expect(out).toBe('Mara (carries a small tin storm lantern) walks the pier at dusk.');
+  expect(addBriefDetails('Hands grip a lantern.', [{ who: 'Eli', text: 'green oilskin' }])).toBe('Hands grip a lantern. Eli: green oilskin.');
 });

@@ -513,3 +513,11 @@ it('Chat supplies owner LoRA guidance and approves without a pricing service',as
   await chats.decide(chat.id,card.id,1,'approved');
   expect(jobs.all()[0]).toMatchObject({request:{loras:proposal.loras}});expect(jobs.all()[0]).not.toHaveProperty('estimate');
 }));
+
+it('keeps a restated summary once, in its fuller form',async()=>fixture(async({chats,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'say',text:'I prepared Shot 1 and Shot 2 with Mara in her yellow coat at the lighthouse.'},{operation:'create',request}],{say:'I prepared Shot 1 and Shot 2 with Mara in her yellow coat at the old lighthouse.'});
+  chats.send(chat.id,{version:chat.version,text:'Plan it',assets:[]});chat=await idle(chats,chat.id);
+  const reply=chat.messages.at(-1)!.text;
+  expect(reply).toBe('I prepared Shot 1 and Shot 2 with Mara in her yellow coat at the old lighthouse.');
+}));

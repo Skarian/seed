@@ -438,7 +438,7 @@ function LoraEditor({
               {group.files.every((file) => file.compatibility === 'verified')
                 ? 'Used successfully'
                 : group.files.some((file) => file.compatibility === 'verified')
-                  ? `Used with ${group.files.filter((file) => file.compatibility === 'verified').length} of ${group.files.length} kinds of work`
+                  ? `Tried with ${group.files.filter((file) => file.compatibility === 'verified').length} of its ${group.files.length} files`
                   : 'Not used yet'}
             </span>
             {group.source_url && (

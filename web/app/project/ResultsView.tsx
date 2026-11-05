@@ -192,6 +192,8 @@ export function ResultsView({
   for (const j of running) shotFor(titleOf(j.request)).making.push(j);
   for (const t of planned) shotFor(t).planned.push(t);
   const shotList = [...shots.values()].sort((a, b) => (a.n ?? 1e6) - (b.n ?? 1e6));
+  // Previous and next in the viewer follow the board as it is shown: shot by shot, keyframes then clips.
+  const inOrder = shotList.flatMap(s => [...s.images, ...s.clips]);
   // A shot's chosen take is the owner's decision ("Use for shot"), stored with the project; favorites stay personal.
   const shotKey = (s: Shot) => (s.n !== null ? String(s.n) : s.name);
   const chosen = (s: Shot, kind: 'image' | 'clip') => {
@@ -233,7 +235,9 @@ export function ResultsView({
           ? `Take ${take + 1}`
           : kind === 'clip'
             ? 'Clip'
-            : 'Keyframe';
+            : s.n === null
+              ? 'Image'
+              : 'Keyframe';
       return (
         <figure key={it.asset} className={'cell lane-cell' + (isChosen ? ' chosen' : '')}>
           <div
@@ -248,7 +252,7 @@ export function ResultsView({
           >
             <Media id={it.asset} kind={it.kind} alt={it.title} />
             {!crop && <FrameGuide frame={project.frame} ratio={dims.get(it.asset) ?? frameOf(it)} />}
-            <button className="open" aria-label={'Open ' + it.title} onClick={() => app.inspect(it, items)} />
+            <button className="open" aria-label={'Open ' + it.title} onClick={() => app.inspect(it, inOrder)} />
             <button
               className="sel check big"
               role="checkbox"

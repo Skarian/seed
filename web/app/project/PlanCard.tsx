@@ -110,7 +110,7 @@ export function PlanCard({
         <span className="end">
           {cards.length > 2 && (
             <button className="btn quiet small" onClick={() => setCompact(c => !c)} aria-pressed={compact}>
-              {compact ? 'Show details' : 'Compact'}
+              Compact view
             </button>
           )}
           <MenuButton
@@ -141,7 +141,7 @@ export function PlanCard({
               })),
               'divider' as const,
               // The delivery frame: results show its guides and Crop starts there. Models still make their own shapes.
-              ...(['', '2.39:1', '1.85:1', '21:9', '9:16', '4:5', '1:1'] as const).map(frame => ({
+              ...(['', '2.39:1', '1.85:1', '21:9'] as const).map(frame => ({
                 label: frame ? `Deliver at ${frame}` : 'Deliver at the shape made',
                 hint: frame === '2.39:1' ? 'Results show the crop guides; Crop starts at this shape.' : undefined,
                 checked: (project.frame ?? '') === frame,
@@ -163,7 +163,7 @@ export function PlanCard({
       </div>
       {planWide.map(c => (
         <div className="check-note plan-wide" role="status" key={c.text}>
-          <span>⚠ All drafts: {c.text}</span>
+          <span>⚠ All drafts: {c.text.replace(/this draft is/gi, 'these drafts are')}</span>
           {c.fixes
             .filter(f => !f.action)
             .map(f => (
@@ -213,6 +213,7 @@ export function PlanCard({
                   void (async () => {
                     for (const { card, check } of missing) {
                       const patch = check.fixes[0]!.patch(latest(card).request);
+                      if ((patch as { prompt?: string }).prompt === latest(card).request.prompt) continue;
                       if (!(await onRevise(card, patch))) return;
                     }
                   })();

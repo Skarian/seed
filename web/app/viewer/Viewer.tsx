@@ -314,7 +314,9 @@ export function AssetPanel({
                 </button>
               </span>
             ) : (
-              <span className="faint">{job ? 'Words only' : detail && !detail.job_id ? 'Uploaded' : '—'}</span>
+              <span className="faint">
+                {job ? 'A text prompt (no input image)' : detail && !detail.job_id ? 'Uploaded' : '—'}
+              </span>
             )}
           </div>
           {children.length > 0 && (
@@ -774,21 +776,27 @@ export function Viewer({
       setBefore(false);
     }
   };
+  // Escape and the arrows work while the viewer is the top layer (it is itself a dialog); a field, a menu or a dialog
+  // opened above it handles its own keys. The latest handlers are read through a ref, so they are never stale.
+  const keys = useRef({ onClose, step });
+  keys.current = { onClose, step };
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
       if (
         e.defaultPrevented ||
-        (e.target as HTMLElement).closest('input,textarea,select,[role=menu],[role=dialog]') ||
-        document.querySelector('[role=menu]')
+        target.closest('input,textarea,select,[role=menu]') ||
+        document.querySelector('[role=menu]') ||
+        [...document.querySelectorAll('[role=dialog]')].at(-1) !== root.current
       )
         return;
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'ArrowLeft') step(-1);
-      if (e.key === 'ArrowRight') step(1);
+      if (e.key === 'Escape') keys.current.onClose();
+      if (e.key === 'ArrowLeft') keys.current.step(-1);
+      if (e.key === 'ArrowRight') keys.current.step(1);
     };
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
-  }, [i]);
+  }, []);
   async function pickFrame() {
     const t = videoRef.current?.currentTime ?? 0;
     try {

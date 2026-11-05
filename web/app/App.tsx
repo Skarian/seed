@@ -368,7 +368,7 @@ export function StatusControl() {
                   : making
                     ? making + ' making'
                     : waiting
-                      ? waiting + ' waiting for GPU'
+                      ? waiting + (hourly ? ' queued' : ' waiting for a GPU')
                       : '';
   const label = [words, hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
   return (

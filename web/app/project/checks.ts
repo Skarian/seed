@@ -242,7 +242,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     const parts = [
       ...whose.map(
         w =>
-          `${w}’s ${gaps
+          `for ${nameCase(w!)}, ${gaps
             .filter(g => g.who === w)
             .map(g => g.text)
             .join(', ')}`,
@@ -257,7 +257,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
         {
           label:
             whose.length === 1
-              ? `Add ${whose[0]}’s missing details to this prompt`
+              ? `Add the missing ${nameCase(whose[0]!)} details to this prompt`
               : gaps.length === 1
                 ? 'Add this detail to the prompt'
                 : 'Add these details to the prompt',
@@ -419,8 +419,11 @@ export function addBriefDetails(prompt: string, gaps: Array<{ who?: string; text
       .filter(g => g.who === who)
       .map(g => g.text)
       .join(', ');
-    const at = out.search(new RegExp('\\b' + who + '\\b'));
+    // Names in a brief are often capitalised differently ("MARA"); match any case, and when the prompt never names the
+    // character, add the details as a sentence of their own so the fix always changes the prompt.
+    const at = out.search(new RegExp('\\b' + who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '\\b', 'i'));
     if (at >= 0) out = out.slice(0, at + who.length) + ` (${details})` + out.slice(at + who.length);
+    else out += (/[.!?]$/.test(out) ? ' ' : '. ') + `${nameCase(who)}: ${details}.`;
   }
   const rules = gaps.filter(g => !g.who).map(g => g.text[0]!.toUpperCase() + g.text.slice(1));
   return rules.length ? out + (/[.!?]$/.test(out) ? ' ' : '. ') + rules.join('. ') + '.' : out;
@@ -544,3 +547,9 @@ export function silencedPrompt(prompt: string) {
   const label = lines[at]!.match(head)![0];
   return [...lines.slice(0, at), label + ' Silence.', ...lines.slice(end)].join('\n');
 }
+
+/** "MARA" or "mara" from a brief, written as a name ("Mara"). */
+export const nameCase = (name: string) =>
+  name === name.toUpperCase() || name === name.toLowerCase()
+    ? name.toLowerCase().replace(/(^|[\s'’-])\p{L}/gu, c => c.toUpperCase())
+    : name;

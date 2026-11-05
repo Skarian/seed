@@ -3,7 +3,7 @@ import { useToaster, resolveValue } from 'react-hot-toast/headless';
 import { useApp } from '../data.js';
 import { api } from '../api.js';
 import { StatusControl } from '../App.js';
-import { onTabKeys, tabStop } from '../ui.js';
+import { onTabKeys, tabStop, Confirm } from '../ui.js';
 import {
   credentialDefinitions,
   type AdminSettings,
@@ -143,7 +143,8 @@ function Key({
     [busy, setBusy] = useState(false),
     [message, setMessage] = useState(''),
     [error, setError] = useState(''),
-    [replacing, setReplacing] = useState(false);
+    [replacing, setReplacing] = useState(false),
+    [removing, setRemoving] = useState(false);
   async function run(action: 'save' | 'remove' | 'check') {
     setBusy(true);
     setError('');
@@ -248,7 +249,7 @@ function Key({
               type="button"
               className="btn quiet small"
               disabled={busy}
-              onClick={() => void run('remove')}
+              onClick={() => setRemoving(true)}
               aria-label={'Remove ' + name + ' key'}
             >
               Remove
@@ -266,6 +267,20 @@ function Key({
           {error}
         </span>
       )}
+      {removing && (
+        <Confirm
+          title={'Remove the ' + name + ' key?'}
+          body={'Seed stops using ' + name + ' until you paste a key again. The key is not kept anywhere else in Seed.'}
+          action="Remove key"
+          danger
+          busy={busy}
+          onClose={() => setRemoving(false)}
+          onConfirm={() => {
+            setRemoving(false);
+            void run('remove');
+          }}
+        />
+      )}
     </form>
   );
 }
@@ -277,7 +292,7 @@ function Content() {
       <b>Content mode</b>
       <p className="muted" style={{ margin: 0 }}>
         Standard is for general work. Spicy allows adult content and adult styles. Each mode keeps its own projects,
-        Library and styles; switching does not move anything. This tab remembers your choice.
+        Library and styles; switching does not move anything. The choice applies to this browser tab.
       </p>
       <div className="seg" role="group" aria-label="Content mode">
         <button
