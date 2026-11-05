@@ -184,7 +184,7 @@ function Key({
         <span className="grow">
           <b>{name}</b>
           <br />
-          <span className="muted" style={{ fontSize: 13.5 }}>
+          <span className="muted" style={{ fontSize: '0.8438rem' }}>
             {description}
           </span>
         </span>
@@ -233,7 +233,7 @@ function Key({
           )}
         </div>
       )}
-      <div className="row" style={{ fontSize: 13.5 }}>
+      <div className="row" style={{ fontSize: '0.8438rem' }}>
         <a className="link" href={url} target="_blank" rel="noopener noreferrer">
           Get {/^[AEIOU]/.test(name) ? 'an' : 'a'} {name} key ↗
         </a>

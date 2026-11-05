@@ -119,7 +119,7 @@ export function BriefBar({
                   Save brief
                 </button>
               </div>
-              <p className="faint" style={{ margin: 0, fontSize: 12.5 }}>
+              <p className="faint" style={{ margin: 0, fontSize: '0.7813rem' }}>
                 Seed uses the brief when it plans new drafts. Check each draft and result for continuity. Changing the
                 brief does not change drafts that already exist; ask Seed to update them.
               </p>
@@ -137,7 +137,7 @@ export function BriefBar({
                 </p>
               )}
               {justSaved && openDrafts > 0 && onUpdateDrafts && (
-                <div className="notice" style={{ fontSize: 13.5 }}>
+                <div className="notice" style={{ fontSize: '0.8438rem' }}>
                   Brief saved. The{' '}
                   {openDrafts === 1 ? 'open draft still follows' : `${openDrafts} open drafts still follow`} the earlier
                   brief.{' '}
@@ -158,7 +158,7 @@ export function BriefBar({
                   {brief ? 'Edit brief' : 'Write the brief'}
                 </button>
                 {busy && (
-                  <span className="faint" style={{ fontSize: 12.5 }}>
+                  <span className="faint" style={{ fontSize: '0.7813rem' }}>
                     You can edit once Seed finishes replying.
                   </span>
                 )}

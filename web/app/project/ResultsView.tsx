@@ -562,7 +562,7 @@ export function ResultsView({
           {list.loaded && !items.length && !running.length && !planned.length && (
             <div className="empty" style={{ minHeight: 240 }}>
               <div>
-                <h2 className="serif" style={{ fontSize: 22 }}>
+                <h2 className="serif" style={{ fontSize: '1.375rem' }}>
                   {filter === 'fav' ? 'No favorites yet' : 'Nothing made yet'}
                 </h2>
                 <p>

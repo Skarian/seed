@@ -128,7 +128,7 @@ export function ComputeSheet({
         <>
           {/* A failed start is said beside the button that failed, never only above the fold. */}
           {error && (
-            <span className="ready bad" role="alert" style={{ marginRight: 'auto', fontSize: 13 }}>
+            <span className="ready bad" role="alert" style={{ marginRight: 'auto', fontSize: '0.8125rem' }}>
               {error}
             </span>
           )}

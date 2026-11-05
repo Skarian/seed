@@ -77,6 +77,23 @@ export function App() {
   useEffect(() => {
     setInspected(null);
   }, [route.name, route.name === 'project' ? route.id : '']);
+  // Every page has its own title (tabs, history and screen readers say where you are).
+  const projectTitle = route.name === 'project' ? list.items.find(p => p.id === route.id)?.title : undefined;
+  useEffect(() => {
+    const page =
+      route.name === 'project'
+        ? (projectTitle ?? 'Project') + (route.view === 'results' ? ' · Results' : '')
+        : route.name === 'library'
+          ? 'Library'
+          : route.name === 'gpus'
+            ? 'GPUs'
+            : route.name === 'settings'
+              ? 'Settings'
+              : route.name === 'projects'
+                ? 'Projects'
+                : '';
+    document.title = page ? `${page} · Seed` : 'Seed';
+  }, [route, projectTitle]);
 
   // Home: the most recent project on larger screens; the project list on phones.
   useEffect(() => {
@@ -470,7 +487,7 @@ function Rail() {
           </button>
         ))}
         {!shown.length && query && (
-          <p className="faint" style={{ padding: '6px 10px', margin: 0, fontSize: 13 }}>
+          <p className="faint" style={{ padding: '6px 10px', margin: 0, fontSize: '0.8125rem' }}>
             No project titles match.
           </p>
         )}

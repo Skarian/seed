@@ -949,7 +949,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
             >
               <div className="col">
                 {plan && (planStale || question) && (
-                  <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>
+                  <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.8438rem' }}>
                     {planStale ? (
                       'Seed asked a question before changing the plan. The plan shows the earlier version until you answer.'
                     ) : (
@@ -997,7 +997,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                   </div>
                 )}
                 {queued && (
-                  <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: 13.5 }}>
+                  <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.8438rem' }}>
                     Your message below sends as soon as Seed finishes this reply.{' '}
                     <button className="link" onClick={() => setQueued(false)}>
                       Don't send it
@@ -1316,7 +1316,7 @@ function EmptyProject({ onStarter, making }: { onStarter: (t: string) => void; m
             </button>
           ))}
         </div>
-        <p className="faint" style={{ marginTop: 18, fontSize: 13.5 }}>
+        <p className="faint" style={{ marginTop: 18, fontSize: '0.8438rem' }}>
           {local?.enabled
             ? 'Seed PC is ready · no rental fee'
             : cloud
@@ -1438,19 +1438,24 @@ function Message({
         )}
       </div>
       {running && !text && now - Date.parse(turn!.started_at) > 20000 && (
-        <p className="faint" style={{ margin: '0 0 4px', fontSize: 13 }}>
+        <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.8125rem' }}>
           Long requests can take a minute or two. You can work elsewhere in Seed; the reply and any drafts wait here.
         </p>
       )}
 
       {!running && toolFailed && text && (
-        <p className="faint" style={{ margin: '0 0 4px', fontSize: 13 }}>
+        <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.8125rem' }}>
           Seed's reply below wasn't carried out: no drafts were saved.
         </p>
       )}
       {text && <Markdown text={text} streaming={running} />}
       {long && (
-        <button className="link" style={{ fontSize: 13 }} aria-expanded={open} onClick={() => setOpen(o => !o)}>
+        <button
+          className="link"
+          style={{ fontSize: '0.8125rem' }}
+          aria-expanded={open}
+          onClick={() => setOpen(o => !o)}
+        >
           {open ? 'Show less' : 'Show more'}
         </button>
       )}
@@ -1474,7 +1479,7 @@ function Message({
         </div>
       )}
       {!running && turn?.state === 'stopped' && (
-        <p className="faint" style={{ margin: '4px 0 0', fontSize: 13 }}>
+        <p className="faint" style={{ margin: '4px 0 0', fontSize: '0.8125rem' }}>
           Stopped.
         </p>
       )}

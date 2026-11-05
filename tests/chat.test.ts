@@ -521,3 +521,11 @@ it('keeps a restated summary once, in its fuller form',async()=>fixture(async({c
   const reply=chat.messages.at(-1)!.text;
   expect(reply).toBe('I prepared Shot 1 and Shot 2 with Mara in her yellow coat at the old lighthouse.');
 }));
+
+it('a full final answer stands alone, so text written before the tools ran cannot contradict it',async()=>fixture(async({chats,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  const final='I made three poster drafts from words only, so they do not use the attached reference. Each one names Maren’s red wool hat, freckles and the brass lamp; check every result for her look before animating.';
+  queue.push([{operation:'say',text:'I will prepare the posters as edits of your reference image.'},{operation:'create',request}],{say:final});
+  chats.send(chat.id,{version:chat.version,text:'Plan the posters',assets:[]});chat=await idle(chats,chat.id);
+  expect(chat.messages.at(-1)!.text).toBe(final);
+}));

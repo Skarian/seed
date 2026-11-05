@@ -160,8 +160,14 @@ const stop = new Set(
 export function promptChanges(before: string, after: string) {
   const split = (s: string) => s.split(/\s+/).filter(Boolean);
   const key = (w: string) => w.toLowerCase().replace(/[^a-z0-9-]/g, '');
-  const a = split(before),
-    b = split(after);
+  // Engine input tokens (<image1>, <Picture 2>, [[input1]]) are not words a person wrote: they read as "the reference".
+  const plain = (s: string) =>
+    s.replace(
+      /<\s*(?:image|picture)\s*\d+\s*>|\[\[\s*input\d+\s*\]\]|<\s*(?:image|picture)\s*\d+(?=[\s,.;]|$)/gi,
+      'the reference',
+    );
+  const a = split(plain(before)),
+    b = split(plain(after));
   if (a.length * b.length > 250_000) return ['prompt rewritten'];
   // Longest common subsequence of words, then group the differences into runs.
   const n = a.length,

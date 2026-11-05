@@ -163,7 +163,13 @@ export function PlanCard({
       </div>
       {planWide.map(c => (
         <div className="check-note plan-wide" role="status" key={c.text}>
-          <span>⚠ All drafts: {c.text.replace(/this draft is/gi, 'these drafts are')}</span>
+          <span>
+            ⚠ All drafts:{' '}
+            {c.text.replace(
+              /\b([Tt])his draft is/g,
+              (_m, t: string) => (t === 'T' ? 'These' : 'these') + ' drafts are',
+            )}
+          </span>
           {c.fixes
             .filter(f => !f.action)
             .map(f => (
@@ -225,13 +231,13 @@ export function PlanCard({
           );
         })()}
       {project.frame && (
-        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: 13 }}>
+        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: '0.8125rem' }}>
           Delivered at {project.frame}: these drafts are made at the shapes shown, then cropped to {project.frame} with
           Crop. The guides on each result show what stays.
         </p>
       )}
       {oneSource && (
-        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: 13 }}>
+        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: '0.8125rem' }}>
           All {cards.length} drafts use “{assetName(project, oneSource, everywhere)}” as their source. Its framing and
           look guide each result; check every take.
         </p>
@@ -476,7 +482,7 @@ function Draft({
         </MenuButton>
       </div>
       {card.left_out && !on && (
-        <p className="faint" style={{ margin: 0, fontSize: 13 }}>
+        <p className="faint" style={{ margin: 0, fontSize: '0.8125rem' }}>
           Left out of this make. Tick it to include it.
         </p>
       )}
@@ -507,7 +513,7 @@ function Draft({
         {r.prompt.length > 200 && (
           <button
             className="link"
-            style={{ alignSelf: 'flex-start', fontSize: 13 }}
+            style={{ alignSelf: 'flex-start', fontSize: '0.8125rem' }}
             aria-expanded={full}
             onClick={() => setFull(f => !f)}
           >
@@ -530,7 +536,7 @@ function Draft({
                   {current && !busy && ref.kind === 'image' && (
                     <button
                       className="link"
-                      style={{ fontSize: 12.5, marginLeft: 6 }}
+                      style={{ fontSize: '0.7813rem', marginLeft: 6 }}
                       onClick={() => setSwap(ref.id)}
                       aria-label={'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ': ' + name}
                     >
@@ -569,7 +575,7 @@ function Draft({
           />
         )}
         {departure && !quietSource && (
-          <p className="faint" style={{ margin: 0, fontSize: 13 }}>
+          <p className="faint" style={{ margin: 0, fontSize: '0.8125rem' }}>
             {departure}
           </p>
         )}
@@ -600,7 +606,7 @@ function Draft({
         {current && checks.some(c => c.soft) && !showSoft && (
           <button
             className="link"
-            style={{ alignSelf: 'flex-start', fontSize: 12.5 }}
+            style={{ alignSelf: 'flex-start', fontSize: '0.7813rem' }}
             onClick={() => setShowSoft(true)}
           >
             Continuity check
@@ -884,7 +890,7 @@ function DraftEditor({
         </label>
       </div>
       {engine && (
-        <p className="faint" style={{ margin: 0, fontSize: 13 }}>
+        <p className="faint" style={{ margin: 0, fontSize: '0.8125rem' }}>
           {video ? 'Video' : 'Image'} model: {engine}
         </p>
       )}
@@ -893,7 +899,7 @@ function DraftEditor({
         {readable && (
           <div className="field" style={{ marginTop: 8 }}>
             <span>Prompt as the model receives it</span>
-            <div className="prompt" style={{ whiteSpace: 'pre-wrap', fontSize: 12.5 }}>
+            <div className="prompt" style={{ whiteSpace: 'pre-wrap', fontSize: '0.7813rem' }}>
               {readable.back(f.prompt)}
             </div>
           </div>

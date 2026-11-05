@@ -13,3 +13,8 @@ it('describes prompt edits as phrases, not word lists', () => {
 it('drops a closing bracket whose opening one was not part of the change', () => {
   expect(promptChanges('Mara walks the pier.', 'Mara (navy wool trousers, worn black boots) walks the pier.')).toEqual(['added: navy wool trousers, worn black boots']);
 });
+
+it('never shows engine input tokens in a change summary', () => {
+  const out = promptChanges('A girl on a pier.', 'A girl on a pier, based on <image1>.').join(' ');
+  expect(out).not.toMatch(/image1|<|\[\[/);
+});

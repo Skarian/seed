@@ -109,7 +109,7 @@ export function CropDialog({
       onClose={onClose}
       footer={
         <>
-          <span className="faint" style={{ fontSize: 12.5, marginRight: 'auto' }}>
+          <span className="faint" style={{ fontSize: '0.7813rem', marginRight: 'auto' }}>
             On this device, no GPU. The original stays as it is.
           </span>
           <button className="btn" disabled={!box || Boolean(busy)} onClick={() => void download()}>
@@ -212,7 +212,7 @@ export function CropDialog({
       )}
       {box && (
         <div className="crop-foot">
-          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          <p className="muted" style={{ margin: 0, fontSize: '0.8125rem' }}>
             {Math.round(box.w)} × {Math.round(box.h)} from {box.W} × {box.H}.{' '}
             {freeX || freeY
               ? 'Drag the frame, or focus it and use the arrow keys.'

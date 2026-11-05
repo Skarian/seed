@@ -178,3 +178,15 @@ it('reads "she has …" as the detail itself and skips instructions inside a cha
   const gaps = briefGapList('Mara walks along the pier with short black curls.', brief).map(g => g.text);
   expect(gaps).toEqual(['a silver triangular earring']);
 });
+
+it('does not hold every draft to one shape when a message asks for several', () => {
+  const said = askedFor([message('user', 'Plan them first: a portrait one-sheet, a square tile and a wide banner.')] as any);
+  expect(said.aspect).toBeUndefined();
+  expect(said.mixed).toBe(true);
+});
+
+it('a tiny light in the scene does not switch off character checks', () => {
+  const brief = '## Characters\n- Maren: red wool hat, freckles';
+  const gaps = briefGapList('A two-shot: Maren and her grandfather in the lamp room, a tiny ship light far out at sea.', brief).map(g => g.text);
+  expect(gaps).toContain('red wool hat');
+});

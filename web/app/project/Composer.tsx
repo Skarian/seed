@@ -304,7 +304,7 @@ export function Composer(p: Props) {
         }}
       />
       {(problem || p.disabled) && p.text.trim() && (
-        <p className="faint" role="status" style={{ margin: '0 8px', fontSize: 13 }}>
+        <p className="faint" role="status" style={{ margin: '0 8px', fontSize: '0.8125rem' }}>
           {p.disabled ?? problem}
           {!p.disabled && inputFix && (
             <>
@@ -509,7 +509,7 @@ function MakeSettingsDialog({
             </button>
           ))}
         </div>
-        <span className="faint" style={{ fontSize: 13 }}>
+        <span className="faint" style={{ fontSize: '0.8125rem' }}>
           {s.kind === 'image'
             ? 'A new still from words.'
             : s.kind === 'edit'

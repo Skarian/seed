@@ -281,7 +281,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
               <div>
                 {current && current.count === 0 ? (
                   <>
-                    <h2 className="serif" style={{ fontSize: 26 }}>
+                    <h2 className="serif" style={{ fontSize: '1.625rem' }}>
                       “{current.name}” is empty
                     </h2>
                     <p>Pick results from your Library to put in it.</p>
@@ -291,7 +291,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
                   </>
                 ) : (
                   <>
-                    <h2 className="serif" style={{ fontSize: 26 }}>
+                    <h2 className="serif" style={{ fontSize: '1.625rem' }}>
                       {anyFilter ? 'Nothing matches' : 'Your Library is empty'}
                     </h2>
                     <p>

@@ -75,9 +75,11 @@ function referenceMode(): 'stable' | 'direct' {
   return process.env.SEED_AGENT_REFERENCE_MODE === 'direct' ? 'direct' : 'stable';
 }
 /**
- * The reply a person sees: everything the agent wrote in the turn, before and after its tool calls, in order. An
- * explanation written before the drafts were saved must not be replaced by the closing line. Model control tokens
- * are removed and a paragraph repeated word for word is kept once.
+ * The reply a person sees. The agent's final message (after its last tool call) is its answer, written knowing what
+ * the tools actually did, so a substantial one stands alone: text written before the tools ran can describe drafts
+ * that turned out differently. When the final message is only a short closing line ("The drafts are ready"), the
+ * explanation written earlier in the turn is kept in front of it. Model control tokens are removed, and a part that
+ * mostly repeats another is kept once.
  */
 function replyText(steps: Array<{ kind: string; text?: string }>) {
   const clean = (t: string) =>
@@ -85,10 +87,15 @@ function replyText(steps: Array<{ kind: string; text?: string }>) {
       .replace(/<\|?\/?[a-z_]+\|?>/gi, '')
       .replace(/^\s*thought\s*$/gim, '')
       .trim();
-  const parts = steps
-    .filter(s => s.kind === 'text')
-    .map(s => clean(s.text ?? ''))
-    .filter(Boolean);
+  const texts = (from: number) =>
+    steps
+      .slice(from)
+      .filter(s => s.kind === 'text')
+      .map(s => clean(s.text ?? ''))
+      .filter(Boolean);
+  const lastTool = steps.map(s => s.kind).lastIndexOf('tool');
+  const final = lastTool >= 0 ? texts(lastTool + 1).join('\n\n') : '';
+  const parts = final.length >= 160 ? [final] : texts(0);
   // The model often restates its summary after the tools ran. A part that mostly repeats another (same words, a few
   // changed) is kept once, in its longer form, at the place it first appeared.
   const words = (t: string) => new Set(t.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []);

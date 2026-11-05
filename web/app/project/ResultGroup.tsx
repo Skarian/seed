@@ -136,6 +136,8 @@ function CardResults({
     })),
   );
   const cancelled = list.filter(j => j.state === 'cancelled');
+  // Cancelled takes that were made again since (a later job with the same title) need no "Make again".
+  const remade = madeAgain(project, title, cancelled, list);
   const status = running.length
     ? `${done.length} of ${list.length} done · making`
     : [
@@ -260,9 +262,13 @@ function CardResults({
           <span>
             <b>{title}</b> · cancelled before it was made
           </span>
-          <button className="link" onClick={() => actions.onMakeAgain(card)}>
-            Make again
-          </button>
+          {remade ? (
+            <span className="faint">made again below</span>
+          ) : (
+            <button className="link" onClick={() => actions.onMakeAgain(card)}>
+              Make again
+            </button>
+          )}
         </div>
         {notNowRow}
         <IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show />
@@ -322,7 +328,7 @@ function CardResults({
             />
           ))}
       </div>
-      {!running.length && cancelled.length > 0 && done.length > 0 && (
+      {!running.length && cancelled.length > 0 && done.length > 0 && !remade && (
         <div className="notnow">
           <span>
             {cancelled.length}{' '}
@@ -495,9 +501,13 @@ function ResultTile({
             <span>
               Cancelled
               <br />
-              <button className="btn small" style={{ marginTop: 8 }} onClick={() => actions.onMakeAgain(card)}>
-                Make again
-              </button>
+              {madeAgain(project, title.replace(/, \d+ of \d+$/, ''), [job], [job]) ? (
+                <small className="faint">Made again below</small>
+              ) : (
+                <button className="btn small" style={{ marginTop: 8 }} onClick={() => actions.onMakeAgain(card)}>
+                  Make again
+                </button>
+              )}
             </span>
           ) : null}
         </div>
@@ -602,4 +612,11 @@ function ResultTile({
       </div>
     </div>
   );
+}
+
+/** Whether cancelled work was made again since: a later job in the project with the same draft title. */
+function madeAgain(project: Project, title: string, cancelled: JobRecord[], own: JobRecord[]) {
+  if (!cancelled.length) return false;
+  const since = Math.max(...cancelled.map(j => Date.parse(j.created_at)));
+  return project.jobs.some(j => !own.includes(j) && titleOf(j.request) === title && Date.parse(j.created_at) > since);
 }

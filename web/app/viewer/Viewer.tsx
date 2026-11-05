@@ -564,7 +564,7 @@ function NoteField({
         }}
       />
       {saved && (
-        <span className="faint" role="status" style={{ fontSize: 12.5 }}>
+        <span className="faint" role="status" style={{ fontSize: '0.7813rem' }}>
           {saved}
         </span>
       )}
@@ -1047,7 +1047,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
             B
           </button>
         </div>
-        <span className="faint no-phone no-touch" style={{ fontSize: 13 }}>
+        <span className="faint no-phone no-touch" style={{ fontSize: '0.8125rem' }}>
           Click to zoom both · A/B keys
         </span>
         <span style={{ flex: 1 }} />
@@ -1081,7 +1081,7 @@ function DiffText({ label, text }: { label: string; text: string }) {
         <b style={{ fontWeight: 600 }}>{label}</b> {text}
       </p>
       {text.length > 220 && (
-        <button className="link" style={{ fontSize: 13 }} onClick={() => setAll(x => !x)} aria-expanded={all}>
+        <button className="link" style={{ fontSize: '0.8125rem' }} onClick={() => setAll(x => !x)} aria-expanded={all}>
           {all ? 'Show less' : 'Show all'}
         </button>
       )}

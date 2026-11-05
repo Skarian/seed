@@ -39,13 +39,19 @@ export type Check = { code: CheckCode; text: string; fixes: Fix[]; soft?: boolea
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
 export function askedFor(messages: ChatMessage[]) {
-  const said: { aspect?: Aspect | 'portrait' | 'landscape'; other?: string; seconds?: number; silent?: boolean } = {};
+  const said: {
+    aspect?: Aspect | 'portrait' | 'landscape';
+    other?: string;
+    seconds?: number;
+    silent?: boolean;
+    mixed?: boolean;
+  } = {};
   for (const m of [...messages]
     .reverse()
     .filter(x => x.role === 'user')
     .slice(0, 3)) {
     const t = m.text.toLowerCase();
-    if (!said.aspect && !said.other) {
+    if (!said.aspect && !said.other && !said.mixed) {
       // A ratio Seed cannot make directly (3:2, 21:9, 2:3…): remember it so the plan can say so.
       // A clock time ("stopped at 6:17", "6:17 pm") is scene content, not a shape; decimal ratios such as 2.39:1 count.
       const ratio = t.match(/(?<![\d.])(\d{1,2}(?:\.\d{1,2})?):(\d{1,2})\b(?!\s*(?:am|pm|a\.m|p\.m))/);
@@ -82,7 +88,18 @@ export function askedFor(messages: ChatMessage[]) {
         new RegExp('(?<!three-quarter |3/4 |profile )\\b(?:vertical|portrait)\\b' + composition('|shot')).test(t) &&
         !/\bportrait(?:\s+orientation)?\s+of\b/.test(t);
       const landscape = new RegExp('\\b(?:landscape|horizontal|widescreen)\\b' + composition('')).test(t);
-      said.aspect = exact ?? (square ? '1:1' : portrait ? 'portrait' : landscape ? 'landscape' : undefined);
+      // One message naming several shapes ("a portrait one-sheet, a square tile and a wide banner") is about several
+      // deliverables: there is no single shape to hold every draft to, so no shape check at all.
+      const shapes = new Set([
+        ...(t.match(/\b(?:4:5|1:1|16:9|9:16)\b/g) ?? []).map(x =>
+          x === '4:5' || x === '9:16' ? 'portrait' : x === '1:1' ? 'square' : 'landscape',
+        ),
+        ...(square ? ['square'] : []),
+        ...(portrait ? ['portrait'] : []),
+        ...(landscape || /\b(?:wide|panoramic)\s+(?:banner|header|strip)\b/.test(t) ? ['landscape'] : []),
+      ]);
+      if (shapes.size > 1) said.mixed = true;
+      else said.aspect = exact ?? (square ? '1:1' : portrait ? 'portrait' : landscape ? 'landscape' : undefined);
     }
     if (said.seconds === undefined) {
       const s = t.match(/\b(\d{1,2})[- ]?(?:seconds?|secs?|s)\b/);
@@ -386,9 +403,7 @@ export function briefGapList(prompt: string, brief: string): Array<{ who?: strin
       if (!(named || (generic && anyNamed))) continue;
       // A distant figure shows no freckles or scars: in a wide or tiny framing only the outfit and props are checked.
       const far =
-        /\b(extreme wide|wide shot|wide establishing|establishing|tiny|small in (the )?frame|silhouette|distant|aerial|from afar)\b/i.test(
-          prompt,
-        );
+        /\b(extreme wide|wide shot|wide establishing|establishing|silhouette|distant|aerial|from afar)\b/i.test(prompt);
       if (far && !generic) continue;
       for (const part of m[2]!
         .split(/[,;]|\.\s/)
