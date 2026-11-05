@@ -8,7 +8,7 @@ import { useApp } from '../data.js';
 import { latest, titleOf, settingChips, changesBetween, outputNoun, assetName } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
-import { checkDraft, readablePrompt, editablePrompt, type Check } from './checks.js';
+import { checkDraft, readablePrompt, editablePrompt, cropKey, type Check } from './checks.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 
 export type Selection = Record<string, boolean>;
@@ -102,7 +102,7 @@ export function PlanCard({
         <span className="meta">
           {cards.length} {cards.length === 1 ? 'draft' : 'drafts'}
           {working
-            ? ' · Seed is updating it…'
+            ? ' · Seed is replying…'
             : revisedCount
               ? ` · last revision: ${[`${revisedCount} changed`, addedCount ? `${addedCount} added` : '', cards.length - revisedCount - addedCount ? `${cards.length - revisedCount - addedCount} unchanged` : ''].filter(Boolean).join(', ')}`
               : ''}
@@ -164,6 +164,7 @@ export function PlanCard({
                 className="btn small"
                 disabled={busy || working}
                 onClick={() => {
+                  if (f.cropTo) localStorage.setItem(cropKey(project.id), f.cropTo);
                   void (async () => {
                     for (const card of cards) {
                       const patch = f.patch(latest(card).request);
@@ -586,6 +587,7 @@ function Draft({
                           onEditMyself(f.assets ?? []);
                           return;
                         }
+                        if (f.cropTo) localStorage.setItem(cropKey(project.id), f.cropTo);
                         const patch = f.patch(r);
                         if (Object.keys(patch).length) void onRevise(patch);
                         else onAcknowledge(c.text);

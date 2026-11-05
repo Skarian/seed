@@ -13,7 +13,7 @@ import {
 } from '../api.js';
 import { useApp, useNow, useProject, useStoredState } from '../data.js';
 import { Icon } from '../icons.js';
-import { Markdown, MenuButton, Confirm, Dialog, Thumb, cleanReply, LocalBoundary } from '../ui.js';
+import { Markdown, MenuButton, Confirm, Dialog, Thumb, cleanReply, LocalBoundary, onTabKeys, tabStop } from '../ui.js';
 import {
   latest,
   titleOf,
@@ -82,6 +82,18 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   }, []);
   const projectRef = useRef<Project | null>(null);
   projectRef.current = project;
+  // A take chosen elsewhere (Compare) updates this project at once.
+  useEffect(() => {
+    const changed = (e: Event) => {
+      const p = (e as CustomEvent<Project>).detail;
+      if (p?.id === id) {
+        projectRef.current = p;
+        setProject(p);
+      }
+    };
+    addEventListener('seed:project', changed);
+    return () => removeEventListener('seed:project', changed);
+  }, [id]);
   const styles = useStyles(app.mode);
   const plan = project?.groups.find(isOpenPlan);
   const replying = project ? ['thinking', 'preparing'].includes(project.activity) : false;
@@ -593,7 +605,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     ? 'Make with sound'
     : openChecks.every(c => c.text.includes('not used by this draft'))
       ? 'Make without the attached image'
-      : 'Make anyway';
+      : openChecks.every(c => c.text.startsWith('You asked for') && !/seconds|silence|sound/.test(c.text))
+        ? 'Make at the shape shown'
+        : `Make despite ${unresolved === 1 ? '1 check' : unresolved + ' checks'}`;
   // Seed answered the latest message without changing the plan (often a clarifying question):
   // the plan still shows the earlier version, so running it is a secondary, clearly named choice.
   const lastTurn = project
@@ -693,7 +707,13 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         onDelete={() => setConfirmDelete(true)}
       />
       {view === 'results' && project && !split ? (
-        <ResultsView project={project} />
+        <ResultsView
+          project={project}
+          onChanged={p => {
+            projectRef.current = p;
+            setProject(p);
+          }}
+        />
       ) : (
         <div className={split ? 'split' : 'single'}>
           <div className="convo">
@@ -870,7 +890,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                       aria-label="Show the selected drafts"
                     >
                       <b>
-                        {plan.cards.length === 1 ? 'Make ' : 'Make selected · '}
+                        {plan.cards.length === 1 ? '' : 'Selected · '}
                         {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}
                       </b>
                       {plan.cards.length > 1 ? ` · ${selectedCards.length} of ${plan.cards.length} drafts` : ''}
@@ -887,14 +907,14 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                       {busy === 'Making'
                         ? 'Starting…'
                         : replying
-                          ? 'Seed is updating…'
+                          ? 'Seed is replying…'
                           : planStale
                             ? 'Make this earlier version'
                             : question
                               ? 'Make as it is'
                               : unresolved
                                 ? anyway
-                                : 'Make selected'}
+                                : 'Make ' + outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}
                     </button>
                   </div>
                 )}
@@ -943,7 +963,16 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
               </div>
             </div>
           </div>
-          {split && project && <ResultsView project={project} embedded />}
+          {split && project && (
+            <ResultsView
+              project={project}
+              embedded
+              onChanged={p => {
+                projectRef.current = p;
+                setProject(p);
+              }}
+            />
+          )}
         </div>
       )}
       {compute && (
@@ -1081,28 +1110,17 @@ function Header({
         </button>
       )}
       {project && !split && (
-        <div
-          className="seg views"
-          role="tablist"
-          aria-label="Project view"
-          onKeyDown={e => {
-            if (e.key !== 'ArrowLeft' && e.key !== 'ArrowRight') return;
-            e.preventDefault();
-            const next = view === 'conversation' ? 'results' : 'conversation';
-            app.go({ name: 'project', id: project.id, view: next });
-            requestAnimationFrame(() => document.querySelector<HTMLElement>('.views [aria-selected="true"]')?.focus());
-          }}
-        >
+        <div className="seg views" role="tablist" aria-label="Project view" onKeyDown={onTabKeys}>
           <button
             role="tab"
-            aria-selected={view === 'conversation'}
+            {...tabStop(view === 'conversation')}
             onClick={() => app.go({ name: 'project', id: project.id, view: 'conversation' })}
           >
             Conversation
           </button>
           <button
             role="tab"
-            aria-selected={view === 'results'}
+            {...tabStop(view === 'results')}
             onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })}
           >
             Results
@@ -1333,6 +1351,11 @@ function Message({
           </span>
         )}
       </div>
+      {running && !text && now - Date.parse(turn!.started_at) > 20000 && (
+        <p className="faint" style={{ margin: '0 0 4px', fontSize: 13 }}>
+          Long requests can take a minute or two. You can work elsewhere in Seed; the reply and any drafts wait here.
+        </p>
+      )}
 
       {!running && toolFailed && text && (
         <p className="faint" style={{ margin: '0 0 4px', fontSize: 13 }}>
@@ -1411,17 +1434,21 @@ function friendlyError(error?: string | null) {
 function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
   const last = [...turn.steps].reverse().find(s => s.kind === 'tool');
   if (last?.state === 'running')
-    return last.name === 'choose_kind'
-      ? 'Choosing what to make'
-      : last.name === 'read_input'
-        ? 'Looking at your input'
-        : 'Writing a draft';
+    return (
+      {
+        choose_kind: 'Choosing what to make',
+        read_input: 'Looking at your input',
+        update_brief: 'Updating the brief',
+        leave_out_request: 'Narrowing the plan',
+        edit_request: 'Changing a draft',
+      }[last.name ?? ''] ?? 'Writing a draft'
+    );
   const drafts = turn.steps.filter(
     s => s.kind === 'tool' && s.name === 'create_request' && s.state === 'succeeded',
   ).length;
   if (drafts) return `Wrote ${drafts} ${drafts === 1 ? 'draft' : 'drafts'}`;
   if (turn.steps.at(-1)?.kind === 'text') return 'Replying';
-  return 'Thinking';
+  return turn.steps.length ? 'Thinking' : 'Reading your request';
 }
 
 type TimelineItem =

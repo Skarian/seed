@@ -66,7 +66,7 @@ export function AdminAccess() {
   return (
     <section className="admin-access" aria-label="Access settings">
       <div className="admin-section-heading">
-        <h2>Access</h2>
+        <h2>Other devices</h2>
         <p>Use Seed on your phone or another computer, through your own secure tunnel.</p>
       </div>
       {status === 'loading' ? <p role="status">Loading access settings…</p> : !settings ? (

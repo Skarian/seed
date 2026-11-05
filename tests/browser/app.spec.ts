@@ -177,6 +177,24 @@ test('Results by shot lists shots in story order, not the order they were made',
   expect(await rows.evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Shot 1: A', 'Shot 2: B', 'Shot 3: C']);
 });
 
+test('choosing a take for a shot is saved with the project and shown on the film board', async ({ page }) => {
+  await ensureIdleImageGpu(page);
+  const project = await apiProject(page);
+  for (const [title, scene] of [['Shot 1: A', 'a field'], ['Shot 2: B', 'a road']] as const) {
+    await makeImages(page, project, title, `Synthetic test frame of ${scene}`);
+  }
+  await allCompleted(page, project, 2);
+
+  await page.goto(`/projects/${project}?view=results`);
+  await page.getByRole('group', { name: 'Arrange' }).getByRole('button', { name: 'By shot' }).click();
+  const board = page.getByRole('region', { name: 'The film, shot by shot' });
+  await expect(board.getByRole('button', { name: /^Shot 2: B\. Made · nothing chosen/ })).toBeVisible();
+  await page.getByRole('button', { name: 'Use Keyframe for Shot 2' }).click();
+  await expect(board.getByRole('button', { name: /^Shot 2: B\. Keyframe chosen/ })).toBeVisible();
+  await page.reload();
+  await expect(page.getByRole('button', { name: /is chosen for Shot 2/ })).toHaveAttribute('aria-pressed', 'true');
+});
+
 test('making a cancelled take again starts exactly one job', async ({ page }) => {
   await ensureIdleImageGpu(page);
   const project = await apiProject(page);

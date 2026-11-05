@@ -88,6 +88,21 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
       ),
     ),
   );
+  app.put(
+    '/api/v1/chats/:id/picks',
+    {
+      schema: {
+        body: object(
+          {
+            key: { type: 'string', minLength: 3, maxLength: 140 },
+            asset: { type: ['string', 'null'], maxLength: 200 },
+          },
+          ['key', 'asset'],
+        ),
+      },
+    },
+    perform(r => chats.pick(id(r), r.body.key as string, r.body.asset as string | null)),
+  );
   app.delete(
     '/api/v1/chats/:id',
     perform(r => {

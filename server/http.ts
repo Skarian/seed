@@ -1,6 +1,7 @@
 import { Sequences } from './sequences.js';
 import {closeService} from './service-close.js';
 import { pickFrame } from './frames.js';
+import { cropImage, type CropBox } from './crops.js';
 import {registerAdmin} from './admin.js';
 import {registerGeneratePreferences} from './generate-preferences.js';
 import {Activity,registerActivity} from './activity.js';
@@ -208,6 +209,10 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.post('/api/v1/assets/:id/frames', {schema:{body:{type:'object',additionalProperties:false,required:['time_seconds'],properties:{time_seconds:{type:'number',minimum:0}}}}}, async (request,reply)=>jobs.serialize(async()=>{
     try {return await pickFrame(db,options.paths,(request.params as {id:string}).id,(request.body as {time_seconds:number}).time_seconds);}
     catch(error){return fail(reply,409,'frame_save_failed',(error as Error).message,request.id);}
+  }));
+  app.post('/api/v1/assets/:id/crops', {schema:{body:{type:'object',additionalProperties:false,required:['x','y','width','height'],properties:{x:{type:'number',minimum:0},y:{type:'number',minimum:0},width:{type:'number',minimum:1},height:{type:'number',minimum:1},shape:{type:'string',maxLength:12}}}}}, async (request,reply)=>jobs.serialize(async()=>{
+    try {return await cropImage(db,options.paths,(request.params as {id:string}).id,request.body as CropBox);}
+    catch(error){return fail(reply,409,'crop_failed',(error as Error).message,request.id);}
   }));
   app.delete('/api/v1/assets/:id', async (request, reply) => jobs.serialize(async () => {
     const id = (request.params as { id: string }).id;

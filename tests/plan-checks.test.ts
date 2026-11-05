@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps } from '../web/app/project/checks.js';
+import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, silencedPrompt } from '../web/app/project/checks.js';
 
 // Synthetic fixtures only.
 const message = (role: 'user' | 'assistant', text: string, id = Math.random().toString(36), assets: string[] = []) => ({ id, role, text, assets, created_at: '2026-11-04T00:00:00Z' });
@@ -128,4 +128,27 @@ it('counts a named character as covering who they are, and skips hair in a close
   const brief = ['## Characters', '- Ines: 10-year-old girl, short black bob, freckles, red raincoat'].join('\n');
   expect(briefGaps('Medium shot of 10-year-old Ines in a red raincoat, short black bob', brief)).toEqual(['freckles']);
   expect(briefGaps('Close-up of Ines’s hands on the brass lens, red raincoat cuffs', brief)).toEqual([]);
+});
+
+it('keeps the video engine scaffold out of the editor and puts it back at the start of the scene', () => {
+  const p = project([], { asset_manifest: [{ id: 'asset-a', name: 'Shot 2. Profile', kind: 'image', note: '' }] });
+  const lead = 'For the target video, at 0.00 seconds into the target video, <Picture 1> (from [Shot 1]) is fully referenced.';
+  const r = { workflow: 'reference-to-video', prompt: `integrated_multimodal_description: ${lead} Mara pauses.\n[Shot 1] Slow drift right.`, references: [{ id: 'input1', asset_id: 'asset-a', kind: 'image', role: 'first_frame' }] } as any;
+  expect(readablePrompt(r, p)).toBe('Scene: Mara pauses.\nPart 1: Slow drift right.');
+  const e = editablePrompt(r, p)!;
+  expect(e.text).toBe('Scene: Mara pauses.\nPart 1: Slow drift right.');
+  expect(e.back(e.text)).toBe(r.prompt);
+  expect(e.back('Scene: Mara pauses, then looks back.\nPart 1: Slow drift right.')).toBe(`integrated_multimodal_description: ${lead} Mara pauses, then looks back.\n[Shot 1] Slow drift right.`);
+});
+
+it('making a clip silent also rewrites its Sound section', () => {
+  const request = { workflow: 'text-to-video', prompt: 'Scene: steam rising.\noverall_soundscape: kettle hiss and rain\nCamera: static', output: { aspect: '16:9', size: '768p', duration_seconds: 5 }, count: 1, seed: 'random', mode: 'sfw', audio: { output: 'generated' } };
+  expect(silencedPrompt('Scene: steam.\nSound: kettle hiss,\nrain on glass\nCamera: static')).toBe('Scene: steam.\nSound: Silence.\nCamera: static');
+  expect(silencedPrompt('No sound section here')).toBe('No sound section here');
+  const fix = checkDraft(card(request) as any, project([message('user', 'A 5-second clip of steam rising'), message('assistant', 'Prepared', 'run')])).find(c => c.text.includes('added sound'))!.fixes[0]!;
+  expect(fix.patch(request as any)).toMatchObject({ audio: { output: 'silent' } });
+});
+
+it('silences the video format’s own soundscape field', () => {
+  expect(silencedPrompt('integrated_multimodal_description: steam.\noverall_soundscape: kettle hiss\nnon_diegetic_music: N/A')).toBe('integrated_multimodal_description: steam.\noverall_soundscape: Silence.\nnon_diegetic_music: N/A');
 });

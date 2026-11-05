@@ -355,6 +355,22 @@ export class Chats {
     this.save(chat);
     return this.view(id);
   }
+  /** Choose (or clear) the take used for a shot. Not an agent setting: allowed while Seed replies, no version check. */
+  pick(id: string, key: string, asset: string | null) {
+    const chat = this.get(id);
+    if (!/^.{1,130}:(image|clip)$/.test(key)) throw Error('Choose a shot.');
+    const picks = { ...(chat.picks ?? {}) };
+    if (asset) {
+      const known =
+        this.jobIds(chat).some(j => this.jobs.get(j)?.outputs.includes(asset)) || chat.assets.includes(asset);
+      if (!known) throw Error('Choose a result from this project.');
+      picks[key] = asset;
+    } else delete picks[key];
+    chat.picks = picks;
+    chat.version++;
+    this.save(chat);
+    return this.view(id);
+  }
   delete(id: string) {
     const chat = this.get(id);
     if (this.busy(chat)) throw Error('Stop generation before deleting this chat, then try again.');
@@ -412,9 +428,12 @@ export class Chats {
       const title = job?.request.title
         ? `${job.request.title}${(job.request.count ?? 1) > 1 ? ` · take ${(job.submission_index ?? 0) + 1} of ${job.request.count}` : ''}`
         : undefined;
+      const chosen = Object.entries(chat.picks ?? {})
+        .filter(([, a]) => a === id)
+        .map(([k]) => `chosen ${k.endsWith(':clip') ? 'clip' : 'keyframe'} for Shot ${k.split(':')[0]}`);
       return {
         id,
-        name: title ?? asset?.name ?? 'Missing media',
+        name: (title ?? asset?.name ?? 'Missing media') + (chosen.length ? ' · ' + chosen.join(', ') : ''),
         kind: asset?.kind,
         metadata: asset?.metadata,
         note: own?.note || inherited?.note || '',

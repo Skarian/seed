@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
 import type { Project } from '../api.js';
+import { projects as projectsApi } from '../api.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { useApp, useAssets, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
@@ -12,7 +13,15 @@ import { jobActive } from '../../../shared/jobs.js';
  * first, chosen results marked, and planned drafts listed. Beside the conversation on wide
  * screens, and the Results tab elsewhere. Selecting two compares them.
  */
-export function ResultsView({ project, embedded = false }: { project: Project; embedded?: boolean }) {
+export function ResultsView({
+  project,
+  embedded = false,
+  onChanged,
+}: {
+  project: Project;
+  embedded?: boolean;
+  onChanged?: (p: Project) => void;
+}) {
   const app = useApp();
   const [filter, setFilter] = useState<'all' | 'fav' | 'image' | 'video'>('all');
   const [size, setSize] = useStoredState<'s' | 'm' | 'l'>(embedded ? 'seed.board.size' : 'seed.results.size', 'm');
@@ -40,6 +49,20 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
     };
   });
   const fav = new Set(list.items.filter(a => a.favorite).map(a => a.id));
+  // Crops and picked frames keep their original's title; they are shown as crops of a take, never as new takes.
+  const derived = new Map(list.items.filter(a => a.source_asset_id).map(a => [a.id, a.source_asset_id!]));
+  const picks = project.picks ?? {};
+  const [picking, setPicking] = useState('');
+  async function choose(key: string, asset: string | null) {
+    setPicking(key);
+    try {
+      onChanged?.(await projectsApi.pick(project.id, key, asset));
+    } catch (e) {
+      app.toast((e as Error).message);
+    } finally {
+      setPicking('');
+    }
+  }
   const running =
     filter === 'all' || filter === 'image' || filter === 'video'
       ? project.jobs.filter(
@@ -167,23 +190,50 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
   for (const j of running) shotFor(titleOf(j.request)).making.push(j);
   for (const t of planned) shotFor(t).planned.push(t);
   const shotList = [...shots.values()].sort((a, b) => (a.n ?? 1e6) - (b.n ?? 1e6));
-  // The cut: each numbered shot's chosen clip (or its newest), in story order.
-  const cut: ViewerItem[] = shotList
-    .filter(s => s.n !== null && s.clips.length)
-    .map(s => ({ ...(s.clips.find(c => fav.has(c.asset)) ?? s.clips.at(-1)!), sequence: true }));
-  // A clip names the keyframe take it started from, so the board shows which take became which clip.
-  const fromTake = (it: ViewerItem) => {
-    const start = it.job?.request.references?.find(r => r.role === 'first_frame')?.asset_id;
-    if (!start) return '';
-    const shot = shotList.find(s => s.clips.includes(it));
-    const at = shot ? shot.images.findIndex(x => x.asset === start) : -1;
-    return at >= 0 ? ` from Take ${at + 1}` : '';
+  // A shot's chosen take is the owner's decision ("Use for shot"), stored with the project; favorites stay personal.
+  const shotKey = (s: Shot) => (s.n !== null ? String(s.n) : s.name);
+  const chosen = (s: Shot, kind: 'image' | 'clip') => {
+    const id = picks[shotKey(s) + ':' + kind];
+    return (kind === 'image' ? s.images : s.clips).find(i => i.asset === id);
   };
-  const lane = (its: ViewerItem[]) =>
-    its.map((it, take) => {
+  const takesOf = (its: ViewerItem[]) => its.filter(i => !derived.has(i.asset));
+  // The cut: each numbered shot's chosen clip (else its favorite, else its newest), in story order.
+  const cut: ViewerItem[] = shotList
+    .filter(s => s.n !== null && takesOf(s.clips).length)
+    .map(s => ({
+      ...(chosen(s, 'clip') ?? takesOf(s.clips).find(c => fav.has(c.asset)) ?? takesOf(s.clips).at(-1)!),
+      sequence: true,
+    }));
+  const takeNumber = (s: Shot, asset: string) => {
+    const imgs = takesOf(s.images),
+      at = imgs.findIndex(x => x.asset === asset);
+    return at >= 0 && imgs.length > 1 ? at + 1 : at >= 0 ? 1 : 0;
+  };
+  // A clip names the keyframe take it started from, so the board shows which take became which clip.
+  const fromTake = (s: Shot, it: ViewerItem) => {
+    const start = it.job?.request.references?.find(r => r.role === 'first_frame')?.asset_id;
+    const n = start ? takeNumber(s, start) : 0;
+    return n ? ` from Take ${n}` : '';
+  };
+  const lane = (s: Shot, its: ViewerItem[], kind: 'image' | 'clip') => {
+    const takes = takesOf(its),
+      key = shotKey(s) + ':' + kind,
+      pickedId = picks[key];
+    return its.map(it => {
       const on = selected.includes(it.asset);
+      const from = derived.get(it.asset);
+      const crop = from !== undefined;
+      const take = takes.indexOf(it);
+      const isChosen = pickedId === it.asset;
+      const label = crop
+        ? `Crop${takeNumber(s, from!) && takes.length > 1 ? ' of Take ' + takeNumber(s, from!) : ''}`
+        : takes.length > 1
+          ? `Take ${take + 1}`
+          : kind === 'clip'
+            ? 'Clip'
+            : 'Keyframe';
       return (
-        <figure key={it.asset} className="cell lane-cell">
+        <figure key={it.asset} className={'cell lane-cell' + (isChosen ? ' chosen' : '')}>
           <div
             className={
               'tile ' +
@@ -219,13 +269,73 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
             )}
           </div>
           <figcaption>
-            {its.length > 1 ? `Take ${take + 1}` : ''}
-            {fav.has(it.asset) ? (its.length > 1 ? ' · ' : '') + 'favorite' : ''}
-            {fromTake(it)}
+            <span>
+              {label}
+              {kind === 'clip' && !crop ? fromTake(s, it) : ''}
+            </span>
+            {s.n !== null && !crop && (
+              <button
+                className={'use-shot' + (isChosen ? ' on' : '')}
+                aria-pressed={isChosen}
+                disabled={picking === key}
+                aria-label={
+                  isChosen ? `${label} is chosen for Shot ${s.n}. Clear the choice` : `Use ${label} for Shot ${s.n}`
+                }
+                onClick={() => void choose(key, isChosen ? null : it.asset)}
+              >
+                {isChosen ? 'Chosen' : 'Use for shot'}
+              </button>
+            )}
           </figcaption>
         </figure>
       );
     });
+  };
+  // The film at a glance: one cell per numbered shot with its chosen (or newest) picture and where it stands.
+  const numbered = shotList.filter(s => s.n !== null);
+  const boardCell = (s: Shot) => {
+    const clip = chosen(s, 'clip'),
+      image = chosen(s, 'image');
+    const show = clip ?? image ?? takesOf(s.clips).at(-1) ?? takesOf(s.images).at(-1);
+    const status = clip
+      ? `Clip chosen · ${clip.job?.request.output.duration_seconds ?? 5} s`
+      : image
+        ? takesOf(s.clips).length
+          ? 'Keyframe chosen · choose a clip'
+          : 'Keyframe chosen · no clip yet'
+        : s.making.length
+          ? 'Making now'
+          : takesOf(s.images).length || takesOf(s.clips).length
+            ? 'Made · nothing chosen'
+            : 'Planned';
+    return (
+      <li key={s.n}>
+        <button
+          className={'board-cell' + (clip || image ? ' done' : '')}
+          onClick={() =>
+            document.getElementById('shot-' + s.n)?.scrollIntoView({
+              behavior: matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth',
+              block: 'start',
+            })
+          }
+          aria-label={`Shot ${s.n}: ${s.name}. ${status}`}
+        >
+          <span className="board-thumb">
+            {show ? <Media id={show.asset} kind={show.kind} alt="" /> : <span className="faint">—</span>}
+          </span>
+          <span className="board-text">
+            <b>
+              {s.n} · {s.name}
+            </b>
+            <small>{status}</small>
+          </span>
+        </button>
+      </li>
+    );
+  };
+  const chosenClips = numbered.map(s => chosen(s, 'clip')).filter(Boolean) as ViewerItem[];
+  const chosenSeconds = chosenClips.reduce((t, c) => t + (c.job?.request.output.duration_seconds ?? 5), 0);
+  const chosenCount = numbered.filter(s => chosen(s, 'clip') || chosen(s, 'image')).length;
   const groups = new Map<string, ViewerItem[]>();
   if (grouped)
     for (const it of items) {
@@ -302,9 +412,21 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
         >
           {view === 'shots' && (items.length > 0 || running.length > 0 || planned.length > 0) && (
             <div className="shots">
+              {numbered.length > 1 && filter === 'all' && (
+                <section className="film-board" aria-label="The film, shot by shot">
+                  <div className="film-board-head">
+                    <b>The film</b>
+                    <span className="faint">
+                      {numbered.length} shots · {chosenCount} chosen
+                      {chosenClips.length ? ` · ${chosenSeconds} s of clips` : ''}
+                    </span>
+                  </div>
+                  <ol className="film-cells">{numbered.map(boardCell)}</ol>
+                </section>
+              )}
               {shotList.map(s => {
-                const chosenImage = s.images.some(i => fav.has(i.asset)),
-                  chosenClip = s.clips.some(i => fav.has(i.asset));
+                const chosenImage = Boolean(chosen(s, 'image')),
+                  chosenClip = Boolean(chosen(s, 'clip'));
                 const reference = s.n === null && !s.clips.length && !s.planned.length;
                 const stage =
                   filter !== 'all'
@@ -319,11 +441,11 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
                         ? 'Making now'
                         : s.clips.length
                           ? chosenClip
-                            ? 'Favorite clip'
-                            : `${s.clips.length} ${s.clips.length === 1 ? 'clip' : 'clips'}`
+                            ? 'Clip chosen'
+                            : `${takesOf(s.clips).length} ${takesOf(s.clips).length === 1 ? 'clip' : 'clips'} · none chosen`
                           : s.images.length
                             ? chosenImage
-                              ? 'Favorite keyframe · no clip yet'
+                              ? 'Keyframe chosen · no clip yet'
                               : 'Keyframe made · no clip yet'
                             : s.planned.length
                               ? 'In the plan, not made yet'
@@ -332,6 +454,7 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
                   <section
                     key={(s.n ?? '') + s.name}
                     className="shot-row"
+                    id={s.n !== null ? 'shot-' + s.n : undefined}
                     aria-label={(s.n !== null ? 'Shot ' + s.n + ': ' : '') + s.name}
                   >
                     <div className="shot-head" role="heading" aria-level={3}>
@@ -344,7 +467,7 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
                         <div className="lane">
                           <span className="lane-label">{reference ? 'Images' : 'Keyframes'}</span>
                           <div className="lane-strip">
-                            {lane(s.images)}
+                            {lane(s, s.images, 'image')}
                             {!s.images.length && (
                               <span className="faint lane-empty">{s.planned.length ? 'Planned' : 'None yet'}</span>
                             )}
@@ -355,7 +478,7 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
                         <div className="lane">
                           <span className="lane-label">Clips</span>
                           <div className="lane-strip">
-                            {lane(s.clips)}
+                            {lane(s, s.clips, 'clip')}
                             {!s.clips.length && (
                               <span className="faint lane-empty">
                                 {filter === 'all' || filter === 'video'

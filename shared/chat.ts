@@ -15,6 +15,8 @@ export interface ChatView {
   reasoning:boolean;messages:ChatMessage[];groups:ChatGroup[];assets:string[];
   /** The project's lasting brief (Markdown): story, characters, locations, look, rules, shots. Kept by Seed and the owner. */
   brief?:string;brief_updated_by?:'you'|'seed';brief_updated_at?:string;
+  /** The owner's chosen take per shot, keyed "<shot>:image" or "<shot>:clip" (shot is the number, or the title when unnumbered). */
+  picks?:Record<string,string>;
   partial?:string;partial_reasoning?:string;
   activity:'idle'|'thinking'|'preparing'|'generating';error:string|null;
   created_at:string;updated_at:string;

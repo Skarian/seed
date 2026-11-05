@@ -3,6 +3,7 @@ import { useToaster, resolveValue } from 'react-hot-toast/headless';
 import { useApp } from '../data.js';
 import { api } from '../api.js';
 import { StatusControl } from '../App.js';
+import { onTabKeys, tabStop } from '../ui.js';
 import {
   credentialDefinitions,
   type AdminSettings,
@@ -36,12 +37,18 @@ export function SettingsPage({ section: initial }: { section?: string }) {
         <span className="spacer" />
         <StatusControl />
       </header>
-      <div className="tabs" role="tablist" aria-label="Settings sections" style={{ overflowX: 'auto' }}>
+      <div
+        className="tabs"
+        role="tablist"
+        aria-label="Settings sections"
+        onKeyDown={onTabKeys}
+        style={{ overflowX: 'auto' }}
+      >
         {sections.map(([k, l]) => (
           <button
             key={k}
             role="tab"
-            aria-selected={section === k}
+            {...tabStop(section === k)}
             onClick={() => {
               setSection(k);
               app.go({ name: 'settings', section: k }, true);
@@ -194,7 +201,7 @@ function Key({
             placeholder={configured ? 'Paste a replacement key' : 'Paste API key'}
             onChange={e => setValue(e.target.value)}
           />
-          <button className="btn primary" disabled={busy || !value.trim()}>
+          <button className="btn primary" disabled={busy || !value.trim()} aria-label={'Save ' + name + ' key'}>
             {busy ? 'Saving…' : 'Save'}
           </button>
           {replacing && (
@@ -213,19 +220,37 @@ function Key({
       )}
       <div className="row" style={{ fontSize: 13.5 }}>
         <a className="link" href={url} target="_blank" rel="noopener noreferrer">
-          Get a key ↗
+          Get a {name} key ↗
         </a>
         {configured && (
           <>
-            <button type="button" className="btn quiet small" disabled={busy} onClick={() => void run('check')}>
+            <button
+              type="button"
+              className="btn quiet small"
+              disabled={busy}
+              onClick={() => void run('check')}
+              aria-label={'Test ' + name + ' key'}
+            >
               Test
             </button>
             {!replacing && (
-              <button type="button" className="btn quiet small" disabled={busy} onClick={() => setReplacing(true)}>
+              <button
+                type="button"
+                className="btn quiet small"
+                disabled={busy}
+                onClick={() => setReplacing(true)}
+                aria-label={'Replace ' + name + ' key'}
+              >
                 Replace key
               </button>
             )}
-            <button type="button" className="btn quiet small" disabled={busy} onClick={() => void run('remove')}>
+            <button
+              type="button"
+              className="btn quiet small"
+              disabled={busy}
+              onClick={() => void run('remove')}
+              aria-label={'Remove ' + name + ' key'}
+            >
               Remove
             </button>
           </>

@@ -21,7 +21,10 @@ const emptyGuidance: LoraGuidance = {
   trigger_words: [],
 };
 function submitted() {
-  toast.success('Style saved. GPUs you start from now on can use it.', { duration: 4500 });
+  toast.success(
+    'Style saved. This PC and cloud GPUs you start from now on can use it; a cloud GPU that is already running needs a restart to include it.',
+    { duration: 6000 },
+  );
   window.dispatchEvent(new Event('seed:activity-changed'));
 }
 
@@ -304,7 +307,7 @@ function ImportLora({
             </>
           ) : (
             <p role="alert">
-              {version?.base_model ?? 'This model'} isn't one Seed can use. Choose a style made for
+              This style is made for {version?.base_model ?? 'another model'}, which Seed doesn’t use. Choose a style made for
               Krea 2 (images) or MiniMax H3 (video).
             </p>
           )}

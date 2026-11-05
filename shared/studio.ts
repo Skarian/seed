@@ -19,6 +19,8 @@ export interface LibraryAsset {
   execution_profile?: string;
   /** The job that made this asset; absent for uploads. */
   job_id?: string;
+  /** For a crop or a frame picked from a video: the asset it came from. Title and project then come from that asset's job. */
+  source_asset_id?: string;
   /** The draft title from the job that made it. */
   title?: string;
   /** The project (chat) the job came from. */

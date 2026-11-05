@@ -116,6 +116,9 @@ export const projects = {
   rename: (p: Project, title: string) => pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, title } }),
   setBrief: (p: Project, brief: string) =>
     pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, brief } }),
+  /** Choose the take used for a shot (key "<shot>:image" or "<shot>:clip"), or clear it with null. */
+  pick: (id: string, key: string, asset: string | null) =>
+    pj('chats/' + id + '/picks', { method: 'PUT', body: { key, asset } }),
   remove: (id: string) => api<{ deleted: boolean }>('chats/' + id, { method: 'DELETE' }),
   send: (
     p: Project,
@@ -175,6 +178,8 @@ export const assets = {
     api<unknown>('assets/' + id + '/collections/' + collection, { method: 'PUT', body: { included } }),
   pickFrame: (id: string, time_seconds: number) =>
     api<{ id: string }>('assets/' + id + '/frames', { body: { time_seconds } }),
+  crop: (id: string, box: { x: number; y: number; width: number; height: number; shape?: string }) =>
+    api<{ id: string }>('assets/' + encodeURIComponent(id) + '/crops', { body: box }),
   note: (id: string) => api<{ note: string; revision: number }>('notes/' + id),
   saveNote: (id: string, note: string, revision: number) =>
     api<{ note: string; revision: number }>('notes/' + id, { method: 'PUT', body: { note, revision } }),

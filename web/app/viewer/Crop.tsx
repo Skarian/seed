@@ -1,22 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { cropShapes } from '../project/checks.js';
-import { media } from '../api.js';
+import { cropShapes, cropKey } from '../project/checks.js';
+import { assets as assetsApi, media } from '../api.js';
 import { Dialog } from '../ui.js';
 import { useApp } from '../data.js';
-import { uploadFile } from '../project/requests.js';
 
-/** Crop shapes people ask for. "Original" keeps the frame and only re-exports. */
 const shapes = cropShapes;
+const known = (s: string | null | undefined) => (s && shapes.some(([k]) => k === s) ? s : undefined);
 
-/** Crop an image on this device, no GPU: pick a shape, drag to frame, save a copy to the Library or download it. */
+/**
+ * Crop an image, no GPU: pick a shape, then drag the frame or move it with the arrow keys. Save copy makes a new
+ * image in the Library that links back to this one (same project, "Cropped from"); the original is not changed.
+ * The shape starts at the one the project plans to crop to, when it has one.
+ */
 export function CropDialog({
   asset,
   title,
+  project,
   onClose,
   initial,
 }: {
   asset: string;
   title: string;
+  project?: string;
   onClose: () => void;
   initial?: string;
 }) {
@@ -24,7 +29,9 @@ export function CropDialog({
   const [img, setImg] = useState<HTMLImageElement | null>(null),
     [error, setError] = useState(''),
     [busy, setBusy] = useState('');
-  const [shape, setShape] = useState<string>(initial && shapes.some(([s]) => s === initial) ? initial : '1:1');
+  const [shape, setShape] = useState<string>(
+    () => known(initial) ?? known(project ? localStorage.getItem(cropKey(project)) : null) ?? '16:9',
+  );
   const [pos, setPos] = useState({ x: 0.5, y: 0.5 });
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
   useEffect(() => {
@@ -44,6 +51,8 @@ export function CropDialog({
         return { x: (w - cw) * pos.x, y: (h - ch) * pos.y, w: cw, h: ch, W: w, H: h };
       })()
     : null;
+  const freeX = box ? box.W - box.w > 1 : false,
+    freeY = box ? box.H - box.h > 1 : false;
   async function render() {
     if (!img || !box) throw Error('Not loaded');
     const c = document.createElement('canvas');
@@ -56,12 +65,21 @@ export function CropDialog({
   }
   const name = `${title.replace(/[^\w\- ]+/g, '').trim() || 'image'} ${shape.replace(':', 'x')}.png`;
   async function save() {
+    if (!box) return;
     setBusy('Saving…');
     setError('');
     try {
-      const file = new File([await render()], name, { type: 'image/png', lastModified: Date.now() });
-      await uploadFile(file, 'image', app.mode, setBusy);
-      app.toast(`Saved a ${shape} copy to the Library`);
+      const x = Math.max(0, Math.floor(box.x)),
+        y = Math.max(0, Math.floor(box.y));
+      await assetsApi.crop(asset, {
+        x,
+        y,
+        width: Math.min(box.W - x, Math.round(box.w)),
+        height: Math.min(box.H - y, Math.round(box.h)),
+        shape,
+      });
+      if (project) localStorage.setItem(cropKey(project), shape);
+      app.toast(`Saved a ${shape} copy to the Library, linked to “${title}”`);
       onClose();
     } catch (e) {
       setError((e as Error).message);
@@ -80,8 +98,11 @@ export function CropDialog({
       setError((e as Error).message);
     }
   }
+  const nudge = (dx: number, dy: number) =>
+    setPos(p => ({ x: Math.min(1, Math.max(0, p.x + dx)), y: Math.min(1, Math.max(0, p.y + dy)) }));
   const view = 320;
   const scale = box ? Math.min(view / box.W, view / box.H) : 1;
+  const where = freeX ? Math.round(pos.x * 100) : freeY ? Math.round(pos.y * 100) : 50;
   return (
     <Dialog
       title={'Crop “' + title + '”'}
@@ -89,7 +110,7 @@ export function CropDialog({
       footer={
         <>
           <span className="faint" style={{ fontSize: 12.5, marginRight: 'auto' }}>
-            On this device. No GPU, the original stays as it is.
+            On this device, no GPU. The original stays as it is.
           </span>
           <button className="btn" disabled={!box || Boolean(busy)} onClick={() => void download()}>
             Download
@@ -141,18 +162,87 @@ export function CropDialog({
             drag.current = null;
           }}
         >
-          <img src={img.src} alt={title} draggable={false} />
+          <img src={img.src} alt="" draggable={false} />
           <div
             className="crop-box"
-            aria-label="Crop area. Drag to move."
+            role="slider"
+            tabIndex={freeX || freeY ? 0 : -1}
+            aria-label={freeX ? 'Crop position, left to right' : 'Crop position, top to bottom'}
+            aria-orientation={freeX ? 'horizontal' : 'vertical'}
+            aria-valuemin={0}
+            aria-valuemax={100}
+            aria-valuenow={where}
+            aria-valuetext={
+              !freeX && !freeY
+                ? 'The whole image fits this shape'
+                : freeX
+                  ? where < 34
+                    ? `Left, ${where}%`
+                    : where > 66
+                      ? `Right, ${where}%`
+                      : `Centre, ${where}%`
+                  : where < 34
+                    ? `Top, ${where}%`
+                    : where > 66
+                      ? `Bottom, ${where}%`
+                      : `Middle, ${where}%`
+            }
+            onKeyDown={e => {
+              const step = e.shiftKey ? 0.1 : 0.02;
+              const moves: Record<string, [number, number]> = {
+                ArrowLeft: [-step, 0],
+                ArrowRight: [step, 0],
+                ArrowUp: [0, -step],
+                ArrowDown: [0, step],
+              };
+              if (moves[e.key]) {
+                e.preventDefault();
+                nudge(...moves[e.key]!);
+              } else if (e.key === 'Home') {
+                e.preventDefault();
+                setPos({ x: 0, y: 0 });
+              } else if (e.key === 'End') {
+                e.preventDefault();
+                setPos({ x: 1, y: 1 });
+              }
+            }}
             style={{ left: box.x * scale, top: box.y * scale, width: box.w * scale, height: box.h * scale }}
           />
         </div>
       )}
       {box && (
-        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
-          {Math.round(box.w)} × {Math.round(box.h)} from {box.W} × {box.H}. Drag the frame to choose what stays.
-        </p>
+        <div className="crop-foot">
+          <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+            {Math.round(box.w)} × {Math.round(box.h)} from {box.W} × {box.H}.{' '}
+            {freeX || freeY
+              ? 'Drag the frame, or focus it and use the arrow keys.'
+              : 'The whole image fits this shape.'}
+          </p>
+          {(freeX || freeY) && (
+            <div className="seg" role="group" aria-label="Place the frame">
+              {(freeX
+                ? [
+                    ['Left', 0],
+                    ['Centre', 0.5],
+                    ['Right', 1],
+                  ]
+                : [
+                    ['Top', 0],
+                    ['Middle', 0.5],
+                    ['Bottom', 1],
+                  ]
+              ).map(([label, v]) => (
+                <button
+                  key={label as string}
+                  aria-pressed={(freeX ? pos.x : pos.y) === v}
+                  onClick={() => setPos(freeX ? { x: v as number, y: 0.5 } : { x: 0.5, y: v as number })}
+                >
+                  {label}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
       )}
     </Dialog>
   );

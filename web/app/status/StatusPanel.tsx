@@ -2,7 +2,7 @@ import React, { useEffect, useRef } from 'react';
 import { jobs as jobsApi, kindOf, isVideoKind } from '../api.js';
 import { useApp } from '../data.js';
 import { Icon } from '../icons.js';
-import { Thumb } from '../ui.js';
+import { Thumb, onTabKeys, tabStop } from '../ui.js';
 import { tileState, titleOf, relativeTime } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
 import { GpuOverview } from '../gpus/GpusPage.js';
@@ -127,11 +127,11 @@ export function StatusPanel({
           <Icon.Close />
         </button>
       </div>
-      <div className="tabs" role="tablist">
-        <button role="tab" aria-selected={tab === 'tasks'} onClick={() => onTab('tasks')}>
+      <div className="tabs" role="tablist" aria-label="Activity" onKeyDown={onTabKeys}>
+        <button role="tab" {...tabStop(tab === 'tasks')} onClick={() => onTab('tasks')}>
           Tasks{active.length + planning.length ? ` (${active.length + planning.length})` : ''}
         </button>
-        <button role="tab" aria-selected={tab === 'gpus'} onClick={() => onTab('gpus')}>
+        <button role="tab" {...tabStop(tab === 'gpus')} onClick={() => onTab('gpus')}>
           GPUs{app.pool?.summary.active ? ` (${app.pool.summary.active})` : ''}
         </button>
       </div>

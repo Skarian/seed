@@ -75,12 +75,11 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
   }, [app.mode]);
   // Picking items to put into a collection: browse everything, then add the selection in one step.
   const [filling, setFilling] = useState<AssetCollection | null>(null);
+  // A new collection fills from what is on screen: the search and filters stay, and anything already selected stays selected.
   function startFilling(c: AssetCollection) {
     setFilling(c);
-    setQ('');
-    setF(none);
+    if (!selecting) setSelected([]);
     setSelecting(true);
-    setSelected([]);
   }
   async function finishFilling() {
     const c = filling!;
@@ -197,14 +196,14 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
           Filters{active.length ? ' · ' + active.length : ''}
         </button>
         <MenuButton
-          label="Sort"
+          label="Sort and view"
           className="btn"
           items={[
             { label: 'Newest first', checked: f.order === 'newest', onSelect: () => setF({ ...f, order: 'newest' }) },
             { label: 'Oldest first', checked: f.order === 'oldest', onSelect: () => setF({ ...f, order: 'oldest' }) },
             'divider',
-            { label: dense ? 'Larger tiles' : 'Smaller tiles', onSelect: () => setDense(!dense) },
-            { label: captions ? 'Hide titles' : 'Show titles', onSelect: () => setCaptions(!captions) },
+            { label: 'Small tiles', checked: dense, onSelect: () => setDense(!dense) },
+            { label: 'Show titles', checked: captions, onSelect: () => setCaptions(!captions) },
           ]}
         >
           {f.order === 'newest' ? 'Newest' : 'Oldest'} ▾

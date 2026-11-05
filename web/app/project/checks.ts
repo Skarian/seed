@@ -21,7 +21,12 @@ export type Fix = {
   patch: (r: ImageRequest) => Record<string, unknown>;
   action?: 'edit-myself';
   assets?: string[];
+  /** Accepting this fix means the owner plans to crop the result to this shape; Crop then starts there. */
+  cropTo?: string;
 };
+
+/** The crop shape a project plans to deliver, remembered on this device once a crop-later fix is accepted or a crop is saved. */
+export const cropKey = (projectId: string) => 'seed.cropTo.' + projectId;
 /** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
 export type Check = { text: string; fixes: Fix[]; soft?: boolean };
 
@@ -151,11 +156,20 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     fixes.push({
       label: croppable ? `Keep ${names[aspect]}, crop to ${asked.other} after` : 'Keep ' + names[aspect],
       patch: () => ({}),
+      ...(croppable ? { cropTo: asked.other } : {}),
     });
-    out.push({
-      text: `You asked for ${asked.other}, which Seed can't make directly. This draft is ${names[aspect]}.${croppable ? ` After it's made, Crop turns it into ${asked.other} on this device, no GPU.` : ''}`,
-      fixes,
-    });
+    // Once the owner chose "crop to X after" for this project, every draft at the closest shape is already settled.
+    const settled =
+      croppable &&
+      closest === aspect &&
+      typeof localStorage !== 'undefined' &&
+      project.id !== undefined &&
+      localStorage.getItem(cropKey(project.id)) === asked.other;
+    if (!settled)
+      out.push({
+        text: `You asked for ${asked.other}, which Seed can't make directly. This draft is ${names[aspect]}.${croppable ? ` After it's made, Crop turns it into ${asked.other} on this device, no GPU.` : ''}`,
+        fixes,
+      });
   }
   if (
     video &&
@@ -181,7 +195,11 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       fixes: [
         {
           label: asked.silent ? 'Make it silent' : 'Add sound',
-          patch: x => ({ ...strip(x), audio: { output: asked.silent ? 'silent' : 'generated' } }),
+          patch: x => ({
+            ...strip(x),
+            audio: { output: asked.silent ? 'silent' : 'generated' },
+            ...(asked.silent ? { prompt: silencedPrompt(x.prompt) } : {}),
+          }),
         },
       ],
     });
@@ -196,7 +214,10 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     out.push({
       text: 'Seed added sound to this clip, which you didn’t ask for.',
       fixes: [
-        { label: 'Make it silent', patch: x => ({ ...strip(x), audio: { output: 'silent' } }) },
+        {
+          label: 'Make it silent',
+          patch: x => ({ ...strip(x), audio: { output: 'silent' }, prompt: silencedPrompt(x.prompt) }),
+        },
         { label: 'Keep the sound', patch: () => ({}) },
       ],
     });
@@ -422,10 +443,7 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
       .replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:')
       .replace(/\[Shot (\d+)\]/g, 'part $1')
       // The video engine's own scaffolding sentence says nothing to a person; the source is shown beside the draft.
-      .replace(
-        /For the target video, at [\d.]+ seconds into the target video,[^.]*?(?:is )?(?:fully )?referenced\.\s*/gi,
-        '',
-      )
+      .replace(scaffold, '')
       // Speaker tags such as "Ines (S2)" tell the video model who is who; a person needs only the name.
       .replace(/\s?\(S\d+\)/g, '')
   );
@@ -449,6 +467,10 @@ const naLine = /^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i;
  * [Shot N] becomes "Shot N:", input tokens become quoted names, and N/A lines are set aside and restored.
  * Returns null when the prompt cannot be round-tripped safely (then the raw prompt is edited instead).
  */
+/** The video engine's own scaffolding sentence (from the official animate format): needed by the model, noise to a person. */
+const scaffold =
+  /For the target video, at [\d.]+ seconds into the target video,[\s\S]{0,240}?(?:is )?(?:fully )?referenced\.[ \t]*/gi;
+
 export function editablePrompt(r: ImageRequest, project: Project, everywhere: JobRecord[] = []) {
   const labels = inputLabels(r.references ?? []);
   const named = (r.references ?? [])
@@ -460,6 +482,9 @@ export function editablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   const lines = r.prompt.split('\n'),
     hidden = lines.filter(l => naLine.test(l));
   let text = lines.filter(l => !naLine.test(l)).join('\n');
+  // The scaffold stays out of the editor and goes back at the start of the scene when saved.
+  const scaffolds = text.match(scaffold) ?? [];
+  text = text.replace(scaffold, '');
   for (const [key, label] of sections)
     text = text.replace(new RegExp('^(\\s*)' + key + '\\s*:\\s*', 'gm'), '$1' + label + ': ');
   text = text.replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:').replace(/\[Shot (\d+)\]/g, 'part $1');
@@ -467,6 +492,10 @@ export function editablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   const back = (edited: string) => {
     if (edited === text) return r.prompt;
     let out = edited;
+    if (scaffolds.length) {
+      const lead = scaffolds.join(' ').trim() + ' ';
+      out = /^(\s*)Scene:\s*/m.test(out) ? out.replace(/^(\s*)Scene:\s*/m, '$1Scene: ' + lead) : lead + out;
+    }
     for (const { token, name } of named) out = out.split(name).join(token);
     out = out.replace(/^(\s*)Part (\d+):/gm, '$1[Shot $2]');
     if (mid) out = out.replace(/\bpart (\d+)\b/g, '[Shot $1]');
@@ -475,4 +504,23 @@ export function editablePrompt(r: ImageRequest, project: Project, everywhere: Jo
     return hidden.length ? out.replace(/\s+$/, '') + '\n' + hidden.join('\n') : out;
   };
   return text === r.prompt ? null : { text, back };
+}
+
+/** A silent clip should not keep describing sound: rewrite the prompt's Sound section (if any) to silence. */
+export function silencedPrompt(prompt: string) {
+  const lines = prompt.split('\n');
+  // "Sound:" as people write it, or the video format's own overall_soundscape field.
+  const head = /^\s*(?:#+\s*)?(?:sound|audio|overall_soundscape)\s*:/i;
+  const at = lines.findIndex(l => head.test(l));
+  if (at < 0) return prompt;
+  // The section runs until the next "Label:" line, [Shot N] part or blank line.
+  let end = at + 1;
+  while (
+    end < lines.length &&
+    lines[end]!.trim() &&
+    !/^\s*(?:#+\s*)?(?:[A-Z][\w ]{1,24}|[a-z]+(?:_[a-z]+)+)\s*:|^\s*\[Shot \d+\]/.test(lines[end]!)
+  )
+    end++;
+  const label = lines[at]!.match(head)![0];
+  return [...lines.slice(0, at), label + ' Silence.', ...lines.slice(end)].join('\n');
 }

@@ -56,6 +56,81 @@ export function Markdown({ text, streaming = false }: { text: string; streaming?
   );
 }
 
+/**
+ * For full-screen overlays that are not Radix dialogs (the viewer, Compare): keeps Tab inside the overlay while it is
+ * the topmost layer, and on close returns focus to whatever opened it (or a control with the same accessible name).
+ */
+export function useModalFocus(ref: React.RefObject<HTMLElement | null>) {
+  const opener = useRef<{ el: HTMLElement | null; name: string | null } | null>(null);
+  if (opener.current === null && typeof document !== 'undefined') {
+    const el = document.activeElement as HTMLElement | null;
+    opener.current =
+      el && el !== document.body ? { el, name: el.getAttribute('aria-label') } : { el: null, name: null };
+  }
+  useEffect(() => {
+    const trap = (e: KeyboardEvent) => {
+      const root = ref.current;
+      if (e.key !== 'Tab' || !root) return;
+      // A dialog or menu opened on top handles its own focus.
+      if (document.querySelector('[role=menu]') || [...document.querySelectorAll('[role=dialog]')].at(-1) !== root)
+        return;
+      const items = [
+        ...root.querySelectorAll<HTMLElement>(
+          'a[href],button:not([disabled]),input:not([disabled]),select,textarea,video[controls],[tabindex]:not([tabindex="-1"])',
+        ),
+      ].filter(x => x.offsetParent !== null || x === document.activeElement);
+      if (!items.length) return;
+      const first = items[0]!,
+        last = items.at(-1)!;
+      const inside = root.contains(document.activeElement);
+      if (e.shiftKey && (document.activeElement === first || !inside)) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
+        e.preventDefault();
+        first.focus();
+      }
+    };
+    document.addEventListener('keydown', trap, true);
+    return () => {
+      document.removeEventListener('keydown', trap, true);
+      const { el, name } = opener.current ?? { el: null, name: null };
+      requestAnimationFrame(() => {
+        if (document.activeElement && document.activeElement !== document.body) return;
+        const target = el?.isConnected
+          ? el
+          : name
+            ? document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(name)}"]`)
+            : null;
+        target?.focus({ preventScroll: true });
+      });
+    };
+  }, []);
+}
+
+/**
+ * Keyboard for any role="tablist": Left/Right (and Home/End) move to the neighbouring tab and select it, the
+ * WAI-ARIA "automatic activation" pattern. Put on the tablist; selected tabs should carry aria-selected.
+ * Only the selected tab is in the Tab order (tabIndex), so Tab moves on to the panel.
+ */
+export function onTabKeys(e: React.KeyboardEvent<HTMLElement>) {
+  const keys = ['ArrowLeft', 'ArrowRight', 'Home', 'End'];
+  if (!keys.includes(e.key)) return;
+  const tabs = [...e.currentTarget.querySelectorAll<HTMLElement>('[role="tab"]:not([disabled])')];
+  const at = tabs.indexOf(document.activeElement as HTMLElement);
+  if (at < 0) return;
+  e.preventDefault();
+  const next =
+    e.key === 'Home'
+      ? 0
+      : e.key === 'End'
+        ? tabs.length - 1
+        : (at + (e.key === 'ArrowRight' ? 1 : -1) + tabs.length) % tabs.length;
+  tabs[next]!.click();
+  tabs[next]!.focus();
+}
+export const tabStop = (selected: boolean) => ({ 'aria-selected': selected, tabIndex: selected ? 0 : -1 });
+
 /* ---------- Menu anchored to a button (Radix: keyboard navigation, typeahead, focus return, roles) ---------- */
 export type MenuItem =
   | { label: string; hint?: string; onSelect: () => void; danger?: boolean; checked?: boolean; disabled?: boolean }
@@ -149,15 +224,22 @@ export function Dialog({
   // element was re-rendered meanwhile (a saved draft remounts), find its replacement by the same accessible name.
   const opener = useRef<{ el: HTMLElement | null; name: string | null }>({ el: null, name: null });
   if (!opener.current.el && typeof document !== 'undefined') {
-    const el = document.activeElement as HTMLElement | null;
-    opener.current = { el, name: el?.getAttribute('aria-label') ?? null };
+    let el = document.activeElement as HTMLElement | null;
+    // Opened from a menu item: the item disappears with the menu, so return to the button that opened the menu.
+    const menu = el?.closest<HTMLElement>('[role="menu"]');
+    const trigger = menu?.getAttribute('aria-labelledby');
+    if (trigger) el = document.getElementById(trigger) ?? el;
+    if (el === document.body) el = null;
+    opener.current = { el, name: el?.getAttribute('aria-label') ?? el?.textContent?.trim().slice(0, 60) ?? null };
   }
   const returnFocus = (e: Event) => {
     const { el, name } = opener.current;
     const target = el?.isConnected
       ? el
       : name
-        ? document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(name)}"]`)
+        ? (document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(name)}"]`) ??
+          [...document.querySelectorAll<HTMLElement>('main button')].find(b => b.textContent?.trim() === name) ??
+          null)
         : null;
     if (target) {
       e.preventDefault();

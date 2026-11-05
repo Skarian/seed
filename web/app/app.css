@@ -2431,6 +2431,17 @@ h2.subhead {
   box-shadow: 0 0 0 9999px #000a;
   border-radius: 2px;
 }
+.crop-box:focus-visible {
+  outline: 3px solid var(--accent);
+  outline-offset: 2px;
+}
+.crop-foot {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  align-items: center;
+  justify-content: space-between;
+}
 
 /* Activity rows: media previews are always small, fixed thumbnails. */
 .task .thumb {
@@ -3183,4 +3194,242 @@ button.chip:hover {
   color: var(--text);
   border-radius: 3px;
   padding: 0 2px;
+}
+
+/* The film board: one cell per numbered shot, in order, with its chosen take and where it stands */
+.film-board {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--s1);
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 8px;
+}
+.film-board-head {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+.film-board-head .faint {
+  font-size: 12.5px;
+}
+.film-cells {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 8px;
+}
+.board-cell {
+  width: 100%;
+  display: grid;
+  gap: 6px;
+  text-align: left;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--s2);
+  color: inherit;
+  cursor: pointer;
+}
+.board-cell:hover {
+  border-color: var(--line2);
+}
+.board-cell.done {
+  border-color: color-mix(in srgb, var(--accent) 45%, transparent);
+}
+.board-thumb {
+  aspect-ratio: 16 / 9;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--s3);
+  display: grid;
+  place-items: center;
+}
+.board-thumb img,
+.board-thumb video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  display: block;
+}
+.board-text {
+  display: grid;
+  gap: 1px;
+  min-width: 0;
+}
+.board-text b {
+  font-weight: 500;
+  font-size: 13.5px;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.board-text small {
+  font-size: 12px;
+  color: var(--muted);
+}
+.board-cell.done .board-text small {
+  color: var(--accent);
+}
+/* Use for shot: the chosen take is the owner's decision, shown on the take itself */
+.lane-cell figcaption {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  min-height: 30px;
+}
+.lane-cell.chosen .tile {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+.chosen-tag {
+  color: var(--accent);
+  font-weight: 500;
+}
+.use-shot {
+  flex: none;
+  font: inherit;
+  font-size: 12px;
+  padding: 4px 9px;
+  min-height: 28px;
+  border-radius: 999px;
+  border: 1px solid var(--line2);
+  background: transparent;
+  color: var(--muted);
+  cursor: pointer;
+}
+.use-shot:hover {
+  color: var(--text);
+  background: var(--s2);
+}
+.use-shot.on {
+  border-color: transparent;
+  background: var(--accent-soft);
+  color: var(--text);
+}
+@media (pointer: coarse) {
+  .use-shot {
+    min-height: 40px;
+    padding: 6px 12px;
+  }
+}
+@media (min-width: 1200px) {
+  .board.full .lane-strip .tile {
+    height: 180px;
+  }
+}
+/* The loading shimmer is decoration: it must never catch the clicks meant for Cancel. */
+.tile.shimmer::after {
+  pointer-events: none;
+}
+.tile.pending .corner {
+  z-index: 2;
+}
+.tile.pending .corner .pill {
+  min-height: 32px;
+  padding: 4px 12px;
+}
+@media (pointer: coarse) {
+  .tile.pending .corner .pill {
+    min-height: 44px;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .tile.shimmer::after {
+    animation: none;
+  }
+}
+
+/* Narrow screens are touch screens in practice: the same comfortable targets as coarse pointers. */
+@media (max-width: 700px) {
+  .chip:is(button),
+  .btn,
+  .btn.small,
+  .vtop .btn,
+  .seg > button,
+  .icon-btn,
+  .tabs [role='tab'],
+  .input,
+  .use-shot,
+  .lineage button,
+  .kv .link {
+    min-height: 44px;
+  }
+  .chip:is(button) {
+    padding-inline: 12px;
+  }
+}
+/* Placeholders are read as text: keep them at normal-text contrast (4.5:1) on the dark fields. */
+input::placeholder,
+textarea::placeholder {
+  color: #9a9f97;
+  opacity: 1;
+}
+
+/* Compare: each frame hugs its picture (no tall letterbox), centred in its half, actions right under it. */
+.compare-grid figure {
+  justify-content: center;
+  align-items: center;
+}
+.compare-grid .frame {
+  flex: 0 1 auto;
+  max-width: 100%;
+  max-height: calc(100% - 56px);
+  display: block;
+  background: none;
+}
+.compare-grid .frame img,
+.compare-grid .frame video {
+  display: block;
+  max-height: calc(100dvh - 200px);
+  width: auto;
+  height: auto;
+  border-radius: var(--rt);
+}
+@media (orientation: portrait) and (min-width: 700px) {
+  .compare-grid .frame img,
+  .compare-grid .frame video {
+    max-height: calc(50dvh - 130px);
+  }
+}
+@media (max-width: 700px) {
+  .compare-grid .frame img,
+  .compare-grid .frame video {
+    max-height: calc(100dvh - 260px);
+  }
+}
+
+/* An open brief is a reading panel, never a wall: it scrolls inside a bounded height above the conversation. */
+.brief.open .brief-body {
+  max-height: min(60dvh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+}
+@media (max-width: 700px) {
+  .brief.open .brief-body {
+    max-height: 42dvh;
+  }
+  .brief-head {
+    padding: 6px 14px;
+  }
+  .brief-when {
+    display: none;
+  }
+}
+
+/* The draft editor in a dialog: Save and Cancel stay pinned, padded, above the dialog's lower edge. */
+.dialog-body > .editor > .buttons,
+.dialog-body .editor .buttons:last-child {
+  position: sticky;
+  bottom: -16px;
+  margin: 4px -16px -16px;
+  padding: 12px 16px calc(14px + env(safe-area-inset-bottom));
+  background: var(--s1);
+  border-top: 1px solid var(--line);
+  z-index: 2;
 }

@@ -13,7 +13,7 @@ import {
 } from '../api.js';
 import { useApp, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
-import { Media, MenuButton, Thumb, Confirm, Dialog, downloadAsset } from '../ui.js';
+import { Media, MenuButton, Thumb, Confirm, Dialog, downloadAsset, useModalFocus } from '../ui.js';
 import { titleOf, settingChips, duration, targetLabel, promptChanges } from '../format.js';
 import { roleLabels } from '../project/requests.js';
 import { StatusControl } from '../App.js';
@@ -99,10 +99,37 @@ export function AssetPanel({
       .catch(() => {});
   }, [app.mode, detail?.collection_ids?.join()]);
   const memberOf = allCols.filter(c => detail?.collection_ids?.includes(c.id));
+  // A crop or a picked frame remembers the asset it came from; link back to it (and its project) instead of "Uploaded".
+  const derivedFrom = (() => {
+    const from = typeof detail?.source_asset_id === 'string' ? detail.source_asset_id : '';
+    if (!from) return null;
+    const made = app.tasks.find(j => j.outputs.includes(from));
+    const crop = detail?.crop as { shape?: string } | undefined;
+    const at = detail?.source_time_seconds;
+    return {
+      asset: from,
+      kind: (crop ? 'image' : 'video') as 'image' | 'video',
+      job: made,
+      title: made
+        ? titleOf(made.request) + (made.request.count > 1 ? ` · take ${(made.submission_index ?? 0) + 1}` : '')
+        : 'The original',
+      how: crop
+        ? `cropped to ${crop.shape ?? 'a new shape'}`
+        : typeof at === 'number'
+          ? `frame at ${at.toFixed(1)}s`
+          : 'source',
+    };
+  })();
   const r = job?.request,
     video = item.kind === 'video';
   const fav = Boolean(detail?.favorite);
   const source = job?.source;
+  // A crop or picked frame belongs to the project of the image it came from.
+  const home =
+    source ??
+    (typeof detail?.source_asset_id === 'string'
+      ? app.tasks.find(j => j.outputs.includes(detail.source_asset_id as string))?.source
+      : undefined);
   async function variations() {
     if (!source?.chat_id || !source.card_id || !source.revision) return;
     try {
@@ -263,6 +290,25 @@ export function AssetPanel({
                   </button>
                 ))}
               </span>
+            ) : derivedFrom ? (
+              <span className="lineage">
+                <button
+                  onClick={() =>
+                    app.inspect({
+                      asset: derivedFrom.asset,
+                      kind: derivedFrom.kind,
+                      title: derivedFrom.title,
+                      job: derivedFrom.job,
+                      project: derivedFrom.job?.source?.chat_id,
+                    })
+                  }
+                >
+                  <Thumb id={derivedFrom.asset} kind={derivedFrom.kind} alt="" />
+                  <span>
+                    <b style={{ fontWeight: 500 }}>{derivedFrom.title}</b> · {derivedFrom.how}
+                  </span>
+                </button>
+              </span>
             ) : (
               <span className="faint">{job ? 'Words only' : detail && !detail.job_id ? 'Uploaded' : '—'}</span>
             )}
@@ -333,7 +379,7 @@ export function AssetPanel({
               </div>
             </>
           )}
-          {source?.chat_id && (
+          {home?.chat_id && (
             <>
               <span>Project</span>
               <div>
@@ -341,10 +387,10 @@ export function AssetPanel({
                   className="link"
                   onClick={() => {
                     onClosed?.();
-                    app.go({ name: 'project', id: source.chat_id!, view: 'conversation', focus: source.card_id });
+                    app.go({ name: 'project', id: home.chat_id!, view: 'conversation', focus: home.card_id });
                   }}
                 >
-                  {app.projectList.find(p => p.id === source.chat_id)?.title ?? 'Open project'} · show in conversation
+                  {app.projectList.find(p => p.id === home.chat_id)?.title ?? 'Open project'} · show in conversation
                 </button>
               </div>
             </>
@@ -409,7 +455,14 @@ export function AssetPanel({
           }
         </div>
       )}
-      {crop && <CropDialog asset={item.asset} title={item.title} onClose={() => setCrop(false)} />}
+      {crop && (
+        <CropDialog
+          asset={item.asset}
+          title={item.title}
+          project={item.project ?? job?.source?.chat_id}
+          onClose={() => setCrop(false)}
+        />
+      )}
       {colDialog && (
         <Dialog
           title="Add to collection"
@@ -683,6 +736,8 @@ export function Viewer({
   onPick: (i: ViewerItem) => void;
 }) {
   const app = useApp();
+  const root = useRef<HTMLDivElement>(null);
+  useModalFocus(root);
   const i = siblings.findIndex(s => s.asset === item.asset);
   const { job, detail, refresh } = useDetail(item);
   const fav = Boolean(detail?.favorite);
@@ -736,7 +791,7 @@ export function Viewer({
   }
   const shown = before && source ? source : item.asset;
   return (
-    <div className="viewer" role="dialog" aria-modal="true" aria-label={item.title}>
+    <div className="viewer" role="dialog" aria-modal="true" aria-label={item.title} ref={root}>
       <div className="vtop">
         <button className="btn small close" onClick={onClose} autoFocus>
           <Icon.Close />
@@ -796,7 +851,8 @@ export function Viewer({
             src={media.content(shown)}
             controls
             playsInline
-            autoPlay
+            // Reduced motion: show the first frame and wait for Play, except when playing the film in order.
+            autoPlay={item.sequence || !matchMedia('(prefers-reduced-motion: reduce)').matches}
             aria-label={item.title}
             onEnded={() => {
               if (item.sequence && i >= 0 && i < siblings.length - 1) step(1);
@@ -861,6 +917,22 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
     [zoom, setZoom] = useState(1),
     [diff, setDiff] = useState(!app.narrow);
   const [favs, setFavs] = useState<Record<string, boolean>>({});
+  const root = useRef<HTMLDivElement>(null);
+  useModalFocus(root);
+  // Both takes of one numbered shot: either can be chosen for the shot right here.
+  const shotN = (x: ViewerItem) => (x.job ? titleOf(x.job.request) : x.title).match(/\bshot\s*(\d{1,3})\b/i)?.[1];
+  const sameShot = shotN(a) && shotN(a) === shotN(b) && a.project && a.kind === b.kind ? shotN(a) : undefined;
+  const [chosenId, setChosenId] = useState<string | null>(null);
+  async function useForShot(x: ViewerItem) {
+    try {
+      const p = await projectsApi.pick(x.project!, sameShot + ':' + (x.kind === 'video' ? 'clip' : 'image'), x.asset);
+      setChosenId(x.asset);
+      dispatchEvent(new CustomEvent('seed:project', { detail: p }));
+      app.toast(`Chosen for Shot ${sameShot}`);
+    } catch (e) {
+      app.toast((e as Error).message);
+    }
+  }
   useEffect(() => {
     for (const x of [a, b])
       void assetsApi
@@ -870,6 +942,14 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
   }, [a.asset, b.asset]);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
+      const target = e.target as HTMLElement;
+      if (
+        e.defaultPrevented ||
+        target.closest('input,textarea,select,[role=menu]') ||
+        document.querySelector('[role=menu]') ||
+        [...document.querySelectorAll('[role=dialog]')].at(-1) !== root.current
+      )
+        return;
       if (e.key === 'Escape') onClose();
       if (e.key === 'a' || e.key === 'ArrowLeft') setSide('A');
       if (e.key === 'b' || e.key === 'ArrowRight') setSide('B');
@@ -901,7 +981,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
         <button
           className="btn"
           aria-pressed={favs[x.asset]}
-          aria-label={(favs[x.asset] ? 'Remove ' : 'Add ') + letter + ' to favorites'}
+          aria-label={favs[x.asset] ? 'Remove ' + letter + ' from favorites' : 'Add ' + letter + ' to favorites'}
           onClick={() =>
             void assetsApi
               .favorite(x.asset, !favs[x.asset])
@@ -919,11 +999,16 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
         >
           Refine {letter}
         </button>
+        {sameShot && (
+          <button className="btn" aria-pressed={chosenId === x.asset} onClick={() => void useForShot(x)}>
+            {chosenId === x.asset ? `Chosen for Shot ${sameShot}` : `Use ${letter} for Shot ${sameShot}`}
+          </button>
+        )}
       </figcaption>
     </figure>
   );
   return (
-    <div className="viewer" role="dialog" aria-modal="true" aria-label="Compare two results">
+    <div className="viewer" role="dialog" aria-modal="true" aria-label="Compare two results" ref={root}>
       <div className="vtop">
         <button className="btn small close" onClick={onClose} autoFocus>
           <Icon.Close />

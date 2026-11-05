@@ -99,6 +99,7 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
   const rows = db.prepare(`WITH items AS (
     SELECT a.id, a.kind, a.name, a.created_at,
       j.id AS job_id,
+      json_extract(a.metadata_json, '$.source_asset_id') AS source_asset_id,
       json_extract(j.snapshot_json, '$.request.title') AS title,
       json_extract(j.snapshot_json, '$.source.chat_id') AS chat_id,
       json_extract(j.snapshot_json, '$.submission_index') AS submission_index,
@@ -113,7 +114,8 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
       json_extract(a.metadata_json, '$.height') AS height,
       json_extract(j.snapshot_json, '$.request.prompt') AS prompt
     FROM assets a
-    LEFT JOIN jobs j ON j.id=json_extract(a.metadata_json, '$.job_id')
+    LEFT JOIN assets src ON src.id=json_extract(a.metadata_json, '$.source_asset_id')
+    LEFT JOIN jobs j ON j.id=COALESCE(json_extract(a.metadata_json, '$.job_id'), json_extract(src.metadata_json, '$.job_id'))
     LEFT JOIN sequence_frames f ON f.asset_id=a.id
     LEFT JOIN sequences s ON s.id=f.sequence_id
     WHERE COALESCE(json_extract(a.metadata_json, '$.state'), 'ready')='ready'
@@ -125,10 +127,10 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
     AND (? IS NULL OR (?='made' AND job_id IS NOT NULL) OR (?='uploaded' AND job_id IS NULL))
     AND (? IS NULL OR chat_id=?)
     AND (? = '' OR (created_at,id) ${oldest ? '>' : '<'} (SELECT created_at,id FROM items WHERE id=?))
-    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,...more,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null;note:string|null;width:number|null;height:number|null;prompt:string|null}>;
+    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,...more,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;source_asset_id:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null;note:string|null;width:number|null;height:number|null;prompt:string|null}>;
   // When a search matched the prompt, return a few words around the match (never the whole prompt).
   const words = terms.map(t => t.slice(1, -1));
   const excerpt = (text: string | null) => { if (!text || !words.length) return undefined; const low = text.toLowerCase(), at = low.indexOf(words[0]!); if (at < 0 || !words.every(w => low.includes(w))) return undefined; const start = at > 30 ? text.lastIndexOf(' ', at - 30) + 1 : 0, end = Math.min(text.length, at + words[0]!.length + 50); return (start ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : ''); };
-  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,title,chat_id,submission_index,batch_count,note,width,height,prompt,...row})=>({...row,favorite:Boolean(row.favorite),...(excerpt(prompt)?{prompt_match:excerpt(prompt)}:{}),...(note?{note}:{}),...(width&&height?{width:Number(width),height:Number(height)}:{}),...(Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id?{job_id}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
+  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,source_asset_id,title,chat_id,submission_index,batch_count,note,width,height,prompt,...row})=>({...row,favorite:Boolean(row.favorite),...(excerpt(prompt)?{prompt_match:excerpt(prompt)}:{}),...(note?{note}:{}),...(width&&height?{width:Number(width),height:Number(height)}:{}),...(!source_asset_id&&Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id&&!source_asset_id?{job_id}:{}),...(source_asset_id?{source_asset_id}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
     ...(executor==='local'||executor==='cloud'?{executor}:{}),...(typeof execution_profile==='string'?{execution_profile}:{})}));
 }
