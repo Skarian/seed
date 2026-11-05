@@ -59,7 +59,7 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
     {selected && <div className="receipt">
       <p className="receipt-head"><b>{voluntary ? 'Starts' : 'To ' + action + ', Seed starts'} {noun} at {rate(selected.hourly)}.</b></p>
       <div className="kv">
-        {!voluntary && <><span>This task</span><div>{seconds == null ? 'No estimate yet. The first result in this project sets one.' : <>{estimateText(seconds)} of making once ready, about <b>{money(selected.hourly * seconds / 3600)}</b></>}</div></>}
+        {!voluntary && <><span>This task</span><div>{seconds == null ? 'No estimate yet. The first result in this project sets one.' : <>Making takes {estimateText(seconds).replace(/^about /, 'about ')} once it is ready · <b>{selected.hourly * seconds / 3600 < 0.01 ? 'under $0.01' : 'about ' + money(selected.hourly * seconds / 3600)}</b>. Start-up is extra.</>}</div></>}
         <span>Start-up</span><div>{selected.model_download_bytes ? `Downloads ${gb(selected.model_download_bytes)} of models first. ` : ''}Time not known; it is billed.</div>
         <span>Release after</span><div><select className="select" aria-label="Release after" value={cap} onChange={e => setCap(Number(e.target.value))}>{capChoices.map(([v, l]) => <option key={v} value={v}>{l}{v ? ` · about ${money(selected.hourly * v / 60)}` : ''}</option>)}</select></div>
         <span>When idle</span><div><select className="select" aria-label="Release when idle for" value={idle} onChange={e => setIdle(Number(e.target.value))}>{idleChoices.map(([v, l]) => <option key={v} value={v}>{v ? 'Release after ' + l : l}</option>)}</select></div>

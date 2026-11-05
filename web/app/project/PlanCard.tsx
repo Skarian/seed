@@ -44,6 +44,9 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   const texts = cards.map(c => readablePrompt(latest(c).request, project, everywhere).split(/\s+/));
   let same = 0; while (cards.length > 1 && texts.every(t => t.length > same + 12 && t[same] === texts[0]![same])) same++;
   const skip = same >= 8 ? same : 0;
+  // One shared source: say it once for the plan instead of on every card.
+  const sources = cards.map(c => latest(c).request.references?.[0]?.asset_id ?? '');
+  const oneSource = cards.length > 1 && sources[0] && sources.every(x => x === sources[0]) ? sources[0] : '';
   const warnings = cards.map(card => checkDraft(card, project, cards.length).filter(x => !acknowledged.has(card.id + ':' + x.text)));
   const short = (r: ChatCard) => titleOf(latest(r).request).split(' ').slice(common).join(' ');
   return <section className={'card' + (flash === group.id ? ' flash' : '')} aria-label={`Plan, ${cards.length} ${cards.length === 1 ? 'draft' : 'drafts'}`} id={'group-' + group.id}>
@@ -54,6 +57,7 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
         <MenuButton label="Plan options" items={[{ label: 'Set this plan aside', hint: 'Drafts are kept under Not made yet; Bring back returns them.', onSelect: onSetAside, disabled: busy }]}><Icon.More /></MenuButton>
       </span>
     </div>
+    {oneSource && <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: 13 }}>All {cards.length} drafts use “{assetName(project, oneSource, everywhere)}” as their source. Its framing and look guide each result; check every take.</p>}
     {(shared.length > 0 || sharedReady) && <div className="shared">
       <span>{cards.length > 1 ? 'All drafts:' : ''}</span>
       <span className="chips">{shared.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</span>
@@ -70,10 +74,10 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
           <span className="check" role="checkbox" aria-checked={on && !blocked} aria-label={'Include ' + titleOf(r)} onClick={e => { e.stopPropagation(); toggle(); }}>{on && !blocked && <Icon.Check />}</span>
           <span className="lines"><span className="name">{short(card)}</span>
             {own.length > 0 && <span className="faint">{own.map(([, v]) => v).join(' · ')}</span>}
-            {warnings[i]!.map(c => <span className="warn-line" key={c.text}>⚠ {c.text}</span>)}</span>
+            {warnings[i]!.filter(c => !c.soft).map(c => <span className="warn-line" key={c.text}>⚠ {c.text}</span>)}</span>
           {changed.length > 0 && <span className="dot amber" aria-label="Changed" />}
         </button>;
-        return <Draft key={card.id + ':' + rev.number} skip={skip} label={short(card)} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
+        return <Draft key={card.id + ':' + rev.number} quietSource={Boolean(oneSource)} skip={skip} label={short(card)} project={project} card={card} on={on && !blocked} blocked={blocked} busy={busy || working} onToggle={toggle} own={own} changed={changed}
           ready={sharedReady ? undefined : ready[i]} styles={styles} flash={flash === card.id}
           onRevise={request => onRevise(card, request)} onAskAbout={() => onAskAbout(card)} onCollapse={compact ? () => setOpen(null) : undefined} kindLabel={kindLabels[kind]}
           checks={warnings[i]!} onAcknowledge={text => onAcknowledge(card.id + ':' + text)} onEditMyself={assets => onEditMyself(card, assets)} />;
@@ -82,8 +86,8 @@ export function PlanCard({ project, group, snapshot, styles, busy, selection, on
   </section>;
 }
 
-function Draft({ skip, label, project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge, onEditMyself }: {
-  skip: number; label: string; project: Project; card: ChatCard; on: boolean; blocked: boolean; busy: boolean; onToggle: () => void; own: Array<[string, string]>; changed: string[];
+function Draft({ quietSource, skip, label, project, card, on, blocked, busy, onToggle, own, changed, ready, styles, flash, onRevise, onAskAbout, onCollapse, kindLabel, checks, onAcknowledge, onEditMyself }: {
+  quietSource: boolean; skip: number; label: string; project: Project; card: ChatCard; on: boolean; blocked: boolean; busy: boolean; onToggle: () => void; own: Array<[string, string]>; changed: string[];
   ready?: ReturnType<typeof readiness>; styles: StyleEntry[]; flash: boolean; onRevise: (r: Record<string, unknown>) => Promise<boolean>; onAskAbout: () => void; onCollapse?: () => void; kindLabel: string;
   checks: Check[]; onAcknowledge: (text: string) => void; onEditMyself: (assets: string[]) => void;
 }) {
@@ -123,10 +127,10 @@ function Draft({ skip, label, project, card, on, blocked, busy, onToggle, own, c
         <p className={'excerpt' + (full ? ' full' : '')}>{skip && current && !full ? '… ' + readablePrompt(r, project, tasks).split(/\s+/).slice(skip).join(' ') : readablePrompt(r, project, tasks)}</p>
         {r.prompt.length > 200 && <button className="link" style={{ alignSelf: 'flex-start', fontSize: 13 }} aria-expanded={full} onClick={() => setFull(f => !f)}>{full ? 'Show less' : 'Show full prompt'}</button>}
         {inputs.length > 0 && <div className="inputs-row">{inputs.map(ref => { const name = assetName(project, ref.asset_id, tasks); return <span className="input-chip" key={ref.id}><Thumb id={ref.asset_id} kind={ref.kind} alt={name} /><span><b>{roleLabels[ref.role] ?? ref.role}</b> · {name}{ref.range ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s` : ''}</span></span>; })}</div>}
-        {departure && <p className="faint" style={{ margin: 0, fontSize: 13 }}>{departure}</p>}
+        {departure && !quietSource && <p className="faint" style={{ margin: 0, fontSize: 13 }}>{departure}</p>}
         {own.length > 0 && <div className="chips">{own.map(([k, v]) => <span className="chip" key={k}>{v}</span>)}</div>}
         {current && changed.length > 0 && <p className="changed">What changed: {changed.join(' · ')}</p>}
-        {current && checks.map(c => <div className="check-note" role="status" key={c.text}><span>⚠ {c.text}</span>{c.fixes.map(f => <button key={f.label} className="btn small" disabled={busy} onClick={() => { if (f.action === 'edit-myself') { onEditMyself(f.assets ?? []); return; } const patch = f.patch(r); if (Object.keys(patch).length) void onRevise(patch); else onAcknowledge(c.text); }}>{f.label}</button>)}</div>)}
+        {current && checks.map(c => <div className={'check-note' + (c.soft ? ' soft' : '')} role="status" key={c.text}><span>{c.soft ? '' : '⚠ '}{c.text}</span>{c.fixes.map(f => <button key={f.label} className="btn small" disabled={busy} onClick={() => { if (f.action === 'edit-myself') { onEditMyself(f.assets ?? []); return; } const patch = f.patch(r); if (Object.keys(patch).length) void onRevise(patch); else onAcknowledge(c.text); }}>{f.label}</button>)}</div>)}
         {ready && <span className={'ready ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'warn' : 'bad')}><span className={'dot ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'amber' : 'red')} />{ready.label}</span>}
       </>}
     <span className="sr-only">{kindLabel} · {outputNoun(r, r.count)}</span>
@@ -157,7 +161,7 @@ function DraftEditor({ card, project, styles, busy, onCancel, onSave }: { card: 
       {video && <label className="field"><span>Length</span><select aria-label="Length" className="select" value={f.duration} onChange={e => set({ duration: Number(e.target.value) })}>{[5, 6, 8, 10, 12, 15].map(n => <option key={n} value={n}>{n} seconds</option>)}</select></label>}
       {video && <label className="field"><span>Sound</span><select aria-label="Sound" className="select" value={f.sound} onChange={e => set({ sound: e.target.value as 'generated' | 'silent' })}><option value="generated">With sound</option><option value="silent">Silent</option></select></label>}
       {video && <label className="field"><span>Detail</span><select aria-label="Detail" className="select" value={f.detail} onChange={e => set({ detail: e.target.value as 'standard' | 'full' })}><option value="standard">Fast</option><option value="full">Full (slower)</option></select></label>}
-      {kind !== 'edit' && <label className="field"><span>Style</span><select aria-label="Style" className="select" value={style?.id ?? ''} onChange={e => { const s = available.find(x => x.id === e.target.value); set({ loras: s ? [{ id: s.id, revision: s.revision, scale: s.default_scale ?? 1 }] : [] }); }}><option value="">No style</option>{available.map(s => <option key={s.id} value={s.id} disabled={s.source_status === 'needs_source'}>{s.name}{s.source_status === 'needs_source' ? ' (needs source)' : ''}</option>)}</select></label>}
+      {kind !== 'edit' && <label className="field"><span>Style</span><select aria-label="Style" className="select" value={style?.id ?? ''} onChange={e => { const s = available.find(x => x.id === e.target.value); set({ loras: s ? [{ id: s.id, revision: s.revision, scale: s.default_scale ?? 1 }] : [] }); }}><option value="">No style</option>{style && !available.some(s => s.id === style.id) && <option value={style.id}>{styleName(styles, style.id) === 'Style' ? 'The chosen style' : styleName(styles, style.id)}</option>}{available.map(s => <option key={s.id} value={s.id} disabled={s.source_status === 'needs_source'}>{s.name}{s.source_status === 'needs_source' ? ' (needs source)' : ''}</option>)}</select></label>}
       {style && <label className="field"><span>Style strength</span><input className="input" type="number" min={0} max={4} step={0.1} value={style.scale} onChange={e => set({ loras: [{ ...style, scale: Number(e.target.value) }] })} /></label>}
       <label className="field"><span>Runs on</span><select aria-label="Runs on" className="select" value={f.target} onChange={e => set({ target: e.target.value as 'auto' | 'local' | 'cloud' })}><option value="auto">Auto</option><option value="local">Seed PC</option><option value="cloud">Cloud GPU</option></select></label>
     </div>

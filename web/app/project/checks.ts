@@ -5,7 +5,8 @@ import { inputLabels } from '../../../shared/reference-labels.js';
 
 type Aspect = '16:9' | '9:16' | '1:1' | '4:5';
 export type Fix = { label: string; patch: (r: ImageRequest) => Record<string, unknown>; action?: 'edit-myself'; assets?: string[] };
-export type Check = { text: string; fixes: Fix[] };
+/** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
+export type Check = { text: string; fixes: Fix[]; soft?: boolean };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
 export function askedFor(messages: ChatMessage[]) {
@@ -34,7 +35,9 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   const r = latest(card).request, kind = kindOf[r.workflow], video = isVideoKind(kind), out: Check[] = [];
   // Only the message that produced this version of the draft counts. With several drafts, a setting is
   // checked only when that message plainly addresses all of them ("make them all square").
-  const at = project.messages.findIndex(m => m.id === latest(card).run_id);
+  // The message that asked for this draft: a manual edit keeps the request it revised, so its checks still apply.
+  const origin = [...card.revisions].reverse().find(v => v.run_id)?.run_id;
+  const at = project.messages.findIndex(m => m.id === origin);
   const trigger = at > 0 ? [...project.messages.slice(0, at)].reverse().find(m => m.role === 'user') : undefined;
   const forAll = siblings <= 1 || /\b(all|every|each|both|them)\b/i.test(trigger?.text ?? '');
   const asked = trigger && forAll ? askedFor([trigger]) : {};
@@ -65,13 +68,55 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   // Sound the person never mentioned is a creative choice: say so, and make silence one tap.
   if (video && asked.silent === undefined && trigger && !/\b(sound|audio|music|ambien\w*|noise|voice|dialog\w*|speak\w*|sings?|score)\b/i.test(trigger.text) && r.audio?.output !== 'silent')
     out.push({ text: 'Seed added sound to this clip, which you didn’t ask for.', fixes: [{ label: 'Make it silent', patch: x => ({ ...strip(x), audio: { output: 'silent' } }) }, { label: 'Keep the sound', patch: () => ({}) }] });
+  // Brief details that apply to this draft but are missing from its prompt. Words only: this checks the request, not the picture.
+  const gaps = briefGaps(r.prompt, project.brief ?? '');
+  if (gaps.length) out.push({ soft: true, text: `Brief details this draft doesn't mention: ${gaps.join('; ')}. Fine if they can't be seen in this shot.`, fixes: [{ label: gaps.length === 1 ? 'Add it to the prompt' : 'Add them to the prompt', patch: x => ({ ...strip(x), prompt: x.prompt.replace(/\s+$/, '') + (/[.!?]$/.test(x.prompt.trim()) ? ' ' : '. ') + gaps.map(g => g[0]!.toUpperCase() + g.slice(1)).join('. ') + '.' }) }, { label: 'Leave as is', patch: () => ({}) }] });
   // An attachment that the draft does not use (it is made from words only).
-  const runMessage = project.messages.findIndex(m => m.id === latest(card).run_id);
+  const runMessage = at;
   const asking = runMessage > 0 ? [...project.messages.slice(0, runMessage)].reverse().find(m => m.role === 'user') : undefined;
   const used = new Set((r.references ?? []).map(x => x.asset_id));
   const unused = (asking?.assets ?? []).filter(a => !used.has(a));
   if (unused.length && !(r.references ?? []).length) out.push({ text: `Your attached ${unused.length === 1 ? 'image is' : 'files are'} not used by this draft; it is made from words only.`, fixes: [{ label: 'Make it as an edit of the attached image', patch: () => ({}), action: 'edit-myself', assets: unused }] });
   return out;
+}
+
+const stop = new Set(['the', 'and', 'with', 'her', 'his', 'their', 'a', 'an', 'of', 'in', 'on', 'at', 'to', 'for', 'over', 'through', 'small', 'old', 'years', 'year', 'from', 'into', 'every', 'always', 'never', 'anywhere', 'shot', 'shots']);
+const words = (s: string) => s.toLowerCase().replace(/[^a-z0-9:'\s-]/g, ' ').split(/[\s-]+/).filter(w => w.length > 2 && !stop.has(w));
+/** Whether a phrase is in a prompt in substance: most of its meaningful words appear (word starts, so "curls" matches "curly"). */
+function mentions(prompt: string, phrase: string) {
+  const have = new Set(words(prompt).map(w => w.slice(0, 4))), need = words(phrase);
+  if (!need.length) return true;
+  return need.filter(w => have.has(w.slice(0, 4))).length / need.length >= 0.5;
+}
+/**
+ * Character details and rules from the brief that a draft should carry but does not. A character's details apply when
+ * the prompt names them; rules ("No text anywhere") apply to every draft. Returns short phrases, at most five.
+ */
+export function briefGaps(prompt: string, brief: string) {
+  if (!brief.trim()) return [];
+  const out: string[] = [];
+  let section = '', anyNamed = false;
+  for (const raw of brief.split('\n')) {
+    const line = raw.replace(/[*_`]/g, '').trim();
+    const heading = line.match(/^#+\s*(.+)$/)?.[1] ?? (/^[A-Za-z ]{3,20}:?$/.test(line) && !line.includes(' ') ? line.replace(':', '') : '');
+    if (heading) { section = heading.toLowerCase(); continue; }
+    const item = line.replace(/^(?:[-•]|\d+\.)\s*/, '');
+    if (!item) continue;
+    if (/character|cast|people/.test(section)) {
+      const m = item.match(/^([A-Z][\w'’-]+(?: [A-Z][\w'’-]+)?)\s*[:–—-]\s*(.+)$/);
+      if (!m) continue;
+      // "Wardrobe:" or "Props:" lines belong to the characters above them.
+      const generic = /^(wardrobe|costume|outfit|props?|look|appearance)$/i.test(m[1]!);
+      const named = new RegExp('\\b' + m[1]!.split(' ')[0] + '\\b', 'i').test(prompt);
+      if (named) anyNamed = true;
+      if (!(named || (generic && anyNamed))) continue;
+      for (const part of m[2]!.split(/[,;]|\.\s/).map(p => p.trim().replace(/\.$/, '')).filter(p => p.length > 2 && !/^\d+(\s*years?\s*old)?$/i.test(p)))
+        if (!mentions(prompt, part)) out.push(part.charAt(0).toLowerCase() + part.slice(1));
+    } else if (/rule|always|never|constraint/.test(section)) {
+      if (item.length <= 80 && !mentions(prompt, item)) out.push(item.charAt(0).toLowerCase() + item.slice(1).replace(/\.$/, ''));
+    }
+  }
+  return [...new Set(out)].slice(0, 5);
 }
 
 /** Prompt text for people: input tokens such as <Picture 1> become the input's name. */
@@ -84,7 +129,8 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   text = text.split('\n').filter(line => !/^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i.test(line)).join('\n');
   text = text.replace(/^(\s*)([a-z]+(?:_[a-z]+)+)\s*:\s*/gm, (_m, space: string, key: string) => space + (headings[key] ?? key.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())) + ': ');
   // Only a shot tag that starts a line is a heading; one inside a sentence just names the shot.
-  return text.replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Shot $2:').replace(/\[Shot (\d+)\]/g, 'Shot $1');
+  // Inside a video prompt, [Shot N] numbers the parts of this one clip, not the film's shots.
+  return text.replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:').replace(/\[Shot (\d+)\]/g, 'part $1');
 }
 
 const sections: Array<[string, string]> = [['integrated_multimodal_description', 'Scene'], ['subject_definitions', 'Subjects'], ['scene_anchor', 'Setting'], ['action_timeline', 'Action'], ['camera_path', 'Camera'], ['overall_soundscape', 'Sound'], ['non_diegetic_music', 'Music'], ['retention_analysis', 'Keep'], ['detailed_description', 'Detail']];
@@ -99,17 +145,19 @@ export function editablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   const labels = inputLabels(r.references ?? []);
   const named = (r.references ?? []).map(ref => ({ token: labels.get(ref.id) ?? '', name: '“' + assetName(project, ref.asset_id, everywhere) + '”' })).filter(x => x.token);
   if (new Set(named.map(x => x.name)).size !== named.length) return null;
+  // Tags inside a sentence become "part N" only when the prompt had them, so a person's own "part 2" is left alone.
+  const mid = /\S[ \t]*\[Shot \d+\]/.test(r.prompt);
   const lines = r.prompt.split('\n'), hidden = lines.filter(l => naLine.test(l));
   let text = lines.filter(l => !naLine.test(l)).join('\n');
   for (const [key, label] of sections) text = text.replace(new RegExp('^(\\s*)' + key + '\\s*:\\s*', 'gm'), '$1' + label + ': ');
-  if (/\S[ \t]*\[Shot \d+\]/.test(text)) return null;
-  text = text.replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Shot $2:');
+  text = text.replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:').replace(/\[Shot (\d+)\]/g, 'part $1');
   for (const { token, name } of named) text = text.split(token).join(name);
   const back = (edited: string) => {
     if (edited === text) return r.prompt;
     let out = edited;
     for (const { token, name } of named) out = out.split(name).join(token);
-    out = out.replace(/^(\s*)Shot (\d+):/gm, '$1[Shot $2]');
+    out = out.replace(/^(\s*)Part (\d+):/gm, '$1[Shot $2]');
+    if (mid) out = out.replace(/\bpart (\d+)\b/g, '[Shot $1]');
     for (const [key, label] of sections) out = out.replace(new RegExp('^(\\s*)' + label + ':\\s*', 'gm'), '$1' + key + ': ');
     return hidden.length ? out.replace(/\s+$/, '') + '\n' + hidden.join('\n') : out;
   };

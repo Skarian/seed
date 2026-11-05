@@ -63,7 +63,7 @@ function CardResults({ project, group, card, styles, collapsed, onExpand, action
     <div className={'results' + (list.length === 1 ? ' one' : list.length === 2 ? ' two' : '') + (r.output.aspect === '9:16' && list.length > 2 ? ' tall' : '')} style={r.output.aspect === '9:16' && list.length > 2 ? { ['--cols' as string]: String(Math.min(list.length, 4)) } : undefined}>
       {list.filter(j => j.state !== 'cancelled' || running.length).map((job, n) => <ResultTile key={job.id} job={job} project={project} title={`${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`} siblings={items} card={card} actions={actions} />)}
     </div>
-    {!running.length && cancelled.length > 0 && done.length > 0 && <div className="notnow"><span>{cancelled.length} cancelled before they were made</span><button className="link" onClick={() => actions.onMakeAgain(card)}>Make them again</button></div>}
+    {!running.length && cancelled.length > 0 && done.length > 0 && <div className="notnow"><span>{cancelled.length} {isVideoKind(kindOf[r.workflow]) ? (cancelled.length === 1 ? 'clip' : 'clips') : (cancelled.length === 1 ? 'image' : 'images')} cancelled before {cancelled.length === 1 ? 'it was' : 'they were'} made</span><button className="link" onClick={() => actions.onMakeAgain(card)}>Make them again</button></div>}
     {notNowRow}
     <IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show={!running.length && list.some(j => j.state === 'cancelled')} />
   </section>;

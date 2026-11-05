@@ -77,8 +77,9 @@ export function AdminAccess() {
       ) : (
         <>
           <div className="admin-local-address">
-            <h3>On this network</h3>
+            <h3>{/\/\/(127\.|localhost|\[::1\])/.test(settings.localUrl) ? 'On this computer only' : 'On this network'}</h3>
             <a href={settings.localUrl} aria-label="Open Seed at its local address">{settings.localUrl}</a>
+            {/\/\/(127\.|localhost|\[::1\])/.test(settings.localUrl) && <p className="admin-access-description">This address only opens on the Seed PC itself. Other devices need the PC's network address or the remote address below.</p>}
           </div>
           <form className="admin-access-card" onSubmit={event => { event.preventDefault(); void save(); }}>
             <div className="admin-access-heading">

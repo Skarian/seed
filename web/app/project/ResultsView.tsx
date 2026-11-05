@@ -55,13 +55,13 @@ export function ResultsView({ project, embedded = false }: { project: Project; e
   for (const j of running) shotFor(titleOf(j.request)).making.push(j);
   for (const t of planned) shotFor(t).planned.push(t);
   const shotList = [...shots.values()].sort((a, b) => (a.n ?? 1e6) - (b.n ?? 1e6));
-  const lane = (its: ViewerItem[]) => its.map(it => { const on = selected.includes(it.asset); return <figure key={it.asset} className="cell lane-cell"><div className={'tile ' + (it.job ? shapeClass(it.job.request, it.job.output_dimensions?.width, it.job.output_dimensions?.height) : 'square') + (on ? ' selected' : '')}>
+  const lane = (its: ViewerItem[]) => its.map((it, take) => { const on = selected.includes(it.asset); return <figure key={it.asset} className="cell lane-cell"><div className={'tile ' + (it.job ? shapeClass(it.job.request, it.job.output_dimensions?.width, it.job.output_dimensions?.height) : 'square') + (on ? ' selected' : '')}>
     <Media id={it.asset} kind={it.kind} alt={it.title} />
     <button className="open" aria-label={'Open ' + it.title} onClick={() => app.inspect(it, items)} />
     <button className="sel check big" role="checkbox" aria-checked={on} aria-label={'Select ' + it.title + ' to compare'} onClick={() => toggle(it.asset)}>{on && <Icon.Check />}</button>
     <span className="corner">{fav.has(it.asset) && <span className="pill" aria-label="Chosen"><Icon.HeartFill width={12} height={12} style={{ color: 'var(--accent)' }} /></span>}</span>
     {it.kind === 'video' && <span className="badge pill" aria-hidden="true"><Icon.Play width={11} height={11} />{it.job?.request.output.duration_seconds ?? 5} s</span>}
-  </div></figure>; });
+  </div><figcaption>{its.length > 1 ? `Take ${take + 1}` : ''}{fav.has(it.asset) ? (its.length > 1 ? ' · ' : '') + 'chosen' : ''}</figcaption></figure>; });
   const groups = new Map<string, ViewerItem[]>();
   if (grouped) for (const it of items) { const key = it.job ? titleOf(it.job.request) : it.title; groups.set(key, [...(groups.get(key) ?? []), it]); }
   return <div className={embedded ? 'board' : 'board full'}>

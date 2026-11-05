@@ -218,7 +218,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const selectedCards = plan ? plan.cards.filter(c => (selection[c.id] ?? !c.left_out) && !readiness(latest(c).request, app.pool, styles).blocked) : [];
   const outputs = selectedCards.reduce((n, c) => n + latest(c).request.count, 0);
   const planReady = plan && plan.state === 'reviewing' && !replying;
-  const unresolved = plan ? selectedCards.flatMap(c => checkDraft(c, project!, plan.cards.length).filter(x => x.fixes.length && !acknowledged.has(c.id + ':' + x.text))).length : 0;
+  const unresolved = plan ? selectedCards.flatMap(c => checkDraft(c, project!, plan.cards.length).filter(x => x.fixes.length && !x.soft && !acknowledged.has(c.id + ':' + x.text))).length : 0;
   // Seed answered the latest message without changing the plan (often a clarifying question):
   // the plan still shows the earlier version, so running it is a secondary, clearly named choice.
   const lastTurn = project ? [...project.messages].reverse().find(m => m.role === 'assistant' && m.transcript) : undefined;

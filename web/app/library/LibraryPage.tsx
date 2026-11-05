@@ -75,7 +75,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
         {anyFilter ? <button className="btn" onClick={() => { setF(none); setQ(''); }}>Clear search and filters</button>
           : <button className="btn primary" onClick={() => void projectsApi.create(app.mode).then(p => { app.refreshProjects(); app.go({ name: 'project', id: p.id, view: 'conversation' }); })}>Start a project</button>}</>}
       </div></div>}
-      {groups.map(([day, list2]) => <section key={day}><div className="day">{day}</div><div className={'grid' + (dense ? ' dense' : '')}>
+      {groups.map(([day, list2]) => <section key={day}><div className="day">{day}</div><div className={'grid library-grid' + (dense ? ' dense' : '')}>
         {list2.map(a => { const it = items.find(i => i.asset === a.id)!, on = selected.includes(a.id); return <figure key={a.id} className="cell"><div className={'tile' + (on ? ' selected' : '')}>
           <Media id={a.id} kind={a.kind} alt={it.title} />
           <button className="open" aria-label={selecting ? (on ? 'Deselect ' : 'Select ') + it.title : 'Open ' + it.title} onClick={() => selecting ? toggle(a.id) : app.inspect(it, items)} />
