@@ -111,7 +111,7 @@ export function prepareToolRequest(context:RequestToolContext,raw:unknown):Image
   const request:any=context.previous?structuredClone(context.previous):{
     workflow:context.workflow,mode:context.mode,
     prompt:'',count:1,seed:'random',output:{aspect:context.workflow==='image-to-image'?'source':'16:9',size:video?defaultPreferences.video:defaultPreferences.image,...(video?{duration_seconds:5,format:'video'}:{})},
-    ...(video?{steps:DEFAULT_VIDEO_STEPS,detail:DEFAULT_VIDEO_DETAIL,audio:{output:'generated'},references:[]}:{})
+    ...(video?{steps:DEFAULT_VIDEO_STEPS,detail:DEFAULT_VIDEO_DETAIL,audio:{output:'silent'},references:[]}:{})
   };
   request.workflow=context.workflow;
   if(Object.hasOwn(value,'steps'))request.steps=value.steps;

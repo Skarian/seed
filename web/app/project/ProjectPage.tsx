@@ -164,13 +164,14 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   }
 
   /** More like this, Retry and Make again run at once as direct makes: no new plan, no extra Make, no conflict with an open plan. */
-  async function remake(card: ChatCard, how: 'more' | 'retry' | 'again') {
+  async function remake(card: ChatCard, how: 'more' | 'retry' | 'cancelled' | 'again') {
     if (!project) return;
     const r = latest(card).request;
-    const failed = cardJobs(project, card).filter(isFailed);
+    // Retry and redo-cancelled replace only the takes that did not finish, with their own seeds.
+    const failed = cardJobs(project, card).filter(j => how === 'cancelled' ? j.state === 'cancelled' : isFailed(j));
     const { mode: _m, resolved_seeds, ...rest } = r;
-    const count = how === 'retry' ? Math.max(1, failed.length) : r.count;
-    const seedsFor = how === 'retry' ? failed.map(j => j.seed) : how === 'again' ? resolved_seeds : undefined;
+    const count = how === 'retry' || how === 'cancelled' ? Math.max(1, failed.length) : r.count;
+    const seedsFor = how === 'retry' || how === 'cancelled' ? failed.map(j => j.seed) : how === 'again' ? resolved_seeds : undefined;
     const request = { ...rest, count, title: how === 'more' ? nextVersion(project, titleOf(r)) : titleOf(r), seed: how === 'more' ? 'random' : (seedsFor?.[0] ?? r.seed), ...(seedsFor && seedsFor.length === count ? { resolved_seeds: seedsFor } : {}) };
     const go = async () => { await run('Starting', () => projectsApi.makeDirect(id, request, randomKey())); };
     const need = readiness(r, app.pool, styles);
@@ -189,6 +190,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     onVariations: (card: ChatCard) => void remake(card, 'more'),
     onRetryFailed: (card: ChatCard) => void remake(card, 'retry'),
     onMakeAgain: (card: ChatCard) => void remake(card, 'again'),
+    onRedoCancelled: (card: ChatCard) => void remake(card, 'cancelled'),
     onReuse: reuse,
     onPrepare: (card: ChatCard) => needsNewPlan('Prepare a variation', async () => { await run('', () => projectsApi.repeat(id, card.id, latest(card).number, { fresh: true })); }),
     onBringBack: (card: ChatCard) => needsNewPlan('Bring back', async () => { const { workflow: _w, mode: _m, resolved_seeds: _s, ...request } = latest(card).request as never as Record<string, unknown>; await run('', () => projectsApi.restore(id, card.id, latest(card).number, request)); }),

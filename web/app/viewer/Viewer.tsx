@@ -156,7 +156,7 @@ export function Viewer({ item, siblings, onClose, onPick }: { item: ViewerItem; 
       <b>{item.title}{siblings.length > 1 && !/ of \d+$/.test(item.title) ? ` · ${i + 1} of ${siblings.length}` : ''}</b>
       {source && <div className="seg" role="group" aria-label="Before or after"><button aria-pressed={before} onClick={() => setBefore(true)}>Before</button><button aria-pressed={!before} onClick={() => setBefore(false)}>After</button></div>}
       {item.kind === 'image' && <button className="btn small no-phone" onClick={() => setZoom(z => z === 1 ? 2 : 1)}>{zoom === 1 ? 'Zoom' : 'Fit'}</button>}
-      <button className="btn small" aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={fav} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>
+      {!info && <button className="btn small" aria-label={fav ? 'Remove from favorites' : 'Add to favorites'} aria-pressed={fav} onClick={() => void assetsApi.favorite(item.asset, !fav).then(refresh)}>{fav ? <Icon.HeartFill style={{ color: 'var(--accent)' }} /> : <Icon.Heart />}</button>}
       <button className="btn small" aria-pressed={info} onClick={() => setInfo(v => !v)}>Details</button>
       <span className="no-phone"><StatusControl /></span>
     </div>
@@ -222,7 +222,13 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   const technical = rows.length;
   // An edit of the other one: the change that was asked for leads, ahead of engine and size.
   if (childJob) rows.unshift(['Change asked', '“' + (childJob.request.prompt.length > 180 ? childJob.request.prompt.slice(0, 179) + '…' : childJob.request.prompt) + '”']);
-  else if (ja.request.prompt !== jb.request.prompt) { const changes = promptChanges(ja.request.prompt, jb.request.prompt); const set = changes.length > 3 || changes[0] === 'prompt rewritten'; if (set) { const brief = (p: string) => '“' + p + '”'; rows.unshift(['A asks for', brief(ja.request.prompt)], ['B asks for', brief(jb.request.prompt)]); } else rows.unshift(['Prompt', changes.join('; ')]); }
+  else if (ja.request.prompt !== jb.request.prompt) {
+    // Variations of one idea (most words shared) show only what changed; different requests show what each asks for.
+    const wa = new Set(ja.request.prompt.toLowerCase().split(/\W+/).filter(Boolean)), wb = new Set(jb.request.prompt.toLowerCase().split(/\W+/).filter(Boolean));
+    const shared = [...wa].filter(w => wb.has(w)).length / Math.max(1, new Set([...wa, ...wb]).size);
+    if (shared >= 0.5) rows.unshift(['What differs', promptChanges(ja.request.prompt, jb.request.prompt).slice(0, 8).join(' · ')]);
+    else { const brief = (p: string) => '“' + p + '”'; rows.unshift(['A asks for', brief(ja.request.prompt)], ['B asks for', brief(jb.request.prompt)]); }
+  }
   // Seeds only matter between takes of the same request.
   if (ja.seed !== jb.seed && ja.request.prompt === jb.request.prompt) rows.push(['Seed', `${ja.seed} → ${jb.seed}`]);
   const lineage = jb.request.references?.some(r => r.asset_id === a.asset) ? 'B was made from A' : ja.request.references?.some(r => r.asset_id === b.asset) ? 'A was made from B' : '';

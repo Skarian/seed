@@ -70,7 +70,7 @@ export function ComputeSheet({ role, action, seconds, onClose, onStarted }: { ro
         {others.length > 0 && <><span>Both running</span><div><b>{rate(othersRate + selected.hourly)}</b> in total. You already rent {others.map(w => (w.worker_class === 'video' ? 'a video' : 'an image') + ' GPU' + (w.state === 'ready' && !w.current_job_id ? ' (idle)' : '')).join(' and ')}; image and video need different GPUs.
           {idleOthers.length > 0 && <label style={{ display: 'flex', gap: 8, alignItems: 'center', marginTop: 6 }}><input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} /> Release the idle {idleOthers[0]!.worker_class} GPU when this starts <span className="faint">(switching back means downloading its models again)</span></label>}</div></>}
       </div>
-      <p className="receipt-note">Nothing is rented until you press Start. Costs are estimates, not a cap, and billing continues if you close the browser.</p>
+      <p className="receipt-note">Nothing is rented until you press Start. Costs are estimates, not a cap. Billing continues if you close the browser, and automatic release only happens while the Seed PC is on.</p>
     </div>}
     {loading && <Spinner label="Finding available machines…" />}
     {error && <div className="notice error" role="alert">{error}</div>}

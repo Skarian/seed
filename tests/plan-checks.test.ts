@@ -116,3 +116,10 @@ it('does not ask a distant figure for face details, and drops a stray "and"', ()
   expect(briefGaps('Extreme wide shot: Maren tiny in frame on the cliff, wool scarf', brief)).toEqual([]);
   expect(briefGaps('Close-up of Maren, copper braid', brief)).toEqual(['freckles', 'a wool scarf', 'black rubber boots']);
 });
+
+it('reads a clock time as scene content and a decimal ratio as a shape', () => {
+  expect(askedFor([message('user', 'A red station clock stopped at 6:17 above the platform')] as any).other).toBeUndefined();
+  expect(askedFor([message('user', 'The clock reads 6:17 pm')] as any).other).toBeUndefined();
+  expect(askedFor([message('user', 'Frame everything for 2.39:1 widescreen')] as any).other).toBe('2.39:1');
+  expect(askedFor([message('user', 'A 3:2 postcard')] as any).other).toBe('3:2');
+});

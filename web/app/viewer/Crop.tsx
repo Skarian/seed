@@ -1,11 +1,12 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { cropShapes } from '../project/checks.js';
 import { media } from '../api.js';
 import { Dialog } from '../ui.js';
 import { useApp } from '../data.js';
 import { uploadFile } from '../project/requests.js';
 
 /** Crop shapes people ask for. "Original" keeps the frame and only re-exports. */
-const shapes = [['1:1', 1], ['4:5', 4 / 5], ['3:2', 3 / 2], ['2:3', 2 / 3], ['16:9', 16 / 9], ['9:16', 9 / 16], ['21:9', 21 / 9]] as const;
+const shapes = cropShapes;
 
 /** Crop an image on this device, no GPU: pick a shape, drag to frame, save a copy to the Library or download it. */
 export function CropDialog({ asset, title, onClose, initial }: { asset: string; title: string; onClose: () => void; initial?: string }) {

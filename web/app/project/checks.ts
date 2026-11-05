@@ -3,6 +3,8 @@ import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
 
+/** The shapes Crop offers, including film ratios; checks promise a crop only to one of these. */
+export const cropShapes = [['1:1', 1], ['4:5', 4 / 5], ['3:2', 3 / 2], ['2:3', 2 / 3], ['16:9', 16 / 9], ['9:16', 9 / 16], ['1.85:1', 1.85], ['21:9', 21 / 9], ['2.39:1', 2.39]] as const;
 type Aspect = '16:9' | '9:16' | '1:1' | '4:5';
 export type Fix = { label: string; patch: (r: ImageRequest) => Record<string, unknown>; action?: 'edit-myself'; assets?: string[] };
 /** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
@@ -15,8 +17,10 @@ export function askedFor(messages: ChatMessage[]) {
     const t = m.text.toLowerCase();
     if (!said.aspect && !said.other) {
       // A ratio Seed cannot make directly (3:2, 21:9, 2:3…): remember it so the plan can say so.
-      const ratio = t.match(/\b(\d{1,2}):(\d{1,2})\b/);
-      if (ratio && !['4:5', '1:1', '16:9', '9:16'].includes(ratio[0]) && Number(ratio[1]) > 0 && Number(ratio[2]) > 0 && Number(ratio[1]) <= 32 && Number(ratio[2]) <= 32) { said.other = ratio[0]; continue; }
+      // A clock time ("stopped at 6:17", "6:17 pm") is scene content, not a shape; decimal ratios such as 2.39:1 count.
+      const ratio = t.match(/(?<![\d.])(\d{1,2}(?:\.\d{1,2})?):(\d{1,2})\b(?!\s*(?:am|pm|a\.m|p\.m))/);
+      const clock = ratio && (/\b(at|clock|time|stopped|reads?|shows?|o'clock|midnight|noon)\s*$/.test(t.slice(0, ratio.index).trim().split(/\s+/).slice(-2).join(' ')) || (!ratio[1]!.includes('.') && Number(ratio[2]) > 21));
+      if (ratio && !clock && !['4:5', '1:1', '16:9', '9:16'].includes(ratio[0]) && Number(ratio[1]) > 0 && Number(ratio[2]) > 0 && Number(ratio[1]) <= 32 && Number(ratio[2]) <= 32) { said.other = ratio[0]; continue; }
       const exact = t.match(/\b(4:5|1:1|16:9|9:16)\b/)?.[1] as Aspect | undefined;
       // Shape words describe the frame, not a face, a room or a camera move: "square face", "a wide shot" and
       // "a portrait of Mara" are not canvas requests.
@@ -63,8 +67,10 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     // The closest supported shape that still contains the asked one, so a crop loses as little as possible.
     const closest = [...supported].sort((a, b) => Math.abs(Math.log(value(a) / want)) - Math.abs(Math.log(value(b) / want)))[0]!;
     const fixes: Fix[] = closest !== aspect ? [{ label: 'Use ' + names[closest], patch: withAspect(closest) }] : [];
-    fixes.push({ label: video ? 'Keep ' + names[aspect] : `Keep ${names[aspect]}, crop to ${asked.other} after`, patch: () => ({}) });
-    out.push({ text: `You asked for ${asked.other}, which Seed can't make directly. This draft is ${names[aspect]}.${video ? '' : ` After it's made, Crop turns it into ${asked.other} on this device, no GPU.`}`, fixes });
+    // Promise a crop only to a shape Crop actually offers.
+    const croppable = !video && cropShapes.some(([s]) => s === asked.other);
+    fixes.push({ label: croppable ? `Keep ${names[aspect]}, crop to ${asked.other} after` : 'Keep ' + names[aspect], patch: () => ({}) });
+    out.push({ text: `You asked for ${asked.other}, which Seed can't make directly. This draft is ${names[aspect]}.${croppable ? ` After it's made, Crop turns it into ${asked.other} on this device, no GPU.` : ''}`, fixes });
   }
   if (video && asked.seconds && asked.seconds >= 5 && asked.seconds <= 15 && r.output.duration_seconds !== asked.seconds)
     out.push({ text: `You asked for ${asked.seconds} seconds; this draft is ${r.output.duration_seconds ?? 5}.`, fixes: [{ label: `Make it ${asked.seconds} s`, patch: x => ({ ...strip(x), output: { ...x.output, duration_seconds: asked.seconds } }) }] });
