@@ -678,7 +678,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const anyway = openChecks.every(c => c.code === 'added-sound')
     ? 'Make with sound'
     : openChecks.every(c => c.code === 'unused-input')
-      ? 'Make without the attached image'
+      ? selectedCards.some(c => isVideoKind(kindOf[latest(c).request.workflow]))
+        ? 'Make, image drafts without the reference'
+        : 'Make without the attached image'
       : openChecks.every(c => c.code === 'shape')
         ? 'Make at ' + (selectedCards[0] ? latest(selectedCards[0]).request.output.aspect : 'this shape')
         : `Make despite ${unresolved === 1 ? '1 check' : unresolved + ' checks'}`;

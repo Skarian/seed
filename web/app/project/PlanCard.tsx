@@ -141,8 +141,8 @@ export function PlanCard({
               })),
               'divider' as const,
               // The delivery frame: results show its guides and Crop starts there. Models still make their own shapes.
-              ...(['', '2.39:1', '1.85:1', '21:9'] as const).map(frame => ({
-                label: frame ? `Deliver at ${frame}` : 'Deliver at the shape made',
+              ...(['', '2.39:1', '1.85:1', '21:9', '2:3'] as const).map(frame => ({
+                label: frame ? `Delivery crop: ${frame}` : 'Delivery crop: none (keep the shape made)',
                 hint: frame === '2.39:1' ? 'Results show the crop guides; Crop starts at this shape.' : undefined,
                 checked: (project.frame ?? '') === frame,
                 onSelect: () => chooseFrame(project.id, frame),
@@ -224,6 +224,12 @@ export function PlanCard({
             </div>
           );
         })()}
+      {project.frame && (
+        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: 13 }}>
+          Delivered at {project.frame}: these drafts are made at the shapes shown, then cropped to {project.frame} with
+          Crop. The guides on each result show what stays.
+        </p>
+      )}
       {oneSource && (
         <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: 13 }}>
           All {cards.length} drafts use “{assetName(project, oneSource, everywhere)}” as their source. Its framing and

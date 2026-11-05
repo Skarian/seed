@@ -3572,3 +3572,14 @@ textarea::placeholder {
     text-align: left;
   }
 }
+
+/* A left-out draft stays fully readable (its text tells you how to include it): the card, not the words, steps back. */
+.draft.off {
+  opacity: 1;
+  background: transparent;
+  border: 1px dashed var(--line2);
+}
+.draft.off .name,
+.draft.off .excerpt {
+  color: var(--muted);
+}

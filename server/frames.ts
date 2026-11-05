@@ -33,7 +33,7 @@ export async function pickFrame(db: Database.Database, paths: StudioPaths, sourc
     db.transaction(()=>{
       db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run(id,'image',`${source.name} · ${time.toFixed(2)}s`,path.relative(paths.data,file).split(path.sep).join('/'),JSON.stringify(saved),new Date().toISOString());
       const note=db.prepare('SELECT note FROM asset_notes WHERE id=?').get(sourceId) as {note:string}|undefined;
-      if(note?.note)db.prepare('INSERT INTO asset_notes VALUES (?,?,0)').run(id,note.note);
+      if(note?.note)db.prepare('INSERT INTO asset_notes VALUES (?,?,0)').run(id,'From the original’s note: '+note.note);
     })();
     return {id,url,time_seconds:time,...saved};
   } catch(error) {

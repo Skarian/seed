@@ -9,3 +9,7 @@ it('describes prompt edits as phrases, not word lists', () => {
   expect(promptChanges('A red kite, no lettering.', 'A red kite.')).toEqual(['removed: no lettering']);
   expect(promptChanges('A red kite.', 'a red kite.')).toEqual(['prompt reworded']);
 });
+
+it('drops a closing bracket whose opening one was not part of the change', () => {
+  expect(promptChanges('Mara walks the pier.', 'Mara (navy wool trousers, worn black boots) walks the pier.')).toEqual(['added: navy wool trousers, worn black boots']);
+});

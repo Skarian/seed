@@ -56,7 +56,7 @@ it('saves a crop as a new image linked to its original, its job and its project'
     // The Library lists it as made in Seed, in the same project, searchable by the original's prompt and note.
     const made = (await app.inject({ url: '/api/v1/assets?mode=sfw&source=made&q=lighthouse', headers: { host: headers.host } })).json().items;
     const item = made.find((a: { id: string }) => a.id === blue.json().id);
-    expect(item).toMatchObject({ source_asset_id: 'source', chat_id: 'chat-1', title: 'Shot 2', note: 'Synthetic note' });
+    expect(item).toMatchObject({ source_asset_id: 'source', chat_id: 'chat-1', title: 'Shot 2', note: 'From the original’s note: Synthetic note' });
     expect(item.job_id).toBeUndefined();
     expect(item.variant).toBeUndefined();
     const uploaded = (await app.inject({ url: '/api/v1/assets?mode=sfw&source=uploaded', headers: { host: headers.host } })).json().items;

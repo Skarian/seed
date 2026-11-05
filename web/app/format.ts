@@ -200,7 +200,10 @@ export function promptChanges(before: string, after: string) {
   }
   if (run) runs.push(run);
   const clean = (ws: string[]) => {
-    const t = ws.join(' ').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N})”"]+$/gu, '');
+    let t = ws.join(' ').replace(/^[^\p{L}\p{N}]+|[^\p{L}\p{N})”"]+$/gu, '');
+    // A closing bracket or quote whose opening one was trimmed away is dropped too ("boots)" → "boots").
+    if (t.endsWith(')') && !t.includes('(')) t = t.slice(0, -1);
+    if (t.endsWith('”') && !t.includes('“')) t = t.slice(0, -1);
     return t.split(' ').length > 8 ? t.split(' ').slice(0, 8).join(' ') + '…' : t;
   };
   const meaningful = (ws: string[]) => ws.some(w => key(w).length > 2 && !stop.has(key(w)));

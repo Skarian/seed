@@ -254,12 +254,35 @@ export function ComputeSheet({
           </div>
         </div>
       )}
-      <div role="radiogroup" aria-label="Machine" style={{ display: 'grid', gap: 8 }}>
+      {/* A real radio group: one tab stop, arrow keys move and choose. */}
+      <div
+        role="radiogroup"
+        aria-label="Machine"
+        style={{ display: 'grid', gap: 8 }}
+        onKeyDown={e => {
+          const step =
+            e.key === 'ArrowDown' || e.key === 'ArrowRight' ? 1 : e.key === 'ArrowUp' || e.key === 'ArrowLeft' ? -1 : 0;
+          if (!step || !picks.length) return;
+          e.preventDefault();
+          const at = Math.max(
+            0,
+            picks.findIndex(o => o.id === choice),
+          );
+          const next = picks[(at + step + picks.length) % picks.length]!;
+          setChoice(next.id);
+          const group = e.currentTarget;
+          requestAnimationFrame(() =>
+            group.querySelector<HTMLElement>(`[data-offer="${CSS.escape(next.id)}"]`)?.focus(),
+          );
+        }}
+      >
         {picks.map((o, i) => (
           <button
             key={o.id}
             role="radio"
             aria-checked={o.id === choice}
+            tabIndex={o.id === choice || (!picks.some(p => p.id === choice) && i === 0) ? 0 : -1}
+            data-offer={o.id}
             className="option"
             onClick={() => setChoice(o.id)}
           >
@@ -274,7 +297,7 @@ export function ComputeSheet({
           </button>
         ))}
         {!local?.enabled && (
-          <button className="option" role="radio" aria-checked={false} onClick={() => go({ name: 'gpus' })}>
+          <button className="option" onClick={() => go({ name: 'gpus' })}>
             <span className="radio" />
             <span>
               <b>Seed PC</b> — no rental fee
