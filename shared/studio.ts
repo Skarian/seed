@@ -28,6 +28,8 @@ export interface LibraryAsset {
   variants?: number;
   /** The owner's note on this asset, when there is one. */
   note?: string;
+  /** A few words of the prompt around a search match, when the search matched the prompt. */
+  prompt_match?: string;
   /** Pixel size, when known, so grids can show the whole frame. */
   width?: number;
   height?: number;

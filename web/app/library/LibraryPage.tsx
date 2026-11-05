@@ -82,7 +82,7 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
           {selecting && <span className="check sel" role="checkbox" aria-checked={on} aria-hidden="true" style={{ position: 'absolute', top: 6, left: 6, background: on ? 'var(--accent)' : '#121311aa' }}>{on && <Icon.Check />}</span>}
           {a.favorite && <span className="corner" aria-label="Favorite"><Icon.HeartFill width={16} height={16} style={{ color: 'var(--accent)' }} /></span>}
           {a.kind !== 'image' && <span className="badge pill" aria-hidden="true">{a.kind === 'video' ? <><Icon.Play width={11} height={11} />Video</> : '♪ Audio'}</span>}
-        </div>{captions && <figcaption><Caption title={it.title} /><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small>{query && a.note?.toLowerCase().includes(query.trim().toLowerCase()) && <small className="note-match">Note: {noteExcerpt(a.note, query.trim())}</small>}</figcaption>}</figure>; })}
+        </div>{captions && <figcaption><Caption title={it.title} /><small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small>{query && a.note?.toLowerCase().includes(query.trim().toLowerCase()) && <small className="note-match">Note: {noteExcerpt(a.note, query.trim())}</small>}{query && !a.note?.toLowerCase().includes(query.trim().toLowerCase()) && a.prompt_match && <small className="note-match">Prompt: {a.prompt_match}</small>}</figcaption>}</figure>; })}
       </div></section>)}
       {list.cursor && <div style={{ textAlign: 'center', padding: 16 }}><button className="btn" disabled={list.loading} onClick={() => void list.more()}>{list.loading ? 'Loading…' : 'Load more'}</button></div>}
     </div></div>

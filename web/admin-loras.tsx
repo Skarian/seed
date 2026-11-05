@@ -116,7 +116,7 @@ function GuidanceFields({
       <label>
         Description &amp; usage guidance
         <textarea
-          rows={3}
+          rows={Math.min(14, Math.max(4, Math.ceil(value.description.length / 70) + 1))}
           maxLength={4000}
           value={value.description}
           onChange={(event) => onChange({ ...value, description: event.target.value })}
@@ -287,6 +287,8 @@ function ImportLora({
                 disabled={busy}
               />
               <GuidanceFields value={details} onChange={setDetails} />
+              {!selected.length && <p className="admin-hint" role="status">Choose a use for at least one file to continue.</p>}
+              {!details.name.trim() && <p className="admin-hint" role="status">Give the style a name to continue.</p>}
               <button
                 type="submit"
                 className="admin-primary"

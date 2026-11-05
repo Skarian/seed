@@ -22,7 +22,7 @@ export function SettingsPage({ section: initial }: { section?: string }) {
     </div>
     <div className="scroll"><div className="col"><div className="page">
       {section === 'keys' && <Keys />}
-      {section === 'styles' && <><p className="muted" style={{ margin: 0 }}>A style is a LoRA from Civitai. It gives drafts a consistent look or a recurring character. Seed suggests styles in plans, and you can pick one in Make settings.</p><div className="legacy-admin"><AdminLoras key={app.mode} mode={app.mode} /></div></>}
+      {section === 'styles' && <><p className="muted" style={{ margin: 0 }}>Save a reusable look or character. Seed can suggest it in drafts, or you can choose it in Make settings. Styles are LoRAs imported from Civitai.</p><div className="legacy-admin"><AdminLoras key={app.mode} mode={app.mode} /></div></>}
       {section === 'access' && <div className="legacy-admin"><AdminAccess /></div>}
       {section === 'content' && <Content />}
     </div></div></div>
@@ -62,7 +62,7 @@ function Content() {
   const { mode, setMode, go } = useApp();
   return <div className="box">
     <b>Content mode</b>
-    <p className="muted" style={{ margin: 0 }}>Standard and Spicy keep separate projects, Library and styles. This choice lasts for this browser tab.</p>
+    <p className="muted" style={{ margin: 0 }}>Standard is for general work. Spicy allows adult content and adult styles. Each mode keeps its own projects, Library and styles; switching does not move anything. This tab remembers your choice.</p>
     <div className="seg" role="group" aria-label="Content mode"><button aria-pressed={mode === 'sfw'} onClick={() => { setMode('sfw'); go({ name: 'home' }); }}>Standard</button><button aria-pressed={mode === 'nsfw'} onClick={() => { setMode('nsfw'); go({ name: 'home' }); }}>Spicy</button></div>
   </div>;
 }
