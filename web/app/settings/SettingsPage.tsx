@@ -42,18 +42,19 @@ function Keys() {
   </>;
 }
 function Key({ id, name, description, url, configured, onChange }: { id: CredentialField; name: string; description: string; url: string; configured: boolean; onChange: (c: CredentialStatuses) => void }) {
-  const [value, setValue] = useState(''), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState('');
+  const [value, setValue] = useState(''), [busy, setBusy] = useState(false), [message, setMessage] = useState(''), [error, setError] = useState(''), [replacing, setReplacing] = useState(false);
   async function run(action: 'save' | 'remove' | 'check') {
     setBusy(true); setError(''); setMessage('');
     try {
       if (action === 'check') { await api('admin/credentials/' + id + '/check', { body: {} }); setMessage('Connection works.'); }
-      else { const r = await api<{ credentials: CredentialStatuses }>('admin/credentials/' + id, { method: 'PATCH', body: { value: action === 'remove' ? null : value } }); onChange(r.credentials); setValue(''); setMessage(action === 'remove' ? 'Key removed.' : 'Key saved.'); }
+      else { const r = await api<{ credentials: CredentialStatuses }>('admin/credentials/' + id, { method: 'PATCH', body: { value: action === 'remove' ? null : value } }); onChange(r.credentials); setValue(''); setReplacing(false); setMessage(action === 'remove' ? 'Key removed.' : 'Key saved.'); }
     } catch (e) { setError((e as Error).message); } finally { setBusy(false); }
   }
   return <form className="box" onSubmit={e => { e.preventDefault(); void run('save'); }}>
     <div className="row"><span className="grow"><b>{name}</b><br /><span className="muted" style={{ fontSize: 13.5 }}>{description}</span></span><span className={'chip ' + (configured ? 'on' : '')}>{configured ? 'Connected' : 'Not connected'}</span></div>
-    <div className="row"><input className="input grow" type="password" autoComplete="new-password" spellCheck={false} aria-label={name + ' API key'} value={value} disabled={busy} placeholder={configured ? 'Paste a replacement key' : 'Paste API key'} onChange={e => setValue(e.target.value)} /><button className="btn primary" disabled={busy || !value.trim()}>{busy ? 'Saving…' : 'Save'}</button></div>
-    <div className="row" style={{ fontSize: 13.5 }}><a className="link" href={url} target="_blank" rel="noopener noreferrer">Get a key ↗</a>{configured && <><button type="button" className="btn quiet small" disabled={busy} onClick={() => void run('check')}>Test</button><button type="button" className="btn quiet small" disabled={busy} onClick={() => void run('remove')}>Remove</button></>}</div>
+    {/* A connected key is one compact row; the paste field appears only to add or replace a key. */}
+    {(!configured || replacing) && <div className="row"><input className="input grow" type="password" autoFocus={replacing} autoComplete="new-password" spellCheck={false} aria-label={name + ' API key'} value={value} disabled={busy} placeholder={configured ? 'Paste a replacement key' : 'Paste API key'} onChange={e => setValue(e.target.value)} /><button className="btn primary" disabled={busy || !value.trim()}>{busy ? 'Saving…' : 'Save'}</button>{replacing && <button type="button" className="btn" onClick={() => { setReplacing(false); setValue(''); }}>Cancel</button>}</div>}
+    <div className="row" style={{ fontSize: 13.5 }}><a className="link" href={url} target="_blank" rel="noopener noreferrer">Get a key ↗</a>{configured && <><button type="button" className="btn quiet small" disabled={busy} onClick={() => void run('check')}>Test</button>{!replacing && <button type="button" className="btn quiet small" disabled={busy} onClick={() => setReplacing(true)}>Replace key</button>}<button type="button" className="btn quiet small" disabled={busy} onClick={() => void run('remove')}>Remove</button></>}</div>
     {message && <span className="ready" role="status">{message}</span>}{error && <span className="ready bad" role="alert">{error}</span>}
   </form>;
 }

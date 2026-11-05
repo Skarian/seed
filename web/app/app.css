@@ -607,3 +607,4 @@ button.chip:hover { background: var(--s3); color: var(--text); }
 .legacy-admin .admin-local-address a { color: var(--accent); overflow-wrap: anywhere; }
 .legacy-admin [role=alert] { color: var(--red); font-size: 13px; }
 .hero { position: relative; } .hero-play { position: absolute; inset: 0; margin: auto; width: 56px; height: 56px; border-radius: 50%; background: #121311cc; display: grid; place-items: center; }
+@media (orientation: portrait) and (min-width: 700px) { .compare-grid { grid-template-columns: minmax(0, 1fr); grid-template-rows: repeat(2, minmax(0, 1fr)); } }

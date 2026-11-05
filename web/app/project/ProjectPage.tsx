@@ -246,7 +246,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   return <>
     <Header project={project} view={view} split={split} canSplit={canSplit} onBeside={setBeside} onRename={() => setRenaming(true)} onDelete={() => setConfirmDelete(true)} />
     {view === 'results' && project && !split ? <ResultsView project={project} /> : <div className={split ? 'split' : 'single'}><div className="convo">
-      {project && <BriefBar project={project} busy={replying || Boolean(busy)} onSaved={p => { projectRef.current = p; setProject(p); }}
+      {project && (project.messages.length > 0 || project.brief) && <BriefBar project={project} busy={replying || Boolean(busy)} onSaved={p => { projectRef.current = p; setProject(p); }}
         openDrafts={plan?.cards.length ?? 0} onUpdateDrafts={() => void run('', () => projectsApi.send(projectRef.current ?? project, { text: 'I changed the brief. Update every open draft so it matches the brief now, change nothing else, and tell me exactly what changed in each one. Do not run anything.', assets: [] }))} />}
       <div className="scroll" ref={scroller} onScroll={e => { const el = e.currentTarget; follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80; }}>
         <div className="col">

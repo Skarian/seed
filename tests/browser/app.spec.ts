@@ -100,3 +100,135 @@ test('a GPU released from the Activity panel is actually released', async ({ pag
   await expect(confirm).toHaveCount(0);
   await expect.poll(running, { timeout: 30_000 }).toBe(before - 1);
 });
+
+/* ---------- Regression tests for recently fixed behaviour. State comes from the HTTP API; all text is synthetic. ---------- */
+
+const BASE = 'http://127.0.0.1:4311';
+const word = () => Math.random().toString(36).replace(/[^a-z]/g, '').slice(0, 6).padEnd(6, 'q');
+
+async function call(page: Page, method: 'GET' | 'POST', path: string, data?: unknown) {
+  const response = await page.request.fetch(BASE + path, {
+    method,
+    headers: method === 'GET' ? {} : { Origin: BASE, 'idempotency-key': crypto.randomUUID(), 'content-type': 'application/json' },
+    ...(data === undefined ? {} : { data }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok()) throw Error(`${method} ${path} -> ${response.status()}: ${JSON.stringify(body)}`);
+  return body;
+}
+
+const imageWorkers = async (page: Page) =>
+  ((await call(page, 'GET', '/api/v1/pool')).workers as any[]).filter(w => w.worker_class === 'image' && w.state !== 'released' && !w.quit_mode);
+
+/** An image GPU that is ready and idle, rented through the API if none is running. */
+async function ensureIdleImageGpu(page: Page) {
+  if (!(await imageWorkers(page)).length) {
+    const offers = await call(page, 'GET', '/api/v1/pool/offers?worker_class=image');
+    const offer = offers.items.find((o: any) => o.available);
+    await call(page, 'POST', '/api/v1/pool/launch', { selections: [{ offer_id: offer.id, quantity: 1 }], max_hourly: offer.hourly, idle_release_minutes: 15, max_minutes: 60 });
+  }
+  await expect.poll(async () => (await imageWorkers(page)).some(w => w.state === 'ready' && !w.current_job_id), { timeout: 60_000 }).toBe(true);
+}
+
+async function apiProject(page: Page): Promise<string> {
+  return (await call(page, 'POST', '/api/v1/chats', { mode: 'sfw' })).id;
+}
+
+async function makeImages(page: Page, project: string, title: string, prompt: string, count = 1) {
+  await call(page, 'POST', `/api/v1/chats/${project}/requests`, {
+    request: { workflow: 'text-to-image', title, prompt, output: { aspect: '1:1', size: 'image-768' }, count, seed: 'random' },
+    client_request_id: crypto.randomUUID(),
+  });
+}
+
+const projectJobs = async (page: Page, project: string) => (await call(page, 'GET', `/api/v1/chats/${project}`)).jobs.filter(Boolean) as any[];
+
+async function allCompleted(page: Page, project: string, count: number) {
+  await expect.poll(async () => (await projectJobs(page, project)).filter(j => j.state === 'completed').length, { timeout: 90_000 }).toBe(count);
+}
+
+test('Library search matches every word in any order and shows the prompt excerpt', async ({ page }) => {
+  await ensureIdleImageGpu(page);
+  const a = word(), b = word(), project = await apiProject(page);
+  await makeImages(page, project, 'Search heron', `A grey heron ${a} wading beside ${b} stone steps`);
+  await makeImages(page, project, 'Search lantern', `A paper lantern ${a} over still water`);
+  await allCompleted(page, project, 2);
+
+  await page.goto('/library');
+  await page.getByRole('searchbox', { name: 'Search the Library' }).fill(`${b} ${a}`);
+  const results = page.getByRole('button', { name: /^Open / });
+  await expect(results).toHaveCount(1);
+  await expect(results.first()).toHaveAccessibleName(/^Open Search heron/);
+  await expect(page.getByText(new RegExp(`^Prompt: .*${a}.*${b}`))).toBeVisible();
+});
+
+test('Results by shot lists shots in story order, not the order they were made', async ({ page }) => {
+  await ensureIdleImageGpu(page);
+  const project = await apiProject(page);
+  for (const [title, scene] of [['Shot 3: C', 'a bridge'], ['Shot 1: A', 'a field'], ['Shot 2: B', 'a road']] as const) {
+    await makeImages(page, project, title, `Synthetic test frame of ${scene}`);
+  }
+  await allCompleted(page, project, 3);
+
+  await page.goto(`/projects/${project}?view=results`);
+  await page.getByRole('group', { name: 'Arrange' }).getByRole('button', { name: 'By shot' }).click();
+  const rows = page.getByRole('region', { name: /^Shot \d+: / });
+  await expect(rows).toHaveCount(3);
+  expect(await rows.evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Shot 1: A', 'Shot 2: B', 'Shot 3: C']);
+});
+
+test('making a cancelled take again starts exactly one job', async ({ page }) => {
+  await ensureIdleImageGpu(page);
+  const project = await apiProject(page);
+  // Hold jobs in "generating" so one of the batch can be cancelled before it finishes.
+  await call(page, 'POST', '/__qa/scenario', { scenario: 'generating' });
+  try {
+    await makeImages(page, project, 'Cancel batch', 'Synthetic test frame of a quiet pier', 2);
+    await expect.poll(async () => (await projectJobs(page, project)).length).toBe(2);
+    const [, second] = await projectJobs(page, project);
+    await call(page, 'POST', `/api/v1/jobs/${second.id}/cancel`, {});
+    await expect.poll(async () => (await projectJobs(page, project)).find(j => j.id === second.id)?.state).toBe('cancelled');
+  } finally {
+    await call(page, 'POST', '/__qa/scenario', { scenario: 'normal' });
+  }
+  await allCompleted(page, project, 1);
+
+  await page.goto(`/projects/${project}`);
+  await page.getByRole('button', { name: 'Make that one again' }).click();
+  const consent = page.getByRole('dialog', { name: /^This needs an? image GPU$/ });
+  if (await consent.isVisible({ timeout: 3_000 }).catch(() => false)) await consent.getByRole('button', { name: /^Start GPU and / }).click();
+  await expect.poll(async () => (await projectJobs(page, project)).length).toBe(3);
+  await allCompleted(page, project, 2);
+  // Nothing else arrives afterwards.
+  await page.waitForTimeout(1_500);
+  expect((await projectJobs(page, project)).length).toBe(3);
+});
+
+test('starting a video GPU does not release the idle image GPU unless asked', async ({ page }) => {
+  await ensureIdleImageGpu(page);
+  await page.goto('/gpus');
+  await page.getByRole('button', { name: 'Start a video GPU' }).click();
+  const sheet = page.getByRole('dialog', { name: 'Start a video GPU' });
+  const release = sheet.getByRole('checkbox', { name: /^Release the idle image GPU when this starts/ });
+  await expect(release).toBeVisible();
+  await expect(release).not.toBeChecked();
+  await sheet.getByRole('button', { name: 'Cancel', exact: true }).click();
+  await expect(sheet).toHaveCount(0);
+});
+
+test('the project options menu works from the keyboard', async ({ page }) => {
+  const project = await apiProject(page);
+  await page.goto(`/projects/${project}`);
+  const button = page.getByRole('button', { name: 'Project options' });
+  await button.focus();
+  await page.keyboard.press('Enter');
+  const menu = page.getByRole('menu');
+  await expect(menu).toBeVisible();
+  const items = menu.getByRole('menuitem');
+  await expect(items.first()).toBeFocused();
+  await page.keyboard.press('ArrowDown');
+  await expect(items.nth(1)).toBeFocused();
+  await page.keyboard.press('Escape');
+  await expect(menu).toHaveCount(0);
+  await expect(button).toBeFocused();
+});
