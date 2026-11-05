@@ -2,6 +2,7 @@ import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '..
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
+import { sizeChoices, resolveDimensions } from '../../../shared/resolution.js';
 
 /** The shapes Crop offers, including film ratios; checks promise a crop only to one of these. */
 export const cropShapes = [
@@ -34,7 +35,7 @@ export function chooseFrame(projectId: string, frame: string) {
 }
 /** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
 /** What a check is about, so the app can act on it without reading its wording. */
-export type CheckCode = 'shape' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input';
+export type CheckCode = 'shape' | 'size' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input';
 export type Check = { code: CheckCode; text: string; fixes: Fix[]; soft?: boolean };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
@@ -45,6 +46,7 @@ export function askedFor(messages: ChatMessage[]) {
     seconds?: number;
     silent?: boolean;
     mixed?: boolean;
+    pixels?: [number, number];
   } = {};
   for (const m of [...messages]
     .reverse()
@@ -76,10 +78,12 @@ export function askedFor(messages: ChatMessage[]) {
       const exact = t.match(/\b(4:5|1:1|16:9|9:16)\b/)?.[1] as Aspect | undefined;
       // Shape words describe the frame, not a face, a room or a camera move: "square face", "a wide shot" and
       // "a portrait of Mara" are not canvas requests.
+      // "Square" is a shape request only when it is about the picture ("a square image", "make it square", "square
+      // format"); "a square navy repair", "a square jaw" or "the town square" describe the scene.
       const square =
-        /\bsquare\b(?![\s-]*(?:face|faced|jaw|chin|shoulders?|head|glasses|neck|window|room|tower|stones?|tiles?|building))/.test(
+        /\bsquare(?=[\s-]*(?:image|images|picture|pictures|photo|photos|clip|clips|video|videos|poster|posters|cover|avatar|icon|format|frame|crop|aspect|ratio|tile|tiles|post|posts|version|canvas|thumbnail|shape|one|[.,;!?)]|$))|\b(?:in|as|at|make (?:it|them|this)|keep (?:it|them)|go) square\b/.test(
           t,
-        );
+        ) && !/\b(?:town|market|village|city|main|public) square\b/.test(t);
       // "Portrait framing", "a three-quarter portrait", "a portrait shot" and "vertical pan" describe the picture, not
       // the canvas: only a shape word that stands for the frame itself counts. ("A wide landscape shot" is a frame.)
       const composition = (extra: string) =>
@@ -100,6 +104,11 @@ export function askedFor(messages: ChatMessage[]) {
       ]);
       if (shapes.size > 1) said.mixed = true;
       else said.aspect = exact ?? (square ? '1:1' : portrait ? 'portrait' : landscape ? 'landscape' : undefined);
+    }
+    // An exact pixel size ("1920×1080", "1920 x 1080 px").
+    if (!said.pixels) {
+      const px = t.match(/\b(\d{3,4})\s*[x×]\s*(\d{3,4})\b/);
+      if (px) said.pixels = [Number(px[1]), Number(px[2])];
     }
     if (said.seconds === undefined) {
       const s = t.match(/\b(\d{1,2})[- ]?(?:seconds?|secs?|s)\b/);
@@ -201,6 +210,33 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
         code: 'shape',
         text: `You asked for ${asked.other}, which Seed can't make directly. This draft is ${names[aspect]}.${croppable ? ` After it's made, Crop turns it into ${asked.other} on this device, no GPU.` : ''}`,
         fixes,
+      });
+  }
+  // An exact pixel size the user asked for: the draft should be the closest size Seed offers at that shape.
+  if (asked.pixels && r.output.aspect !== 'source') {
+    const [w, h] = asked.pixels;
+    const dims = (size: string) => {
+      try {
+        return resolveDimensions(r.workflow, size as never, r.output.aspect);
+      } catch {
+        return undefined;
+      }
+    };
+    const now = dims(String(r.output.size));
+    const best = sizeChoices(r.workflow)
+      .map(p => ({ id: String(p.id), d: dims(p.id) }))
+      .filter((x): x is { id: string; d: { width: number; height: number } } => Boolean(x.d))
+      .sort((a, b) => Math.abs(a.d.width * a.d.height - w * h) - Math.abs(b.d.width * b.d.height - w * h))[0];
+    if (now && best && best.id !== r.output.size && (now.width !== w || now.height !== h))
+      out.push({
+        code: 'size',
+        text: `You asked for ${w} × ${h}; this draft is ${now.width} × ${now.height}. The closest size Seed makes is ${best.d.width} × ${best.d.height}.`,
+        fixes: [
+          {
+            label: `Use ${best.d.width} × ${best.d.height}`,
+            patch: x => ({ ...strip(x), output: { ...x.output, size: best.id } }),
+          },
+        ],
       });
   }
   if (

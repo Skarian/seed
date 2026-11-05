@@ -190,3 +190,19 @@ it('a tiny light in the scene does not switch off character checks', () => {
   const gaps = briefGapList('A two-shot: Maren and her grandfather in the lamp room, a tiny ship light far out at sea.', brief).map(g => g.text);
   expect(gaps).toContain('red wool hat');
 });
+
+it('reads "square" as a shape only when it is about the picture', () => {
+  expect(askedFor([message('user', 'Her ochre oilskin has a square navy repair on the left sleeve.')] as any).aspect).toBeUndefined();
+  expect(askedFor([message('user', 'Make it square please')] as any).aspect).toBe('1:1');
+  expect(askedFor([message('user', 'A square image of the lantern')] as any).aspect).toBe('1:1');
+  expect(askedFor([message('user', 'Lantern on a table, square.')] as any).aspect).toBe('1:1');
+});
+
+it('offers the closest size when the user asked for exact pixels', () => {
+  const p = project([message('user', 'Three keyframes at 1920×1080, one take each.'), message('assistant', 'Ready', 'run')]);
+  const req = { workflow: 'text-to-image', prompt: 'harbour', output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' };
+  const check = checkDraft(card(req) as any, p).find(c => c.code === 'size')!;
+  expect(check.text).toMatch(/^You asked for 1920 × 1080; this draft is 1344 × 768\./);
+  const patched = check.fixes[0]!.patch(req as any) as any;
+  expect(patched.output.size).not.toBe('image-768');
+});

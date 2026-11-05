@@ -35,7 +35,7 @@ import { ResultsView } from './ResultsView.js';
 import { readiness, type StyleEntry } from './readiness.js';
 import { buildRequest, defaultMake, defaultRoles, type Attachment, type MakeSettings } from './requests.js';
 import { useStyles } from './styles.js';
-import { checkDraft } from './checks.js';
+import { checkDraft, readablePrompt } from './checks.js';
 import { BriefBar } from './Brief.js';
 
 const openStates = ['reviewing', 'revising', 'assembling'];
@@ -532,7 +532,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     const r = latest(card).request,
       kind = kindOf[r.workflow];
     setMode('make');
-    setText(r.prompt);
+    // The words people read, not the engine's compiled form (no section keys or <Picture 1> tokens).
+    setText(project ? readablePrompt(r, project, app.tasks) : r.prompt);
     setSettings({
       ...settings,
       kind,

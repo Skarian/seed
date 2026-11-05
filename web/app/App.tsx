@@ -24,7 +24,7 @@ import { SettingsPage } from './settings/SettingsPage.js';
 import { StatusPanel } from './status/StatusPanel.js';
 import { Viewer, Compare, Inspector } from './viewer/Viewer.js';
 import { ProjectsList } from './project/ProjectsList.js';
-import { Dialog } from './ui.js';
+import { Dialog, useModalFocus } from './ui.js';
 
 export function App() {
   const { route, go } = useRouter();
@@ -492,23 +492,7 @@ function Rail() {
           </p>
         )}
       </div>
-      {drawer && (
-        <div
-          className="backdrop drawer"
-          onClick={() => setDrawer(false)}
-          onKeyDown={e => e.key === 'Escape' && setDrawer(false)}
-        >
-          <div className="drawer-panel" role="dialog" aria-label="Projects" onClick={e => e.stopPropagation()}>
-            <div className="dialog-head">
-              <h2>Projects</h2>
-              <button className="icon-btn" aria-label="Close" onClick={() => setDrawer(false)} autoFocus>
-                <Icon.Close />
-              </button>
-            </div>
-            <ProjectsList compact onChosen={() => setDrawer(false)} />
-          </div>
-        </div>
-      )}
+      {drawer && <ProjectsDrawer onClose={() => setDrawer(false)} />}
       <button
         className="nav"
         aria-current={route.name === 'library' ? 'page' : undefined}
@@ -571,5 +555,38 @@ function TabBar() {
         </button>
       ))}
     </nav>
+  );
+}
+
+/** The projects list as a modal drawer: focus stays inside, Escape closes it, focus returns to what opened it. */
+function ProjectsDrawer({ onClose }: { onClose: () => void }) {
+  const panel = useRef<HTMLDivElement>(null);
+  useModalFocus(panel);
+  useEffect(() => {
+    const key = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !e.defaultPrevented && !document.querySelector('[role=menu]')) onClose();
+    };
+    document.addEventListener('keydown', key);
+    return () => document.removeEventListener('keydown', key);
+  }, [onClose]);
+  return (
+    <div className="backdrop drawer" onClick={onClose}>
+      <div
+        ref={panel}
+        className="drawer-panel"
+        role="dialog"
+        aria-modal="true"
+        aria-label="Projects"
+        onClick={e => e.stopPropagation()}
+      >
+        <div className="dialog-head">
+          <h2>Projects</h2>
+          <button className="icon-btn" aria-label="Close" onClick={onClose} autoFocus>
+            <Icon.Close />
+          </button>
+        </div>
+        <ProjectsList compact onChosen={onClose} />
+      </div>
+    </div>
   );
 }
