@@ -102,6 +102,23 @@ it('refuses input tokens in a draft that cannot take inputs',async()=>fixture(as
   expect(JSON.stringify(requests.at(-1).messages)).toContain('cannot use attached images');
 }));
 
+it('points the agent at editing when it creates a second draft with the same title',async()=>fixture(async({chats,queue,requests})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'create',request:{...request,title:'Keyframe redo'}},{operation:'create',request:{...request,title:'keyframe redo',prompt:'Again'}}]);
+  chats.send(chat.id,{version:chat.version,text:'Redo shot 4',assets:[]});chat=await idle(chats,chat.id);
+  expect(chat.groups[0]!.cards).toHaveLength(1);
+  expect(JSON.stringify(requests.at(-1).messages)).toContain('is already in this plan');
+}));
+
+it('gives a new project a distinct name when its title is already taken',async()=>fixture(async({chats,queue})=>{
+  let a=chats.create('sfw');a=chats.settings(a.id,a.version,{workflow:'text-to-image'});queue.push(null as never);
+  chats.send(a.id,{version:a.version,text:'A quiet landscape',assets:[]});a=await idle(chats,a.id);
+  let b=chats.create('sfw');b=chats.settings(b.id,b.version,{workflow:'text-to-image'});queue.push(null as never);
+  chats.send(b.id,{version:b.version,text:'Another quiet landscape',assets:[]});b=await idle(chats,b.id);
+  for(let i=0;i<100&&(chats.view(a.id).title==='New chat'||chats.view(b.id).title==='New chat');i++)await new Promise(r=>setTimeout(r,5));
+  expect(chats.view(a.id).title).toBe('Quiet Mountain Landscape');expect(chats.view(b.id).title).toBe('Quiet Mountain Landscape 2');
+}));
+
 it('refuses to switch kind while a plan of another kind is open',async()=>fixture(async({chats,queue})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'A landscape',assets:[]});chat=await idle(chats,chat.id);

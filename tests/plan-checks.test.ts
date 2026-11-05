@@ -92,9 +92,9 @@ it('lists brief details a draft leaves out, and adds them in one step', () => {
   expect(briefGaps('An empty stormy sea at dawn, no text.', brief)).toEqual([]);
   const request = { workflow: 'text-to-image', prompt, output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' };
   const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.text.startsWith('Continuity check'))!;
-  expect(check.text).toBe("Continuity check: this prompt doesn't mention small scar through her left eyebrow, no text anywhere.");
+  expect(check.text).toBe('Continuity check, not in this prompt: Mara’s small scar through her left eyebrow; “no text anywhere”.');
   expect(check.soft).toBe(true);
-  expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt + ' Small scar through her left eyebrow. No text anywhere.');
+  expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara', 'Mara (small scar through her left eyebrow)') + ' No text anywhere.');
 });
 
 it('reads shape words about faces, rooms and camera moves as description, not canvas', () => {
@@ -114,7 +114,7 @@ it('still flags an attached image the draft never used after a follow-up revisio
 it('does not ask a distant figure for face details, and drops a stray "and"', () => {
   const brief = ['## Characters', '- Maren: freckles, copper braid, a wool scarf, and black rubber boots'].join('\n');
   expect(briefGaps('Extreme wide shot: Maren tiny in frame on the cliff, wool scarf', brief)).toEqual([]);
-  expect(briefGaps('Close-up of Maren, copper braid', brief)).toEqual(['freckles', 'a wool scarf', 'black rubber boots']);
+  expect(briefGaps('Close-up of Maren, copper braid', brief)).toEqual(['freckles', 'a wool scarf']);
 });
 
 it('reads a clock time as scene content and a decimal ratio as a shape', () => {
@@ -122,4 +122,10 @@ it('reads a clock time as scene content and a decimal ratio as a shape', () => {
   expect(askedFor([message('user', 'The clock reads 6:17 pm')] as any).other).toBeUndefined();
   expect(askedFor([message('user', 'Frame everything for 2.39:1 widescreen')] as any).other).toBe('2.39:1');
   expect(askedFor([message('user', 'A 3:2 postcard')] as any).other).toBe('3:2');
+});
+
+it('counts a named character as covering who they are, and skips hair in a close-up of hands', () => {
+  const brief = ['## Characters', '- Ines: 10-year-old girl, short black bob, freckles, red raincoat'].join('\n');
+  expect(briefGaps('Medium shot of 10-year-old Ines in a red raincoat, short black bob', brief)).toEqual(['freckles']);
+  expect(briefGaps('Close-up of Ines’s hands on the brass lens, red raincoat cuffs', brief)).toEqual([]);
 });

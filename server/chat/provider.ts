@@ -13,10 +13,16 @@ export interface ChatAccounting {
 
 // Static prices are deliberately not used for charged-cost reporting.
 const model: Model<'openai-completions'> = {
-  id: CHAT_MODEL, name: 'Gemma 4 31B', api: 'openai-completions',
-  provider: 'openrouter', baseUrl: 'https://openrouter.ai/api/v1',
-  reasoning: true, input: ['text', 'image'], contextWindow: 262144,
-  maxTokens: 8192, cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+  id: CHAT_MODEL,
+  name: 'Gemma 4 31B',
+  api: 'openai-completions',
+  provider: 'openrouter',
+  baseUrl: 'https://openrouter.ai/api/v1',
+  reasoning: true,
+  input: ['text', 'image'],
+  contextWindow: 262144,
+  maxTokens: 8192,
+  cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
 };
 
 /** Observe accounting while forwarding the original SSE bytes without buffering the response. */
@@ -27,8 +33,8 @@ function accountingFetch(transport: typeof fetch, report: (value: ChatAccounting
     const decoder = new TextDecoder();
     let pending = '';
     const value: ChatAccounting = { id: null, provider: null, inputTokens: null, outputTokens: null, cost: null };
-    let lastReport='';
-    const number = (v: unknown) => typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null;
+    let lastReport = '';
+    const number = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) && v >= 0 ? v : null);
     const observe = (line: string) => {
       if (!line.startsWith('data:')) return;
       const data = line.slice(5).trim();
@@ -42,41 +48,71 @@ function accountingFetch(transport: typeof fetch, report: (value: ChatAccounting
           value.outputTokens = number(chunk.usage.completion_tokens) ?? value.outputTokens;
           value.cost = number(chunk.usage.cost) ?? value.cost;
         }
-        const encoded=JSON.stringify(value);
-        if(encoded!==lastReport){lastReport=encoded;report({ ...value });}
-      } catch { /* The provider adapter handles malformed protocol content. */ }
+        const encoded = JSON.stringify(value);
+        if (encoded !== lastReport) {
+          lastReport = encoded;
+          report({ ...value });
+        }
+      } catch {
+        /* The provider adapter handles malformed protocol content. */
+      }
     };
-    const body = response.body.pipeThrough(new TransformStream<Uint8Array, Uint8Array>({
-      transform(bytes, controller) {
-        pending += decoder.decode(bytes, { stream: true });
-        const lines = pending.split('\n');
-        pending = lines.pop() ?? '';
-        for (const line of lines) observe(line);
-        if (pending.length > 1024 * 1024) throw new Error('Provider event exceeds size limit.');
-        controller.enqueue(bytes);
-      },
-      flush() { observe(pending + decoder.decode()); },
-    }));
+    const body = response.body.pipeThrough(
+      new TransformStream<Uint8Array, Uint8Array>({
+        transform(bytes, controller) {
+          pending += decoder.decode(bytes, { stream: true });
+          const lines = pending.split('\n');
+          pending = lines.pop() ?? '';
+          for (const line of lines) observe(line);
+          if (pending.length > 1024 * 1024) throw new Error('Provider event exceeds size limit.');
+          controller.enqueue(bytes);
+        },
+        flush() {
+          observe(pending + decoder.decode());
+        },
+      }),
+    );
     return new Response(body, { status: response.status, headers: response.headers });
   };
 }
 
 /** Add the applicable schema fragment to SDK validation errors for model recovery.
  * The original transcript keeps the exact rejected call and SDK result. */
-export function explainToolValidation(messages:AgentMessage[],tools:AgentTool[]):AgentMessage[]{
-  return messages.map(message=>{
-    if(message.role!=='toolResult'||!message.isError)return message;
-    const text=message.content.filter(p=>p.type==='text').map(p=>p.text).join('\n');
-    if(!text.startsWith('Validation failed for tool '))return message;
-    const schema=tools.find(t=>t.name===message.toolName)?.parameters as any;
-    if(!schema)return message;
-    const fields=[...new Set([...text.matchAll(/^  - ([^:]+):/gm)].map(m=>m[1]!))];
-    const expected=fields.map(field=>{
-      let node=schema;
-      for(const part of field.replace(/\[(\d+)\]/g,'.$1').replace(/^\//,'').split(/[./]/))node=/^\d+$/.test(part)?node?.items:node?.properties?.[part];
-      return {field,...(node?{expected:node}:{message:'Use only properties in the tool schema.'})};
+export function explainToolValidation(messages: AgentMessage[], tools: AgentTool[]): AgentMessage[] {
+  return messages.map(message => {
+    if (message.role !== 'toolResult' || !message.isError) return message;
+    const text = message.content
+      .filter(p => p.type === 'text')
+      .map(p => p.text)
+      .join('\n');
+    if (!text.startsWith('Validation failed for tool ')) return message;
+    const schema = tools.find(t => t.name === message.toolName)?.parameters as any;
+    if (!schema) return message;
+    const fields = [...new Set([...text.matchAll(/^  - ([^:]+):/gm)].map(m => m[1]!))];
+    const expected = fields.map(field => {
+      let node = schema;
+      for (const part of field
+        .replace(/\[(\d+)\]/g, '.$1')
+        .replace(/^\//, '')
+        .split(/[./]/))
+        node = /^\d+$/.test(part) ? node?.items : node?.properties?.[part];
+      return { field, ...(node ? { expected: node } : { message: 'Use only properties in the tool schema.' }) };
     });
-    return {...message,content:[...message.content,{type:'text' as const,text:JSON.stringify({saved:false,correction:expected,next_action:'Correct the rejected fields and retry. Preserve all other requested settings; do not omit them to bypass an error.'})}]};
+    return {
+      ...message,
+      content: [
+        ...message.content,
+        {
+          type: 'text' as const,
+          text: JSON.stringify({
+            saved: false,
+            correction: expected,
+            next_action:
+              'Correct the rejected fields and retry. Preserve all other requested settings; do not omit them to bypass an error.',
+          }),
+        },
+      ],
+    };
   });
 }
 
@@ -98,17 +134,30 @@ export function createChatAgent(options: {
   let currentTools: AgentTool[] = options.tools ?? (options.tool ? [options.tool] : []);
   return new Agent({
     initialState: {
-      model, systemPrompt: options.systemPrompt, messages: options.messages ?? [],
-      tools: options.tools ?? (options.tool ? [options.tool] : []), thinkingLevel: options.reasoning === false ? 'off' : 'medium',
+      model,
+      systemPrompt: options.systemPrompt,
+      messages: options.messages ?? [],
+      tools: options.tools ?? (options.tool ? [options.tool] : []),
+      thinkingLevel: options.reasoning === false ? 'off' : 'medium',
     },
     toolExecution: 'sequential',
-    prepareNextTurnWithContext: options.nextTurn ? ({ context }) => { const next = options.nextTurn!(); if (!next) return undefined; currentTools = next.tools; return { context: { ...context, systemPrompt: next.systemPrompt, tools: next.tools } }; } : undefined,
-    transformContext: async messages=>explainToolValidation(messages,currentTools),
+    prepareNextTurnWithContext: options.nextTurn
+      ? ({ context }) => {
+          const next = options.nextTurn!();
+          if (!next) return undefined;
+          currentTools = next.tools;
+          return { context: { ...context, systemPrompt: next.systemPrompt, tools: next.tools } };
+        }
+      : undefined,
+    transformContext: async messages => explainToolValidation(messages, currentTools),
     streamFn: (_model, context, streamOptions) => {
-      if (++turns > 8) throw new Error('Agent turn limit reached. Send another message to continue.');
+      if (++turns > 16) throw new Error('Agent turn limit reached.');
       return streamSimple(model, context, {
-        ...streamOptions, apiKey: options.apiKey, maxTokens: options.maxTokens??8192,
-        maxRetries: 0, timeoutMs: 600_000,
+        ...streamOptions,
+        apiKey: options.apiKey,
+        maxTokens: options.maxTokens ?? 8192,
+        maxRetries: 0,
+        timeoutMs: 600_000,
         fetch: accountingFetch(options.fetch ?? fetch, options.onAccounting ?? (() => {})),
         onPayload(payload) {
           const body = payload as Record<string, unknown>;
