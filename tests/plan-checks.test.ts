@@ -254,3 +254,13 @@ it('reads who is in frame and the framing from the shot record before the wordin
   // A recorded wide framing checks the outfit only, never a scar.
   expect(briefGapList('Mara walks the causeway.', brief, { cast: ['Mara'], framing: 'wide' }).map(g => g.text)).toEqual([]);
 });
+
+it('checks the look of the place a shot is set in, not only its characters', () => {
+  const brief = '## Characters\n- Mara: mustard oilskin coat\n\n## Places\n- The Lighthouse: white tower, red iron door, salt-stained windows\n- Harbour: green fishing boats\n';
+  // Recorded place: the lighthouse details are checked, the harbour's are not.
+  expect(briefGapList('Mara stands by a white tower in a mustard oilskin coat.', brief, { cast: ['Mara'], place: 'Lighthouse door', framing: 'medium' }).map(g => g.text)).toEqual(['red iron door', 'salt-stained windows']);
+  // No record: the place is found by its name in the words.
+  expect(briefGapList('Dawn over the harbour, no people.', brief).map(g => g.text)).toEqual(['green fishing boats']);
+  // A close-up shows too little of the place.
+  expect(briefGapList('Close-up of Mara in a mustard oilskin coat.', brief, { cast: ['Mara'], place: 'Lighthouse', framing: 'close-up' })).toEqual([]);
+});

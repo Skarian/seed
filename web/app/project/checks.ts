@@ -506,6 +506,30 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
         if (personality.test(part)) continue;
         if (!mentions(prompt, part)) out.push({ who: lastName, text: part.charAt(0).toLowerCase() + part.slice(1) });
       }
+    } else if (/place|location|setting|environment|world|set\b/.test(section)) {
+      // Places hold continuity too: a shot set at the lighthouse carries the lighthouse's look. A close-up shows too
+      // little of the place to check.
+      const m = item.match(/^([A-Z][\w'’ -]{1,40}?)\s*[:–—]\s*(.+)$/);
+      if (!m || closeUp) continue;
+      const words = m[1]!
+        .toLowerCase()
+        .split(/\s+/)
+        .filter(w => w.length > 2 && !['the', 'and', 'of'].includes(w));
+      const recorded = shot?.place?.toLowerCase();
+      const here = recorded
+        ? words.some(w => recorded.includes(w))
+        : words.length > 0 && words.every(w => new RegExp('\\b' + w + '\\b', 'i').test(prompt));
+      if (!here) continue;
+      for (const part of m[2]!
+        .split(/[,;]|\.\s/)
+        .map(p =>
+          p
+            .trim()
+            .replace(/\.$/, '')
+            .replace(/^(and|or|with)\s+/i, ''),
+        )
+        .filter(p => p.length > 2 && !abstractRule.test(p) && !mentions(prompt, p)))
+        out.push({ text: part.charAt(0).toLowerCase() + part.slice(1) });
     } else if (/rule|always|never|constraint/.test(section)) {
       // A rule about the project as a whole ("keep wardrobe consistent across shots") is not a visible detail to
       // put in one prompt; only concrete rules ("no text anywhere") are checked.
