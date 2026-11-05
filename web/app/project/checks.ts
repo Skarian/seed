@@ -28,7 +28,9 @@ export type Fix = {
 /** The crop shape a project plans to deliver, remembered on this device once a crop-later fix is accepted or a crop is saved. */
 export const cropKey = (projectId: string) => 'seed.cropTo.' + projectId;
 /** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
-export type Check = { text: string; fixes: Fix[]; soft?: boolean };
+/** What a check is about, so the app can act on it without reading its wording. */
+export type CheckCode = 'shape' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input';
+export type Check = { code: CheckCode; text: string; fixes: Fix[]; soft?: boolean };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
 export function askedFor(messages: ChatMessage[]) {
@@ -125,6 +127,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
         asked.aspect === 'portrait' ? (video ? '9:16' : '4:5') : asked.aspect === 'landscape' ? '16:9' : asked.aspect;
       if (video && (want === '1:1' || want === '4:5'))
         out.push({
+          code: 'shape',
           text: `You asked for ${names[want]}, which video can't make, and Seed can't crop a video afterwards. This draft is ${names[aspect]}.`,
           fixes: (['16:9', '9:16'] as const)
             .filter(a => a !== aspect)
@@ -133,6 +136,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
         });
       else
         out.push({
+          code: 'shape',
           text: `You asked for ${names[want]}; this draft is ${names[aspect]}.`,
           fixes: [{ label: 'Make it ' + names[want], patch: withAspect(want as Aspect) }],
         });
@@ -167,6 +171,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       localStorage.getItem(cropKey(project.id)) === asked.other;
     if (!settled)
       out.push({
+        code: 'shape',
         text: `You asked for ${asked.other}, which Seed can't make directly. This draft is ${names[aspect]}.${croppable ? ` After it's made, Crop turns it into ${asked.other} on this device, no GPU.` : ''}`,
         fixes,
       });
@@ -179,6 +184,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     r.output.duration_seconds !== asked.seconds
   )
     out.push({
+      code: 'length',
       text: `You asked for ${asked.seconds} seconds; this draft is ${r.output.duration_seconds ?? 5}.`,
       fixes: [
         {
@@ -189,6 +195,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     });
   if (video && asked.silent !== undefined && (r.audio?.output === 'silent') !== asked.silent)
     out.push({
+      code: 'sound',
       text: asked.silent
         ? 'You asked for silence; this draft has sound.'
         : 'You asked for sound; this draft is silent.',
@@ -212,6 +219,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     r.audio?.output !== 'silent'
   )
     out.push({
+      code: 'added-sound',
       text: 'Seed added sound to this clip, which you didn’t ask for.',
       fixes: [
         {
@@ -236,6 +244,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       ...gaps.filter(g => !g.who).map(g => `“${g.text}”`),
     ];
     out.push({
+      code: 'continuity',
       soft: true,
       text: `Continuity check, not in this prompt: ${parts.join('; ')}.`,
       fixes: [
@@ -266,6 +275,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   const unused = [...new Set([...(asking?.assets ?? []), ...attached])].filter(a => !used.has(a));
   if (unused.length && !(r.references ?? []).length)
     out.push({
+      code: 'unused-input',
       text: `Your attached ${unused.length === 1 ? 'image is' : 'files are'} not used by this draft; it is made from words only.`,
       fixes: [
         { label: 'Make it as an edit of the attached image', patch: () => ({}), action: 'edit-myself', assets: unused },

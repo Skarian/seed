@@ -86,6 +86,15 @@ it('keeps a reply written before the last tool call, without model control token
   expect(reply).toContain('Here is the plan for your four shots.');expect(reply).not.toContain('channel');
 }));
 
+it('keeps an explanation written before the drafts when a closing line follows them',async()=>fixture(async({chats,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'say',text:'To keep Mara consistent, every shot repeats her coat and scar.'},{operation:'create',request}],{say:'The drafts are ready for your review.'});
+  chats.send(chat.id,{version:chat.version,text:'Plan it',assets:[]});chat=await idle(chats,chat.id);
+  const reply=chat.messages.at(-1)!.text;
+  expect(reply).toContain('To keep Mara consistent');expect(reply).toContain('The drafts are ready');
+  expect(reply.indexOf('To keep Mara')).toBeLessThan(reply.indexOf('The drafts are ready'));
+}));
+
 it('tells the agent to retry when it changes kind and drafts in the same step',async()=>fixture(async({chats,queue,requests})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'kind',kind:'video'},{operation:'create',request}]);
@@ -119,12 +128,13 @@ it('gives a new project a distinct name when its title is already taken',async()
   expect(chats.view(a.id).title).toBe('Quiet Mountain Landscape');expect(chats.view(b.id).title).toBe('Quiet Mountain Landscape 2');
 }));
 
-it('refuses to switch kind while a plan of another kind is open',async()=>fixture(async({chats,queue})=>{
+it('switches kind with a plan open and keeps the drafts already in it',async()=>fixture(async({chats,queue})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'A landscape',assets:[]});chat=await idle(chats,chat.id);
-  queue.push([{operation:'kind',kind:'video'}]);chats.send(chat.id,{version:chat.version,text:'Now a video instead',assets:[]});chat=await idle(chats,chat.id);
-  expect(chat.workflow).toBe('text-to-image');expect(chat.groups).toHaveLength(1);
-  const step=chat.messages.at(-1)?.transcript?.steps.find(s=>s.kind==='tool'&&s.name==='choose_kind');expect(step?.state).toBe('failed');
+  queue.push([{operation:'kind',kind:'video'}]);chats.send(chat.id,{version:chat.version,text:'Now also a clip',assets:[]});chat=await idle(chats,chat.id);
+  expect(chat.workflow).toBe('text-to-video');expect(chat.groups).toHaveLength(1);
+  expect(chat.groups[0]!.cards).toHaveLength(1);expect(chat.groups[0]!.cards[0]!.workflow).toBe('text-to-image');
+  const step=chat.messages.at(-1)?.transcript?.steps.find(s=>s.kind==='tool'&&s.name==='choose_kind');expect(step?.state).toBe('succeeded');
 }));
 
 it('keeps the conversation open while approved results render, and a reply-only stop keeps the jobs',async()=>fixture(async({chats,jobs,queue})=>{
@@ -198,12 +208,23 @@ it('freezes batch seeds at approval and edits a running request without cancelli
  chats.stop(chat.id);
 }));
 
-it('rejects cross-workflow feedback and stale versions, and preserves workflow after Stop',async()=>fixture(async({chats,queue})=>{
+it('feedback on a draft uses that draft’s kind, rejects stale versions, and preserves workflow after Stop',async()=>fixture(async({chats,queue})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
   const card=c.groups[0]!.cards[0]!;const oldVersion=c.version;c=chats.settings(c.id,c.version,{workflow:'text-to-video'});
   expect(()=>chats.send(c.id,{version:oldVersion,text:'Hello',assets:[]})).toThrow('another tab');
-  expect(()=>chats.send(c.id,{version:c.version,text:'Change it',assets:[],card_id:card.id,revision:1})).toThrow('Switch');
+  queue.push([],{say:'Noted.'});chats.send(c.id,{version:c.version,text:'Change it',assets:[],card_id:card.id,revision:1});c=await idle(chats,c.id);
+  expect(c.workflow).toBe('text-to-image');
+  c=chats.settings(c.id,c.version,{workflow:'text-to-video'});
   c=chats.stop(c.id);expect(c.workflow).toBe('text-to-video');expect(c.groups[0]!.state).toBe('stopped');
+}));
+
+it('the owner can turn a draft into another kind in place, keeping its place and title',async()=>fixture(async({chats,queue})=>{
+  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request:{...request,title:'Shot 1: Causeway'}}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
+  const card=c.groups[0]!.cards[0]!;
+  c=chats.revise(c.id,card.id,1,{workflow:'text-to-video',title:'Shot 1: Causeway',prompt:'A slow push in',seed:'random',count:1,output:{aspect:'16:9',size:'768p',duration_seconds:5},audio:{output:'silent'}});
+  const after=c.groups[0]!.cards[0]!;
+  expect(after.id).toBe(card.id);expect(after.workflow).toBe('text-to-video');expect(after.revisions.at(-1)!.request.workflow).toBe('text-to-video');
+  expect(after.revisions.at(-1)!.request.title).toBe('Shot 1: Causeway');expect(c.groups[0]!.cards).toHaveLength(1);
 }));
 
 it('creates new revisions, retains sibling approvals and rejects stale edits',async()=>fixture(async({chats,queue})=>{

@@ -658,6 +658,11 @@ export function Inspector({
   // and focus returns to the result it was opened from. Enter on the image opens it full screen (the button does that).
   const latest = useRef({ onClose, item });
   latest.current = { onClose, item };
+  // Opening the panel moves focus to its title, so keyboard and screen-reader users land in what they opened.
+  const heading = useRef<HTMLHeadingElement>(null);
+  useEffect(() => {
+    heading.current?.focus({ preventScroll: true });
+  }, []);
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
@@ -686,7 +691,9 @@ export function Inspector({
           <Icon.Close />
           Close
         </button>
-        <b>{item.title}</b>
+        <h2 className="inspector-title" ref={heading} tabIndex={-1}>
+          {item.title}
+        </h2>
         {siblings.length > 1 && (
           <span className="history">
             <button aria-label="Previous result" disabled={i <= 0} onClick={() => onPick(siblings[i - 1]!)}>
@@ -704,19 +711,24 @@ export function Inspector({
         )}
       </div>
       <div className="body">
-        <button
-          className="hero"
-          onClick={() => app.view(item, siblings)}
-          aria-label={'Open ' + item.title + ' full screen'}
-          style={{ display: 'block' }}
-        >
-          <Media id={item.asset} kind={item.kind} alt={item.title} large />
-          {item.kind === 'video' && (
-            <span className="hero-play" aria-hidden="true">
-              <Icon.Play width={22} height={22} />
-            </span>
-          )}
-        </button>
+        {item.kind === 'video' ? (
+          // A clip plays right here with its own controls; full screen is a separate button.
+          <div className="hero hero-video">
+            <Media id={item.asset} kind="video" alt={item.title} controls />
+            <button className="btn small hero-full" onClick={() => app.view(item, siblings)}>
+              Full screen
+            </button>
+          </div>
+        ) : (
+          <button
+            className="hero"
+            onClick={() => app.view(item, siblings)}
+            aria-label={'Open ' + item.title + ' full screen'}
+            style={{ display: 'block' }}
+          >
+            <Media id={item.asset} kind={item.kind} alt={item.title} large />
+          </button>
+        )}
         <AssetPanel item={item} onClosed={onClose} />
       </div>
     </aside>

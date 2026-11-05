@@ -58,7 +58,6 @@ export function PlanCard({
   useEffect(() => {
     if (cards.length > 2 && innerWidth < 700) setCompact(true);
   }, [cards.length]);
-  const kind = kindOf[group.workflow];
   const lastRun = cards
     .flatMap(c => c.revisions)
     .filter(r => r.number > 1)
@@ -271,7 +270,7 @@ export function PlanCard({
               onRevise={request => onRevise(card, request)}
               onAskAbout={() => onAskAbout(card)}
               onCollapse={compact ? () => setOpen(null) : undefined}
-              kindLabel={kindLabels[kind]}
+              kindLabel={kindLabels[kindOf[card.workflow]]}
               checks={warnings[i]!}
               onAcknowledge={text => onAcknowledge(card.id + ':' + text)}
               onEditMyself={assets => onEditMyself(card, assets)}

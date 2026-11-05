@@ -152,6 +152,21 @@ export function App() {
   const top = route.name !== 'project';
   return (
     <AppContext.Provider value={value}>
+      {/* First in the tab order on every page: straight to the message box in a project, else to the page. */}
+      <button
+        className="skip-link"
+        onClick={() => {
+          const box = document.querySelector<HTMLElement>('.composer textarea');
+          const main = document.querySelector<HTMLElement>('main.main');
+          if (box) box.focus();
+          else if (main) {
+            main.tabIndex = -1;
+            main.focus();
+          }
+        }}
+      >
+        {route.name === 'project' ? 'Skip to the message box' : 'Skip to content'}
+      </button>
       <div className={`shell ${top ? 'top' : ''} ${inspected && wide ? 'with-inspector' : ''}`}>
         <Rail />
         <main className="main">

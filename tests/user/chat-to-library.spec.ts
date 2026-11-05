@@ -59,7 +59,7 @@ test('a multi-turn Gemma conversation becomes a plan, then results in the Librar
   // Make the whole plan. The first width consents to a fake cloud GPU; later widths reuse it.
   await page
     .getByRole('button', {
-      name: /^Make (\d+ (images?|clips?|outputs?)|as it is|this earlier version|at the shape shown|despite \d+ checks?|with sound|without the attached image)$/,
+      name: /^Make (\d+ (images?|clips?|outputs?)( and \d+ clips?)?|as it is|this earlier version|at [\d.:]+|despite \d+ checks?|with sound|without the attached image)$/,
     })
     .click();
   const consent = page.getByRole('dialog', { name: /^This needs an? (image|video) GPU$/ });

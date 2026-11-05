@@ -220,7 +220,7 @@ function Key({
       )}
       <div className="row" style={{ fontSize: 13.5 }}>
         <a className="link" href={url} target="_blank" rel="noopener noreferrer">
-          Get a {name} key ↗
+          Get {/^[AEIOU]/.test(name) ? 'an' : 'a'} {name} key ↗
         </a>
         {configured && (
           <>

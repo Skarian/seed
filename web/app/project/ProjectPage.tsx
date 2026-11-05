@@ -18,6 +18,7 @@ import {
   latest,
   titleOf,
   outputNoun,
+  plural,
   duration,
   cardJobs,
   isFailed,
@@ -134,16 +135,40 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           : c,
     );
   }, [Boolean(plan)]);
+  // Ticks and acknowledged warnings belong to the plan and survive a reload on this device.
   useEffect(() => {
-    if (!plan) setSelection({});
+    if (!plan) {
+      setSelection({});
+      return;
+    }
+    try {
+      setSelection(JSON.parse(localStorage.getItem('seed.plan.sel.' + plan.id) ?? '{}'));
+      setAcknowledged(new Set(JSON.parse(localStorage.getItem('seed.plan.ack.' + plan.id) ?? '[]')));
+    } catch {
+      /* start fresh */
+    }
   }, [plan?.id]);
+  useEffect(() => {
+    if (!plan) return;
+    try {
+      localStorage.setItem('seed.plan.sel.' + plan.id, JSON.stringify(selection));
+      localStorage.setItem('seed.plan.ack.' + plan.id, JSON.stringify([...acknowledged]));
+    } catch {
+      /* memory only */
+    }
+  }, [selection, acknowledged]);
   // When Seed narrows or widens the plan, its choice replaces earlier ticks on those drafts.
   const leftOut = plan?.cards.map(c => c.id + (c.left_out ? '-' : '')).join() ?? '';
   const lastLeftOut = useRef(leftOut);
   useEffect(() => {
+    const first = !lastLeftOut.current;
     const before = new Set(lastLeftOut.current.split(','));
     lastLeftOut.current = leftOut;
     const now = new Set(leftOut.split(','));
+    // A plan appearing (first load, or a different plan) keeps the ticks restored for it.
+    const ids = (set: Set<string>) => new Set([...set].map(x => x.replace(/-$/, '')));
+    const was = ids(before);
+    if (first || ![...ids(now)].some(x => was.has(x))) return;
     setSelection(s =>
       Object.fromEntries(
         Object.entries(s).filter(
@@ -287,21 +312,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         );
       }
     };
-    // A plan holds one kind of work. If the waiting plan is already that kind, the change joins it with the image;
-    // otherwise the waiting drafts are kept for later (never folded into a words-only draft that drops the image).
+    // A plan can hold several kinds of work: an animation or edit of a result joins the waiting plan as its own draft.
     if (context.type === 'using' && plan) {
-      if (!kind || plan.workflow === kind) {
-        await go(true);
-        return;
-      }
-      setConflict({
-        label: context.intent === 'animate' ? 'Animate' : 'Refine',
-        subject: `${context.intent === 'animate' ? 'An animation of' : 'An edit of'} “${context.item.title}”`,
-        run: async () => {
-          await setAside();
-          await go();
-        },
-      });
+      await go(true);
       return;
     }
     await go();
@@ -419,16 +432,30 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       const ok = await run('Making', () => projectsApi.decide(id, plan.id, decisions));
       if (ok) setFlash(plan.id);
     };
-    const need = chosen.map(c => readiness(latest(c).request, app.pool, styles)).find(r => r.needs);
-    const outputs = chosen.reduce((n, c) => n + latest(c).request.count, 0);
-    if (need?.needs)
+    // A plan can mix kinds: ask for each kind of GPU it needs in turn (image first), then make everything at once.
+    const roles = [
+      ...new Set(
+        chosen
+          .map(c => readiness(latest(c).request, app.pool, styles).needs)
+          .filter((r): r is 'image' | 'video' => !!r),
+      ),
+    ].sort();
+    const ask = async (i: number): Promise<void> => {
+      const role = roles[i];
+      if (!role) return go();
+      const these = chosen.filter(c => readiness(latest(c).request, app.pool, styles).needs === role);
+      const outputs = these.reduce((n, c) => n + latest(c).request.count, 0);
       setCompute({
-        role: need.needs,
-        action: 'make ' + outputNoun(latest(chosen[0]!).request, outputs),
-        seconds: planSeconds(chosen),
-        then: go,
+        role,
+        action:
+          'make ' +
+          outputNoun(latest(these[0]!).request, outputs) +
+          (roles.length > 1 && i === 0 ? ' (the clips need a video GPU next)' : ''),
+        seconds: planSeconds(these),
+        then: () => ask(i + 1),
       });
-    else await go();
+    };
+    await ask(0);
   }
 
   /** More like this, Retry and Make again run at once as direct makes: no new plan, no extra Make, no conflict with an open plan. */
@@ -591,6 +618,18 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       )
     : [];
   const outputs = selectedCards.reduce((n, c) => n + latest(c).request.count, 0);
+  // What Make makes, by kind: "4 images", "2 clips" or "4 images and 2 clips" for a mixed plan.
+  const madeOf = (video: boolean) =>
+    selectedCards
+      .filter(c => isVideoKind(kindOf[latest(c).request.workflow]) === video)
+      .reduce((n, c) => n + latest(c).request.count, 0);
+  const makeNoun =
+    madeOf(true) && madeOf(false)
+      ? `${plural(madeOf(false), 'image')} and ${plural(madeOf(true), 'clip')}`
+      : outputNoun(
+          selectedCards[0] ? latest(selectedCards[0]).request : plan?.cards[0] && latest(plan.cards[0]).request,
+          outputs,
+        );
   const planReady = plan && plan.state === 'reviewing' && !replying;
   const openChecks = plan
     ? selectedCards.flatMap(c =>
@@ -601,12 +640,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     : [];
   const unresolved = openChecks.length;
   // The final button names what the person is accepting, not just "anyway".
-  const anyway = openChecks.every(c => c.text.includes('added sound'))
+  const anyway = openChecks.every(c => c.code === 'added-sound')
     ? 'Make with sound'
-    : openChecks.every(c => c.text.includes('not used by this draft'))
+    : openChecks.every(c => c.code === 'unused-input')
       ? 'Make without the attached image'
-      : openChecks.every(c => c.text.startsWith('You asked for') && !/seconds|silence|sound/.test(c.text))
-        ? 'Make at the shape shown'
+      : openChecks.every(c => c.code === 'shape')
+        ? 'Make at ' + (selectedCards[0] ? latest(selectedCards[0]).request.output.aspect : 'this shape')
         : `Make despite ${unresolved === 1 ? '1 check' : unresolved + ' checks'}`;
   // Seed answered the latest message without changing the plan (often a clarifying question):
   // the plan still shows the earlier version, so running it is a secondary, clearly named choice.
@@ -688,12 +727,6 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     );
   return (
     <>
-      <button
-        className="skip-link"
-        onClick={() => document.querySelector<HTMLTextAreaElement>('.composer textarea')?.focus()}
-      >
-        Skip to the message box
-      </button>
       <div className="sr-only" role="status" aria-live="polite">
         {announce}
       </div>
@@ -761,7 +794,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                     }}
                   />
                 ) : (
-                  <div className="stream">
+                  <div className="stream" role="log" aria-label="Conversation" aria-relevant="additions">
                     {timeline.map(item => (
                       <LocalBoundary
                         key={item.type === 'message' ? item.message.id : item.group.id}
@@ -812,26 +845,34 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                             acknowledged={acknowledged}
                             onAcknowledge={key => setAcknowledged(s => new Set([...s, key]))}
                             onEditMyself={(card, ids) => {
-                              setSelection(s => ({ ...s, [card.id]: false }));
-                              app.toast(
-                                `“${titleOf(latest(card).request)}” is left out of the plan. Its edit is ready in Make now below.`,
+                              // The draft becomes an edit of the attached image right where it is: same place in the
+                              // plan, same title and words, the first image as its source and any others as references.
+                              const r = latest(card).request;
+                              const images = ids.filter(
+                                a => (project.asset_manifest?.find(x => x.id === a)?.kind ?? 'image') === 'image',
                               );
-                              setMode('make');
-                              setText(latest(card).request.prompt);
-                              setSettings({ ...settings, kind: 'edit' });
-                              setAttachments(
-                                ids.map((a, i) => {
-                                  const m = project.asset_manifest?.find(x => x.id === a);
-                                  return {
-                                    key: a,
-                                    asset_id: a,
-                                    name: assetName(project, a, app.tasks),
-                                    kind: m?.kind ?? 'image',
-                                    role: i === 0 ? ('source' as const) : ('reference' as const),
-                                  };
+                              if (!images.length) return;
+                              void run('Saving', () =>
+                                projectsApi.revise(id, card.id, latest(card).number, {
+                                  workflow: 'image-to-image',
+                                  title: r.title,
+                                  prompt: r.prompt,
+                                  count: r.count,
+                                  seed: 'random',
+                                  output: { aspect: 'source', size: r.output.size },
+                                  references: images.slice(0, 10).map((asset_id, i) => ({
+                                    id: 'input' + (i + 1),
+                                    asset_id,
+                                    kind: 'image',
+                                    role: i === 0 ? 'source' : 'reference',
+                                  })),
                                 }),
-                              );
-                              setFocusToken(t => t + 1);
+                              ).then(ok => {
+                                if (ok)
+                                  app.toast(
+                                    `“${titleOf(r)}” is now an edit of “${assetName(project, images[0]!, app.tasks)}”. Edits keep the source’s shape.`,
+                                  );
+                              });
                             }}
                           />
                         ) : (
@@ -887,11 +928,11 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                         const first = selectedCards[0];
                         if (first) setFlash(first.id);
                       }}
-                      aria-label="Show the selected drafts"
+                      title="Show the selected drafts"
                     >
                       <b>
                         {plan.cards.length === 1 ? '' : 'Selected · '}
-                        {outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}
+                        {makeNoun}
                       </b>
                       {plan.cards.length > 1 ? ` · ${selectedCards.length} of ${plan.cards.length} drafts` : ''}
                       {selectedCards.length && planSeconds(selectedCards) !== null
@@ -914,7 +955,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                               ? 'Make as it is'
                               : unresolved
                                 ? anyway
-                                : 'Make ' + outputNoun(plan.cards[0] && latest(plan.cards[0]).request, outputs)}
+                                : 'Make ' + makeNoun}
                     </button>
                   </div>
                 )}
@@ -1286,7 +1327,7 @@ function Message({
             : 'Use as input'
       : '';
     return (
-      <div className="msg-you">
+      <div className="msg-you" role="article" aria-label="You said">
         {label && (
           <span className="kind" style={{ marginRight: 6 }}>
             {label}
@@ -1341,7 +1382,12 @@ function Message({
     text.length > 600 &&
     !/(only supports?|not supported|isn't supported|can't|cannot|not possible|won't)/i.test(text);
   return (
-    <div className={'msg-seed' + (long && !open ? ' clamped' : '')}>
+    <div
+      className={'msg-seed' + (long && !open ? ' clamped' : '')}
+      role="article"
+      aria-label="Seed said"
+      aria-busy={running}
+    >
       <div className="who">
         Seed
         {running && (

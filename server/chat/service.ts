@@ -70,35 +70,26 @@ function agentRequest(request: ImageRequest, assets: ToolAsset[] = []) {
       : {}),
   };
 }
-/**
- * The reply a person sees: text after the agent's last tool call, or, when it wrote nothing after it, everything it
- * wrote in the turn (a reply written before a final tool call must not disappear). Model control tokens are removed.
- */
 /** How the agent refers to inputs in prompts. Read in one place (tests switch it per case). */
 function referenceMode(): 'stable' | 'direct' {
   return process.env.SEED_AGENT_REFERENCE_MODE === 'direct' ? 'direct' : 'stable';
 }
+/**
+ * The reply a person sees: everything the agent wrote in the turn, before and after its tool calls, in order. An
+ * explanation written before the drafts were saved must not be replaced by the closing line. Model control tokens
+ * are removed and a paragraph repeated word for word is kept once.
+ */
 function replyText(steps: Array<{ kind: string; text?: string }>) {
   const clean = (t: string) =>
     t
       .replace(/<\|?\/?[a-z_]+\|?>/gi, '')
       .replace(/^\s*thought\s*$/gim, '')
       .trim();
-  const lastTool = steps.map(s => s.kind).lastIndexOf('tool');
-  const after = steps
-    .slice(lastTool + 1)
+  const parts = steps
     .filter(s => s.kind === 'text')
     .map(s => clean(s.text ?? ''))
-    .filter(Boolean)
-    .join('\n');
-  return (
-    after ||
-    steps
-      .filter(s => s.kind === 'text')
-      .map(s => clean(s.text ?? ''))
-      .filter(Boolean)
-      .join('\n\n')
-  );
+    .filter(Boolean);
+  return [...new Set(parts)].join('\n\n');
 }
 interface StoredChat extends ChatView {
   title_manual?: boolean;
@@ -552,9 +543,8 @@ export class Chats {
               throw Error(
                 `Nothing was saved: the kind of work changed to ${Object.entries(chatKinds).find(([, w]) => w === current.workflow)?.[0] ?? 'another kind'} earlier in this step, so this ${workflow} draft no longer applies. Call create_request again now with the tools for the new kind, then tell the user what was saved.`,
               );
+            // A plan can hold several kinds of work (keyframes, their edits and their animations); each draft has its own.
             let group = openGroup(current);
-            if (group && group.workflow !== workflow)
-              throw Error('Resolve the current review before changing workflows.');
             const value = raw as Record<string, unknown>;
             const editId = operation === 'edit' ? String(value.request_id) : target;
             const card = editId ? group?.cards.find(c => c.id === editId) : undefined;
@@ -566,15 +556,21 @@ export class Chats {
               throw Error(
                 'Request changed after this agent started. Read the current request before editing; no changes were saved.',
               );
+            // Editing a draft with another kind's tools changes its kind in place (a shot becomes an edit of a
+            // reference, or its animation): it starts from that kind's defaults and keeps its title and prompt.
+            const changesKind = Boolean(card && card.workflow !== workflow);
+            const prior = card ? latest(card).request : undefined;
             const request = prepareToolRequest(
               {
                 workflow,
                 mode: current.mode,
                 assets,
-                previous: card ? latest(card).request : undefined,
+                previous: changesKind ? undefined : prior,
                 referenceMode: mode,
               },
-              value,
+              changesKind
+                ? (({ request_id: _id, ...rest }) => ({ title: prior!.title, prompt: prior!.prompt, ...rest }))(value)
+                : value,
             );
             for (const ref of request.references ?? [])
               if (!current.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
@@ -596,6 +592,7 @@ export class Chats {
             const before = card ? latest(card).request : undefined;
             if (card) {
               card.revisions.push(this.revision(current, request, latest(card).number + 1, latest(card).source_job_id));
+              card.workflow = workflow;
               saved = card;
             } else {
               if (group.cards.length >= 16) throw Error('A review supports at most 16 requests.');
@@ -683,7 +680,8 @@ export class Chats {
       target = group?.cards.find(c => c.id === input.card_id);
       if (!target || latest(target).number !== input.revision)
         throw Error('This card changed or already started. Refresh it.');
-      if (target.workflow !== chat.workflow) throw Error('Switch to this card’s workflow before sending feedback.');
+      // Feedback on one draft uses that draft's kind of tools, whatever kind Seed worked in last.
+      if (target.workflow !== chat.workflow) chat.workflow = target.workflow;
     }
     if (input.attach_request && !target) throw Error('Choose the request to attach.');
     const contextCards = target
@@ -1089,7 +1087,14 @@ export class Chats {
         execute: async (_call, raw) => {
           const current = this.get(id);
           if (current.epoch !== epoch) throw Error('This run is no longer active.');
-          const text = String((raw as { brief?: unknown }).brief ?? '').trim();
+          // The brief is read by people: input handles ("input1", "[[input2]]") become the images' names.
+          const handleName = new Map(toolAssets.map(a => [a.handle, manifest.find(m => m.id === a.asset_id)?.name]));
+          const text = String((raw as { brief?: unknown }).brief ?? '')
+            .replace(/\[\[\s*(input\d+)\s*\]\]|\b(input\d+)\b/gi, (whole, a?: string, b?: string) => {
+              const name = handleName.get((a ?? b ?? '').toLowerCase());
+              return name ? `“${name}”` : whole;
+            })
+            .trim();
           if (!text || text.length > 8000)
             throw Error(JSON.stringify({ ok: false, error: 'Send the whole brief, 1-8000 characters.' }));
           current.brief = text;
@@ -1122,16 +1127,7 @@ export class Chats {
           if (!workflow)
             throw Error(JSON.stringify({ ok: false, error: 'Unknown kind.', choices: Object.keys(chatKinds) }));
           if (current.epoch !== epoch) throw Error('This run is no longer active.');
-          const open = openGroup(current);
-          if (open && open.cards.length && open.workflow !== workflow)
-            throw Error(
-              JSON.stringify({
-                ok: false,
-                error:
-                  'An open plan of another kind is waiting for the user. Revise that plan, or ask the user to make it or set it aside before planning a different kind.',
-                open_plan_kind: Object.entries(chatKinds).find(([, w]) => w === open.workflow)?.[0],
-              }),
-            );
+          // Drafts of other kinds already in the open plan stay; new drafts of this kind join the same plan.
           if (current.workflow !== workflow) {
             current.workflow = workflow;
             current.version++;
@@ -1146,7 +1142,8 @@ export class Chats {
             ok: true,
             kind,
             available_loras: loraCatalog(workflow),
-            next_action: 'Prepare the drafts now with create_request, or edit_request for an existing draft.',
+            next_action:
+              'Prepare the drafts now with create_request, or edit_request for an existing draft. Drafts of other kinds stay in the plan; editing one with these tools turns it into this kind and keeps its title and prompt unless you change them.',
           };
           return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
         },
@@ -1277,14 +1274,15 @@ export class Chats {
     const group = openGroup(chat),
       card = group?.cards.find(c => c.id === cardId);
     if (!group || !card || latest(card).number !== number) throw Error('Request changed or already started.');
-    card.revisions.push(
-      this.revision(
-        chat,
-        this.request(chat, card.workflow, raw, latest(card).request),
-        number + 1,
-        latest(card).source_job_id,
-      ),
-    );
+    // The owner can change a draft's kind in place (for example, turn a words-only shot into an edit of a reference);
+    // the draft keeps its place, title and history in the plan.
+    const asked = (raw as { workflow?: unknown } | null)?.workflow;
+    const workflow =
+      typeof asked === 'string' && Object.hasOwn(chatWorkflows, asked) ? (asked as ChatWorkflow) : card.workflow;
+    const { workflow: _w, ...fields } = (raw ?? {}) as Record<string, unknown>;
+    const request = this.request(chat, workflow, fields, workflow === card.workflow ? latest(card).request : undefined);
+    card.revisions.push(this.revision(chat, request, number + 1, latest(card).source_job_id));
+    card.workflow = workflow;
     delete group.submission_error;
     chat.version++;
     this.save(chat);
