@@ -21,6 +21,8 @@ export interface LibraryAsset {
   job_id?: string;
   /** For a crop or a frame picked from a video: the asset it came from. Title and project then come from that asset's job. */
   source_asset_id?: string;
+  /** For a crop: the shape it was cropped to ("2.39:1"). */
+  crop_shape?: string;
   /** The draft title from the job that made it. */
   title?: string;
   /** The project (chat) the job came from. */

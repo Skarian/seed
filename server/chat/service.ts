@@ -1027,7 +1027,7 @@ export class Chats {
         active_kind: Object.entries(chatKinds).find(([, w]) => w === chat.workflow)?.[0] ?? null,
         available_loras,
         worker_policy:
-          'Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not quote per-generation costs.',
+          'Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not quote per-generation costs. Billing facts: cloud GPUs are rented by the hour from the moment they start, including the first model download and any idle time, until they are released (by the owner, the idle release or the time limit). There are no credits and no per-image charges; never describe costs in credits. The rental screen shows the hourly rate and limits, and its cost figures are estimates, not a cap. The Seed PC costs nothing per hour.',
         last_attempt,
         earlier_conversation_summary: compact.summary?.text,
         conversation: compact.recent,

@@ -251,10 +251,10 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
         {
           label:
             whose.length === 1
-              ? `Add to ${whose[0]}`
+              ? `Add ${whose[0]}’s missing details to this prompt`
               : gaps.length === 1
-                ? 'Include this detail'
-                : 'Include these details',
+                ? 'Add this detail to the prompt'
+                : 'Add these details to the prompt',
           patch: x => ({ ...strip(x), prompt: addBriefDetails(x.prompt, gaps) }),
         },
         { label: 'Not visible in this shot', patch: () => ({}) },

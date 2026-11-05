@@ -28,7 +28,10 @@ export const assetTitle = (a: LibraryAsset) =>
       ? a.kind === 'video'
         ? 'Video'
         : 'Image'
-      : a.name)) + (a.variant && a.variants ? ` · ${a.variant} of ${a.variants}` : '');
+      : a.name)) +
+  (a.variant && a.variants ? ` · ${a.variant} of ${a.variants}` : '') +
+  // A crop keeps its original's title and says what it is, so it is never mistaken for the original.
+  (a.source_asset_id ? (a.crop_shape ? ` · ${a.crop_shape} crop` : ' · frame') : '');
 
 /** Every result and upload: search, filter, sort into collections, act on several at once. */
 export function LibraryPage({ collection }: { collection?: string } = {}) {
@@ -723,7 +726,7 @@ function noteExcerpt(note: string, q: string) {
 }
 
 export function Caption({ title }: { title: string }) {
-  const m = title.match(/^(.*?)((?: · v\d+)?(?: · \d+ of \d+)?)$/);
+  const m = title.match(/^(.*?)((?: · v\d+)?(?: · \d+ of \d+)?(?: · [\d.]+:[\d.]+ crop| · frame)?)$/);
   const base = m?.[1] || title,
     badge = (m?.[2] ?? '').replace(/^ · /, '').trim();
   return (

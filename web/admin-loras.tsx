@@ -62,6 +62,7 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
         <p role="status">Loading styles…</p>
       ) : catalog.items.length ? (
         <div className="admin-loras">
+          <p className="admin-hint">Style changes apply to GPUs you start from now on. A GPU that is already running keeps the styles it started with.</p>
           {catalog.items.map((group) => (
             <LoraEditor
               key={group.id}
@@ -372,10 +373,10 @@ function LoraEditor({
           <p>{loraFamilyLabels[group.family]}</p>
         </div>
         <div className="lora-card-actions">
-          <button aria-expanded={editing} disabled={busy} onClick={toggle}>
+          <button aria-expanded={editing} disabled={busy} onClick={toggle} aria-label={(editing ? 'Close ' : 'Edit ') + group.name}>
             {editing ? 'Close' : 'Edit'}
           </button>
-          <button className="admin-destructive" disabled={busy} onClick={() => setDeleting(true)}>
+          <button className="admin-destructive" disabled={busy} onClick={() => setDeleting(true)} aria-label={'Delete ' + group.name}>
             Delete
           </button>
         </div>
@@ -446,7 +447,7 @@ function LoraEditor({
               </a>
             )}
           </footer>
-          <p className="admin-hint">Changes apply to GPUs you start from now on. A GPU that is already running keeps the version it started with.</p>
+
           {group.files.some(file=>file.source_status==='needs_source')&&<p role="status" className="admin-hint">An older version of Seed added this style. Choose source files to add it again before you start a GPU.</p>}
         </>
       )}

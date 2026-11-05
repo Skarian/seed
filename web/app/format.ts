@@ -54,7 +54,7 @@ export function titleOf(r: ImageRequest | undefined) {
   return (words.length > 48 ? words.slice(0, 46) + '…' : words) || kindLabels[kindOfRequest(r)];
 }
 export function shapeLabel(r: ImageRequest) {
-  if (r.output.aspect === 'source') return 'Source shape';
+  if (r.output.aspect === 'source') return 'Same shape as the source';
   return (
     (
       { '9:16': 'Portrait 9:16', '16:9': 'Landscape', '1:1': 'Square', '4:5': 'Portrait 4:5' } as Record<string, string>

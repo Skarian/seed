@@ -32,12 +32,17 @@ const latex: Record<string, string> = {
   degree: '°',
 };
 export function cleanReply(text: string) {
-  return text
-    .replace(toolMarkup, '')
-    .replace(/\[([^\]]+)\]\(asset:[^)]+\)/g, '$1')
-    .replace(/\$\s*\\([a-zA-Z]+)\s*\$/g, (m, name: string) => latex[name] ?? m)
-    .replace(/\\(rightarrow|leftarrow|Rightarrow|times|approx)\b/g, (_m, name: string) => latex[name]!)
-    .trim();
+  return (
+    text
+      .replace(toolMarkup, '')
+      .replace(/\[([^\]]+)\]\(asset:[^)]+\)/g, '$1')
+      .replace(/\$\s*\\([a-zA-Z]+)\s*\$/g, (m, name: string) => latex[name] ?? m)
+      .replace(/\\(rightarrow|leftarrow|Rightarrow|times|approx)\b/g, (_m, name: string) => latex[name]!)
+      // Engine field names that slip into a reply read as the app's own words.
+      .replace(/`?\bfirst_frame\b`?/g, 'start frame')
+      .replace(/`?\blast_frame\b`?/g, 'end frame')
+      .trim()
+  );
 }
 export function Markdown({ text, streaming = false }: { text: string; streaming?: boolean }) {
   return (

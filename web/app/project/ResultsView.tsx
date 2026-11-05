@@ -51,6 +51,8 @@ export function ResultsView({
   const fav = new Set(list.items.filter(a => a.favorite).map(a => a.id));
   // Crops and picked frames keep their original's title; they are shown as crops of a take, never as new takes.
   const derived = new Map(list.items.filter(a => a.source_asset_id).map(a => [a.id, a.source_asset_id!]));
+  // Each tile keeps its own frame (a 2.39:1 crop stays wide), using the saved pixel size when it is known.
+  const dims = new Map(list.items.filter(a => a.width && a.height).map(a => [a.id, a.width! / a.height!]));
   const picks = project.picks ?? {};
   const [picking, setPicking] = useState('');
   async function choose(key: string, asset: string | null) {
@@ -242,6 +244,7 @@ export function ResultsView({
                 : 'square') +
               (on ? ' selected' : '')
             }
+            style={dims.has(it.asset) ? { aspectRatio: String(dims.get(it.asset)) } : undefined}
           >
             <Media id={it.asset} kind={it.kind} alt={it.title} />
             <button className="open" aria-label={'Open ' + it.title} onClick={() => app.inspect(it, items)} />

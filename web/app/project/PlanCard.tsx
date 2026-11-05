@@ -105,7 +105,7 @@ export function PlanCard({
             : revisedCount
               ? ` · last revision: ${[`${revisedCount} changed`, addedCount ? `${addedCount} added` : '', cards.length - revisedCount - addedCount ? `${cards.length - revisedCount - addedCount} unchanged` : ''].filter(Boolean).join(', ')}`
               : ''}
-          {!working && cards.some(c => c.left_out) ? ` · Seed left ${cards.filter(c => c.left_out).length} out` : ''}
+          {!working && cards.some(c => c.left_out) ? ` · ${cards.filter(c => c.left_out).length} left out` : ''}
         </span>
         <span className="end">
           {cards.length > 2 && (
@@ -426,7 +426,7 @@ function Draft({
       </div>
       {card.left_out && !on && (
         <p className="faint" style={{ margin: 0, fontSize: 13 }}>
-          Seed left this out of the plan. Tick it to make it anyway.
+          Left out of this make. Tick it to include it.
         </p>
       )}
       {!current && (
@@ -437,7 +437,7 @@ function Draft({
           </button>
         </p>
       )}
-      {editing && current && (split || narrow) && (
+      {editing && current && (
         <Dialog title={'Edit ' + titleOf(r)} wide onClose={() => setEditing(false)}>
           <DraftEditor
             card={card}
@@ -451,160 +451,147 @@ function Draft({
           />
         </Dialog>
       )}
-      {editing && current && !split && !narrow ? (
-        <DraftEditor
-          card={card}
-          project={project}
-          styles={styles}
-          busy={busy}
-          onCancel={() => setEditing(false)}
-          onSave={async request => {
-            if (await onRevise(request)) setEditing(false);
-          }}
-        />
-      ) : (
-        <>
-          <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project, tasks)}</p>
-          {r.prompt.length > 200 && (
-            <button
-              className="link"
-              style={{ alignSelf: 'flex-start', fontSize: 13 }}
-              aria-expanded={full}
-              onClick={() => setFull(f => !f)}
-            >
-              {full ? 'Show less' : 'Show full prompt'}
-            </button>
-          )}
-          {inputs.length > 0 && (
-            <div className="inputs-row">
-              {inputs.map(ref => {
-                const name = assetName(project, ref.asset_id, tasks);
-                return (
-                  <span className="input-chip" key={ref.id}>
-                    <Thumb id={ref.asset_id} kind={ref.kind} alt={name} />
-                    <span>
-                      <b>{roleLabels[ref.role] ?? ref.role}</b> · {name}
-                      {ref.range
-                        ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s`
-                        : ''}
-                    </span>
-                    {current && !busy && ref.kind === 'image' && (
-                      <button
-                        className="link"
-                        style={{ fontSize: 12.5, marginLeft: 6 }}
-                        onClick={() => setSwap(ref.id)}
-                        aria-label={'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ': ' + name}
-                      >
-                        Change
-                      </button>
-                    )}
-                  </span>
-                );
-              })}
-            </div>
-          )}
-          {swap && (
-            <LibraryPicker
-              inProject={project.id}
-              onlyKind="image"
-              heading={
-                'Choose a new ' + (roleLabels[inputs.find(x => x.id === swap)?.role ?? ''] ?? 'input').toLowerCase()
-              }
-              onClose={() => setSwap(null)}
-              onPick={items => {
-                const a = items[0],
-                  id = swap;
-                setSwap(null);
-                if (!a || !id) return;
-                const {
-                  workflow: _w,
-                  mode: _m,
-                  resolved_seeds: _s,
-                  ...rest
-                } = r as typeof r & { resolved_seeds?: unknown };
-                void onRevise({
-                  ...rest,
-                  references: inputs.map(x => (x.id === id ? { ...x, asset_id: a.id, kind: a.kind } : x)),
-                });
-              }}
-            />
-          )}
-          {departure && !quietSource && (
-            <p className="faint" style={{ margin: 0, fontSize: 13 }}>
-              {departure}
-            </p>
-          )}
-          {own.length > 0 && (
-            <div className="chips">
-              {own.map(([k, v]) => (
-                <span className="chip" key={k}>
-                  {v}
-                </span>
-              ))}
-            </div>
-          )}
-          {current && changed.length > 0 && (
-            <p className="changed">
-              What changed:{' '}
-              {changed.length > 3 && !allChanges ? (
-                <>
-                  {changed.slice(0, 2).join(' · ')} ·{' '}
-                  <button className="link" onClick={() => setAllChanges(true)}>
-                    {changed.length - 2} more changes
-                  </button>
-                </>
-              ) : (
-                changed.join(' · ')
-              )}
-            </p>
-          )}
-          {current && checks.some(c => c.soft) && !showSoft && (
-            <button
-              className="link"
-              style={{ alignSelf: 'flex-start', fontSize: 12.5 }}
-              onClick={() => setShowSoft(true)}
-            >
-              Continuity check
-            </button>
-          )}
-          {current &&
-            checks
-              .filter(c => !c.soft || showSoft)
-              .map(c => (
-                <div className={'check-note' + (c.soft ? ' soft' : '')} role="status" key={c.text}>
+      <>
+        <p className={'excerpt' + (full ? ' full' : '')}>{readablePrompt(r, project, tasks)}</p>
+        {r.prompt.length > 200 && (
+          <button
+            className="link"
+            style={{ alignSelf: 'flex-start', fontSize: 13 }}
+            aria-expanded={full}
+            onClick={() => setFull(f => !f)}
+          >
+            {full ? 'Show less' : 'Show full prompt'}
+          </button>
+        )}
+        {inputs.length > 0 && (
+          <div className="inputs-row">
+            {inputs.map(ref => {
+              const name = assetName(project, ref.asset_id, tasks);
+              return (
+                <span className="input-chip" key={ref.id}>
+                  <Thumb id={ref.asset_id} kind={ref.kind} alt={name} />
                   <span>
-                    {c.soft ? '' : '⚠ '}
-                    {c.text}
+                    <b>{roleLabels[ref.role] ?? ref.role}</b> · {name}
+                    {ref.range
+                      ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s`
+                      : ''}
                   </span>
-                  {c.fixes.map(f => (
+                  {current && !busy && ref.kind === 'image' && (
                     <button
-                      key={f.label}
-                      className="btn small"
-                      disabled={busy}
-                      onClick={() => {
-                        if (f.action === 'edit-myself') {
-                          onEditMyself(f.assets ?? []);
-                          return;
-                        }
-                        if (f.cropTo) localStorage.setItem(cropKey(project.id), f.cropTo);
-                        const patch = f.patch(r);
-                        if (Object.keys(patch).length) void onRevise(patch);
-                        else onAcknowledge(c.text);
-                      }}
+                      className="link"
+                      style={{ fontSize: 12.5, marginLeft: 6 }}
+                      onClick={() => setSwap(ref.id)}
+                      aria-label={'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ': ' + name}
                     >
-                      {f.label}
+                      Change
                     </button>
-                  ))}
-                </div>
-              ))}
-          {ready && (
-            <span className={'ready ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'warn' : 'bad')}>
-              <span className={'dot ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'amber' : 'red')} />
-              {ready.label}
-            </span>
-          )}
-        </>
-      )}
+                  )}
+                </span>
+              );
+            })}
+          </div>
+        )}
+        {swap && (
+          <LibraryPicker
+            inProject={project.id}
+            onlyKind="image"
+            heading={
+              'Choose a new ' + (roleLabels[inputs.find(x => x.id === swap)?.role ?? ''] ?? 'input').toLowerCase()
+            }
+            onClose={() => setSwap(null)}
+            onPick={items => {
+              const a = items[0],
+                id = swap;
+              setSwap(null);
+              if (!a || !id) return;
+              const {
+                workflow: _w,
+                mode: _m,
+                resolved_seeds: _s,
+                ...rest
+              } = r as typeof r & { resolved_seeds?: unknown };
+              void onRevise({
+                ...rest,
+                references: inputs.map(x => (x.id === id ? { ...x, asset_id: a.id, kind: a.kind } : x)),
+              });
+            }}
+          />
+        )}
+        {departure && !quietSource && (
+          <p className="faint" style={{ margin: 0, fontSize: 13 }}>
+            {departure}
+          </p>
+        )}
+        {own.length > 0 && (
+          <div className="chips">
+            {own.map(([k, v]) => (
+              <span className="chip" key={k}>
+                {v}
+              </span>
+            ))}
+          </div>
+        )}
+        {current && changed.length > 0 && (
+          <p className="changed">
+            What changed:{' '}
+            {changed.length > 3 && !allChanges ? (
+              <>
+                {changed.slice(0, 2).join(' · ')} ·{' '}
+                <button className="link" onClick={() => setAllChanges(true)}>
+                  {changed.length - 2} more changes
+                </button>
+              </>
+            ) : (
+              changed.join(' · ')
+            )}
+          </p>
+        )}
+        {current && checks.some(c => c.soft) && !showSoft && (
+          <button
+            className="link"
+            style={{ alignSelf: 'flex-start', fontSize: 12.5 }}
+            onClick={() => setShowSoft(true)}
+          >
+            Continuity check
+          </button>
+        )}
+        {current &&
+          checks
+            .filter(c => !c.soft || showSoft)
+            .map(c => (
+              <div className={'check-note' + (c.soft ? ' soft' : '')} role="status" key={c.text}>
+                <span>
+                  {c.soft ? '' : '⚠ '}
+                  {c.text}
+                </span>
+                {c.fixes.map(f => (
+                  <button
+                    key={f.label}
+                    className="btn small"
+                    disabled={busy}
+                    onClick={() => {
+                      if (f.action === 'edit-myself') {
+                        onEditMyself(f.assets ?? []);
+                        return;
+                      }
+                      if (f.cropTo) localStorage.setItem(cropKey(project.id), f.cropTo);
+                      const patch = f.patch(r);
+                      if (Object.keys(patch).length) void onRevise(patch);
+                      else onAcknowledge(c.text);
+                    }}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+        {ready && (
+          <span className={'ready ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'warn' : 'bad')}>
+            <span className={'dot ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'amber' : 'red')} />
+            {ready.label}
+          </span>
+        )}
+      </>
       <span className="sr-only">
         {kindLabel} · {outputNoun(r, r.count)}
       </span>

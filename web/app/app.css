@@ -3491,3 +3491,25 @@ textarea::placeholder {
     opacity: 1;
   }
 }
+
+/* Include ticks look small but take a 44px tap: the hit area extends past the drawn box. */
+.draft .top .check,
+.compact-row .check {
+  position: relative;
+}
+.draft .top .check::after,
+.compact-row .check::after {
+  content: '';
+  position: absolute;
+  inset: -11px;
+}
+/* Tablet header: the project's name keeps priority over the activity pill, which shortens first. */
+@media (min-width: 700px) and (max-width: 1099px) {
+  .head h1 {
+    flex: 0 1 auto;
+    min-width: 40%;
+  }
+  .head .status {
+    max-width: 30%;
+  }
+}
