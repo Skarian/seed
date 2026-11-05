@@ -114,6 +114,9 @@ export const projects = {
   setKind: (p: Project, workflow: string) =>
     pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, workflow } }),
   rename: (p: Project, title: string) => pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, title } }),
+  /** The shape the project is delivered at ("2.39:1"), or '' to clear it. */
+  setFrame: (p: Project, frame: string) =>
+    pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, frame } }),
   setBrief: (p: Project, brief: string) =>
     pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, brief } }),
   /** Choose the take used for a shot (key "<shot>:image" or "<shot>:clip"), or clear it with null. */

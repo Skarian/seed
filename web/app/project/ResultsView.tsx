@@ -247,6 +247,7 @@ export function ResultsView({
             style={dims.has(it.asset) ? { aspectRatio: String(dims.get(it.asset)) } : undefined}
           >
             <Media id={it.asset} kind={it.kind} alt={it.title} />
+            {!crop && <FrameGuide frame={project.frame} ratio={dims.get(it.asset) ?? frameOf(it)} />}
             <button className="open" aria-label={'Open ' + it.title} onClick={() => app.inspect(it, items)} />
             <button
               className="sel check big"
@@ -609,4 +610,32 @@ export function ResultsView({
       </div>
     </div>
   );
+}
+
+/** The project's delivery frame ("2.39:1") drawn over a take: what stays after the crop, with the rest dimmed. */
+function FrameGuide({ frame, ratio }: { frame?: string; ratio?: number }) {
+  const [w, h] = (frame ?? '').split(':').map(Number);
+  if (!w || !h || !ratio) return null;
+  const target = w / h;
+  if (Math.abs(target - ratio) / ratio < 0.03) return null;
+  const wide = target > ratio;
+  return (
+    <span
+      className="frame-guide"
+      aria-hidden="true"
+      title={'Crops to ' + frame}
+      style={
+        wide
+          ? { left: 0, right: 0, height: (ratio / target) * 100 + '%', top: ((1 - ratio / target) / 2) * 100 + '%' }
+          : { top: 0, bottom: 0, width: (target / ratio) * 100 + '%', left: ((1 - target / ratio) / 2) * 100 + '%' }
+      }
+    >
+      <small>{frame}</small>
+    </span>
+  );
+}
+/** A take's own shape from its request, when its pixel size is not known yet. */
+function frameOf(it: ViewerItem) {
+  const a = it.job?.request.output.aspect;
+  return a === '16:9' ? 16 / 9 : a === '9:16' ? 9 / 16 : a === '4:5' ? 4 / 5 : a === '1:1' ? 1 : undefined;
 }

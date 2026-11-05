@@ -8,7 +8,7 @@ import { useApp } from '../data.js';
 import { latest, titleOf, settingChips, changesBetween, outputNoun, assetName } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
-import { checkDraft, readablePrompt, editablePrompt, cropKey, type Check } from './checks.js';
+import { checkDraft, readablePrompt, editablePrompt, chooseFrame, type Check } from './checks.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 
 export type Selection = Record<string, boolean>;
@@ -140,6 +140,15 @@ export function PlanCard({
                 disabled: busy || working,
               })),
               'divider' as const,
+              // The delivery frame: results show its guides and Crop starts there. Models still make their own shapes.
+              ...(['', '2.39:1', '1.85:1', '21:9', '9:16', '4:5', '1:1'] as const).map(frame => ({
+                label: frame ? `Deliver at ${frame}` : 'Deliver at the shape made',
+                hint: frame === '2.39:1' ? 'Results show the crop guides; Crop starts at this shape.' : undefined,
+                checked: (project.frame ?? '') === frame,
+                onSelect: () => chooseFrame(project.id, frame),
+                disabled: busy || working,
+              })),
+              'divider' as const,
               {
                 label: 'Set this plan aside',
                 hint: 'Drafts are kept under Not made yet; Bring back returns them.',
@@ -163,7 +172,7 @@ export function PlanCard({
                 className="btn small"
                 disabled={busy || working}
                 onClick={() => {
-                  if (f.cropTo) localStorage.setItem(cropKey(project.id), f.cropTo);
+                  if (f.cropTo) chooseFrame(project.id, f.cropTo);
                   void (async () => {
                     for (const card of cards) {
                       const patch = f.patch(latest(card).request);
@@ -179,6 +188,41 @@ export function PlanCard({
             ))}
         </div>
       ))}
+      {cards.length > 1 &&
+        (() => {
+          // Continuity preflight: one line for the whole plan, so missing brief details aren't found card by card.
+          const missing = cards
+            .map((card, i) => ({ card, check: warnings[i]!.find(w => w.code === 'continuity') }))
+            .filter(
+              (x): x is { card: ChatCard; check: Check } =>
+                Boolean(x.check) && (selection[x.card.id] ?? !x.card.left_out),
+            );
+          if (!missing.length) return null;
+          return (
+            <div className="check-note plan-wide preflight" role="status">
+              <span>
+                Continuity: {missing.length === 1 ? '1 selected draft is' : `${missing.length} selected drafts are`}{' '}
+                missing details from the brief (
+                {missing.map(m => short(m.card) || titleOf(latest(m.card).request)).join(', ')}). Words guide the
+                result; check each take.
+              </span>
+              <button
+                className="btn small"
+                disabled={busy || working}
+                onClick={() => {
+                  void (async () => {
+                    for (const { card, check } of missing) {
+                      const patch = check.fixes[0]!.patch(latest(card).request);
+                      if (!(await onRevise(card, patch))) return;
+                    }
+                  })();
+                }}
+              >
+                Add the missing details to {missing.length === 1 ? 'it' : `all ${missing.length}`}
+              </button>
+            </div>
+          );
+        })()}
       {oneSource && (
         <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: 13 }}>
           All {cards.length} drafts use “{assetName(project, oneSource, everywhere)}” as their source. Its framing and
@@ -574,7 +618,7 @@ function Draft({
                         onEditMyself(f.assets ?? []);
                         return;
                       }
-                      if (f.cropTo) localStorage.setItem(cropKey(project.id), f.cropTo);
+                      if (f.cropTo) chooseFrame(project.id, f.cropTo);
                       const patch = f.patch(r);
                       if (Object.keys(patch).length) void onRevise(patch);
                       else onAcknowledge(c.text);

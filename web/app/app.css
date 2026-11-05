@@ -3513,3 +3513,34 @@ textarea::placeholder {
     max-width: 30%;
   }
 }
+
+/* Delivery frame guide on a take: the part a 2.39:1 (or 9:16) crop keeps, the rest dimmed. */
+.frame-guide {
+  position: absolute;
+  pointer-events: none;
+  box-shadow: 0 0 0 999px #0009;
+  outline: 1px dashed #f4f3ecaa;
+  outline-offset: -1px;
+}
+.frame-guide small {
+  position: absolute;
+  right: 4px;
+  bottom: 2px;
+  font-size: 10.5px;
+  color: #f4f3ecdd;
+  text-shadow: 0 1px 2px #000;
+}
+.tile:hover .frame-guide {
+  box-shadow: 0 0 0 999px #0005;
+}
+/* Compare: the A/B identity stays on top of its picture at every width. */
+.compare-grid .frame {
+  position: relative;
+}
+.compare-grid .letter {
+  z-index: 1;
+  max-width: calc(100% - 20px);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

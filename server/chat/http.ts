@@ -75,6 +75,7 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
             workflow: { enum: [null, ...workflowIds] },
             reasoning: { type: 'boolean' },
             brief: { type: 'string', maxLength: 8000 },
+            frame: { type: 'string', maxLength: 12 },
           },
           ['version'],
         ),
@@ -84,7 +85,13 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
       chats.settings(
         id(r),
         r.body.version,
-        r.body as { title?: string; workflow?: ChatWorkflow | null; reasoning?: boolean; brief?: string },
+        r.body as {
+          title?: string;
+          workflow?: ChatWorkflow | null;
+          reasoning?: boolean;
+          brief?: string;
+          frame?: string;
+        },
       ),
     ),
   );

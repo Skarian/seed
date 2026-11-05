@@ -17,6 +17,8 @@ export interface ChatView {
   brief?:string;brief_updated_by?:'you'|'seed';brief_updated_at?:string;
   /** The owner's chosen take per shot, keyed "<shot>:image" or "<shot>:clip" (shot is the number, or the title when unnumbered). */
   picks?:Record<string,string>;
+  /** The shape the owner will deliver ("2.39:1"), when it differs from what the models make; results show its guides and Crop starts there. */
+  frame?:string;
   partial?:string;partial_reasoning?:string;
   activity:'idle'|'thinking'|'preparing'|'generating';error:string|null;
   created_at:string;updated_at:string;

@@ -321,7 +321,7 @@ export class Chats {
   settings(
     id: string,
     version: number,
-    values: { title?: string; workflow?: ChatWorkflow | null; reasoning?: boolean; brief?: string },
+    values: { title?: string; workflow?: ChatWorkflow | null; reasoning?: boolean; brief?: string; frame?: string },
   ) {
     const chat = this.get(id);
     this.checkVersion(chat, version);
@@ -341,6 +341,12 @@ export class Chats {
       chat.brief = values.brief.trim();
       chat.brief_updated_by = 'you';
       chat.brief_updated_at = now();
+    }
+    if (values.frame !== undefined) {
+      if (values.frame && !/^\d{1,2}(\.\d{1,2})?:\d{1,2}(\.\d{1,2})?$/.test(values.frame))
+        throw Error('Choose a frame shape such as 2.39:1.');
+      if (values.frame) chat.frame = values.frame;
+      else delete chat.frame;
     }
     chat.version++;
     this.save(chat);
@@ -1022,6 +1028,9 @@ export class Chats {
       const available_loras = loraCatalog(chat.workflow);
       const context = JSON.stringify({
         project_brief: chat.brief || null,
+        delivery_frame: chat.frame
+          ? `The owner delivers this project at ${chat.frame}; drafts are made at the closest supported shape and cropped to it afterwards, so keep important action inside a ${chat.frame} frame.`
+          : null,
         active_kind: Object.entries(chatKinds).find(([, w]) => w === chat.workflow)?.[0] ?? null,
         available_loras,
         worker_policy:

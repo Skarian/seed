@@ -95,6 +95,23 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     addEventListener('seed:project', changed);
     return () => removeEventListener('seed:project', changed);
   }, [id]);
+  // Choosing "crop to 2.39:1 after" makes 2.39:1 the project's delivery frame, saved with the project.
+  useEffect(() => {
+    const chosen = (e: Event) => {
+      const { projectId, frame } = (e as CustomEvent<{ projectId: string; frame: string }>).detail;
+      const p = projectRef.current;
+      if (projectId !== id || !p || p.frame === frame) return;
+      void projectsApi
+        .setFrame(p, frame)
+        .then(next => {
+          projectRef.current = next;
+          setProject(next);
+        })
+        .catch(() => {});
+    };
+    addEventListener('seed:frame', chosen);
+    return () => removeEventListener('seed:frame', chosen);
+  }, [id]);
   const styles = useStyles(app.mode);
   const plan = project?.groups.find(isOpenPlan);
   const replying = project ? ['thinking', 'preparing'].includes(project.activity) : false;
