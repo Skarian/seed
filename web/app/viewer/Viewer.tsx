@@ -582,7 +582,20 @@ function NoteField({
 }) {
   const [value, setValue] = useState(note?.note ?? ''),
     [saved, setSaved] = useState('');
-  useEffect(() => setValue(note?.note ?? ''), [note?.revision, asset]);
+  // Text you are typing is never replaced by a save from another editor; it saves over it when you leave the box.
+  const typing = useRef(false);
+  useEffect(() => {
+    if (!typing.current) setValue(note?.note ?? '');
+  }, [note?.revision, asset]);
+  // Another open editor of this note saved: take its text and revision.
+  useEffect(() => {
+    const other = (e: Event) => {
+      const d = (e as CustomEvent<{ asset: string; note: { note: string; revision: number } }>).detail;
+      if (d.asset === asset && d.note.revision !== note?.revision) onSaved(d.note);
+    };
+    addEventListener('seed:note', other);
+    return () => removeEventListener('seed:note', other);
+  }, [asset, note?.revision]);
   if (!note) return <span className="faint">…</span>;
   // Notes save when you leave the box; the line under it says so, so closing the panel never feels risky.
   return (
@@ -594,18 +607,29 @@ function NoteField({
         placeholder="Add a note (searchable in the Library)"
         aria-label="Note"
         onChange={e => {
+          typing.current = true;
           setValue(e.target.value);
           setSaved(e.target.value === note.note ? '' : 'Saves when you leave this box');
         }}
         onBlur={() => {
           if (value !== note.note) {
             setSaved('Saving…');
+            const done = (n: { note: string; revision: number }) => {
+              typing.current = false;
+              onSaved(n);
+              setSaved('Saved');
+              dispatchEvent(new CustomEvent('seed:note', { detail: { asset, note: n } }));
+            };
             void assetsApi
               .saveNote(asset, value, note.revision)
-              .then(n => {
-                onSaved(n);
-                setSaved('Saved');
-              })
+              .then(done)
+              // Saved meanwhile in another open editor: this is the newest edit, so it saves on the latest revision.
+              .catch(() =>
+                assetsApi
+                  .note(asset)
+                  .then(latest => assetsApi.saveNote(asset, value, latest.revision))
+                  .then(done),
+              )
               .catch(e => setSaved((e as Error).message));
           }
         }}

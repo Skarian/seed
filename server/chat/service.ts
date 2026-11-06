@@ -792,6 +792,18 @@ export class Chats {
             this.assertAssets(current, [...new Set((request.references ?? []).map(r => r.asset_id))]);
             validateChatReferences(request);
             validateCastReferences(request, castFromBrief(current.brief), current.picks ?? {});
+            // A saved style named in the prompt must also be selected, so the words and the controls agree.
+            if (request.workflow !== 'image-to-image') {
+              const named = this.jobs.loras
+                .list(current.mode)
+                .filter(
+                  l => l.name && l.name.length > 3 && request.prompt.toLowerCase().includes(l.name.toLowerCase()),
+                );
+              if (named.length && !(request.loras ?? []).some(x => named.some(l => l.id === x.id)))
+                throw Error(
+                  `The prompt names the saved style “${named[0]!.name}” but does not select it. Set loras to id ${named[0]!.id}, revision ${named[0]!.revision}, and take the style name out of the prompt; if it cannot be used for this kind of draft, say so.`,
+                );
+            }
             // Each referenced character's look from the brief rides along in words, so a new frame keeps it.
             request.prompt = withCastLooks(request, castFromBrief(current.brief), current.picks ?? {});
             // Sound nobody asked for is a creative change: a new clip stays silent unless the user's recent messages

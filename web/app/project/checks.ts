@@ -1,5 +1,5 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
-import { castFromBrief, referenceKey } from '../../../shared/cast.js';
+import { castFromBrief, referenceKey, sameCast } from '../../../shared/cast.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
@@ -37,7 +37,8 @@ export function chooseFrame(projectId: string, frame: string) {
 }
 /** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
 /** What a check is about, so the app can act on it without reading its wording. */
-export type CheckCode = 'shape' | 'size' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input';
+export type CheckCode =
+  'shape' | 'size' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input' | 'old-reference';
 export type Check = { code: CheckCode; text: string; fixes: Fix[]; soft?: boolean };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
@@ -150,6 +151,28 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   const trigger = at > 0 ? [...project.messages.slice(0, at)].reverse().find(m => m.role === 'user') : undefined;
   const forAll = siblings <= 1 || /\b(all|every|each|both|them)\b/i.test(trigger?.text ?? '');
   const asked: ReturnType<typeof askedFor> = trigger && forAll ? askedFor([trigger]) : {};
+  // An input that is an older reference of a cast member (approved since, or replaced) is swapped for the approved one.
+  const cast = castFromBrief(project.brief);
+  for (const ref of r.references ?? []) {
+    const made = project.jobs.find(j => j.outputs.includes(ref.asset_id));
+    const who = made?.request.title?.match(/^Reference:\s*(.+)$/i)?.[1];
+    const entry = who ? cast.find(e => sameCast(e.name, who)) : undefined;
+    const approved = entry ? project.picks?.[referenceKey(entry.name)] : undefined;
+    if (!entry || !approved || approved === ref.asset_id) continue;
+    out.push({
+      code: 'old-reference',
+      text: `This draft uses an older picture of ${entry.name}, not the approved reference.`,
+      fixes: [
+        {
+          label: `Use ${entry.name}’s approved reference`,
+          patch: x => ({
+            ...strip(x),
+            references: (x.references ?? []).map(y => (y.id === ref.id ? { ...y, asset_id: approved } : y)),
+          }),
+        },
+      ],
+    });
+  }
   // A delivery ratio Seed cannot make (2.39:1) belongs to the whole film, not to one message: the project's delivery
   // frame, or else the latest message that names one, applies to every draft alike (so revising one shot cannot move it).
   if (!asked.other && !video) {

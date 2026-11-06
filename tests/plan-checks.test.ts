@@ -318,3 +318,16 @@ it('treats a shorter or longer name as the same cast member', async () => {
   const { sameCast } = await import('../shared/cast.js');
   expect([sameCast('Ines', 'Ines Varga'), sameCast('Foredeck', 'The Foredeck'), sameCast('Tomo', 'tomo'), sameCast('Tomo', 'Ines')]).toEqual([true, true, true, false]);
 });
+
+it('flags a draft that uses an older picture of someone and swaps in the approved one', () => {
+  const brief = '## Places\n- The Lighthouse: slate tower';
+  const jobs = [
+    { id: 'old', outputs: ['old-pic'], request: { title: 'Reference: The Lighthouse', workflow: 'text-to-image' } },
+    { id: 'new', outputs: ['new-pic'], request: { title: 'Reference: The Lighthouse', workflow: 'text-to-image' } },
+  ];
+  const p = project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief, picks: { 'ref:The Lighthouse': 'new-pic' }, jobs });
+  const request = { workflow: 'image-to-image', engine: 'klein', prompt: 'The lighthouse from <image1>.', output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw', references: [{ id: 'input1', asset_id: 'old-pic', kind: 'image', role: 'source' }] };
+  const check = checkDraft(card(request) as any, p).find(c => c.code === 'old-reference')!;
+  expect(check.text).toBe('This draft uses an older picture of The Lighthouse, not the approved reference.');
+  expect((check.fixes[0]!.patch(request as any) as any).references[0].asset_id).toBe('new-pic');
+});
