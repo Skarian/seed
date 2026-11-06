@@ -149,6 +149,7 @@ export function CastStrip({
               <button
                 className={'pick-tile' + (o.asset === id ? ' on' : '')}
                 aria-pressed={o.asset === id}
+                aria-label={`${o.title.replace(/^Reference:\s*/i, '') || 'Untitled picture'} as ${picking.name}’s reference`}
                 disabled={busy === key}
                 onClick={() => {
                   onChoose(key, o.asset);

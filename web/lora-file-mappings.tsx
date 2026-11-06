@@ -42,6 +42,7 @@ export function LoraFileMappings({
           <label>
             <span className="sr-only">Use {file.name} for</span>
             <select
+              aria-label={`Use ${file.name} for`}
               disabled={disabled || file.supported === false}
               value={value[file.id] ?? ''}
               onChange={(event) =>

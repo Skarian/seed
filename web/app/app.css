@@ -4143,3 +4143,25 @@ textarea::placeholder {
 .viewer .stage img {
   background: var(--bg, #121411);
 }
+
+/* Touch screens: the controls used most on a phone get a full 44 px target (the checkbox through padding around it). */
+@media (hover: none), (pointer: coarse) {
+  .head h1 button,
+  .modes > button,
+  button.status,
+  .sum,
+  .send {
+    min-height: 44px;
+  }
+  .send {
+    min-width: 44px;
+  }
+  button.check {
+    position: relative;
+  }
+  button.check::after {
+    content: '';
+    position: absolute;
+    inset: -11px;
+  }
+}

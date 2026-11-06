@@ -594,7 +594,7 @@ function Draft({
                       className="link"
                       style={{ fontSize: '0.8125rem', marginLeft: 6 }}
                       onClick={() => setSwap(ref.id)}
-                      aria-label={'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ': ' + name}
+                      aria-label={'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ' of ' + titleOf(r) + ': ' + name}
                     >
                       Change
                     </button>

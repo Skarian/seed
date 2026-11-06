@@ -582,7 +582,9 @@ function ResultTile({
                     app.toast(
                       after.state === 'completed'
                         ? 'It had already finished, so it was kept'
-                        : 'Cancelled · the GPU keeps running for other work',
+                        : job.worker?.executor === 'local' || job.request.target === 'local'
+                          ? 'Cancelled · nothing else was affected'
+                          : 'Cancelled · the rented GPU keeps running until you release it',
                     );
                   })
                   .catch(e => app.toast((e as Error).message))

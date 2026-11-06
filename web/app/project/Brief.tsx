@@ -61,9 +61,22 @@ export function BriefBar({
       setError((e as Error).message);
     }
   }
+  // Escape closes the open brief (unless a dialog or the editor has its own Escape), and focus returns to its header.
+  const head = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    if (!open || editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[role="dialog"]')) return;
+      setOpen(false);
+      head.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, editing]);
   return (
     <section className={'brief' + (open ? ' open' : '')} aria-label="Project brief">
       <button
+        ref={head}
         className="brief-head"
         aria-expanded={open}
         aria-label={'Project brief' + (fresh ? ', updated by Seed' : '')}
