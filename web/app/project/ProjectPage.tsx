@@ -737,7 +737,10 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         ? 'Make, image drafts without the reference'
         : 'Make without the attached image'
       : openChecks.every(c => c.code === 'shape')
-        ? 'Make at ' + (selectedCards[0] ? latest(selectedCards[0]).request.output.aspect : 'this shape')
+        ? (() => {
+            const shapes = [...new Set(selectedCards.map(c => latest(c).request.output.aspect))];
+            return shapes.length === 1 ? 'Make at ' + shapes[0] : 'Make ' + makeNoun + ' as drafted';
+          })()
         : `Make despite ${unresolved === 1 ? '1 check' : unresolved + ' checks'}`;
   // Seed answered the latest message without changing the plan (often a clarifying question):
   // the plan still shows the earlier version, so running it is a secondary, clearly named choice.
@@ -1480,14 +1483,25 @@ function Message({
             ? 'Animate'
             : 'Use as input'
       : '';
+    const action = buttonAction(message.text);
     return (
-      <div className="msg-you" role="article" aria-label="You said">
+      <div className="msg-you" role="article" aria-label={action ? 'You asked: ' + action : 'You said'}>
         {label && (
           <span className="kind" style={{ marginRight: 6 }}>
             {label}
           </span>
         )}
-        {cleanReply(intent ? message.text.slice(intent[0].length) : message.text)}
+        {action ? (
+          <>
+            <span className="kind">{action}</span>
+            <details className="action-request">
+              <summary className="link">The request Seed was sent</summary>
+              <p>{message.text}</p>
+            </details>
+          </>
+        ) : (
+          cleanReply(intent ? message.text.slice(intent[0].length) : message.text)
+        )}
         {message.assets.length > 0 && (
           <div className="attachments">
             {message.assets.map(a => {
@@ -1801,3 +1815,20 @@ function titleFromPrompt(text: string) {
   return title.length > 60 ? title.slice(0, 58) + '…' : title;
 }
 export { isOpenPlan };
+
+/** A request written by one of Seed's own buttons, named as the action it was ("Check · Shot 2 · 1 of 3"). */
+function buttonAction(text: string): string | null {
+  const m = (re: RegExp) => text.match(re);
+  let x;
+  if ((x = m(/^Give me a second opinion on (.+?)\.(?:\s|$)/))) return 'Check · ' + x[1];
+  if ((x = m(/^Draft one plan with a (clip|keyframe) for (shots? .+?)(?:, each| from the brief)/i)))
+    return `Draft ${x[1]!.toLowerCase()}s for ${x[2]}`;
+  if ((x = m(/^Draft one plan with a reference for each of (.+?) from the brief/)))
+    return 'Draft references for ' + x[1];
+  if ((x = m(/^Draft a (?:character|place|prop) reference for (.+?) from the brief/)))
+    return `Draft ${x[1]}’s reference`;
+  if ((x = m(/^Draft a reference sheet for (.+?) as an edit/))) return `Draft ${x[1]}’s reference sheet`;
+  if (/^I changed the brief\. Update every open draft/.test(text)) return 'Update the drafts to match the brief';
+  if (/^Continue where you stopped/.test(text)) return 'Continue';
+  return null;
+}

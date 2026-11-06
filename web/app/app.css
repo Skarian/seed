@@ -4073,3 +4073,24 @@ textarea::placeholder {
 .cell figcaption small.used-as {
   color: var(--accent);
 }
+/* Storyboard takes wrap onto more rows instead of hiding off-screen in a sideways strip. */
+.board .lane-strip {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+@media (max-width: 699px) {
+  .board .lane-strip .tile {
+    height: auto;
+    width: calc(50vw - 40px);
+  }
+}
+
+/* A request written by one of Seed's buttons: the action, with the full wording one click away. */
+.msg-you .action-request {
+  margin-top: 4px;
+  font-size: 0.8125rem;
+}
+.msg-you .action-request p {
+  margin: 4px 0 0;
+  color: var(--muted);
+}

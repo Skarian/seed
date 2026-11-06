@@ -285,10 +285,17 @@ export function cardJobs(project: Project, card: ChatCard) {
 
 /** GPU time for some outputs of one workflow, from this project's recent saved jobs. Null until something comparable has run. */
 export function estimateSeconds(jobs: JobRecord[], workflow: string, outputs: number): number | null {
+  // Run time from the moment a GPU took the job to its saved result: time spent queued behind other work is not
+  // part of how long a picture takes, so it does not inflate the estimate.
+  const run = (j: JobRecord) => {
+    const m = j.metrics;
+    if (m?.submitted_at && m.saved_at) return (Date.parse(m.saved_at) - Date.parse(m.submitted_at)) / 1000;
+    return m?.elapsed_to_saved_seconds;
+  };
   const per = jobs
-    .filter(j => j.request.workflow === workflow && j.state === 'completed' && j.metrics?.elapsed_to_saved_seconds)
+    .filter(j => j.request.workflow === workflow && j.state === 'completed' && run(j))
     .slice(-10)
-    .map(j => j.metrics!.elapsed_to_saved_seconds! / Math.max(1, j.outputs.length || j.request.count))
+    .map(j => run(j)! / Math.max(1, j.outputs.length || j.request.count))
     .sort((a, b) => a - b);
   return per.length ? per[Math.floor(per.length / 2)]! * outputs : null;
 }

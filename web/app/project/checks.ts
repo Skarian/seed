@@ -162,7 +162,9 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     if (other) asked.other = other;
   }
   const aspect = r.output.aspect;
-  if (asked.aspect && aspect !== 'source') {
+  // References and reference sheets have their own shapes (4:5 for a character); the film's shape is not theirs.
+  const isReference = /^reference( sheet)?:/i.test(r.title ?? '');
+  if (asked.aspect && aspect !== 'source' && !isReference) {
     const portrait = aspect === '9:16' || aspect === '4:5';
     const ok =
       asked.aspect === 'portrait'

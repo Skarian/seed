@@ -274,7 +274,8 @@ export function ResultsView({
     const takes = takesOf(its),
       key = pickKey(s, kind),
       pickedId = chosen(s, kind)?.asset;
-    return its.map(it => {
+    // Newest first, so the latest fixes are in view; take numbers keep the order they were made in.
+    return [...its].reverse().map(it => {
       const on = selected.includes(it.asset);
       const from = derived.get(it.asset);
       const crop = from !== undefined;
@@ -360,7 +361,12 @@ export function ResultsView({
     if (!c?.job) return false;
     const at = Date.parse(c.job.created_at);
     return takesOf(s.images).some(
-      i => i.job && Date.parse(i.job.created_at) > at && i.job.request.prompt !== c.job!.request.prompt,
+      i =>
+        i.job &&
+        Date.parse(i.job.created_at) > at &&
+        i.job.request.prompt !== c.job!.request.prompt &&
+        // A refine of the chosen take is a variation of it, not a change to the shot.
+        !(i.job.request.references ?? []).some(r => r.asset_id === c.asset),
     );
   };
   // The film at a glance: one cell per numbered shot with its chosen (or newest) picture and where it stands.
