@@ -4100,3 +4100,18 @@ textarea::placeholder {
   object-fit: contain;
   background: #0d0e0c;
 }
+
+/* Phones: a resting composer is one row, the message box beside Send; tapping it brings the tools back. */
+.composer.resting {
+  flex-direction: row;
+  align-items: center;
+}
+.composer.resting textarea {
+  flex: 1;
+}
+.composer.resting .tools > :not(.send) {
+  display: none;
+}
+.composer.resting .tools {
+  flex: none;
+}

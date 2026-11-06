@@ -87,6 +87,7 @@ export function Composer(p: Props) {
     file = useRef<HTMLInputElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false),
     [expanded, setExpanded] = useState(false),
+    [focused, setFocused] = useState(false),
     [picker, setPicker] = useState(false),
     [roleFor, setRoleFor] = useState<string | null>(null);
   const touch = useMemo(() => matchMedia('(pointer: coarse)').matches, []);
@@ -209,7 +210,16 @@ export function Composer(p: Props) {
   };
   return (
     <div
-      className={'composer' + (expanded ? ' expanded' : '')}
+      className={
+        'composer' +
+        (expanded ? ' expanded' : '') +
+        // On a phone, an empty composer nobody is typing in rests as one row: more room to read.
+        (narrow && !focused && !p.text && !expanded && p.mode === 'ask' && p.context.type === 'talk' ? ' resting' : '')
+      }
+      onFocus={() => setFocused(true)}
+      onBlur={e => {
+        if (!e.currentTarget.contains(e.relatedTarget as Node | null)) setFocused(false);
+      }}
       onKeyDown={e => {
         if (e.key === 'Escape' && expanded) {
           e.stopPropagation();

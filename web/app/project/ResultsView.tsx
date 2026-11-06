@@ -583,7 +583,9 @@ export function ResultsView({
           ))}
         </div>
         <button
-          className={'btn primary small' + (selected.length ? '' : ' no-phone')}
+          className={
+            (selected.length || comparing ? 'btn primary small' : 'btn small') + (selected.length ? '' : ' no-phone')
+          }
           aria-pressed={selected.length < 2 ? comparing : undefined}
           onClick={() => {
             // Before two are chosen, the button starts choosing: every take shows its box until two are ticked.

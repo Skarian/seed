@@ -28,6 +28,8 @@ export function shotsFromBrief(brief: string | null | undefined): BriefShot[] {
 /** A shot's name as a key: case, punctuation and spacing do not matter ("The Knock" = "the knock."). */
 export const shotNameKey = (name: string) =>
   name
+    // A revision note ("The Engine (Night Fix)") does not make a new shot.
+    .replace(/\s*\([^)]*\)\s*$/, '')
     .toLowerCase()
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
