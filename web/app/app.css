@@ -4358,3 +4358,21 @@ textarea::placeholder {
   color: var(--amber, #e8c36a);
   font-size: 0.8125rem;
 }
+
+/* Conversation results: takes wrap onto new rows, so take 3 and 4 are never hidden past the card's edge. */
+.stream .results {
+  flex-wrap: wrap;
+  overflow-x: visible;
+}
+@media (max-width: 699px) {
+  .stream .results .tile,
+  .stream .results.one .tile.landscape,
+  .stream .results.one .tile.square,
+  .stream .results.one .tile.portrait {
+    height: auto;
+    width: calc(50% - 4px);
+  }
+  .stream .results.one .tile {
+    width: 100%;
+  }
+}
