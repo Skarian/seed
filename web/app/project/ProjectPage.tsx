@@ -128,6 +128,13 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const [text, setText] = useStoredState('seed.draft.' + id, '');
   const [reading, setReading] = useState(false),
     lastScroll = useRef(0);
+  // Phones, reading down the conversation: the header's second row (views and status) tucks away with the brief bar.
+  useEffect(() => {
+    document.body.classList.toggle('reading', reading);
+    return () => {
+      document.body.classList.remove('reading');
+    };
+  }, [reading]);
   // The mode is kept with the text it was written for, so a reload never sends a direct-make prompt to the planner.
   const [mode, setMode] = useStoredState<'ask' | 'make'>('seed.mode.' + id, 'ask');
   const [settings, setSettings] = useStoredState<MakeSettings>('seed.make.' + id, defaultMake);

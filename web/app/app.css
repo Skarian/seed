@@ -4210,3 +4210,11 @@ textarea::placeholder {
 .receipt > span {
   color: var(--accent);
 }
+
+/* Phones, reading down the conversation: the header keeps only its title row; scrolling up brings the rest back. */
+@media (max-width: 699px) {
+  body.reading .head .seg.views,
+  body.reading .head button.status {
+    display: none;
+  }
+}

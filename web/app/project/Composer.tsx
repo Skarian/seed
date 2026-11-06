@@ -214,7 +214,7 @@ export function Composer(p: Props) {
         'composer' +
         (expanded ? ' expanded' : '') +
         // On a phone, an empty composer nobody is typing in rests as one row: more room to read.
-        (narrow && !focused && !p.text && !expanded && p.mode === 'ask' && p.context.type === 'talk' ? ' resting' : '')
+        (narrow && !focused && !p.text && !expanded ? ' resting' : '')
       }
       onFocus={() => setFocused(true)}
       onBlur={e => {
