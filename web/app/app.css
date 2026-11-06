@@ -4300,3 +4300,29 @@ textarea::placeholder {
     min-width: 0;
   }
 }
+
+/* A handful of Library results: large tiles and whole captions, so a search hit can be read without opening it. */
+.grid.library-grid.few figcaption small,
+.grid.library-grid.few figcaption .note-match {
+  white-space: normal;
+  display: block;
+  -webkit-line-clamp: unset;
+  overflow: visible;
+}
+.grid.library-grid.few .cell {
+  max-width: 560px;
+}
+@media (max-width: 699px) {
+  .grid.library-grid.few .cell {
+    flex-basis: 100% !important;
+    max-width: none;
+  }
+}
+
+/* A search match reads as two lines, so the matched words are never the part cut off. */
+.cell figcaption small.note-match {
+  white-space: normal;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+}

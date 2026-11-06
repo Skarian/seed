@@ -121,6 +121,8 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
   useEffect(() => {
     app.syncSiblings(items);
   }, [shownKey]);
+  // A handful of results (a search that found what you wanted) show large, with their full captions.
+  const few = list.items.length > 0 && list.items.length <= 4;
   const groups = useMemo(() => {
     const out: Array<[string, LibraryAsset[]]> = [];
     for (const a of list.items) {
@@ -356,7 +358,7 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
           {groups.map(([day, list2]) => (
             <section key={day}>
               <div className="day">{day}</div>
-              <div className={'grid library-grid' + (dense ? ' dense' : '')}>
+              <div className={'grid library-grid' + (dense ? ' dense' : '') + (few ? ' few' : '')}>
                 {list2.map(a => {
                   const it = items.find(i => i.asset === a.id)!,
                     on = selected.includes(a.id);
@@ -365,7 +367,7 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
                     <figure
                       key={a.id}
                       className="cell"
-                      style={{ flexGrow: ratio, flexBasis: ratio * (dense ? 110 : 150) }}
+                      style={{ flexGrow: ratio, flexBasis: ratio * (few ? 300 : dense ? 110 : 150) }}
                     >
                       <div className={'tile' + (on ? ' selected' : '')} style={{ aspectRatio: String(ratio) }}>
                         <Media id={a.id} kind={a.kind} alt={it.title} />
