@@ -25,6 +25,8 @@ test('every destination is one tap away and shows the status control', async ({ 
 
 test('a direct make asks before renting, then results land in the project and the Library', async ({ page }) => {
   await newProject(page);
+  // On a phone the empty composer rests as one row; tapping the message box brings its tools back.
+  await page.getByRole('textbox', { name: 'Message to Seed' }).click();
   await page.getByRole('button', { name: 'Make now', exact: true }).click();
   const prompt = page.getByRole('textbox', { name: 'Prompt to make', exact: true });
   await prompt.fill('A paper lantern floating over a quiet harbor at dusk');
@@ -274,6 +276,8 @@ test('the full-screen viewer follows the shots in order and answers the arrow ke
 test('the Library picker fits a phone screen and its Attach button is reachable', async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== 'phone', 'phone layout');
   await newProject(page);
+  // On a phone the empty composer rests as one row; tapping the message box brings its tools back.
+  await page.getByRole('textbox', { name: 'Message to Seed' }).click();
   await page.getByRole('button', { name: /Attach/ }).first().click();
   await page.getByRole('menuitem', { name: /Library/ }).click();
   const dialog = page.getByRole('dialog');
