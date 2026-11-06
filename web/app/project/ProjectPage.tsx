@@ -149,7 +149,23 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       /* memory only */
     }
   }, [attachments]);
-  const [context, setContext] = useState<ComposerContext>({ type: 'talk' });
+  const [context, setContext] = useState<ComposerContext>(() => {
+    // A Refine or Animate target is kept with the text it was typed for.
+    try {
+      const saved = JSON.parse(localStorage.getItem('seed.target.' + id) ?? 'null');
+      return saved?.type === 'using' ? saved : { type: 'talk' };
+    } catch {
+      return { type: 'talk' };
+    }
+  });
+  useEffect(() => {
+    try {
+      if (context.type === 'using') localStorage.setItem('seed.target.' + id, JSON.stringify(context));
+      else localStorage.removeItem('seed.target.' + id);
+    } catch {
+      /* memory only */
+    }
+  }, [context, id]);
   const [selection, setSelection] = useState<Selection>({});
   const [compute, setCompute] = useState<null | {
     role: 'image' | 'video';
@@ -240,7 +256,14 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     if (use.intent === 'check') {
       void run('', () =>
         projectsApi.send(projectRef.current ?? project, {
-          text: `Check ${use.item.title} against the brief: look at the picture and compare it with the shot's framing and action and with the approved references of everyone and everything in it (face, hair, wardrobe, props, the place). List what matches and what doesn't, briefly. Don't draft anything unless I ask.`,
+          text: (() => {
+            // The shot's own record (framing, who is in it, where) is the yardstick, so the check is about this shot.
+            const shot = use.item.job?.request.shot;
+            const spec = shot
+              ? ` This shot is ${[shot.framing, shot.cast?.length ? 'with ' + shot.cast.join(' and ') : '', shot.place ? 'at ' + shot.place : ''].filter(Boolean).join(', ')}.`
+              : '';
+            return `Give me a second opinion on ${use.item.title}.${spec} Look at the picture and compare it with the shot's framing and action and with the approved references of everyone and everything in it (face, hair, wardrobe, props, the place). Say only what you can clearly see; for anything small or unclear, say you are not sure. List what matches and what may not, briefly. Don't draft anything unless I ask.`;
+          })(),
           assets: [use.item.asset],
         }),
       );
@@ -471,13 +494,15 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   }
 
   /** Make the open plan: one decision for every draft, after GPU consent if a new rental is needed. */
-  async function makePlan() {
+  async function makePlan(only?: 'image' | 'video') {
     if (!plan) return;
+    // "Make 2 images" in a mixed plan leaves its clips saved (Bring back) instead of making them.
+    const ofKind = (c: ChatCard) => !only || isVideoKind(kindOf[latest(c).request.workflow]) === (only === 'video');
     const decisions = plan.cards.map(c => ({
       card: c.id,
       revision: latest(c).number,
       decision:
-        (selection[c.id] ?? !c.left_out) && !readiness(latest(c).request, app.pool, styles).blocked
+        (selection[c.id] ?? !c.left_out) && ofKind(c) && !readiness(latest(c).request, app.pool, styles).blocked
           ? ('approved' as const)
           : ('denied' as const),
     }));
@@ -1029,10 +1054,26 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                           : ''}
                         {planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
                       </button>
+                      {madeOf(true) > 0 && madeOf(false) > 0 && !planStale && !question && !unresolved && (
+                        <button
+                          className="btn"
+                          disabled={!planReady || Boolean(busy)}
+                          onClick={() => void makePlan()}
+                          title="Clips take minutes each"
+                        >
+                          Make all
+                        </button>
+                      )}
                       <button
                         className={planStale || question || unresolved ? 'btn' : 'btn primary'}
                         disabled={!planReady || !selectedCards.length || Boolean(busy)}
-                        onClick={() => void makePlan()}
+                        onClick={() =>
+                          void makePlan(
+                            madeOf(true) > 0 && madeOf(false) > 0 && !planStale && !question && !unresolved
+                              ? 'image'
+                              : undefined,
+                          )
+                        }
                       >
                         {busy === 'Making'
                           ? 'Starting…'
@@ -1044,7 +1085,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                                 ? 'Make as it is'
                                 : unresolved
                                   ? anyway
-                                  : 'Make ' + makeNoun}
+                                  : madeOf(true) > 0 && madeOf(false) > 0
+                                    ? 'Make ' + plural(madeOf(false), 'image')
+                                    : 'Make ' + makeNoun}
                       </button>
                     </div>
                   )}
