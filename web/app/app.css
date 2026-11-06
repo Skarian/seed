@@ -271,6 +271,7 @@ button.chip:hover {
   min-height: 32px;
 }
 .seg button[aria-pressed='true'],
+.seg button[aria-checked='true'],
 .seg button[aria-selected='true'] {
   background: var(--s3);
   color: var(--text);
@@ -4182,4 +4183,20 @@ textarea::placeholder {
 }
 .makebar .sum {
   flex: 1 1 6rem;
+}
+
+/* Cast & places: add and bring-in sit together; the editor is a short stack of fields. */
+.cast-tools {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-self: start;
+}
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+.form-stack .seg {
+  align-self: flex-start;
 }

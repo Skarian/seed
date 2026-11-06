@@ -122,6 +122,9 @@ export const projects = {
   /** Choose the take used for a shot (key "<shot>:image" or "<shot>:clip"), or clear it with null. */
   pick: (id: string, key: string, asset: string | null) =>
     pj('chats/' + id + '/picks', { method: 'PUT', body: { key, asset } }),
+  /** Adds (from null), changes or removes (entry null) a character, place or prop. */
+  editCast: (id: string, from: string | null, entry: { kind: string; name: string; look: string } | null) =>
+    pj('chats/' + id + '/cast', { method: 'PUT', body: { from, entry } }),
   remove: (id: string) => api<{ deleted: boolean }>('chats/' + id, { method: 'DELETE' }),
   send: (
     p: Project,

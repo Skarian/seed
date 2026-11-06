@@ -15,6 +15,8 @@ export interface ChatView {
   reasoning:boolean;messages:ChatMessage[];groups:ChatGroup[];assets:string[];
   /** The project's lasting brief (Markdown): story, characters, locations, look, rules, shots. Kept by Seed and the owner. */
   brief?:string;brief_updated_by?:'you'|'seed';brief_updated_at?:string;
+  /** The project's characters, places and props: added from the brief, edited or removed only on purpose. */
+  cast?:import('./cast.js').CastEntry[];
   /** The owner's chosen take per shot, keyed "<shot>:image" or "<shot>:clip" (shot is the number, or the title when unnumbered). */
   picks?:Record<string,string>;
   /** The shape the owner will deliver ("2.39:1"), when it differs from what the models make; results show its guides and Crop starts there. */

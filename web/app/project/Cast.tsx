@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { castFromBrief, referenceKey, sameCast, type CastEntry } from '../../../shared/cast.js';
+import { castFromBrief, castOf, referenceKey, sameCast, type CastEntry } from '../../../shared/cast.js';
 import { useApp, type ViewerItem } from '../data.js';
 import { projects as projectsApi } from '../api.js';
 import { Media, Dialog } from '../ui.js';
@@ -20,6 +20,8 @@ export const sheetAsk = (e: CastEntry) =>
  */
 export function CastStrip({
   brief,
+  cast: stored,
+  onEdit,
   picks,
   images,
   busy,
@@ -30,6 +32,10 @@ export function CastStrip({
   projectId,
 }: {
   brief: string | null | undefined;
+  /** The project's cast record (read from the brief when the project has none yet). */
+  cast?: CastEntry[];
+  /** Adds (from null), changes or removes (entry null) one entry; the brief follows. */
+  onEdit?: (from: string | null, entry: CastEntry | null) => Promise<void>;
   picks: Record<string, string>;
   images: ViewerItem[];
   busy: string;
@@ -41,10 +47,12 @@ export function CastStrip({
   /** This project, left out of the projects to bring from. */
   projectId?: string;
 }) {
-  const cast = castFromBrief(brief);
+  const cast = stored ?? castFromBrief(brief);
   const [picking, setPicking] = useState<CastEntry | null>(null);
   const [importing, setImporting] = useState(false);
-  if (!cast.length && !(onImport && brief?.trim())) return null;
+  // The entry being edited, or a new one of a kind ("Add character").
+  const [editing, setEditing] = useState<{ from: string | null; entry: CastEntry } | null>(null);
+  if (!cast.length && !(onImport && brief?.trim()) && !onEdit) return null;
   // Entries the owner marked Not needed stop counting; they stay listed so the choice can be undone.
   const skipped = (name: string) => Boolean(picks['skip:' + name]);
   const approved = cast.filter(e => picks[referenceKey(e.name)] || skipped(e.name)).length;
@@ -62,14 +70,24 @@ export function CastStrip({
           })()}
         </span>
       </div>
-      {onImport && (
-        <button className="btn small quiet cast-import" onClick={() => setImporting(true)}>
-          From another project…
-        </button>
-      )}
+      <div className="cast-tools">
+        {onEdit && (
+          <button
+            className="btn small"
+            onClick={() => setEditing({ from: null, entry: { kind: 'character', name: '', look: '' } })}
+          >
+            Add…
+          </button>
+        )}
+        {onImport && (
+          <button className="btn small quiet cast-import" onClick={() => setImporting(true)}>
+            From another project…
+          </button>
+        )}
+      </div>
       {!cast.length && (
         <p className="faint" style={{ margin: 0 }}>
-          No characters, places or props in the brief yet. Bring them from another project, or ask Seed to add them.
+          No characters, places or props yet. Add one, bring them from another project, or ask Seed.
         </p>
       )}
       <ul className="cast-cells">
@@ -127,6 +145,15 @@ export function CastStrip({
                     onClick={() => setPicking(e)}
                   >
                     {id ? 'Change' : 'Approve…'}
+                  </button>
+                )}
+                {onEdit && (
+                  <button
+                    className="btn small quiet"
+                    aria-label={`Edit ${e.name}`}
+                    onClick={() => setEditing({ from: e.name, entry: { ...e } })}
+                  >
+                    Edit
                   </button>
                 )}
               </span>
@@ -195,6 +222,18 @@ export function CastStrip({
             </Dialog>
           );
         })()}
+      {editing && onEdit && (
+        <CastEditor
+          editing={editing}
+          taken={cast.filter(x => x.name !== editing.from).map(x => x.name.toLowerCase())}
+          approved={Boolean(editing.from && picks[referenceKey(editing.from)])}
+          onClose={() => setEditing(null)}
+          onSave={async entry => {
+            await onEdit(editing.from, entry);
+            setEditing(null);
+          }}
+        />
+      )}
       {importing && onImport && (
         <ImportCast
           projectId={projectId}
@@ -243,7 +282,7 @@ function ImportCast({
           .filter((p): p is NonNullable<typeof p> => Boolean(p))
           .map(p => ({
             project: p.title,
-            items: castFromBrief(p.brief)
+            items: castOf(p)
               .filter(e => p.picks?.[referenceKey(e.name)] && !have.some(h => sameCast(h, e.name)))
               .map(e => ({ entry: e, asset: p.picks![referenceKey(e.name)]! })),
           }))
@@ -321,6 +360,132 @@ function ImportCast({
             </ul>
           </section>
         ))
+      )}
+    </Dialog>
+  );
+}
+
+/** Adds, changes or removes one character, place or prop. The brief's cast sections follow. */
+function CastEditor({
+  editing,
+  taken,
+  approved,
+  onClose,
+  onSave,
+}: {
+  editing: { from: string | null; entry: CastEntry };
+  taken: string[];
+  approved: boolean;
+  onClose: () => void;
+  onSave: (entry: CastEntry | null) => Promise<void>;
+}) {
+  const [e, setE] = useState(editing.entry);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [removing, setRemoving] = useState(false);
+  const name = e.name.trim();
+  const problem = !name ? 'Give it a name.' : taken.includes(name.toLowerCase()) ? name + ' is already in the cast.' : '';
+  const save = async (entry: CastEntry | null) => {
+    setBusy(true);
+    setError('');
+    try {
+      await onSave(entry);
+    } catch (x) {
+      setError((x as Error).message);
+      setBusy(false);
+    }
+  };
+  const noun = { character: 'character', place: 'place', prop: 'prop' }[e.kind];
+  return (
+    <Dialog
+      title={editing.from ? 'Edit ' + editing.from : 'Add to the cast'}
+      onClose={onClose}
+      footer={
+        <>
+          {editing.from && !removing && (
+            <button className="btn danger" disabled={busy} onClick={() => setRemoving(true)}>
+              Remove…
+            </button>
+          )}
+          <span className="grow" />
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn primary"
+            disabled={busy || Boolean(problem)}
+            onClick={() => void save({ ...e, name, look: e.look.trim() })}
+          >
+            {editing.from ? 'Save' : 'Add ' + noun}
+          </button>
+        </>
+      }
+    >
+      {removing ? (
+        <div className="notice warn" role="alert">
+          Remove {editing.from} from the cast and the brief?{approved ? ' Its approved picture stays in the Library.' : ''}
+          <div className="actions">
+            <button className="btn small danger" disabled={busy} onClick={() => void save(null)}>
+              Remove {editing.from}
+            </button>
+            <button className="btn small" autoFocus onClick={() => setRemoving(false)}>
+              Keep
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="form-stack">
+          <div className="seg" role="radiogroup" aria-label="Kind">
+            {(['character', 'place', 'prop'] as const).map(k => (
+              <button key={k} role="radio" aria-checked={e.kind === k} onClick={() => setE({ ...e, kind: k })}>
+                {{ character: 'Character', place: 'Place', prop: 'Prop' }[k]}
+              </button>
+            ))}
+          </div>
+          <label className="field">
+            <span>Name</span>
+            <input
+              className="input"
+              value={e.name}
+              maxLength={60}
+              autoFocus
+              onChange={x => setE({ ...e, name: x.target.value })}
+              aria-invalid={Boolean(problem && e.name)}
+            />
+          </label>
+          <label className="field">
+            <span>Look</span>
+            <textarea
+              className="input"
+              rows={4}
+              maxLength={600}
+              value={e.look}
+              placeholder={
+                e.kind === 'character'
+                  ? 'Age, face, hair, clothes, anything that must stay the same in every shot'
+                  : e.kind === 'place'
+                    ? 'What it looks like: shape, materials, light'
+                    : 'Size, shape, material, colour'
+              }
+              onChange={x => setE({ ...e, look: x.target.value })}
+            />
+          </label>
+          {editing.from && approved && name && name !== editing.from && (
+            <p className="faint" style={{ margin: 0 }}>
+              Renaming keeps {editing.from}’s approved picture and updates the brief.
+            </p>
+          )}
+          {problem && e.name && (
+            <p className="changed" role="alert" style={{ margin: 0 }}>
+              {problem}
+            </p>
+          )}
+        </div>
+      )}
+      {error && (
+        <p className="changed" role="alert">
+          {error}
+        </p>
       )}
     </Dialog>
   );

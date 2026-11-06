@@ -9,7 +9,7 @@ import { titleOf, latest, tileState, shapeClass } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
 import { CastStrip, referenceAsk } from './Cast.js';
 import { Stages, listOf, type Stage } from './Stages.js';
-import { castFromBrief, referenceKey, addToBrief, sameCast } from '../../../shared/cast.js';
+import { castOf, referenceKey, addToBrief, sameCast } from '../../../shared/cast.js';
 import { shotsFromBrief, placeShot, shotPickKey, chosenTake } from '../../../shared/shots.js';
 import type { ImageRequest } from '../../../shared/generation.js';
 
@@ -454,7 +454,7 @@ export function ResultsView({
   const chosenSeconds = chosenClips.reduce((t, c) => t + (c.job?.request.output.duration_seconds ?? 5), 0);
   const chosenCount = numbered.filter(s => chosen(s, 'clip') || chosen(s, 'image')).length;
   // The steps from brief to cut. Each step asks Seed for one plan covering everything it still needs.
-  const cast = castFromBrief(project.brief);
+  const cast = castOf(project);
   const noRef = cast.filter(e => !picks[referenceKey(e.name)] && !picks['skip:' + e.name]);
   // Names whose reference takes are made and only need approving, and names that still need drafting.
   const hasTakes = (name: string) =>
@@ -658,6 +658,15 @@ export function ResultsView({
           {filter === 'all' && (
             <CastStrip
               brief={project.brief}
+              cast={castOf(project)}
+              onEdit={async (from, entry) => {
+                try {
+                  onChanged?.(await projectsApi.editCast(project.id, from, entry));
+                } catch (e) {
+                  app.toast((e as Error).message);
+                  throw e;
+                }
+              }}
               picks={picks}
               images={items.filter(i => i.kind === 'image')}
               busy={picking}
@@ -667,7 +676,7 @@ export function ResultsView({
               onImport={async picked => {
                 // A name this project already has ("Tomo", or "Ines" for "Ines Varga") gets the picture under its own
                 // name; new names join the brief with their look. Then each picture is approved here.
-                const here = castFromBrief(project.brief);
+                const here = castOf(project);
                 const target = (name: string) => here.find(e => sameCast(e.name, name))?.name;
                 let p = await projectsApi.setBrief(
                   project,

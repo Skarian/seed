@@ -35,7 +35,7 @@ import {
   withCastLooks,
 } from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
-import { castFromBrief, referenceKey } from '../../shared/cast.js';
+import { castFromBrief, castOf, mergeCast, briefWithCast, referenceKey, sameCast, type CastEntry } from '../../shared/cast.js';
 import { shotsFromBrief, shotPickKey, shotNameKey, shotFromTitle } from '../../shared/shots.js';
 
 /** Agent snapshots mirror the flat tool fields; canonical requests remain persisted unchanged. */
@@ -294,6 +294,7 @@ export class Chats {
       for (const asset of job?.outputs ?? []) if (!chat.assets.includes(asset)) chat.assets.push(asset);
     return {
       ...view,
+      cast: castOf(chat),
       asset_manifest: this.contextAssets(chat),
       jobs: this.jobIds(chat)
         .map(id => this.jobs.get(id))
@@ -367,7 +368,13 @@ export class Chats {
     if (values.reasoning !== undefined) chat.reasoning = values.reasoning;
     if (values.brief !== undefined) {
       if (values.brief.length > 8000) throw Error('Keep the brief under 8000 characters.');
-      chat.brief = values.brief.trim();
+      const text = values.brief.trim();
+      // The owner's own edit: a name deleted from the brief altogether leaves the cast; a reworded line never does.
+      chat.cast = mergeCast(castOf(chat), text).filter(e => {
+        const first = e.name.replace(/^(the|dr|mr|mrs|ms|prof|capt|captain)\.?\s+/i, '').split(' ')[0]!;
+        return text.toLowerCase().includes(first.toLowerCase());
+      });
+      chat.brief = text;
       chat.brief_updated_by = 'you';
       chat.brief_updated_at = now();
     }
@@ -412,6 +419,50 @@ export class Chats {
       picks[key] = asset;
     } else delete picks[key];
     chat.picks = picks;
+    chat.version++;
+    this.save(chat);
+    return this.view(id);
+  }
+  /**
+   * Adds, changes or removes one character, place or prop. A rename carries its approved picture (or Not needed) with
+   * it; the brief's cast sections are rewritten to match. Not an agent setting: allowed while Seed replies.
+   */
+  editCast(id: string, from: string | null, entry: CastEntry | null) {
+    const chat = this.get(id);
+    const cast = castOf(chat).map(e => ({ ...e }));
+    const at = from ? cast.findIndex(e => e.name.toLowerCase() === from.toLowerCase()) : -1;
+    if (from && at < 0) throw Error('That name is not in the cast.');
+    if (entry) {
+      entry = { kind: entry.kind, name: entry.name.replace(/\s+/g, ' ').trim(), look: entry.look.replace(/\s+/g, ' ').trim() };
+      if (!['character', 'place', 'prop'].includes(entry.kind)) throw Error('Choose character, place or prop.');
+      if (!/^\p{L}/u.test(entry.name) || entry.name.length > 60) throw Error('Give a name of up to 60 characters.');
+      if (entry.look.length > 600) throw Error('Keep the look under 600 characters.');
+      if (cast.some((e, i) => i !== at && e.name.toLowerCase() === entry!.name.toLowerCase()))
+        throw Error(`${entry.name} is already in the cast.`);
+    }
+    const removed: string[] = [],
+      renames: Record<string, string> = {};
+    if (at >= 0) {
+      const old = cast[at]!;
+      if (!entry) removed.push(old.name);
+      else if (old.name !== entry.name) renames[old.name] = entry.name;
+      if (entry && old.name !== entry.name) {
+        const picks = { ...(chat.picks ?? {}) };
+        for (const k of [referenceKey(old.name), 'skip:' + old.name])
+          if (picks[k] !== undefined) {
+            picks[k.startsWith('ref:') ? referenceKey(entry.name) : 'skip:' + entry.name] = picks[k]!;
+            delete picks[k];
+          }
+        chat.picks = picks;
+      }
+      if (entry) cast[at] = entry;
+      else cast.splice(at, 1);
+    } else if (entry) cast.push(entry);
+    else throw Error('Nothing to change.');
+    chat.cast = cast;
+    chat.brief = briefWithCast(chat.brief, cast, removed, renames);
+    chat.brief_updated_by = 'you';
+    chat.brief_updated_at = now();
     chat.version++;
     this.save(chat);
     return this.view(id);
@@ -723,7 +774,7 @@ export class Chats {
         const wanted = String(value.name ?? '')
           .trim()
           .toLowerCase();
-        const entry = castFromBrief(current.brief).find(e => e.name.toLowerCase() === wanted);
+        const entry = castOf(current).find(e => e.name.toLowerCase() === wanted);
         const asset = assets.find(
           a =>
             a.handle ===
@@ -736,7 +787,7 @@ export class Chats {
             JSON.stringify({
               ok: false,
               error: 'That name is not in cast_and_places. Add it to the brief first (update_brief), then approve.',
-              names: castFromBrief(current.brief).map(e => e.name),
+              names: castOf(current).map(e => e.name),
             }),
           );
         if (!asset || asset.kind !== 'image')
@@ -812,7 +863,7 @@ export class Chats {
             validateChatReferences(request);
             request.prompt = validateCastReferences(
               request,
-              castFromBrief(current.brief),
+              castOf(current),
               current.picks ?? {},
               castWarned,
             );
@@ -829,7 +880,7 @@ export class Chats {
                 );
             }
             // Each referenced character's look from the brief rides along in words, so a new frame keeps it.
-            request.prompt = withCastLooks(request, castFromBrief(current.brief), current.picks ?? {});
+            request.prompt = withCastLooks(request, castOf(current), current.picks ?? {});
             // Sound nobody asked for is a creative change: a new clip stays silent unless the user's recent messages
             // ask for sound (an existing draft keeps the sound it already had).
             const askedText = current.messages
@@ -1373,7 +1424,7 @@ export class Chats {
       const context = JSON.stringify({
         project_brief: chat.brief || null,
         // Each character and place in the brief, and whether the owner has approved a reference image for it.
-        cast_and_places: castFromBrief(chat.brief).map(e => ({
+        cast_and_places: castOf(chat).map(e => ({
           name: e.name,
           kind: e.kind,
           // The exact token of the approved picture, so the model never guesses which handle is whose.
@@ -1464,13 +1515,29 @@ export class Chats {
             .trim();
           if (!text || text.length > 8000)
             throw Error(JSON.stringify({ ok: false, error: 'Send the whole brief, 1-8000 characters.' }));
-          current.brief = text;
+          // The cast is a record: the brief adds to it and updates looks, but leaving a name out does not remove it.
+          const before = castOf(current);
+          current.cast = mergeCast(before, text);
+          const listed = castFromBrief(text).map(e => e.name.toLowerCase());
+          const added = current.cast.filter(e => !before.some(x => x.name.toLowerCase() === e.name.toLowerCase()));
+          const kept = current.cast.filter(
+            e => !listed.includes(e.name.toLowerCase()) && !castFromBrief(text).some(x => sameCast(x.name, e.name)),
+          );
+          current.brief = briefWithCast(text, current.cast);
           current.brief_updated_by = 'seed';
           current.brief_updated_at = now();
           this.save(current);
           const result = {
             ok: true,
             saved: true,
+            ...(added.length ? { cast_added: added.map(e => e.name) } : {}),
+            ...(kept.length
+              ? {
+                  cast_kept: kept.map(e => e.name),
+                  cast_kept_note:
+                    'These stay in the cast and were put back in the brief. If the user asked to drop one, tell them to remove it under Cast & places.',
+                }
+              : {}),
             next_action: 'Mention briefly what you recorded in the brief. Keep every draft consistent with it.',
           };
           return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };

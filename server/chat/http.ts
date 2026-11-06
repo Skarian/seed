@@ -96,6 +96,30 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
     ),
   );
   app.put(
+    '/api/v1/chats/:id/cast',
+    {
+      schema: {
+        body: object(
+          {
+            from: { type: ['string', 'null'], maxLength: 60 },
+            entry: {
+              anyOf: [
+                { type: 'null' },
+                object({
+                  kind: { type: 'string', enum: ['character', 'place', 'prop'] },
+                  name: { type: 'string', minLength: 1, maxLength: 60 },
+                  look: { type: 'string', maxLength: 600 },
+                }),
+              ],
+            },
+          },
+          ['from', 'entry'],
+        ),
+      },
+    },
+    perform(r => chats.editCast(id(r), r.body.from, r.body.entry)),
+  );
+  app.put(
     '/api/v1/chats/:id/picks',
     {
       schema: {

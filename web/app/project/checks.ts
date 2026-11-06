@@ -1,5 +1,5 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
-import { castFromBrief, referenceKey, sameCast } from '../../../shared/cast.js';
+import { castFromBrief, castOf, referenceKey, sameCast } from '../../../shared/cast.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
@@ -164,7 +164,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   const forAll = siblings <= 1 || /\b(all|every|each|both|them)\b/i.test(trigger?.text ?? '');
   const asked: ReturnType<typeof askedFor> = trigger && forAll ? askedFor([trigger]) : {};
   // An input that is an older reference of a cast member (approved since, or replaced) is swapped for the approved one.
-  const cast = castFromBrief(project.brief);
+  const cast = castOf(project);
   for (const ref of r.references ?? []) {
     const made = project.jobs.find(j => j.outputs.includes(ref.asset_id));
     const who = made?.request.title?.match(/^Reference:\s*(.+)$/i)?.[1];
@@ -365,7 +365,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   const fromFrame = r.workflow === 'reference-to-video' && (r.references ?? []).some(x => x.role === 'first_frame');
   // A character, place or prop whose approved reference image is an input of this draft is carried by that image.
   const shown = new Set(
-    castFromBrief(project.brief)
+    castOf(project)
       .filter(e => {
         const id = project.picks?.[referenceKey(e.name)];
         return id && (r.references ?? []).some(x => x.asset_id === id);
@@ -373,7 +373,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       .map(e => e.name.split(' ')[0]!.toLowerCase()),
   );
   const shownPlaces = new Set(
-    castFromBrief(project.brief)
+    castOf(project)
       .filter(e => e.kind !== 'character')
       .filter(e => {
         const id = project.picks?.[referenceKey(e.name)];

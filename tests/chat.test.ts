@@ -599,3 +599,23 @@ it('bringing back several drafts joins them into one plan',async()=>fixture(asyn
   c=chats.restore(c.id,card.id,1,{...request,prompt:'Another'},true);
   expect(c.groups).toHaveLength(groups);expect(c.groups.at(-1)!.cards).toHaveLength(2);
 }));
+
+it('edits the cast on purpose: a rename carries its approved picture and the brief follows',async()=>fixture(async({chats,db})=>{
+  db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('ref-noor','image','Noor','media/originals/n',JSON.stringify({mode:'sfw'}),'0001');
+  let c=chats.create('sfw');
+  c=chats.settings(c.id,c.version,{brief:'## Characters\n- Noor Haddad: deckhand, red scarf\n## Places\n- The Pier: long pier'});
+  expect(c.cast!.map(e=>e.name)).toEqual(['Noor Haddad','The Pier']);
+  c=chats.pick(c.id,'ref:Noor Haddad','ref-noor');
+  c=chats.editCast(c.id,'Noor Haddad',{kind:'character',name:'Noor',look:'deckhand, red scarf, oilskin'});
+  expect(c.picks!['ref:Noor']).toBe('ref-noor');expect(c.picks!['ref:Noor Haddad']).toBeUndefined();
+  expect(c.brief).toContain('- Noor: deckhand, red scarf, oilskin');expect(c.brief).not.toContain('Noor Haddad');
+  c=chats.editCast(c.id,null,{kind:'prop',name:'The Lantern',look:'tin lantern'});
+  expect(c.brief).toContain('## Props\n- The Lantern: tin lantern');
+  c=chats.editCast(c.id,'The Pier',null);
+  expect(c.cast!.map(e=>e.name)).toEqual(['Noor','The Lantern']);expect(c.brief).not.toContain('The Pier');
+  // The owner rewording a line that no longer parses keeps the entry; deleting a name altogether removes it.
+  c=chats.settings(c.id,c.version,{brief:'## Characters\n* NOOR — deckhand\n## Props\n- The Lantern: tin lantern'});
+  expect(c.cast!.map(e=>e.name)).toEqual(['Noor','The Lantern']);
+  c=chats.settings(c.id,c.version,{brief:'## Characters\n- Noor: deckhand'});
+  expect(c.cast!.map(e=>e.name)).toEqual(['Noor']);
+}));

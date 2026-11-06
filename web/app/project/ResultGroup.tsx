@@ -18,7 +18,7 @@ import { useApp, type ViewerItem } from '../data.js';
 import { styleName, type StyleEntry } from './readiness.js';
 import { readablePrompt } from './checks.js';
 import { roleLabels } from './requests.js';
-import { castFromBrief, referenceKey } from '../../../shared/cast.js';
+import { castOf, referenceKey } from '../../../shared/cast.js';
 import { shotFromTitle } from '../../../shared/shots.js';
 
 type Actions = {
@@ -607,7 +607,7 @@ function ResultTile({
   const approve =
     video || !actions.onApproveReference
       ? []
-      : castFromBrief(project.brief)
+      : castOf(project)
           .slice(0, 8)
           .map(e => {
             const on = project.picks?.[referenceKey(e.name)] === asset;
