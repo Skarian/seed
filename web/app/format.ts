@@ -245,10 +245,15 @@ export type TileState = {
   tone: 'live' | 'done' | 'bad' | 'wait' | 'off';
   percent?: number;
   cancellable: boolean;
+  /** The picture is made on the GPU and only its saving is left: Try saving again. */
+  retained?: boolean;
 };
 export function tileState(job: JobRecord, now = Date.now()): TileState {
   const state = jobState(job);
   if (state === 'completed') return { label: 'Done', tone: 'done', cancellable: false };
+  // Made on a GPU but not yet saved here: not a failure while the job is still open, and it can still be cancelled.
+  if (job.recovery_blocked && !['failed', 'cancelled', 'completed'].includes(job.state))
+    return { label: 'Made, not saved here yet', tone: 'wait', cancellable: true, retained: true };
   if (state === 'cancelled') return { label: 'Cancelled', tone: 'off', cancellable: false };
   if (state === 'failed' || state === 'blocked')
     return { label: job.error ? 'Failed · ' + job.error : 'Failed', tone: 'bad', cancellable: false };

@@ -57,6 +57,9 @@ it('finishes a rental once it reaches its time cap, even while it is busy betwee
   await f.pool.tick();const id=f.pool.all()[0]!.id;expect(f.pool.get(id)!.max_minutes).toBe(60);
   f.advance(59*60_000);await f.pool.tick();expect(f.pool.get(id)!.quit_mode).toBeUndefined();
   f.advance(2*60_000);await f.pool.tick();expect(f.pool.get(id)!.released_reason).toBe('limit');expect(f.pool.get(id)!.quit_mode).toBe('finish');
+  // Work that never finishes cannot hold it past a grace period: the cap becomes a hard stop.
+  f.advance(13*60_000);await f.pool.tick();
+  const after=f.pool.get(id)!;expect(after.state==='released'||after.state==='releasing'||after.quit_mode==='now').toBe(true);
 }));
 it('changes the limits of an active rental',()=>fixture(async f=>{
   const offer=(await f.pool.offers('image')).items.find(o=>o.provider==='vast')!;

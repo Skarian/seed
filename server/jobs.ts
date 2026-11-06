@@ -129,7 +129,7 @@ export class Jobs {
         if (current) {
           if (current.job.worker?.receipt?.manifest?.state === 'completed') {
             current.job.recovery_blocked = actionableTransfer(error);
-            current.job.error = 'The output is retained on the worker. Retry saving after checking local storage or reconnecting.';
+            current.job.error = 'The picture was made but did not reach this PC. Try saving again, or cancel it.';
           } else {
             current.job.state = 'needs_attention';
             current.job.error = action==='retry_local'?'Local retry could not proceed. The prior attempt and any output files are preserved; check the worker before retrying.':'The worker could not confirm recovery. The original request is still reserved; check its worker before trying again.';
@@ -598,9 +598,10 @@ export class Jobs {
       if(localExecutor(worker)&&worker.issue){
         // A style that cannot be downloaded fails only this job; Seed PC is freed for everything else.
         if(worker.issue.code==='local_adapter_failed'&&!job.worker.submitted&&!job.submission_pending){
-          const detail=worker.issue.message.replace(/\s*Check the Civitai key and source in Admin, then retry the download\.?/i,'').trim();
+          // The style's own name in plain words: no nested brackets or HTTP codes.
+          const style=worker.issue.message.match(/(?:download or verify|get) (.+?)(?: \(HTTP|\.|$)/)?.[1]?.trim();
           job.state='failed';
-          job.error=`Couldn't get this draft's style on Seed PC${detail?` (${detail.replace(/\.$/,'')})`:''}. Make it again without the style, or check the Civitai key in Settings › API keys.`;
+          job.error=`Seed PC couldn't download ${style?'the '+style+' style':"this draft's style"}. Make it without the style, or check your Civitai key in Settings.`;
           this.save(job);this.pool.complete(job.id);continue;
         }
         job.state='needs_attention';job.error=worker.issue.message;this.save(job);continue;
@@ -651,7 +652,7 @@ export class Jobs {
           if (job.worker?.receipt?.manifest?.state === "completed") {
             job.recovery_blocked = actionableTransfer(error);
             job.error =
-              "The output is retained on the worker. Retry saving after checking local storage or reconnecting.";
+              "The picture was made but did not reach this PC. Try saving again, or cancel it.";
           } else if(localExecutor(worker)&&worker.interrupted){
             job.state='needs_attention';job.error=error instanceof Error?error.message:'Local recovery needs attention.';
           } else if (job.submission_pending) {

@@ -531,6 +531,14 @@ function ResultTile({
             <span className="wait-text">
               <span className={'dot ' + (state.tone === 'live' ? 'live' : 'amber')} />
               {state.label}
+              {state.retained && (
+                <>
+                  <small className="wait-reason">The picture was made but didn’t reach this PC.</small>
+                  <button className="btn small" style={{ marginTop: 8 }} onClick={() => void jobsApi.recover(job.id)}>
+                    Try saving again
+                  </button>
+                </>
+              )}
               {/* A specific blocker (not ordinary queueing) is shown where the waiting job is. */}
               {job.state === 'queued' &&
                 job.waiting_reason &&
@@ -553,7 +561,7 @@ function ResultTile({
                       : actions.onRetryFailed(card)
                 }
               >
-                {job.state === 'needs_attention' ? 'Check again' : rejected ? 'Change settings' : 'Retry'}
+                {job.state === 'needs_attention' ? 'Check again' : rejected ? 'Change settings' : 'Make it again'}
               </button>
             </span>
           ) : state.tone === 'off' ? (

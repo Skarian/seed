@@ -145,7 +145,7 @@ it('downloads selected LoRAs added after enablement, including additions while t
 it('fails only the job whose style cannot download, and frees Seed PC for other work',()=>jobsFixture(async f=>{
   const loras=catalog(f.paths,['a']);f.runtime.prepareAdapters.mockRejectedValueOnce(Error('HTTP 401: check the Civitai key'));
   const {jobs:[job]}=await f.jobs.submit({...f.request,target:'local',loras},'retry-local-lora');await f.settle();
-  expect(f.jobs.get(job.id)).toMatchObject({state:'failed',error:expect.stringContaining('401')});
+  expect(f.jobs.get(job.id)).toMatchObject({state:'failed',error:expect.stringMatching(/^Seed PC couldn't download (?:the .+ style|this draft's style)\. Make it without the style/)});
   expect(f.jobs.get(job.id).error).toContain('without the style');
   expect(f.runtime.start).not.toHaveBeenCalled();expect(f.worker.submit).not.toHaveBeenCalled();
   expect(f.local.get().issue).toBeUndefined();expect(f.local.get().current_job_id).toBeUndefined();

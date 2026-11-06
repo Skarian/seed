@@ -522,7 +522,26 @@ export class WorkerPool {
   /** Track idle time and finish a worker that stayed idle past its policy. Server-side, so it works with no browser open. */
   private releaseIfIdle(id: string) {
     const w = this.get(id);
-    if (!w || stopped(w) || w.quit_mode) return false;
+    if (!w || stopped(w)) return false;
+    // The time cap is a hard stop: work still running a grace period past it (a fifth of the cap, at least five
+    // minutes) is cancelled and the rental released, so a job that never finishes cannot keep a GPU billing.
+    if (
+      w.quit_mode === "finish" &&
+      w.released_reason === "limit" &&
+      w.max_minutes &&
+      w.allocated_at &&
+      this.now() - Date.parse(w.allocated_at) >= w.max_minutes * 60_000 + Math.max(5, w.max_minutes / 5) * 60_000
+    ) {
+      this.diagnostics?.event({ category: "worker", operation: "worker.limit_stop", worker_id: id, provider: w.provider, data: { max_minutes: w.max_minutes } });
+      this.update(id, (current) => {
+        current.quit_mode = "now";
+        current.state = "releasing";
+      });
+      this.cancelJobs(id);
+      this.releaseNow(id);
+      return true;
+    }
+    if (w.quit_mode) return false;
     // A rental time cap: finish current work, then release, so a forgotten GPU cannot bill indefinitely.
     if (w.max_minutes && w.allocated_at && this.now() - Date.parse(w.allocated_at) >= w.max_minutes * 60_000) {
       this.diagnostics?.event({ category: "worker", operation: "worker.limit_release", worker_id: id, provider: w.provider, data: { max_minutes: w.max_minutes } });
