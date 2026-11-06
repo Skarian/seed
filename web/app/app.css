@@ -4211,9 +4211,9 @@ textarea::placeholder {
   color: var(--accent);
 }
 
-/* Phones, reading down the conversation: the header keeps only its title row; scrolling up brings the rest back. */
+/* Phones, reading down the conversation: the status pill tucks away with the brief bar; scrolling up brings both back. */
 @media (max-width: 699px) {
-  body.reading .head .seg.views,
+  /* The views stay: Conversation and Storyboard must always be one tap away. */
   body.reading .head button.status {
     display: none;
   }

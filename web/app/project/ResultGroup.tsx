@@ -144,7 +144,7 @@ function CardResults({
   // Cancelled takes that were made again since (a later job with the same title) need no "Make again".
   const remade = madeAgain(project, title, cancelled, list);
   const status = running.length
-    ? `${done.length} of ${list.length} done · making`
+    ? `${done.length} of ${list.length} done · ${running.every(j => j.state === 'queued') ? 'queued' : 'making'}`
     : [
         done.length ? (done.length === list.length ? 'Done' : `${done.length} done`) : '',
         failed.length ? `${failed.length} failed` : '',
@@ -267,13 +267,13 @@ function CardResults({
     );
   const notNowRow = notNow.length > 0 && (
     <div className="notnow">
-      <span>Not made this time:</span>
+      <span>Not run · kept as drafts:</span>
       {notNow.filter(c => !broughtBack(c) && !madeLater(c)).length > 1 && (
         <button
           className="btn small"
           onClick={() => actions.onBringBackAll(notNow.filter(c => !broughtBack(c) && !madeLater(c)))}
         >
-          Bring back all {notNow.filter(c => !broughtBack(c) && !madeLater(c)).length}
+          Move all {notNow.filter(c => !broughtBack(c) && !madeLater(c)).length} back to the plan
         </button>
       )}
       {notNow.map(c => (
@@ -285,9 +285,9 @@ function CardResults({
             <button
               className="link"
               onClick={() => actions.onBringBack(c)}
-              aria-label={(madeLater(c) ? 'Make this earlier version of ' : 'Bring back ') + titleOf(latest(c).request)}
+              aria-label={(madeLater(c) ? 'Make this earlier version of ' : 'Move back to the plan: ') + titleOf(latest(c).request)}
             >
-              {madeLater(c) ? 'Make this version instead' : 'Bring back'}
+              {madeLater(c) ? 'Make this version instead' : 'Move back to the plan'}
             </button>
           )}
         </span>
@@ -660,7 +660,7 @@ function ResultTile({
           ...(!video
             ? [
                 {
-                  label: 'Ask Seed to check it',
+                  label: 'Check against the brief',
                   hint: 'Against the brief and references',
                   onSelect: () => app.useResult(item, 'check'),
                 },
@@ -699,7 +699,7 @@ function ResultTile({
             ...(!video
               ? [
                   {
-                    label: 'Ask Seed to check it',
+                    label: 'Check against the brief',
                     hint: 'Against the brief and references',
                     onSelect: () => app.useResult(item, 'check'),
                   },

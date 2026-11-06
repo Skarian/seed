@@ -194,7 +194,7 @@ export function AssetPanel({
     ...(item.kind === 'image' && source?.chat_id
       ? [
           {
-            label: 'Ask Seed to check it',
+            label: 'Check against the brief',
             hint: 'Against the brief and the approved references.',
             onSelect: () => {
               onClosed?.();
@@ -284,7 +284,7 @@ export function AssetPanel({
               app.useResult({ ...item, job }, 'check');
             }}
           >
-            Check it
+            Check against the brief
           </button>
         )}
         {!actionsOnly && !video && (

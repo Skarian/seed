@@ -1271,7 +1271,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
             ) : (
               <>{conflict.label} starts a new plan. </>
             )}
-            The waiting drafts stay listed under “Not made yet” with their settings, and Bring back returns any of them.
+            The waiting drafts stay listed under “Not run · kept as drafts” with their settings, and Move back to the plan returns any of them.
             Nothing is made or deleted, and your message is kept.
           </p>
         </Dialog>

@@ -91,6 +91,22 @@ export function Composer(p: Props) {
     [picker, setPicker] = useState(false),
     [roleFor, setRoleFor] = useState<string | null>(null);
   const touch = useMemo(() => matchMedia('(pointer: coarse)').matches, []);
+  // Expanded, the composer is a writing sheet over the page: everything behind it is inert, so focus and screen
+  // readers stay in it until Collapse or Escape.
+  const root = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    if (!expanded || !narrow) return;
+    const behind: HTMLElement[] = [];
+    for (let el: HTMLElement | null = root.current; el && el !== document.body; el = el.parentElement)
+      for (const sib of Array.from(el.parentElement?.children ?? []))
+        if (sib !== el && sib instanceof HTMLElement && !sib.inert) {
+          sib.inert = true;
+          behind.push(sib);
+        }
+    return () => {
+      for (const b of behind) b.inert = false;
+    };
+  }, [expanded, narrow]);
   useLayoutEffect(() => {
     const el = area.current;
     if (!el) return;
@@ -210,6 +226,7 @@ export function Composer(p: Props) {
   };
   return (
     <div
+      ref={root}
       className={
         'composer' +
         (expanded ? ' expanded' : '') +

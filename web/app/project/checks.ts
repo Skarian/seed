@@ -214,6 +214,28 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       text: 'You asked for a style. Styles can’t be used on pictures made from references (FLUX 3 Image Klein), so this draft has none and its look comes from the prompt and the references. A picture from words (Krea 2) can use the style.',
       fixes: [],
     });
+  // A draft that can carry a style, asked for one in the message that made it, and has none: say so plainly.
+  if (
+    r.workflow !== 'image-to-image' &&
+    !(r.loras ?? []).length &&
+    trigger &&
+    /\b(?:my|the|in|with|use|using)\b[^.?!]{0,40}\bstyle\b/i.test(trigger.text) &&
+    // The style was meant for this draft: its title, kind (clip, animation) or "it" is in the same sentence.
+    trigger.text
+      .split(/(?<=[.!?])\s+/)
+      .some(
+        s =>
+          /\bstyle\b/i.test(s) &&
+          (video
+            ? /\b(clip|animat\w*|video|motion)\b/i.test(s)
+            : !/\b(clip|animat\w*|video|motion)\b/i.test(s)),
+      )
+  )
+    out.push({
+      code: 'no-style',
+      text: 'You asked for a style on this draft, but it has none. Choose it in Edit, under Style.',
+      fixes: [],
+    });
   const aspect = r.output.aspect;
   // References and reference sheets have their own shapes (4:5 for a character); the film's shape is not theirs.
   const isReference = /^reference( sheet)?:/i.test(r.title ?? '');

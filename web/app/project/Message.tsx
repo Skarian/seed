@@ -178,7 +178,13 @@ export function Message({
       )}
       {!running && unfinished.length > 0 && (
         <div className="notice warn" role="note">
-          <strong>Not done in this reply</strong>
+          <strong>
+            {receipt.length
+              ? unfinished.length === 1
+                ? 'One step didn’t work'
+                : `${unfinished.length} steps didn’t work`
+              : 'Not done in this reply'}
+          </strong>
           <ul style={{ margin: '4px 0 0', paddingLeft: '1.2em' }}>
             {unfinished.map((u, i) => (
               <li key={i}>

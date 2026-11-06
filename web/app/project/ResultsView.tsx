@@ -533,7 +533,7 @@ export function ResultsView({
         toBringBack.length
           ? shotWord(toBringBack) +
             (toBringBack.length === 1 ? ' has a saved draft' : ' have saved drafts') +
-            ': Bring back in the conversation to make.'
+            ': move ' + (toBringBack.length === 1 ? 'it' : 'them') + ' back to the plan in the conversation to make ' + (toBringBack.length === 1 ? 'it.' : 'them.')
           : '',
       ]
         .filter(Boolean)

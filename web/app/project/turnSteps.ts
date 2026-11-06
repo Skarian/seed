@@ -59,12 +59,29 @@ export function unfinishedSteps(turn: TurnTranscript | undefined): { label: stri
       (s.name === 'create_request' && !target(s.input)) ||
       s.name === 'choose_kind');
   const out: { label: string; reason: string }[] = [];
+  // Did the turn save anything (a draft, the brief, an approval)? Then Seed's own slips along the way stay quiet.
+  const progressed = tools.some(
+    t => t.state === 'succeeded' && /^(create_request|edit_request|update_brief|approve_reference|choose_take)$/.test(t.name ?? ''),
+  );
   tools.forEach((s, i) => {
     if (s.state !== 'failed') return;
     if (tools.slice(i + 1).some(t => madeGood(s, t))) return;
     const label = toolLabels[s.name ?? ''] ?? 'A step';
     const who = String(((s.input ?? {}) as Record<string, unknown>).name ?? '');
-    const reason = errorText(s.result).replace(/\s+/g, ' ').slice(0, 220);
+    const raw = errorText(s.result).replace(/\s+/g, ' ');
+    // Seed's own slips (a tool it could not use here, a draft id it got wrong, a malformed call) are not the
+    // person's problem: when the turn otherwise got work done they are left out; alone they read in plain words.
+    const internal = /not found|request_id|current review|wrong form|Unknown kind|no longer active|additional properties/i.test(raw);
+    const savesWork = /^(create_request|edit_request|update_brief|approve_reference|choose_take)$/.test(s.name ?? '');
+    // Made good by a later try, or the same draft (by title) saved anywhere in the turn.
+    const retried = tools.some(
+      (t, j) =>
+        t.name === s.name &&
+        t.state === 'succeeded' &&
+        (j > i || (Boolean(target(s.input)) && target(t.input) === target(s.input))),
+    );
+    if (internal && progressed && (!savesWork || retried)) return;
+    const reason = (internal ? 'Seed couldn’t finish this step. Nothing was lost; ask again to retry it.' : raw).slice(0, 220);
     const step = { label: who && s.name === 'approve_reference' ? `${label} for ${who}` : label, reason };
     if (out.some(o => o.label === step.label && o.reason === step.reason)) return;
     out.push(step);
