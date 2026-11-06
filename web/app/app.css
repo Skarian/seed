@@ -4115,3 +4115,29 @@ textarea::placeholder {
 .composer.resting .tools {
   flex: none;
 }
+/* While a picture loads, its space says so instead of looking empty; the picture covers this once it arrives. */
+.viewer .stage,
+.inspector .hero,
+.compare-grid .frame {
+  position: relative;
+}
+.viewer .stage::before,
+.compare-grid .frame::before {
+  content: 'Loading…';
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  color: var(--faint);
+  font-size: 0.875rem;
+  pointer-events: none;
+}
+.viewer .stage > *,
+.compare-grid .frame > * {
+  position: relative;
+  z-index: 1;
+}
+.compare-grid .frame img,
+.viewer .stage img {
+  background: var(--bg, #121411);
+}

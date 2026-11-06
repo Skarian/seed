@@ -1119,6 +1119,13 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                       if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' });
                       if (m === 'make' && context.type === 'using' && context.intent !== 'input')
                         setSettings({ ...settings, kind: context.intent === 'animate' ? 'animate' : 'edit' });
+                      // An attached image with words-only Image chosen: Make now edits the image instead of refusing it.
+                      else if (
+                        m === 'make' &&
+                        (settings.kind === 'image' || settings.kind === 'video') &&
+                        attachments.some(x => x.kind === 'image')
+                      )
+                        setSettings({ ...settings, kind: settings.kind === 'video' ? 'animate' : 'edit' });
                     }}
                     text={text}
                     onText={setText}
