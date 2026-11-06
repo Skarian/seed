@@ -4455,3 +4455,14 @@ textarea::placeholder {
   margin: 0 0 6px;
   font-size: 0.8125rem;
 }
+
+/* A draft's input chips keep each name on one line ("Reference · The Lighthouse"), shortening it if space is tight. */
+.input-chip > span {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  min-width: 0;
+}
+.input-chip {
+  max-width: 100%;
+}
