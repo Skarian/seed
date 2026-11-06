@@ -7,7 +7,7 @@ import { WorkerPool } from "./pool.js";
 import type { WorkerReceipt } from "./pool-contracts.js";
 import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { hardwareProfile } from "./hardware.js";
-import { resolveDimensions } from "../shared/resolution.js";
+import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { nextProgress } from "../shared/generation-progress.js";
 import { jobState } from "../shared/jobs.js";
 import {
@@ -401,7 +401,7 @@ export class Jobs {
     const dimensions = request.workflow==='image-to-image'
       ? request.output.aspect==='source'
         ? {width:prepared[0]!.width!,height:prepared[0]!.height!}
-        : resolveDimensions('text-to-image',request.output.size,request.output.aspect)
+        : kleinCanvas(resolveDimensions('text-to-image',request.output.size,request.output.aspect))
       : resolveDimensions(request.workflow,request.output.size,request.output.aspect);
     const submission_id = randomUUID(),
       now = new Date().toISOString();
@@ -737,8 +737,15 @@ export class Jobs {
         if (!receipt) {
           job.submission_pending = false;
           job.state = "failed";
-          job.error =
-            "The worker rejected these settings before generation. Review the request and worker version.";
+          // The worker's own reason is a settings check, never prompt text: show it so the fix is clear.
+          const said = (() => {
+            const d = error.detail as { error?: unknown; detail?: unknown; message?: unknown } | string | undefined;
+            const text = typeof d === 'string' ? d : typeof d?.error === 'string' ? d.error : typeof d?.detail === 'string' ? d.detail : typeof d?.message === 'string' ? d.message : '';
+            return text && text.length <= 200 ? text.replace(/\s+/g, ' ').trim() : '';
+          })();
+          job.error = said
+            ? `Generation did not start: the GPU rejected a setting (${said}). Change the size or shape and make it again.`
+            : "Generation did not start: the GPU rejected a setting. Change the size or shape and make it again.";
           this.save(job);
           this.pool.complete(job.id);
           return;
@@ -884,7 +891,7 @@ export class Jobs {
     if (this.get(job.id)?.worker?.quit_now) return;
     if (this.finishCancellation(job)) return;
     Object.assign(metadata, {
-      ...(job.request.workflow==='image-to-image'?{runtime_profile:usesKlein(job.request)?KLEIN_PROFILE:QWEN_PROFILE,runtime_settings:usesKlein(job.request)?KLEIN_SETTINGS:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),...(job.request.output.aspect==='source'?{resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{resolved_width:resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect).width,resolved_height:resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect).height})}:{}),
+      ...(job.request.workflow==='image-to-image'?{runtime_profile:usesKlein(job.request)?KLEIN_PROFILE:QWEN_PROFILE,runtime_settings:usesKlein(job.request)?KLEIN_SETTINGS:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),...(job.request.output.aspect==='source'?{resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{resolved_width:kleinCanvas(resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect)).width,resolved_height:kleinCanvas(resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect)).height})}:{}),
       job_id: job.id,
       mode: job.request.mode,
       mime_type: output.mime_type,

@@ -59,3 +59,11 @@ export function resolutionOptions(workflow: string, aspect: string, selected: Re
   }
   return [...groups.values()];
 }
+
+/**
+ * FLUX 3 Image Klein's canvas (EmptyFlux2LatentImage) must be a multiple of 16 on each side: 1920 × 1080 becomes
+ * 1920 × 1088. The graph, the saved size and the worker's check all use this one rounding.
+ */
+export function kleinCanvas(d: Dimensions): Dimensions {
+  return { width: Math.round(d.width / 16) * 16, height: Math.round(d.height / 16) * 16 };
+}

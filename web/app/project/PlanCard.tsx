@@ -208,7 +208,8 @@ export function PlanCard({
           return (
             <div className="check-note plan-wide preflight">
               <span>
-                Not in the words of {missing.length === 1 ? 'this draft' : `${missing.length} drafts`}:{' '}
+                {missing.length === 1 ? 'This draft may be missing' : `These ${missing.length} drafts may be missing`}{' '}
+                brief details:{' '}
                 {missing
                   .map(
                     m =>
@@ -232,7 +233,7 @@ export function PlanCard({
                   })();
                 }}
               >
-                Add the missing details to {missing.length === 1 ? 'it' : `all ${missing.length}`}
+                Add details to {missing.length === 1 ? 'it' : `${missing.length} drafts`}
               </button>
             </div>
           );

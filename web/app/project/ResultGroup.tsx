@@ -488,6 +488,8 @@ function ResultTile({
     base.label === 'Waiting for GPU' || base.label === 'Queued'
       ? { ...base, label: gpuWait(app.pool, video ? 'video' : 'image') ?? base.label }
       : base;
+  // A setting the GPU refused fails the same way again: offer to change it instead of retrying as is.
+  const rejected = /^Generation did not start: the GPU rejected a setting/.test(job.error ?? '');
   const asset = job.outputs[0];
   if (job.state !== 'completed' || !asset)
     return (
@@ -522,10 +524,14 @@ function ResultTile({
                 className="btn small"
                 style={{ marginTop: 8 }}
                 onClick={() =>
-                  job.state === 'needs_attention' ? void jobsApi.recover(job.id) : actions.onRetryFailed(card)
+                  job.state === 'needs_attention'
+                    ? void jobsApi.recover(job.id)
+                    : rejected
+                      ? actions.onReuse(card)
+                      : actions.onRetryFailed(card)
                 }
               >
-                {job.state === 'needs_attention' ? 'Check again' : 'Retry'}
+                {job.state === 'needs_attention' ? 'Check again' : rejected ? 'Change settings' : 'Retry'}
               </button>
             </span>
           ) : state.tone === 'off' ? (

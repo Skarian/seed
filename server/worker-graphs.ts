@@ -1,7 +1,7 @@
 import type { ImageRequest } from "./workflows.js";
 import type { PreparedReference } from "./media.js";
 import { loraRoute, usesKlein } from "../shared/workflows.js";
-import { resolveDimensions } from "../shared/resolution.js";
+import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { videoDetail, videoSteps } from '../shared/video-settings.js';
 import type { HardwareProfile } from "./hardware.js";
 export type GraphLora = {
@@ -130,7 +130,7 @@ function editGraph(request:ImageRequest,id:string,seed:string,refs:PreparedRefer
 function kleinGraph(request:ImageRequest,id:string,seed:string,refs:PreparedReference[]):Graph {
   if(!refs.length || refs[0]?.role!=='source')throw Error('A prepared source image is required.');
   const source=refs[0]!;
-  const {width,height}=resolveDimensions('image-to-image',request.output.size,request.output.aspect,source.width&&source.height?{width:source.width,height:source.height}:undefined);
+  const {width,height}=kleinCanvas(resolveDimensions('image-to-image',request.output.size,request.output.aspect,source.width&&source.height?{width:source.width,height:source.height}:undefined));
   const graph:Graph={
     '1':{class_type:'UNETLoader',inputs:{unet_name:'flux3-image-klein-int8-convrot.safetensors',weight_dtype:'default'}},
     '2':{class_type:'CLIPLoader',inputs:{clip_name:'qwen3vl_4b_int8_convrot.safetensors',type:'flux3',device:'default'}},

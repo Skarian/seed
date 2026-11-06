@@ -131,6 +131,11 @@ it('FLUX 3 Image Klein makes a new shot at the draft shape from reference images
   // Kept at the source shape, the canvas follows the source image.
   const same:any=graphFor(imageRequest({...request,engine:'klein'}),'job','42',[],[{...refs[0],width:2000,height:1000}]);
   expect([same['6'].inputs.width,same['6'].inputs.height]).toEqual([1440,736]);
+  // Every image size and shape gives a canvas on the 16-pixel grid the Klein latent needs (1920 x 1080 becomes 1088).
+  for(const size of ['image-480','image-768','1mp','2mp','image-1440'] as const)for(const aspect of ['16:9','9:16','1:1','4:5'] as const){
+    const c:any=graphFor(imageRequest({...request,engine:'klein',output:{aspect,size}} as any),'job','42',[],refs);
+    expect([c['6'].inputs.width%16,c['6'].inputs.height%16]).toEqual([0,0]);
+  }
 });
 it('new edit drafts use Klein, saved Qwen drafts keep Qwen, and the tool can switch',()=>{
   const ctx={workflow:'image-to-image' as const,mode:'sfw' as const,assets:[{handle:'input1',asset_id:'photo',kind:'image' as const}]};

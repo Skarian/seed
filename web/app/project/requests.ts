@@ -75,7 +75,7 @@ export const roleLabels: Record<string, string> = {
 export function defaultRoles(kind: Kind, list: Attachment[]): Attachment[] {
   let source = false,
     first = false;
-  return list.map(a => {
+  const out: Attachment[] = list.map((a): Attachment => {
     const allowed = rolesFor(kind, a.kind);
     if (
       a.role &&
@@ -97,6 +97,12 @@ export function defaultRoles(kind: Kind, list: Attachment[]): Attachment[] {
     }
     return { ...a, role: allowed.includes('reference') ? 'reference' : undefined };
   });
+  // An edit always has a source: when every image came in as a reference, the first one is the picture to edit.
+  if (kind === 'edit' && !out.some(a => a.role === 'source')) {
+    const at = out.findIndex(a => a.kind === 'image');
+    if (at >= 0) out[at] = { ...out[at]!, role: 'source' };
+  }
+  return out;
 }
 /** Why these inputs cannot make this kind, or null when they can. */
 export function inputProblem(kind: Kind, list: Attachment[]) {
