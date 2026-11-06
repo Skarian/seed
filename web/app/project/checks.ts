@@ -1,4 +1,5 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
+import { asksSavedStyle } from '../../../shared/styles-asked.js';
 import { castFromBrief, castOf, referenceKey, sameCast, lookParts, isVisibleDetail } from '../../../shared/cast.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
@@ -208,7 +209,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       .filter(m => m.role === 'user')
       .slice(-3)
       .some(m =>
-        /\b(my|the|in|with|use|using)\b[^.?!]{0,40}\bstyle\b|\bstyle\b[^.?!]{0,10}\b(lora|preset)\b/i.test(m.text),
+        asksSavedStyle(m.text),
       )
   )
     out.push({
@@ -222,7 +223,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     r.workflow !== 'image-to-image' &&
     !(r.loras ?? []).length &&
     trigger &&
-    /\b(?:my|the|in|with|use|using)\b[^.?!]{0,40}\bstyle\b/i.test(trigger.text) &&
+    asksSavedStyle(trigger.text) &&
     // The style was meant for this draft: its title, kind (clip, animation) or "it" is in the same sentence.
     trigger.text
       .split(/(?<=[.!?])\s+/)
@@ -864,3 +865,4 @@ const personality =
 /** How the film is delivered ("2.39:1 widescreen via Crop", "24 fps") is a setting of the project, not words for a prompt. */
 const deliveryNote =
   /\b(delivery|deliver(?:ed|s)?|aspect|ratio|crop(?:ped)?|letterbox\w*|widescreen|anamorphic|format|resolution|fps|frame rate|runtime|duration)\b|\b\d+(?:\.\d+)?\s*[:x×]\s*\d+\b/i;
+

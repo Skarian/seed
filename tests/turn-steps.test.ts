@@ -124,3 +124,12 @@ it('adds missing details after the whole name, without labels or unseen clothes'
   expect(out).toMatch(/^Head-and-shoulders portrait of Marit Halvorsen, with [^,]*mustard-yellow oilskin coat/);
   expect(out).not.toMatch(/Marit,/);
 });
+
+it('tells a saved style from a look described in words', async () => {
+  const { asksSavedStyle } = await import('../shared/styles-asked.js');
+  expect(asksSavedStyle('use the Tonal study style at 0.7')).toBe(true);
+  expect(asksSavedStyle('in my Watercolor study style')).toBe(true);
+  expect(asksSavedStyle('use the “Tonal study” style')).toBe(true);
+  expect(asksSavedStyle('in a hand-painted gouache style')).toBe(false);
+  expect(asksSavedStyle('Gouache style throughout, warm light')).toBe(false);
+});

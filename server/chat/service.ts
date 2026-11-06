@@ -35,6 +35,7 @@ import {
   withCastLooks,
 } from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
+import { asksSavedStyle } from '../../shared/styles-asked.js';
 import { castFromBrief, castOf, mergeCast, briefWithCast, referenceKey, sameCast, type CastEntry } from '../../shared/cast.js';
 import { shotsFromBrief, shotPickKey, shotNameKey, shotFromTitle } from '../../shared/shots.js';
 
@@ -1007,7 +1008,7 @@ export class Chats {
               current.messages
                 .filter(m => m.role === 'user')
                 .slice(-3)
-                .some(m => /\bstyle\b/i.test(m.text))
+                .some(m => asksSavedStyle(m.text))
                 ? {
                     no_style:
                       'No style is attached to this draft: styles cannot be used on pictures made from references (FLUX 3 Image Klein). Do not say it is in the style. If the user asked for a style on this draft, tell them in one sentence that the look is described in words instead, and that a picture from words (Krea 2) can use the style with less likeness; if their style was for another draft, say nothing about it here.',
@@ -1019,7 +1020,7 @@ export class Chats {
               current.messages
                 .filter(m => m.role === 'user')
                 .slice(-1)
-                .some(m => /\bstyle\b/i.test(m.text))
+                .some(m => asksSavedStyle(m.text))
                 ? {
                     style_missing:
                       'This draft has no style attached. If the user asked for a style on this draft, call edit_request with loras set to that style (from the styles listed for this kind) before replying; never say a draft uses a style unless its request shows it in loras.',

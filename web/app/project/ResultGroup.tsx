@@ -266,33 +266,51 @@ function CardResults({
         ['reviewing', 'revising', 'assembling'].includes(g.state) &&
         g.cards.some(x => titleOf(latest(x).request) === titleOf(latest(c).request)),
     );
+  // Drafts still waiting lead; versions since redrafted or already brought back fold into a short history.
+  const waiting = notNow.filter(c => !broughtBack(c) && !madeLater(c)),
+    history = notNow.filter(c => broughtBack(c) || madeLater(c));
   const notNowRow = notNow.length > 0 && (
     <div className="notnow">
-      <span>Not run · kept as drafts:</span>
-      {notNow.filter(c => !broughtBack(c) && !madeLater(c)).length > 1 && (
-        <button
-          className="btn small"
-          onClick={() => actions.onBringBackAll(notNow.filter(c => !broughtBack(c) && !madeLater(c)))}
-        >
-          Move all {notNow.filter(c => !broughtBack(c) && !madeLater(c)).length} back to the plan
+      {waiting.length > 0 && <span>Not run · kept as drafts:</span>}
+      {waiting.length > 1 && (
+        <button className="btn small" onClick={() => actions.onBringBackAll(waiting)}>
+          Move all {waiting.length} back to the plan
         </button>
       )}
-      {notNow.map(c => (
+      {waiting.map(c => (
         <span key={c.id}>
-          <b>{titleOf(latest(c).request)}</b>
-          {broughtBack(c) ? <span className="faint"> · brought back into the plan</span> : null}
-          {!broughtBack(c) && madeLater(c) ? <span className="faint"> · redrafted since</span> : null}{' '}
-          {!broughtBack(c) && (
-            <button
-              className="link"
-              onClick={() => actions.onBringBack(c)}
-              aria-label={(madeLater(c) ? 'Make this earlier version of ' : 'Move back to the plan: ') + titleOf(latest(c).request)}
-            >
-              {madeLater(c) ? 'Make this version instead' : 'Move back to the plan'}
-            </button>
-          )}
+          <b>{titleOf(latest(c).request)}</b>{' '}
+          <button
+            className="link"
+            onClick={() => actions.onBringBack(c)}
+            aria-label={'Move back to the plan: ' + titleOf(latest(c).request)}
+          >
+            Move back to the plan
+          </button>
         </span>
       ))}
+      {history.length > 0 && (
+        <details className="notnow-history">
+          <summary className="link">
+            Earlier versions ({history.length})
+          </summary>
+          {history.map(c => (
+            <span key={c.id}>
+              <b>{titleOf(latest(c).request)}</b>
+              <span className="faint">{broughtBack(c) ? ' · brought back into the plan' : ' · redrafted since'}</span>{' '}
+              {!broughtBack(c) && (
+                <button
+                  className="link"
+                  onClick={() => actions.onBringBack(c)}
+                  aria-label={'Make this earlier version of ' + titleOf(latest(c).request)}
+                >
+                  Make this version instead
+                </button>
+              )}
+            </span>
+          ))}
+        </details>
+      )}
     </div>
   );
   if (list.length && list.every(j => j.state === 'cancelled'))
