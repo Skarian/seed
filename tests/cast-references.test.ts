@@ -17,22 +17,21 @@ const request = (prompt: string) =>
 
 describe('who is who in reference drafts', () => {
   it('accepts a prompt that names each character beside their reference', () => {
-    expect(() =>
-      validateCastReferences(request('Odile, the woman from <image1>, waves to Pim, the boy from <image2>, in the orchard from <image3>.'), cast, picks),
-    ).not.toThrow();
+    const p = 'Odile, the woman from <image1>, waves to Pim, the boy from <image2>, in the orchard from <image3>.';
+    expect(validateCastReferences(request(p), cast, picks)).toBe(p);
   });
-  it('refuses a prompt that describes one character’s reference as another', () => {
-    expect(() =>
-      validateCastReferences(request('Pim, the boy from <image1>, and the woman from <image2> named Odile.'), cast, picks),
-    ).toThrow('<image1> is Odile Brann’s approved reference, but the prompt describes it as Pim');
+  it('refuses a mix-up once a turn, then names the picture instead of refusing again', () => {
+    const p = 'Pim, the boy from <image1>, and the woman from <image2> named Odile.';
+    const warned = new Set<string>();
+    expect(() => validateCastReferences(request(p), cast, picks, warned)).toThrow('is Odile Brann’s approved reference, but the prompt describes it as Pim');
+    expect(validateCastReferences(request(p), cast, picks, warned)).toContain('<image1> (Odile Brann)');
   });
-  it('asks to name a reference that is only described', () => {
-    expect(() => validateCastReferences(request('The boy from <image1> runs.'), cast, picks)).toThrow('Name who <image1> shows');
+  it('names a reference that is only described, without refusing', () => {
+    expect(validateCastReferences(request('The boy from <image1> runs.'), cast, picks)).toBe('The boy from <image1> (Odile Brann) runs.');
   });
   it('leaves places and unapproved images alone', () => {
-    expect(() =>
-      validateCastReferences(request('Odile from <image1> and Pim from <image2> under trees from <image3>.'), cast, { 'ref:Odile Brann': 'odile', 'ref:Pim': 'pim' }),
-    ).not.toThrow();
+    const p = 'Odile from <image1> and Pim from <image2> under trees from <image3>.';
+    expect(validateCastReferences(request(p), cast, { 'ref:Odile Brann': 'odile', 'ref:Pim': 'pim' })).toBe(p);
   });
 });
 

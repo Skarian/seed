@@ -615,6 +615,10 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
     const label = labels.get(ref.id);
     if (label) text = text.split(label).join('“' + assetName(project, ref.asset_id, everywhere) + '”');
   }
+  // The server names a reference beside its picture ("<image2> (Inez)"); the picture's own name already says it.
+  text = text.replace(/(“[^”]+”) \(([^)]{1,60})\)/g, (m, q: string, who: string) =>
+    q.toLowerCase().includes(who.toLowerCase()) ? q : m,
+  );
   // Video prompts are structured for the model; show their sections as plain headings.
   const headings: Record<string, string> = {
     integrated_multimodal_description: 'Scene',

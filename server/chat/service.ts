@@ -641,6 +641,8 @@ export class Chats {
       },
     };
     // The owner's choice of take for a shot, made by Seed when the owner asks in words ("use take 2 for shot 2").
+    // Who-is-who mix-ups already refused in this turn: never refused twice, so a turn cannot loop on them.
+    const castWarned = new Set<string>();
     const chooseTake: AgentTool = {
       name: 'choose_take',
       label: 'Choose take',
@@ -791,7 +793,12 @@ export class Chats {
               if (!current.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
             this.assertAssets(current, [...new Set((request.references ?? []).map(r => r.asset_id))]);
             validateChatReferences(request);
-            validateCastReferences(request, castFromBrief(current.brief), current.picks ?? {});
+            request.prompt = validateCastReferences(
+              request,
+              castFromBrief(current.brief),
+              current.picks ?? {},
+              castWarned,
+            );
             // A saved style named in the prompt must also be selected, so the words and the controls agree.
             if (request.workflow !== 'image-to-image') {
               const named = this.jobs.loras
@@ -1311,9 +1318,17 @@ export class Chats {
         cast_and_places: castFromBrief(chat.brief).map(e => ({
           name: e.name,
           kind: e.kind,
+          // The exact token of the approved picture, so the model never guesses which handle is whose.
           reference: chat.picks?.[referenceKey(e.name)]
-            ? `approved: the input whose chosen_for is “approved reference for ${e.name}”`
-            : 'none yet',
+            ? (() => {
+                const handle = toolAssets.find(t => t.asset_id === chat.picks![referenceKey(e.name)])?.handle;
+                return handle
+                  ? `approved: [[${handle}]] is ${e.name}; write ${e.name}’s name beside [[${handle}]]`
+                  : `approved: the input whose chosen_for is “approved reference for ${e.name}”`;
+              })()
+            : chat.picks?.['skip:' + e.name]
+              ? 'not needed (the owner said so)'
+              : 'none yet',
         })),
         delivery_frame: chat.frame
           ? `The owner delivers this project at ${chat.frame}; drafts are made at the closest supported shape and cropped to it afterwards, so keep important action inside a ${chat.frame} frame.`

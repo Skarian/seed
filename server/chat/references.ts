@@ -27,29 +27,39 @@ export function preserveChatLabels(previous: ImageRequest, next: ImageRequest) {
  * ("Odile, the woman from <image1>"), so the prompt cannot describe Odile's picture as Pim. The app knows which
  * reference is whose; the model only writes the words around it.
  */
-export function validateCastReferences(request: ImageRequest, cast: CastEntry[], picks: Record<string, string>) {
-  if (request.workflow !== 'image-to-image') return;
+export function validateCastReferences(
+  request: ImageRequest,
+  cast: CastEntry[],
+  picks: Record<string, string>,
+  warned: Set<string> = new Set(),
+): string {
+  if (request.workflow !== 'image-to-image') return request.prompt;
   const esc = (x: string) => x.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
   const first = (name: string) => name.trim().split(/\s+/)[0]!.toLowerCase();
   const named = (text: string, name: string) =>
     new RegExp('(^|[^\\p{L}])' + esc(first(name)) + '($|[^\\p{L}])', 'iu').test(text);
   const labels = chatReferenceLabels(request);
   const people = cast.filter(e => e.kind !== 'place');
+  let prompt = request.prompt;
   for (const ref of request.references ?? []) {
-    const label = labels.get(ref.id);
+    const label = labels.get(ref.id ?? ref.asset_id);
     const owner = people.find(e => picks[referenceKey(e.name)] === ref.asset_id);
     if (!label || !owner) continue;
-    for (const m of request.prompt.matchAll(new RegExp(esc(label), 'g'))) {
-      const near = request.prompt.slice(Math.max(0, m.index! - 90), m.index! + label.length + 40);
-      if (named(near, owner.name)) continue;
-      const other = people.find(e => e !== owner && named(near, e.name));
+    const near = (at: number) => prompt.slice(Math.max(0, at - 90), at + label.length + 40);
+    const at = prompt.indexOf(label);
+    if (at < 0 || named(near(at), owner.name)) continue;
+    const other = people.find(e => e !== owner && named(near(at), e.name));
+    // A real mix-up is refused once a turn, so the model rewrites who is who; never twice, so a turn cannot loop.
+    if (other && !warned.has(label)) {
+      warned.add(label);
       throw Error(
-        other
-          ? `${label} is ${owner.name}’s approved reference, but the prompt describes it as ${other.name}. Rewrite it so each reference is named for who it shows, for example “${owner.name}, the … from ${label}”.`
-          : `Name who ${label} shows: it is ${owner.name}’s approved reference. Write it as “${owner.name}, the … from ${label}”.`,
+        `[[${ref.id ?? ref.asset_id}]] is ${owner.name}’s approved reference, but the prompt describes it as ${other.name}. Each [[token]] is the handle of one picture: write “${owner.name}, the … from [[${ref.id ?? ref.asset_id}]]”, and put ${other.name} beside their own picture’s token.`,
       );
     }
+    // Otherwise name the picture in place, so the image model knows whose picture it is.
+    prompt = prompt.split(label).join(`${label} (${owner.name})`);
   }
+  return prompt;
 }
 
 /**
