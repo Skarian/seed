@@ -930,6 +930,23 @@ export class Chats {
                       'The user attached images, but this draft is made from words only and does not use them. Do not say it uses or follows the attached image. If the user wants the image to guide this shot, call choose_kind with edit (or animate) and edit_request this draft with the image as its input; otherwise tell them plainly that this draft is words only.',
                   }
                 : {}),
+              // A changed shot whose brief line still describes the old version: the agent is shown that line, so a
+              // change of mind reaches the shot list (the Storyboard reads it) and not only the draft.
+              ...(() => {
+                if (!before || !changed.includes('prompt')) return {};
+                const own = shotFromTitle(request.title ?? '');
+                if (own.n === null) return {};
+                const line = shotsFromBrief(this.get(id).brief).find(
+                  s => shotNameKey(s.name) === shotNameKey(own.name) || s.n === own.n,
+                );
+                return line
+                  ? {
+                      brief_shot: `${line.n}. ${line.name}: ${line.action}`,
+                      brief_shot_note:
+                        'This is how the brief’s shot list still describes this shot. If the user’s change replaces any of it, call update_brief with that line rewritten; otherwise leave the brief as it is.',
+                    }
+                  : {};
+              })(),
               request_id: saved.id,
               revision: latest(saved).number,
               request: agentRequest(request, assets),

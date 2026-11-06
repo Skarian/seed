@@ -56,7 +56,10 @@ export function CastStrip({
           {cast.some(e => e.kind === 'prop') ? 'Cast, places & props' : 'Cast & places'}
         </b>
         <span className="faint">
-          {approved} of {cast.length} approved · new shots use these pictures
+          {(() => {
+            const skips = cast.filter(e => !picks[referenceKey(e.name)] && skipped(e.name)).length;
+            return `${approved - skips} of ${cast.length - skips} approved${skips ? ` · ${skips} not needed` : ''} · drafts from references use these pictures`;
+          })()}
         </span>
       </div>
       {onImport && (

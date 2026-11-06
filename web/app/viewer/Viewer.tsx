@@ -1244,7 +1244,7 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
         return r ? nameOf(r.asset_id) : 'the source';
       },
     );
-    rows.unshift(['Change asked', '“' + (named.length > 180 ? named.slice(0, 179) + '…' : named) + '”']);
+    rows.unshift(['Change asked', '“' + named + '”']);
   } else if (ja.request.prompt !== jb.request.prompt) {
     // Variations of one idea (most words shared) show only what changed; different requests show what each asks for.
     const wa = new Set(ja.request.prompt.toLowerCase().split(/\W+/).filter(Boolean)),

@@ -7,6 +7,8 @@ export type Stage = {
   done: number;
   total: number;
   /** What is left, in words ("Shots 2 and 4 have no keyframe"). */
+  /** How the count reads, when "N of M approved" would be wrong ("2 approved · 1 not needed"). */
+  count?: string;
   left?: string;
   /** The button that asks Seed for the plan, when one can be drafted. */
   action?: { label: string; ask: string };
@@ -51,7 +53,7 @@ export function Stages({
               <span className="stage-text">
                 <b>{s.label}</b>
                 <small className="faint">
-                  {s.done} of {s.total} {s.key === 'cast' ? 'approved' : 'chosen'}
+                  {s.count ?? `${s.done} of ${s.total} ${s.key === 'cast' ? 'approved' : 'chosen'}`}
                 </small>
               </span>
             </li>

@@ -696,7 +696,7 @@ function Draft({
             aria-controls={'checks-' + card.id}
             onClick={() => setShowSoft(v => !v)}
           >
-            {showSoft ? 'Hide brief check' : 'Check words against brief'}
+            {showSoft ? 'Hide the wording check' : 'Check the wording against the brief'}
           </button>
         )}
         <div id={'checks-' + card.id} className="check-notes">

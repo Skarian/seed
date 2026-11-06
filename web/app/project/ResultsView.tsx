@@ -457,6 +457,10 @@ export function ResultsView({
       label: 'Cast & places',
       done: cast.length - noRef.length,
       total: cast.length,
+      count: (() => {
+        const skips = cast.filter(e => !picks[referenceKey(e.name)] && picks['skip:' + e.name]).length;
+        return skips ? `${cast.length - noRef.length - skips} of ${cast.length - skips} approved · ${skips} not needed` : undefined;
+      })(),
       left: [
         toApprove.length
           ? 'Approve a take for ' + listOf(toApprove.map(e => e.name)) + ' (Approve… under Cast & places).'
