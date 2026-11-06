@@ -638,7 +638,9 @@ export function ResultsView({
                 {numbered.length > 1 && filter === 'all' && (
                   <section className="film-board" aria-label={(film ? 'The film' : 'The sequence') + ', shot by shot'}>
                     <div className="film-board-head">
-                      <b>{film ? 'The film' : 'The sequence'}</b>
+                      <b role="heading" aria-level={2}>
+                        {film ? 'The film' : 'The sequence'}
+                      </b>
                       <span className="faint">
                         {numbered.length} shots · {chosenCount} chosen
                         {chosenClips.length ? ` · ${chosenSeconds} s of clips` : ''}

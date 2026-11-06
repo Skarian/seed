@@ -38,6 +38,7 @@ export function Stages({
   const next = shown.find(s => s.done < s.total);
   return (
     <section className="stages" aria-label="Steps to the finished film">
+      <h2 className="sr-only">Steps to the finished film</h2>
       <ol className="stage-list">
         {shown.map((s, i) => {
           const state = s.done >= s.total ? 'done' : s === next ? 'next' : 'later';

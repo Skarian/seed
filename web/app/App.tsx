@@ -185,6 +185,19 @@ export function App() {
       >
         {route.name === 'project' ? 'Skip to the message box' : 'Skip to content'}
       </button>
+      {route.name === 'project' && (
+        <button
+          className="skip-link"
+          onClick={() => {
+            // Straight to the open plan's Make button, past every result above it.
+            const make = document.querySelector<HTMLElement>('.makebar button.btn');
+            if (make) make.focus();
+            else document.querySelector<HTMLElement>('.composer textarea')?.focus();
+          }}
+        >
+          Skip to the plan
+        </button>
+      )}
       <div className={`shell ${top ? 'top' : ''} ${inspected && wide ? 'with-inspector' : ''}`}>
         <Rail />
         <main className="main">
