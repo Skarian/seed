@@ -584,3 +584,9 @@ it('approves a reference from another project of the same mode by attaching it',
  expect(v.picks?.['ref:Ines']).toBe('elsewhere');
  const n=chats.create('nsfw');expect(()=>chats.pick(n.id,'ref:Ines','elsewhere')).toThrow();
 }));
+
+it('marks a cast entry Not needed without a picture, and undoes it',async()=>fixture(async({chats})=>{
+ const c=chats.create('sfw');
+ expect(chats.pick(c.id,'skip:Blue Lantern','skip').picks?.['skip:Blue Lantern']).toBe('skip');
+ expect(chats.pick(c.id,'skip:Blue Lantern',null).picks?.['skip:Blue Lantern']).toBeUndefined();
+}));

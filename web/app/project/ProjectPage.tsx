@@ -1487,9 +1487,11 @@ function Message({
     return (
       <div className="msg-you" role="article" aria-label={action ? 'You asked: ' + action : 'You said'}>
         {label && (
-          <span className="kind" style={{ marginRight: 6 }}>
-            {label}
-          </span>
+          <>
+            <span className="kind" style={{ marginRight: 6 }}>
+              {label}
+            </span>{' '}
+          </>
         )}
         {action ? (
           <>
@@ -1573,7 +1575,9 @@ function Message({
       </div>
       {running && !text && now - Date.parse(turn!.started_at) > 20000 && (
         <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.875rem' }}>
-          Long requests can take a minute or two. You can work elsewhere in Seed; the reply and any drafts wait here.
+          {now - Date.parse(turn!.started_at) > 120_000
+            ? 'Seed is still working through a long request. Large plans can take several minutes; you can keep working elsewhere in Seed, and the reply and drafts appear here.'
+            : 'Long requests can take a minute or more. You can work elsewhere in Seed; the reply and any drafts appear here.'}
         </p>
       )}
 

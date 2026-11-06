@@ -745,10 +745,11 @@ function Highlight({ text, words }: { text: string; words: string }) {
   const terms = words
     .trim()
     .split(/\s+/)
-    .filter(Boolean)
+    // Single letters ("B" in "Sol B") would light up every word; highlight whole-word starts of 2+ letters.
+    .filter(w => w.length > 1)
     .map(w => w.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
   if (!terms.length) return <>{text}</>;
-  const parts = text.split(new RegExp(`(${terms.join('|')})`, 'gi'));
+  const parts = text.split(new RegExp(`(?<![\\p{L}\\p{N}])(${terms.join('|')})`, 'giu'));
   return <>{parts.map((p, i) => (i % 2 ? <mark key={i}>{p}</mark> : p))}</>;
 }
 

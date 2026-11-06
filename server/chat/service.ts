@@ -387,6 +387,16 @@ export class Chats {
    */
   pick(id: string, key: string, asset: string | null) {
     const chat = this.get(id);
+    // "Not needed" for a cast entry: no picture, it just stops asking for one.
+    if (/^skip:[^\n]{1,60}$/.test(key)) {
+      const picks = { ...(chat.picks ?? {}) };
+      if (asset) picks[key] = 'skip';
+      else delete picks[key];
+      chat.picks = picks;
+      chat.version++;
+      this.save(chat);
+      return this.view(id);
+    }
     if (!/^(?:.{1,130}:(image|clip)|ref:[^\n]{1,60})$/.test(key)) throw Error('Choose a shot.');
     if (key.startsWith('ref:') && asset && this.jobs.media.get(asset)?.kind !== 'image')
       throw Error('A reference must be an image.');

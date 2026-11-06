@@ -256,20 +256,31 @@ function CardResults({
           x => latest(x).decision === 'approved' && titleOf(latest(x).request) === titleOf(latest(c).request),
         ),
       );
+  // A draft already brought back into the open plan needs no second Bring back here.
+  const broughtBack = (c: ChatCard) =>
+    project.groups.some(
+      g =>
+        g !== group &&
+        ['reviewing', 'revising', 'assembling'].includes(g.state) &&
+        g.cards.some(x => titleOf(latest(x).request) === titleOf(latest(c).request)),
+    );
   const notNowRow = notNow.length > 0 && (
     <div className="notnow">
       <span>Not made this time:</span>
       {notNow.map(c => (
         <span key={c.id}>
           <b>{titleOf(latest(c).request)}</b>
-          {madeLater(c) ? <span className="faint"> · redrafted since</span> : null}{' '}
-          <button
-            className="link"
-            onClick={() => actions.onBringBack(c)}
-            aria-label={(madeLater(c) ? 'Make this earlier version of ' : 'Bring back ') + titleOf(latest(c).request)}
-          >
-            {madeLater(c) ? 'Make this version instead' : 'Bring back'}
-          </button>
+          {broughtBack(c) ? <span className="faint"> · brought back into the plan</span> : null}
+          {!broughtBack(c) && madeLater(c) ? <span className="faint"> · redrafted since</span> : null}{' '}
+          {!broughtBack(c) && (
+            <button
+              className="link"
+              onClick={() => actions.onBringBack(c)}
+              aria-label={(madeLater(c) ? 'Make this earlier version of ' : 'Bring back ') + titleOf(latest(c).request)}
+            >
+              {madeLater(c) ? 'Make this version instead' : 'Bring back'}
+            </button>
+          )}
         </span>
       ))}
     </div>

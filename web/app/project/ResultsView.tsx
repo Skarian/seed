@@ -97,8 +97,14 @@ export function ResultsView({
     .filter(g => !['reviewing', 'revising', 'assembling'].includes(g.state) && !g.direct)
     .flatMap(g => g.cards.filter(c => latest(c).decision !== 'approved').map(c => boardTitle(latest(c).request)));
   // A film goes on to clips; a set of stills is finished when every shot has its chosen picture.
+  // A brief that says stills only ("image-only", "no clips") is a set of pictures even if it mentions clips.
+  const stillsOnly =
+    /\b(image[- ]only|stills?[- ]only|no (clips|videos?|animation)|(do not|don.t|won.t) (make|render|draft|run) (any )?(clips|videos?)|image sequence|picture book)\b/i.test(
+      project.brief ?? '',
+    );
   const film =
-    /\b(film|films|clip|clips|video|videos|animat\w*|motion|trailer|short)\b/i.test(project.brief ?? '') ||
+    (!stillsOnly &&
+      /\b(film|films|clip|clips|video|videos|animat\w*|motion|trailer|short)\b/i.test(project.brief ?? '')) ||
     project.jobs.some(j => isVideoKind(kindOf[j.request.workflow])) ||
     project.groups.some(g => g.cards.some(c => isVideoKind(kindOf[latest(c).request.workflow])));
   const toggle = (id: string) => setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s.slice(-1), id]));
@@ -424,7 +430,7 @@ export function ResultsView({
   const chosenCount = numbered.filter(s => chosen(s, 'clip') || chosen(s, 'image')).length;
   // The steps from brief to cut. Each step asks Seed for one plan covering everything it still needs.
   const cast = castFromBrief(project.brief);
-  const noRef = cast.filter(e => !picks[referenceKey(e.name)]);
+  const noRef = cast.filter(e => !picks[referenceKey(e.name)] && !picks['skip:' + e.name]);
   // Names whose reference takes are made and only need approving, and names that still need drafting.
   const hasTakes = (name: string) =>
     items.some(

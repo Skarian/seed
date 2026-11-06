@@ -45,7 +45,9 @@ export function CastStrip({
   const [picking, setPicking] = useState<CastEntry | null>(null);
   const [importing, setImporting] = useState(false);
   if (!cast.length && !(onImport && brief?.trim())) return null;
-  const approved = cast.filter(e => picks[referenceKey(e.name)]).length;
+  // Entries the owner marked Not needed stop counting; they stay listed so the choice can be undone.
+  const skipped = (name: string) => Boolean(picks['skip:' + name]);
+  const approved = cast.filter(e => picks[referenceKey(e.name)] || skipped(e.name)).length;
   return (
     // Once every reference is approved, the cast becomes a compact row so the film stays near the top.
     <section className={'cast-strip' + (approved === cast.length ? ' compact' : '')} aria-label="Cast and places">
@@ -92,13 +94,22 @@ export function CastStrip({
               <span className="cast-text">
                 <b>{e.name}</b>
                 <small className="faint" title={e.look}>
-                  {kind} · {id ? 'Approved' : 'No picture yet'}
+                  {kind} · {id ? 'Approved' : skipped(e.name) ? 'Not needed' : 'No picture yet'}
                 </small>
               </span>
               <span className="cast-actions">
-                {onAsk && !id && (
+                {onAsk && !id && !skipped(e.name) && (
                   <button className="btn small" onClick={() => onAsk(referenceAsk(e))}>
                     Draft reference
+                  </button>
+                )}
+                {!id && (
+                  <button
+                    className="btn small quiet"
+                    aria-pressed={skipped(e.name)}
+                    onClick={() => onChoose('skip:' + e.name, skipped(e.name) ? null : 'skip')}
+                  >
+                    {skipped(e.name) ? 'Needed after all' : 'Not needed'}
                   </button>
                 )}
                 {onAsk && id && e.kind === 'character' && (
