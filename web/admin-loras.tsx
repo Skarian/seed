@@ -56,6 +56,8 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
             setImporting(null);
             catalog.refresh();
           }}
+          // A style already imported (perhaps a moment ago, elsewhere) shows in the list at once.
+          onDuplicate={() => catalog.refresh()}
         />
       )}
       {!catalog.items ? (
@@ -167,6 +169,7 @@ function cleanGuidance(value: LoraGuidance) {
 }
 
 function ImportLora({
+  onDuplicate,
   mode,
   initialUrl = '',
   onSubmitted,
@@ -174,6 +177,7 @@ function ImportLora({
   mode: 'sfw' | 'nsfw';
   initialUrl?: string;
   onSubmitted: () => void;
+  onDuplicate?: () => void;
 }) {
   const [url, setUrl] = useState(initialUrl),
     preview = useCivitaiPreview();
@@ -213,6 +217,7 @@ function ImportLora({
       onSubmitted();
     } catch (error) {
       setError((error as Error).message);
+      if (/already have this style/i.test((error as Error).message)) onDuplicate?.();
     } finally {
       setBusy(false);
     }

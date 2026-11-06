@@ -96,7 +96,7 @@ export class LoraImports {
     const group_id=loraGroupId({id:'',route:files[0]!.route,source_url,availability:input.mode==='nsfw'?'spicy':'all'});
     const existing=this.loras.groups(input.mode).find(g=>g.id===group_id),now=new Date().toISOString();
     // Adding a style you already have would replace your name, guidance and strength with the new form's: say so instead.
-    if(existing&&!input.replace)throw Error(`You already have this style as “${existing.name}”. Change its name or guidance there.`);
+    if(existing&&!input.replace)throw Error(`You already have this style as “${existing.name}”. It is in your list of styles; open it there to change its name, guidance or strength.`);
     this.loras.applySources(group_id,files,{...details,version:preview.name,source_url,availability:input.mode==='nsfw'?'spicy':'all',enabled:existing?.enabled??true});
     return this.record({id:randomUUID(),group_id,mode:input.mode,name:details.name,version_id:version.id,version:preview.name,source_url,state:'ready',created_at:now,updated_at:now,files:files.map((file:{name:string;route:LoraRoute;source:LoraSource})=>({name:file.name,route:file.route,state:'ready',bytes:0,total:file.source.size_bytes}))});
   }
