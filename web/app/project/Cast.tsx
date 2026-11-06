@@ -38,7 +38,8 @@ export function CastStrip({
   if (!cast.length) return null;
   const approved = cast.filter(e => picks[referenceKey(e.name)]).length;
   return (
-    <section className="cast-strip" aria-label="Cast and places">
+    // Once every reference is approved, the cast becomes a compact row so the film stays near the top.
+    <section className={'cast-strip' + (approved === cast.length ? ' compact' : '')} aria-label="Cast and places">
       <div className="film-board-head">
         <b>{cast.some(e => e.kind === 'prop') ? 'Cast, places & props' : 'Cast & places'}</b>
         <span className="faint">

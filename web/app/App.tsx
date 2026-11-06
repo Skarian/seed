@@ -214,8 +214,16 @@ export function App() {
           onPick={item => setViewing(v => v && { ...v, item })}
           onClose={() => {
             const opener = viewing.opener as HTMLElement | null;
+            const label = opener?.getAttribute('aria-label');
             setViewing(null);
-            requestAnimationFrame(() => opener?.focus?.());
+            requestAnimationFrame(() => {
+              // Live boards re-render their tiles: if the opener was replaced, focus the button with the same name.
+              const target =
+                opener?.isConnected || !label
+                  ? opener
+                  : document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(label)}"]`);
+              target?.focus?.();
+            });
           }}
         />
       )}
@@ -360,7 +368,7 @@ export function StatusControl() {
       ).length;
   // One state reads in full; several become short counts so the header never overflows. The panel has the details.
   const states = [planning, ready.length, making, waiting].filter(Boolean).length;
-  const words =
+  let words =
     states > 1
       ? [
           planning ? `${planning} planning` : '',
@@ -387,6 +395,35 @@ export function StatusControl() {
                     : waiting
                       ? waiting + (hourly ? ' queued' : ' waiting for a GPU')
                       : '';
+  // Inside a project the pill speaks for that project first; work in other projects is one count beside it.
+  const scoped = (() => {
+    if (route.name !== 'project') return undefined;
+    const here = active.filter(j => j.source?.chat_id === route.id);
+    const hereWaiting = here.filter(
+      j => j.state === 'queued' || (!j.progress && j.state !== 'running' && j.state !== 'copying'),
+    ).length;
+    const hereMaking = here.length - hereWaiting;
+    const thinking = planningIn.some(p => p.id === route.id);
+    const elsewhere = new Set([
+      ...active.filter(j => j.source?.chat_id !== route.id).map(j => j.source?.chat_id ?? j.id),
+      ...planningIn.filter(p => p.id !== route.id).map(p => p.id),
+      ...ready.map(p => p.id),
+    ]).size;
+    const own = thinking
+      ? 'Seed is planning'
+      : hereMaking
+        ? `Making ${hereMaking}`
+        : hereWaiting
+          ? `${hereWaiting} waiting`
+          : '';
+    const rest = elsewhere
+      ? own || narrow
+        ? `+${elsewhere} elsewhere`
+        : `${elsewhere} ${elsewhere === 1 ? 'project' : 'projects'} busy elsewhere`
+      : '';
+    return [own, rest].filter(Boolean).join(' · ');
+  })();
+  if (scoped !== undefined) words = scoped;
   const label = [words, hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
   return (
     <button
@@ -487,7 +524,7 @@ function Rail() {
           </button>
         ))}
         {!shown.length && query && (
-          <p className="faint" style={{ padding: '6px 10px', margin: 0, fontSize: '0.8125rem' }}>
+          <p className="faint" style={{ padding: '6px 10px', margin: 0, fontSize: '0.875rem' }}>
             No project titles match.
           </p>
         )}

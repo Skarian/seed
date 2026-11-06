@@ -382,7 +382,7 @@ export class Jobs {
     );
     if (selected.some((l) => !sourceReady(l.source)))
       throw Error(
-        "Reimport this LoRA in Admin so new workers can download its pinned source.",
+        "Add this style again in Settings → Styles so new GPUs can download it.",
       );
     const prepared: PreparedReference[] = [];
     for (const ref of request.references ?? []) {
@@ -557,11 +557,12 @@ export class Jobs {
           const local=this.pool.local, localWorker=local?.get();
           const localSupported=job.request.target!=='cloud'&&localWorker?.enabled&&local?.supports(job.request);
           job.waiting_reason = localSupported
-            ? localWorker.issue?'This PC needs attention. Open Workers to review its status.':localWorker.paused?'Resume This PC in Workers to run this request.':job.worker.loras.length?'Waiting for This PC to finish its current output. Missing LoRAs download automatically when this request starts.':'Waiting for This PC to finish its current output.'
+            ? localWorker.issue?'Seed PC needs attention. Open GPUs to see why.':localWorker.paused?'Resume Seed PC on the GPUs page to make this.':job.worker.loras.length?'Waiting for Seed PC to finish its current output. Missing LoRAs download automatically when this request starts.':'Waiting for Seed PC to finish its current output.'
             : job.request.target==='local'
-            ? !localWorker?.enabled?'Enable and set up This PC in Workers to run this request locally.':'These settings are unavailable on This PC. Check the workflow, output settings, and selected LoRA sources in Admin.'
+            ? !localWorker?.enabled?'Turn on Seed PC on the GPUs page to make this here.':'Seed PC cannot make these settings. Check the size, shape and styles of this draft.'
             : job.worker.loras.length
             ? "Waiting for a ready worker with the selected LoRAs. Start a new worker to include recently added adapters."
+            : usesKlein(job.request) ? (this.pool.local?.supports(job.request) ? 'Cloud GPUs cannot run FLUX 3 Image Klein yet. Cancel and make it again with Runs on: Seed PC.' : 'No GPU here can run FLUX 3 Image Klein: cloud GPUs do not have it yet, and Seed PC needs it installed (GPUs → Seed PC → Add Klein).')
             : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
           this.save(job);
           continue;
@@ -626,7 +627,7 @@ export class Jobs {
             if(this.cancelled(job.id)||worker.quit_mode==='now'){
               job.state='cancelled';job.error=null;this.save(job);this.pool.complete(job.id);return;
             }
-            job.state='needs_attention';job.error='The local engine was interrupted. Saved output recovery was checked. Retry on This PC when you are ready; generation will not restart automatically.';this.save(job);
+            job.state='needs_attention';job.error='The local engine was interrupted. Saved output recovery was checked. Retry on Seed PC when you are ready; generation will not restart automatically.';this.save(job);
             return;
           }
           if (
@@ -652,7 +653,7 @@ export class Jobs {
               "The worker has not confirmed this submission. Seed will check its receipt without generating it twice.";
           } else {
             job.error =
-              localExecutor(worker)?'Cannot reach This PC. Check its worker card for recovery options.':"Cannot reach the assigned worker. Reconnect it or quit the rental; no replacement worker will be rented automatically.";
+              localExecutor(worker)?'Cannot reach Seed PC. Check its worker card for recovery options.':"Cannot reach the assigned worker. Reconnect it or quit the rental; no replacement worker will be rented automatically.";
           }
           this.save(job);
         }
@@ -793,7 +794,7 @@ export class Jobs {
     if(localExecutor(w)&&record.manifest.state==='cancelled'&&!this.cancelled(job.id)&&w.quit_mode!=='now'){
       job.worker!.interruption='engine_interrupted';
       job.state='needs_attention';
-      job.error='The local engine stopped without a cancellation request. The prior attempt and any output files are preserved. Retry on This PC after recovery.';
+      job.error='The local engine stopped without a cancellation request. The prior attempt and any output files are preserved. Retry on Seed PC after recovery.';
       this.save(job);return; // No acknowledgement: preserve the old attempt for explicit recovery.
     }
     delete job.worker!.interruption;

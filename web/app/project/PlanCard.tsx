@@ -237,13 +237,13 @@ export function PlanCard({
           );
         })()}
       {project.frame && (
-        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: '0.8125rem' }}>
+        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: '0.875rem' }}>
           Delivered at {project.frame}: these drafts are made at the shapes shown, then cropped to {project.frame} with
           Crop. The guides on each result show what stays.
         </p>
       )}
       {oneSource && (
-        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: '0.8125rem' }}>
+        <p className="faint" style={{ margin: 0, padding: '8px 14px 0', fontSize: '0.875rem' }}>
           All {cards.length} drafts use “{assetName(project, oneSource, everywhere)}” as their source. Its framing and
           look guide each result; check every take.
         </p>
@@ -500,7 +500,7 @@ function Draft({
         </MenuButton>
       </div>
       {card.left_out && !on && (
-        <p className="faint" style={{ margin: 0, fontSize: '0.8125rem' }}>
+        <p className="faint" style={{ margin: 0, fontSize: '0.875rem' }}>
           Left out of this make. Tick it to include it.
         </p>
       )}
@@ -531,7 +531,7 @@ function Draft({
         {r.prompt.length > 200 && (
           <button
             className="link"
-            style={{ alignSelf: 'flex-start', fontSize: '0.8125rem' }}
+            style={{ alignSelf: 'flex-start', fontSize: '0.875rem' }}
             aria-expanded={full}
             aria-label={(full ? 'Show less of ' : 'Show full prompt for ') + titleOf(r)}
             onClick={() => setFull(f => !f)}
@@ -555,7 +555,7 @@ function Draft({
                   {current && !busy && ref.kind === 'image' && (
                     <button
                       className="link"
-                      style={{ fontSize: '0.7813rem', marginLeft: 6 }}
+                      style={{ fontSize: '0.8125rem', marginLeft: 6 }}
                       onClick={() => setSwap(ref.id)}
                       aria-label={'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ': ' + name}
                     >
@@ -594,7 +594,7 @@ function Draft({
           />
         )}
         {departure && !quietSource && (
-          <p className="faint" style={{ margin: 0, fontSize: '0.8125rem' }}>
+          <p className="faint" style={{ margin: 0, fontSize: '0.875rem' }}>
             {departure}
           </p>
         )}
@@ -625,12 +625,12 @@ function Draft({
         {current && checks.some(c => c.soft) && (
           <button
             className="link"
-            style={{ alignSelf: 'flex-start', fontSize: '0.7813rem' }}
+            style={{ alignSelf: 'flex-start', fontSize: '0.8125rem' }}
             aria-expanded={showSoft}
             aria-controls={'checks-' + card.id}
             onClick={() => setShowSoft(v => !v)}
           >
-            {showSoft ? 'Hide continuity check' : 'Continuity check'}
+            {showSoft ? 'Hide brief check' : 'Check words against brief'}
           </button>
         )}
         <div id={'checks-' + card.id} className="check-notes">
@@ -913,12 +913,16 @@ function DraftEditor({
           >
             <option value="auto">Auto</option>
             <option value="local">Seed PC</option>
-            <option value="cloud">Cloud GPU</option>
+            <option value="cloud" disabled={r.workflow === 'image-to-image' && r.engine === 'klein'}>
+              {r.workflow === 'image-to-image' && r.engine === 'klein'
+                ? 'Cloud GPU (cannot run Klein yet)'
+                : 'Cloud GPU'}
+            </option>
           </select>
         </label>
       </div>
       {engine && (
-        <p className="faint" style={{ margin: 0, fontSize: '0.8125rem' }}>
+        <p className="faint" style={{ margin: 0, fontSize: '0.875rem' }}>
           {video ? 'Video' : 'Image'} model: {engine}
         </p>
       )}
@@ -927,7 +931,7 @@ function DraftEditor({
         {readable && (
           <div className="field" style={{ marginTop: 8 }}>
             <span>Prompt as the model receives it</span>
-            <div className="prompt" style={{ whiteSpace: 'pre-wrap', fontSize: '0.7813rem' }}>
+            <div className="prompt" style={{ whiteSpace: 'pre-wrap', fontSize: '0.9375rem' }}>
               {readable.back(f.prompt)}
             </div>
           </div>

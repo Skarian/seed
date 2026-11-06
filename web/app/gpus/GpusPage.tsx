@@ -162,7 +162,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
                 : 'Nothing rented'}
             </b>
             <br />
-            <span className="muted" style={{ fontSize: '0.8438rem' }}>
+            <span className="muted" style={{ fontSize: '0.875rem' }}>
               Last 24 hours · estimated {money(pool?.summary.spend_24h ?? pool?.summary.estimated_spend ?? 0)},
               including released GPUs
             </span>
@@ -195,13 +195,13 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
             <span className="grow">
               <b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU</b> · {rate(w.hourly)}
               <br />
-              <span className="muted" style={{ fontSize: '0.8438rem' }}>
+              <span className="muted" style={{ fontSize: '0.875rem' }}>
                 Up {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} so far · {w.gpu} on{' '}
                 {w.provider === 'vast' ? 'Vast' : 'RunPod'}
               </span>
             </span>
           </div>
-          <div className="muted" style={{ fontSize: '0.8438rem' }}>
+          <div className="muted" style={{ fontSize: '0.875rem' }}>
             {w.current_activity ?? workerLabel[w.state] ?? w.state}
             {startupNote(w)}
             {w.state === 'ready' ? idleNote(w) : ''}
@@ -264,7 +264,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
                 <span className="grow">
                   {w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}
                   <br />
-                  <span className="muted" style={{ fontSize: '0.8438rem' }}>
+                  <span className="muted" style={{ fontSize: '0.875rem' }}>
                     {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} estimated
                     {w.released_reason === 'idle'
                       ? ' · released when idle'
@@ -400,7 +400,7 @@ function LocalCard() {
           <span className="grow">
             <b>{w?.gpu ?? 'This computer'}</b>
             <br />
-            <span className="muted" style={{ fontSize: '0.8438rem' }}>
+            <span className="muted" style={{ fontSize: '0.875rem' }}>
               {!s
                 ? 'Checking…'
                 : s.supported === false
@@ -439,13 +439,13 @@ function LocalCard() {
             <div className="meter">
               <i style={{ width: Math.round(((s.bytes_done ?? 0) / Math.max(1, s.bytes_total ?? 1)) * 100) + '%' }} />
             </div>
-            <span className="muted" style={{ fontSize: '0.8438rem' }}>
+            <span className="muted" style={{ fontSize: '0.875rem' }}>
               {s.phase} · {gb(s.bytes_done)} of {gb(s.bytes_total)}
             </span>
           </>
         )}
         {w?.enabled && (
-          <span className="muted" style={{ fontSize: '0.8438rem' }}>
+          <span className="muted" style={{ fontSize: '0.875rem' }}>
             {w.workflows.some(x => x.endsWith('video'))
               ? 'Makes images and video.'
               : 'Makes images. Video needs a cloud GPU.'}
@@ -453,7 +453,7 @@ function LocalCard() {
         )}
         {s?.installed && s.klein && !s.klein.installed && s.state !== 'running' && (
           <div className="row" style={{ alignItems: 'center' }}>
-            <span className="grow muted" style={{ fontSize: '0.8438rem' }}>
+            <span className="grow muted" style={{ fontSize: '0.875rem' }}>
               {s.klein.token
                 ? 'FLUX 3 Image Klein is not installed. Seed uses it for edits and for new shots from reference images.'
                 : 'FLUX 3 Image Klein (edits and shots from reference images) needs a Hugging Face token: save one in Settings, and accept the model’s licence on Hugging Face with that account.'}

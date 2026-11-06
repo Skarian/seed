@@ -983,7 +983,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
               >
                 <div className="col">
                   {plan && (planStale || question) && (
-                    <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.8438rem' }}>
+                    <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.875rem' }}>
                       {planStale ? (
                         'Seed asked a question before changing the plan. The plan shows the earlier version until you answer.'
                       ) : (
@@ -1031,7 +1031,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                     </div>
                   )}
                   {queued && (
-                    <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.8438rem' }}>
+                    <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.875rem' }}>
                       Your message below sends as soon as Seed finishes this reply.{' '}
                       <button className="link" onClick={() => setQueued(false)}>
                         Don't send it
@@ -1357,7 +1357,7 @@ function EmptyProject({ onStarter, making }: { onStarter: (t: string) => void; m
             </button>
           ))}
         </div>
-        <p className="faint" style={{ marginTop: 18, fontSize: '0.8438rem' }}>
+        <p className="faint" style={{ marginTop: 18, fontSize: '0.875rem' }}>
           {local?.enabled
             ? 'Seed PC is ready · no rental fee'
             : cloud
@@ -1482,13 +1482,13 @@ function Message({
         )}
       </div>
       {running && !text && now - Date.parse(turn!.started_at) > 20000 && (
-        <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.8125rem' }}>
+        <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.875rem' }}>
           Long requests can take a minute or two. You can work elsewhere in Seed; the reply and any drafts wait here.
         </p>
       )}
 
       {!running && toolFailed && text && (
-        <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.8125rem' }}>
+        <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.875rem' }}>
           Seed's reply below wasn't carried out: no drafts were saved.
         </p>
       )}
@@ -1497,18 +1497,13 @@ function Message({
         turn &&
         /\b(updated|saved|recorded|added|wrote|captured|organi[sz]ed|stored)\b[^.]{0,60}\bbrief\b/i.test(text) &&
         !turn.steps.some(s => s.kind === 'tool' && s.name === 'update_brief' && s.state === 'succeeded') && (
-          <p className="faint" role="note" style={{ margin: '0 0 4px', fontSize: '0.8125rem' }}>
+          <p className="faint" role="note" style={{ margin: '0 0 4px', fontSize: '0.875rem' }}>
             The brief was not changed in this reply. Ask Seed to save it, or open Brief to write it.
           </p>
         )}
       {text && <Markdown text={text} streaming={running} />}
       {long && (
-        <button
-          className="link"
-          style={{ fontSize: '0.8125rem' }}
-          aria-expanded={open}
-          onClick={() => setOpen(o => !o)}
-        >
+        <button className="link" style={{ fontSize: '0.875rem' }} aria-expanded={open} onClick={() => setOpen(o => !o)}>
           {open ? 'Show less' : 'Show more'}
         </button>
       )}

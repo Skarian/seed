@@ -160,7 +160,7 @@ it.each(['auto','local'])('explains local LoRA preparation for queued %s request
   expect(f.jobs.get(queued.id)).toMatchObject({state:'queued',waiting_reason:expect.stringContaining('Missing LoRAs download automatically')});
   expect(f.jobs.get(queued.id).waiting_reason).not.toContain('Start a new worker');
   await f.local.pause();await f.jobs.reconcile();
-  expect(f.jobs.get(queued.id).waiting_reason).toBe('Resume This PC in Workers to run this request.');
+  expect(f.jobs.get(queued.id).waiting_reason).toBe('Resume Seed PC on the GPUs page to make this.');
 }));
 it('cancels an active LoRA download before releasing its reservation and never starts the engine',()=>jobsFixture(async f=>{
   const loras=catalog(f.paths,['a']);let rejectDownload!:(error:Error)=>void;

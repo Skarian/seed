@@ -486,6 +486,12 @@ function ResultTile({
             <span className="wait-text">
               <span className={'dot ' + (state.tone === 'live' ? 'live' : 'amber')} />
               {state.label}
+              {/* A specific blocker (not ordinary queueing) is shown where the waiting job is. */}
+              {job.state === 'queued' &&
+                job.waiting_reason &&
+                /cannot|can't|needs|Enable|Resume|unavailable|No GPU/.test(job.waiting_reason) && (
+                  <small className="wait-reason">{job.waiting_reason}</small>
+                )}
             </span>
           ) : state.tone === 'bad' ? (
             <span>
