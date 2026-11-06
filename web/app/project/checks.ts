@@ -516,6 +516,8 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
         if (abstractRule.test(part)) continue;
         // Personality is not something a picture shows ("calm, dry humour", "curious").
         if (personality.test(part)) continue;
+        // Who someone is to someone else ("grandson", "his aunt") is not something a picture shows.
+        if (relation.test(part)) continue;
         if (!mentions(prompt, part)) out.push({ who: lastName, text: part.charAt(0).toLowerCase() + part.slice(1) });
       }
     } else if (/place|location|setting|environment|world|set\b/.test(section)) {
@@ -545,6 +547,8 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
     } else if (/rule|always|never|constraint/.test(section)) {
       // A rule about the project as a whole ("keep wardrobe consistent across shots") is not a visible detail to
       // put in one prompt; only concrete rules ("no text anywhere") are checked.
+      // A negative ("no text, logos or watermarks") is not added as words: in a diffusion prompt, naming text invites it.
+      if (/^(no|never|avoid|without|don.t|do not)\b/i.test(item)) continue;
       if (item.length <= 80 && !abstractRule.test(item) && !/\bshots?\s*\d/i.test(item) && !mentions(prompt, item))
         out.push({ text: item.charAt(0).toLowerCase() + item.slice(1).replace(/\.$/, '') });
     }
@@ -724,5 +728,9 @@ const abstractRule =
   /\b(continuity|consisten\w*|maintain|ensure|preserve|specific|match(es|ing)?|same as|across (all |every |the )?(shots|scenes|frames)|every shot|each shot)\b/i;
 
 /** Character traits that describe a personality, not something a picture shows. */
+/** Relationships ("grandson", "his aunt"): who someone is to another person, not something a picture shows. */
+const relation =
+  /^(?:(?:his|her|their|the)\s+)?(?:son|daughter|child|mother|father|mum|mom|dad|parent|brother|sister|sibling|aunt|uncle|niece|nephew|cousin|wife|husband|partner|friend|neighbou?r|apprentice|boss|grandson|granddaughter|grandmother|grandfather|grandchild)s?(?:\s+of\s+\w+)?$/i;
+
 const personality =
   /\b(calm|kind|kindly|gentle|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|nervous|proud|lonely|thoughtful|playful|sarcastic|optimistic|melancholic|personality|temperament|loves|likes|hates|fears|dreams of)\b/i;

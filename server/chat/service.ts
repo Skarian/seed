@@ -27,7 +27,12 @@ import type { Jobs } from '../jobs.js';
 import { createChatAgent, type ChatAccounting } from './provider.js';
 import { chatCredential } from './credentials.js';
 import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js';
-import { chatReferenceLabels, preserveChatLabels, validateChatReferences } from './references.js';
+import {
+  chatReferenceLabels,
+  preserveChatLabels,
+  validateChatReferences,
+  validateCastReferences,
+} from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
 import { castFromBrief, referenceKey } from '../../shared/cast.js';
 import { shotsFromBrief, shotPickKey, shotNameKey, shotFromTitle } from '../../shared/shots.js';
@@ -775,6 +780,7 @@ export class Chats {
               if (!current.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
             this.assertAssets(current, [...new Set((request.references ?? []).map(r => r.asset_id))]);
             validateChatReferences(request);
+            validateCastReferences(request, castFromBrief(current.brief), current.picks ?? {});
             // Sound nobody asked for is a creative change: a new clip stays silent unless the user's recent messages
             // ask for sound (an existing draft keeps the sound it already had).
             const askedText = current.messages

@@ -322,3 +322,10 @@ describe('runs_on',()=>{
     expect(prepareToolRequest(edit,{...draft,engine:'qwen',aspect_ratio:'source',runs_on:'cloud'}).target).toBe('cloud');
   });
 });
+describe('styles on edits',()=>{
+  it('refuses a style on a FLUX 3 Image Klein edit with an error the agent can relay',()=>{
+    const edit:RequestToolContext={workflow:'image-to-image',mode:'sfw',assets:[{handle:'image1',asset_id:'image-a',kind:'image'}]};
+    try{prepareToolRequest(edit,{prompt:'The girl from [[image1]]',inputs:[{asset:'image1',role:'source'}],loras:[{id:'x',revision:'y',scale:1}]});throw Error('accepted');}
+    catch(e){expect(e).toBeInstanceOf(ToolRequestError);expect(String((e as Error).message)).toContain('Styles cannot be used with edits');}
+  });
+});

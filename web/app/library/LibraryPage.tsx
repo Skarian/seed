@@ -412,7 +412,18 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
                           )}
                           {query && !a.note?.toLowerCase().includes(query.trim().toLowerCase()) && a.prompt_match && (
                             <small className="note-match">
-                              Prompt: <Highlight text={a.prompt_match} words={query} />
+                              Prompt:{' '}
+                              <Highlight
+                                text={a.prompt_match
+                                  // Engine tokens read as words: an input is "the reference"; subject tags are dropped.
+                                  .replace(/\s*\(?\s*<\s*Subject\s*\d+\s*>\s*\)?\s*:?/gi, ' ')
+                                  .replace(
+                                    /<\s*(?:image|picture|video|audio)\s*\d+\s*>|\[\[\s*input\d+\s*\]\]/gi,
+                                    'the reference',
+                                  )
+                                  .replace(/\s{2,}/g, ' ')}
+                                words={query}
+                              />
                             </small>
                           )}
                         </figcaption>

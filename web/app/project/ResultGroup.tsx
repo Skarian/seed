@@ -288,7 +288,7 @@ function CardResults({
           )}
         </div>
         {notNowRow}
-        <IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show />
+        <IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show jobs={list} />
       </section>
     );
   if (collapsed)
@@ -367,34 +367,42 @@ function CardResults({
       <IdleAfterCancel
         role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'}
         show={!running.length && list.some(j => j.state === 'cancelled')}
+        jobs={list}
       />
     </section>
   );
 }
 
 /** After a cancel, say plainly whether a GPU is still billing, and offer to release it right here. */
-function IdleAfterCancel({ role, show }: { role: 'image' | 'video'; show: boolean }) {
+function IdleAfterCancel({ role, show, jobs }: { role: 'image' | 'video'; show: boolean; jobs: JobRecord[] }) {
   const app = useApp();
   const [done, setDone] = useState(false);
+  const note = React.useRef<HTMLDivElement>(null);
+  // Only the cloud GPU that ran this group's work is offered; work made on Seed PC rents nothing.
+  const served = new Set(jobs.filter(j => j.worker?.executor === 'cloud' && j.worker.id).map(j => j.worker!.id!));
   const w = app.pool?.workers.find(
-    x => x.worker_class === role && x.state === 'ready' && !x.current_job_id && !x.quit_mode,
+    x => served.has(x.id) && x.worker_class === role && x.state === 'ready' && !x.current_job_id && !x.quit_mode,
   );
   const busyElsewhere = app.tasks.some(j => ['queued', 'running', 'submitting', 'uploading'].includes(j.state));
-  if (!show || !w || done || busyElsewhere) return null;
+  if (!show || (!w && !done) || busyElsewhere) return null;
+  if (done)
+    return (
+      <div className="notnow" ref={note} tabIndex={-1}>
+        <span>Releasing the {role} GPU. Results stay in your Library.</span>
+      </div>
+    );
   return (
-    <div className="notnow" role="status">
+    <div className="notnow">
       <span>
-        The {role} GPU is still rented ({`$${w.hourly.toFixed(2)}/h`})
-        {w.idle_release_minutes ? `, and releases after ${w.idle_release_minutes} idle minutes` : ''}.
+        The {role} GPU that made these is still rented ({`$${w!.hourly.toFixed(2)}/h`})
+        {w!.idle_release_minutes ? `, and releases after ${w!.idle_release_minutes} idle minutes` : ''}.
       </span>
       <button
         className="link"
         onClick={() => {
-          void poolApi.act(w.id, 'finish').then(() => {
-            app.refreshPool();
-            app.toast('Releasing the GPU');
-          });
+          void poolApi.act(w!.id, 'finish').then(() => app.refreshPool());
           setDone(true);
+          requestAnimationFrame(() => note.current?.focus());
         }}
       >
         Release it now

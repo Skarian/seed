@@ -344,7 +344,13 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     ...(context.mode === 'nsfw' ? ['mode'] : []),
   ];
   for (const key of Object.keys(value))
-    if (!allowed.includes(key))
+    if (key === 'loras' && context.workflow === 'image-to-image')
+      add(
+        'loras',
+        'Styles cannot be used with edits or shots from reference images (FLUX 3 Image Klein); they work with new pictures from words (Krea 2) and clips.',
+        'Remove loras, describe the look in the prompt instead, and tell the user in one sentence that the style was not applied and that a words-only version can use it.',
+      );
+    else if (!allowed.includes(key))
       add(key, 'Unknown setting.', 'Remove this field. Use flat setting names from the tool schema.');
   if (value.request_id !== undefined && !context.previous)
     add('request_id', 'No existing request was supplied for this edit.', 'Use create_request for a new card.');

@@ -86,15 +86,15 @@ it('keeps a draft’s checks after the owner edits it by hand', () => {
 });
 
 it('lists brief details a draft leaves out, and adds them in one step', () => {
-  const brief = ['# The Last Tide', '', '**Characters**', '- **Mara**: 32 years old, warm brown skin, short black curly bob, small scar through her left eyebrow.', '- **Wardrobe**: Mustard-yellow waxed raincoat over a dark teal sweater, brass compass on a red cord.', '', '## Rules', '- No text anywhere'].join('\n');
+  const brief = ['# The Last Tide', '', '**Characters**', '- **Mara**: 32 years old, warm brown skin, short black curly bob, small scar through her left eyebrow.', '- **Wardrobe**: Mustard-yellow waxed raincoat over a dark teal sweater, brass compass on a red cord.', '', '## Rules', '- Soft film grain'].join('\n');
   const prompt = 'Medium shot of Mara, warm brown skin and short black curls, in a mustard waxed raincoat over a teal sweater, brass compass on a red cord, at the lighthouse.';
-  expect(briefGaps(prompt, brief)).toEqual(['small scar through her left eyebrow', 'no text anywhere']);
-  expect(briefGaps('An empty stormy sea at dawn, no text.', brief)).toEqual([]);
+  expect(briefGaps(prompt, brief)).toEqual(['small scar through her left eyebrow', 'soft film grain']);
+  expect(briefGaps('An empty stormy sea at dawn, soft film grain.', brief)).toEqual([]);
   const request = { workflow: 'text-to-image', prompt, output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw' };
   const check = checkDraft(card(request) as any, project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief })).find(c => c.code === 'continuity')!;
-  expect(check.text).toBe('Missing from this prompt: Mara’s small scar through her left eyebrow; “no text anywhere”.');
+  expect(check.text).toBe('Missing from this prompt: Mara’s small scar through her left eyebrow; “soft film grain”.');
   expect(check.soft).toBe(true);
-  expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara,', 'Mara, with small scar through her left eyebrow,') + ' No text anywhere.');
+  expect((check.fixes[0]!.patch(request as any) as any).prompt).toBe(prompt.replace('Mara,', 'Mara, with small scar through her left eyebrow,') + ' Soft film grain.');
 });
 
 it('reads shape words about faces, rooms and camera moves as description, not canvas', () => {
@@ -154,9 +154,9 @@ it('silences the video format’s own soundscape field', () => {
 });
 
 it('does not treat a project-wide continuity rule as a missing detail', () => {
-  const brief = '## Rules\n- Maintain strict continuity of Nia’s wardrobe across shots\n- No text anywhere';
+  const brief = '## Rules\n- Maintain strict continuity of Nia’s wardrobe across shots\n- Soft film grain';
   const gaps = briefGapList('A wide shot of a harbour at dusk', brief).map(g => g.text);
-  expect(gaps).toEqual(['no text anywhere']);
+  expect(gaps).toEqual(['soft film grain']);
 });
 
 it('the continuity fix changes the prompt even when the brief writes the name in capitals', () => {
@@ -208,9 +208,9 @@ it('offers the closest size when the user asked for exact pixels', () => {
 });
 
 it('does not ask for the details of a character the prompt puts out of frame', () => {
-  const brief = '## Characters\n- Asha: mustard scarf, left-ear cuff\n\n## Rules\n- No text anywhere';
+  const brief = '## Characters\n- Asha: mustard scarf, left-ear cuff\n\n## Rules\n- Soft film grain';
   const gaps = briefGapList('The empty bench after departure; Asha is out of frame, only her flower remains on the slats.', brief).map(g => g.text);
-  expect(gaps).toEqual(['no text anywhere']);
+  expect(gaps).toEqual(['soft film grain']);
 });
 
 it('does not ask a picture to show personality', () => {
@@ -238,11 +238,11 @@ it('words appended at the end of a clip prompt go into the picture, not the soun
 });
 
 it('bulk continuity fixes stay grammatical and keep shot-specific rules to their shot', () => {
-  const brief = '## Characters\n- Mara: female, late 40s, weathered mustard oilskin coat, navy knitted jumper\n\n## Rules\n- The amber light in Shot 4 is a slow three-second fade\n- No text anywhere';
+  const brief = '## Characters\n- Mara: female, late 40s, weathered mustard oilskin coat, navy knitted jumper\n\n## Rules\n- The amber light in Shot 4 is a slow three-second fade\n- Soft film grain';
   const prompt = 'Medium shot of Mara, standing on the pier.';
   const gaps = briefGapList(prompt, brief);
-  expect(gaps.map(g => g.text)).toEqual(['weathered mustard oilskin coat', 'navy knitted jumper', 'no text anywhere']);
-  expect(addBriefDetails(prompt, gaps)).toBe('Medium shot of Mara, with weathered mustard oilskin coat, navy knitted jumper, standing on the pier. No text anywhere.');
+  expect(gaps.map(g => g.text)).toEqual(['weathered mustard oilskin coat', 'navy knitted jumper', 'soft film grain']);
+  expect(addBriefDetails(prompt, gaps)).toBe('Medium shot of Mara, with weathered mustard oilskin coat, navy knitted jumper, standing on the pier. Soft film grain.');
 });
 
 it('reads who is in frame and the framing from the shot record before the wording', () => {
@@ -281,10 +281,15 @@ it('drops subject tags from video prompts without leaving empty brackets or doub
 });
 
 it('does not ask for a look that an approved reference image of the draft already carries', () => {
-  const brief = ['## Characters', '- Mara: small scar through her left eyebrow, mustard raincoat', '## Rules', '- No text anywhere'].join('\n');
+  const brief = ['## Characters', '- Mara: small scar through her left eyebrow, mustard raincoat', '## Rules', '- Soft film grain'].join('\n');
   const prompt = 'Medium shot of the woman from <image1> at the lighthouse.';
   const request = { workflow: 'image-to-image', engine: 'klein', prompt, output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw', references: [{ id: 'input1', asset_id: 'mara-ref', kind: 'image', role: 'source' }], shot: { number: 2, name: 'The Door', cast: ['Mara'], framing: 'medium' } };
   const chat = (picks: Record<string, string>) => project([message('user', 'Shot 2'), message('assistant', 'Ready', 'run')], { brief, picks });
   expect(checkDraft(card(request) as any, chat({})).find(c => c.code === 'continuity')!.text).toContain('Mara’s');
-  expect(checkDraft(card(request) as any, chat({ 'ref:Mara': 'mara-ref' })).find(c => c.code === 'continuity')!.text).toBe('Missing from this prompt: “no text anywhere”.');
+  expect(checkDraft(card(request) as any, chat({ 'ref:Mara': 'mara-ref' })).find(c => c.code === 'continuity')!.text).toBe('Missing from this prompt: “soft film grain”.');
+});
+
+it('never asks to add a negative rule or a relationship word to a prompt', () => {
+  const brief = ['## Characters', '- Pim: 9, grandson, odd laces', '## Rules', '- No text, logos, or watermarks', '- Never show the sea'].join('\n');
+  expect(briefGaps('Pim with odd laces walks the orchard.', brief)).toEqual([]);
 });

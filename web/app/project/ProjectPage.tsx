@@ -1470,9 +1470,13 @@ function Message({
     },
   );
   const madePlan = project.groups.some(g => g.cards.some(c => c.revisions.some(r => r.run_id === message.id)));
-  const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan;
+  // A reply that asks something ("Please attach…", ends with a question) is Seed asking, not Seed failing.
+  const asking =
+    /\?\s*$/.test(text.trim()) ||
+    /\b(please (attach|send|share|tell)|could you|which (one|of)|do you want|would you like)\b/i.test(text);
+  const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan && !asking;
   const leaked = /<\|?tool_call|call:[a-z_.]+\{/i.test(message.text);
-  const askedToMake = !madePlan && (leaked || toolFailed || (!text && turn?.state === 'completed'));
+  const askedToMake = !madePlan && !asking && (leaked || toolFailed || (!text && turn?.state === 'completed'));
   const stage = running ? stageOf(turn!) : '';
   const reasoning =
     message.reasoning_text ||
