@@ -49,7 +49,8 @@ export function App() {
   const toastId = useRef(0);
   const toast = useCallback((text: string, action?: Toast['action']) => {
     const id = ++toastId.current;
-    setToasts(t => [...t.slice(-2), { id, text, action }]);
+    // One notice at a time: a newer one replaces it, so notices never stack over the page.
+    setToasts([{ id, text, action }]);
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), action ? 6000 : 3200);
   }, []);
   // Completion notices for work in other projects; never steals navigation. Inside a project they stay quiet (the

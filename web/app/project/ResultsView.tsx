@@ -5,7 +5,7 @@ import { kindOf, isVideoKind } from '../api.js';
 import { useApp, useAssets, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
 import { Media, MenuButton } from '../ui.js';
-import { titleOf, latest, tileState, shapeClass } from '../format.js';
+import { titleOf, latest, tileState, shapeClass, assetName } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
 import { CastStrip, referenceAsk } from './Cast.js';
 import { Stages, listOf, type Stage } from './Stages.js';
@@ -363,6 +363,11 @@ export function ResultsView({
             <span>
               {label}
               {kind === 'clip' && !crop ? fromTake(s, it) : ''}
+              {olderReference(it) && (
+                <small className="older-ref" title={`Made from an earlier picture of ${olderReference(it)}; the approved one has changed since`}>
+                  {' '}· older {olderReference(it)}
+                </small>
+              )}
             </span>
             {s.n !== null && !crop && (
               <button
@@ -385,6 +390,15 @@ export function ResultsView({
         </figure>
       );
     });
+  };
+  // A take made from a picture of someone that is no longer their approved reference (the look changed since).
+  const olderReference = (it: ViewerItem) => {
+    for (const r of it.job?.request.references ?? []) {
+      const who = assetName(project, r.asset_id, app.tasks).match(/^Reference: (.+?)(?: · \d+ of \d+)?$/)?.[1];
+      const now = who ? picks[referenceKey(who)] : undefined;
+      if (who && now && now !== 'skip' && now !== r.asset_id) return who;
+    }
+    return '';
   };
   // A chosen keyframe is stale when the shot changed afterwards: newer takes made from a different prompt.
   const stale = (s: Shot) => {

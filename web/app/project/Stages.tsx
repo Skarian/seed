@@ -38,7 +38,9 @@ export function Stages({
   const title = finished ? 'Steps to the finished set' : 'Steps to the finished film';
   const shown = stages.filter(s => s.total > 0);
   if (shown.length < (finished ? 1 : 2)) return null;
-  const next = shown.find(s => s.done < s.total);
+  // The next step is the first unfinished one with nothing finished after it: once every keyframe is chosen, a place
+  // left without a reference no longer holds the film back.
+  const next = shown.find((s, i) => s.done < s.total && !shown.slice(i + 1).some(l => l.total > 0 && l.done >= l.total));
   return (
     <section className="stages" aria-label={title}>
       <h2 className="sr-only">{title}</h2>

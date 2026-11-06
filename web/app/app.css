@@ -4352,3 +4352,9 @@ textarea::placeholder {
 .diff-both p {
   margin: 0;
 }
+
+/* A take made from a picture that is no longer the approved reference. */
+.older-ref {
+  color: var(--amber, #e8c36a);
+  font-size: 0.8125rem;
+}
