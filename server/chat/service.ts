@@ -94,6 +94,8 @@ function replyText(steps: Array<{ kind: string; text?: string }>) {
     t
       .replace(/<\|?\/?[a-z_]+\|?>/gi, '')
       .replace(/^\s*thought\s*$/gim, '')
+      // Left-overs of a tool call (a lone brace or bracket on its own line) are never words for a person.
+      .replace(/^\s*[{}[\]()]+[,;]?\s*$/gm, '')
       .trim();
   const texts = (from: number) =>
     steps
@@ -1080,6 +1082,8 @@ export class Chats {
       revision?: number;
       attach_request?: boolean;
       keep_plan?: boolean;
+      /** Run the latest message again (Try again): no second copy of it is added to the conversation. */
+      retry?: boolean;
     },
   ) {
     const chat = this.get(id);
@@ -1138,6 +1142,8 @@ export class Chats {
         JSON.stringify({ version: snapshot.version, system: snapshot.system, summarySystem: snapshot.summarySystem }),
       )
       .digest('hex');
+    const lastUser = [...chat.messages].reverse().find(m => m.role === 'user');
+    if (!(input.retry && lastUser?.text === input.text))
     chat.messages.push({
       id: randomUUID(),
       role: 'user',

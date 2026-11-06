@@ -193,7 +193,10 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       .filter(m => m.role === 'user')
       .map(m => askedFor([m]).other)
       .find(Boolean);
-    const other = latestOther ?? project.frame;
+    // A draft's own delivery shape (the poster at 2:3, lobby cards at 16:9) wins over the project's or a message's.
+    const own = r.shot?.delivery;
+    const supported = ['16:9', '9:16', '4:5', '1:1'];
+    const other = own ? (supported.includes(own) ? undefined : own) : (project.frame ?? latestOther);
     if (other) asked.other = other;
   }
   // A style the user asked for cannot ride on a picture made from references: say so on the draft, not only in grey.

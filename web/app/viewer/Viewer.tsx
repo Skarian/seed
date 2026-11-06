@@ -622,7 +622,13 @@ export function AssetPanel({
                 app.refreshTasks();
                 onClosed?.();
                 // Focus goes back into the page, never to nothing.
-                requestAnimationFrame(() => document.querySelector<HTMLElement>('main h1 button, main [tabindex="-1"], main')?.focus());
+                requestAnimationFrame(() => {
+                  const target =
+                    document.querySelector<HTMLElement>('main h1 button') ??
+                    document.querySelector<HTMLElement>('main h1, main h2');
+                  if (target && !target.matches('button, [tabindex]')) target.setAttribute('tabindex', '-1');
+                  target?.focus();
+                });
               })
               .catch(e => {
                 setDel(false);

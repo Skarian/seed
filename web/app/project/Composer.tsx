@@ -31,6 +31,8 @@ type Props = {
   onContext: (c: ComposerContext) => void;
   planOpen: boolean;
   mode: 'ask' | 'make';
+  /** The project has approved references, which Make now does not use. */
+  castApproved?: boolean;
   onMode: (m: 'ask' | 'make') => void;
   text: string;
   onText: (t: string) => void;
@@ -355,6 +357,11 @@ export function Composer(p: Props) {
               </button>
             </>
           )}
+        </p>
+      )}
+      {p.mode === 'make' && p.castApproved && !p.attachments?.length && (
+        <p className="faint make-note" role="note">
+          Make now works from these words only; your approved cast pictures aren’t used. Plan with Seed to draw from them.
         </p>
       )}
       <div className="tools">

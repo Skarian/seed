@@ -128,7 +128,7 @@ export const projects = {
   remove: (id: string) => api<{ deleted: boolean }>('chats/' + id, { method: 'DELETE' }),
   send: (
     p: Project,
-    body: { text: string; assets: string[]; card_id?: string; revision?: number; keep_plan?: boolean },
+    body: { text: string; assets: string[]; card_id?: string; revision?: number; keep_plan?: boolean; retry?: boolean },
   ) => pj('chats/' + p.id + '/messages', { body: { version: p.version, ...body } }),
   stopReply: (id: string) => pj('chats/' + id + '/stop', { body: { scope: 'reply' } }),
   decide: (
@@ -156,6 +156,8 @@ export const jobs = {
   get: (id: string) => api<JobRecord>('jobs/' + encodeURIComponent(id)),
   cancel: (id: string) => api<JobRecord>('jobs/' + id + '/cancel', { body: {} }),
   recover: (id: string) => api<JobRecord>('jobs/' + id + '/recover', { body: {} }),
+  /** Saves again a picture already made on a GPU (the made-but-not-saved state). */
+  retrySave: (id: string) => api<JobRecord>('jobs/' + id + '/retry-save', { body: {} }),
 };
 
 export type AssetQuery = {

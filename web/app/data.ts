@@ -233,7 +233,8 @@ export function useProject(id: string | null) {
     // Job progress is not part of the chat stream, so refresh while anything renders.
     const timer = setInterval(() => {
       setProject(p => {
-        if (p && (p.jobs.some(jobActive) || p.activity !== 'idle')) void reload();
+        // A take made but not yet saved is still open work: keep reading until it is saved or cancelled.
+        if (p && (p.jobs.some(j => jobActive(j) || (j.recovery_blocked && !['completed', 'failed', 'cancelled'].includes(j.state))) || p.activity !== 'idle')) void reload();
         return p;
       });
     }, 1500);

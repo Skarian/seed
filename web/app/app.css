@@ -4449,3 +4449,9 @@ textarea::placeholder {
     width: 100%;
   }
 }
+
+/* Make now: a short note that it works from words only. */
+.make-note {
+  margin: 0 0 6px;
+  font-size: 0.8125rem;
+}

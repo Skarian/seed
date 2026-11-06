@@ -422,7 +422,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   async function retry() {
     const last = lastSent.current ?? lastUserMessage(project);
     if (!project || !last) return;
-    await run('', () => projectsApi.send(project, { text: last.text, assets: last.assets }));
+    // The same message runs again; it is not posted a second time.
+    await run('', () => projectsApi.send(project, { text: last.text, assets: last.assets, retry: true }));
   }
   function makeItMyself(fromTurn?: ChatMessage) {
     const last = substantialRequest(project);
@@ -1172,6 +1173,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                     context={context}
                     onContext={setContext}
                     planOpen={Boolean(plan)}
+                    castApproved={Object.keys(project?.picks ?? {}).some(k => k.startsWith('ref:'))}
                     mode={mode}
                     onMode={m => {
                       setMode(m);

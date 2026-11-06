@@ -173,6 +173,7 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
             revision: version,
             attach_request: { type: 'boolean' },
             keep_plan: { type: 'boolean' },
+            retry: { type: 'boolean' },
           },
           ['version', 'text', 'assets'],
         ),

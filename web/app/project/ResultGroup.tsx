@@ -535,7 +535,12 @@ function ResultTile({
               {state.retained && (
                 <>
                   <small className="wait-reason">The picture was made but didn’t reach this PC.</small>
-                  <button className="btn small" style={{ marginTop: 8 }} onClick={() => void jobsApi.recover(job.id)}>
+                  <button className="btn small" style={{ marginTop: 8 }} onClick={() =>
+                      void jobsApi
+                        .retrySave(job.id)
+                        .then(() => app.refreshTasks())
+                        .catch(e => app.toast((e as Error).message))
+                    }>
                     Try saving again
                   </button>
                 </>
