@@ -3,6 +3,16 @@ import { test, expect, type Page } from '@playwright/test';
 // Offline app tests: fake GPU providers and workers, no outside network, no chat model.
 // Everything typed here is synthetic (AGENTS.md).
 
+/** Picks how the board is arranged: a toggle on wide screens, a menu on phones. */
+async function arrangeBy(page: Page, how: 'By shot' | 'Grid') {
+  const group = page.getByRole('group', { name: 'Arrange' }),
+    menu = page.getByRole('button', { name: /^Arrange: / });
+  await expect(group.or(menu).first()).toBeVisible({ timeout: 20_000 });
+  if (await group.isVisible()) return group.getByRole('button', { name: how }).click();
+  await menu.click();
+  await page.getByRole('menuitemcheckbox', { name: how }).or(page.getByRole('menuitem', { name: how })).first().click();
+}
+
 async function newProject(page: Page) {
   await page.goto('/');
   await page.getByRole('button', { name: 'New project' }).first().click();
@@ -173,7 +183,7 @@ test('Results by shot lists shots in story order, not the order they were made',
   await allCompleted(page, project, 3);
 
   await page.goto(`/projects/${project}?view=results`);
-  await page.getByRole('group', { name: 'Arrange' }).getByRole('button', { name: 'By shot' }).click();
+  await arrangeBy(page, 'By shot');
   const rows = page.getByRole('region', { name: /^Shot \d+: / });
   await expect(rows).toHaveCount(3);
   expect(await rows.evaluateAll(els => els.map(e => e.getAttribute('aria-label')))).toEqual(['Shot 1: A', 'Shot 2: B', 'Shot 3: C']);
@@ -188,7 +198,7 @@ test('choosing a take for a shot is saved with the project and shown on the film
   await allCompleted(page, project, 2);
 
   await page.goto(`/projects/${project}?view=results`);
-  await page.getByRole('group', { name: 'Arrange' }).getByRole('button', { name: 'By shot' }).click();
+  await arrangeBy(page, 'By shot');
   const board = page.getByRole('region', { name: /^The (film|sequence), shot by shot$/ });
   await expect(board.getByRole('button', { name: /^Shot 2: B\. Made · nothing chosen/ })).toBeVisible();
   await page.getByRole('button', { name: 'Use Keyframe for Shot 2' }).click();
@@ -262,7 +272,7 @@ test('the full-screen viewer follows the shots in order and answers the arrow ke
   }
   await allCompleted(page, project, 2);
   await page.goto(`/projects/${project}?view=results`);
-  await page.getByRole('group', { name: 'Arrange' }).getByRole('button', { name: 'By shot' }).click();
+  await arrangeBy(page, 'By shot');
   await page.getByRole('button', { name: /^Open Shot 1: A/ }).click();
   await page.getByRole('button', { name: /^Open Shot 1: A.* full screen$/ }).click();
   const viewer = page.getByRole('dialog', { name: /^Shot 1: A/ });

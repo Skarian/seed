@@ -4,7 +4,7 @@ import { projects as projectsApi } from '../api.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { useApp, useAssets, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
-import { Media } from '../ui.js';
+import { Media, MenuButton } from '../ui.js';
 import { titleOf, latest, tileState, shapeClass } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
 import { CastStrip, referenceAsk } from './Cast.js';
@@ -568,6 +568,62 @@ export function ResultsView({
     }
   return (
     <div className={(embedded ? 'board' : 'board full') + (comparing ? ' selecting' : '')}>
+      {app.narrow && !embedded ? (
+        // Phones: the board's tools are three buttons that fit one row; each choice sits in its menu.
+        <div className="toolbar phone-tools">
+          <MenuButton
+            className="btn small"
+            label={'Show: ' + { all: 'All', fav: 'Favorites', image: 'Images', video: 'Videos' }[filter]}
+            align="start"
+            items={(
+              [
+                ['all', 'All'],
+                ['fav', 'Favorites'],
+                ['image', 'Images'],
+                ['video', 'Videos'],
+              ] as const
+            ).map(([k, l]) => ({ label: l, checked: filter === k, onSelect: () => setFilter(k) }))}
+          >
+            {{ all: 'All', fav: 'Favorites', image: 'Images', video: 'Videos' }[filter]} ▾
+          </MenuButton>
+          <MenuButton
+            className="btn small"
+            label={'Arrange: ' + (view === 'shots' ? 'By shot' : 'Grid')}
+            align="start"
+            items={[
+              { label: 'By shot', checked: view === 'shots', onSelect: () => setView('shots') },
+              { label: 'Grid', checked: view === 'grid', onSelect: () => setView('grid') },
+              ...(view === 'grid'
+                ? [{ label: 'Group by request', checked: grouped, onSelect: () => setGrouped(!grouped) }]
+                : []),
+              ...(view === 'shots' && cut.length > 1
+                ? [{ label: 'Play in order', hint: 'The chosen clips, shot by shot', onSelect: () => app.view(cut[0]!, cut) }]
+                : []),
+            ]}
+          >
+            {view === 'shots' ? 'By shot' : 'Grid'} ▾
+          </MenuButton>
+          <span style={{ flex: 1 }} />
+          <button
+            className={selected.length || comparing ? 'btn primary small' : 'btn small'}
+            aria-pressed={selected.length < 2 ? comparing : undefined}
+            aria-label={
+              selected.length === 2 ? 'Compare' : selected.length ? 'Select one more to compare' : 'Select two to compare'
+            }
+            onClick={() => {
+              if (selected.length < 2) {
+                setComparing(c => !c);
+                return;
+              }
+              const [a, b] = selected.map(id => items.find(i => i.asset === id)!);
+              if (a && b) app.compare(a, b);
+            }}
+          >
+            <Icon.Compare />
+            {selected.length === 2 ? 'Compare' : selected.length ? '1 of 2' : 'Compare'}
+          </button>
+        </div>
+      ) : (
       <div className="toolbar">
         {embedded && <b style={{ marginRight: 4 }}>Board</b>}
         <div className="seg" role="group" aria-label="Show">
@@ -634,6 +690,7 @@ export function ResultsView({
           {selected.length === 2 ? 'Compare' : selected.length ? 'Select one more' : 'Select two to compare'}
         </button>
       </div>
+      )}
       <div className="scroll">
         <div
           className={embedded ? 'boardpad' : 'col'}
