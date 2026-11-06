@@ -72,3 +72,23 @@ describe('looks that belong to particular shots', () => {
     expect(out).toContain('Carp Lantern’s look: red paper carp lantern.');
   });
 });
+
+describe('looks follow the shot record', () => {
+  it('adds a look only for people the shot is about, never to close-ups, and never traits', async () => {
+    const { withCastLooks } = await import('../server/chat/references.js');
+    const { isVisibleDetail } = await import('../shared/cast.js');
+    expect(['dry', 'unsentimental', 'calm', 'her granddaughter'].map(isVisibleDetail)).toEqual([false, false, false, false]);
+    expect(['freckles', 'long silver hair', 'mustard-yellow oilskin'].map(isVisibleDetail)).toEqual([true, true, true]);
+    const c = castFromBrief('## Characters\n- Odile Marchetti: dry, unsentimental, long silver hair, mustard-yellow oilskin\n- Tomás Reyes: 9, curly black hair, navy jumper');
+    const p = { 'ref:Odile Marchetti': 'odile', 'ref:Tomás Reyes': 'tomas' };
+    const refs = [
+      { id: 'input1', asset_id: 'tomas', kind: 'image', role: 'source' },
+      { id: 'input2', asset_id: 'odile', kind: 'image', role: 'reference' },
+    ];
+    const r = (shot: object) => ({ workflow: 'image-to-image', prompt: 'Tomás in the storm.', references: refs, shot }) as any;
+    const onlyTomas = withCastLooks(r({ cast: ['Tomás Reyes'] }), c, p);
+    expect(onlyTomas).toContain('Tomás Reyes’s look: curly black hair, navy jumper.');
+    expect(onlyTomas).not.toMatch(/Odile|dry|unsentimental/);
+    expect(withCastLooks(r({ cast: ['Tomás Reyes', 'Odile Marchetti'], framing: 'close-up on hands' }), c, p)).toBe('Tomás in the storm.');
+  });
+});

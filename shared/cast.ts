@@ -187,3 +187,24 @@ export function lookParts(look: string): string[] {
   out.push(cur);
   return out.map(p => p.trim().replace(/\.$/, '')).filter(Boolean);
 }
+
+/**
+ * Whether one detail of a look is something a picture can show. A lone word is a trait ("dry", "calm",
+ * "unsentimental") unless it names something visible; relations, ages and personality are never drawn. One test for
+ * the server (which adds looks to prompts) and the brief check (which suggests them), so both agree.
+ */
+const visibleWords =
+  /\b(hair|bob|braid|bun|beard|moustache|mustache|stubble|freckles?|scar|eyes?|glasses|spectacles|skin|tattoo|coat|jacket|jumper|sweater|shirt|dress|skirt|trousers|jeans|boots?|shoes?|hat|cap|scarf|gloves?|apron|overalls|oilskin|uniform|cloak|bag|satchel|belt|ring|earrings?|necklace|chain|watch|patch|badge|wings?|tail|fur|feathers?|paint|wood|metal|brass|copper|iron|steel|glass|paper|stone|brick|red|orange|yellow|gold|green|teal|blue|navy|purple|pink|white|black|grey|gray|silver|brown|tall|short|slim|thin|stocky|broad|bald|small|large|tiny|huge|round|square|cracked|rusted|weathered|missing|limp|wheel|lamp|lantern|door|roof|tower|window)\b/i;
+const traitWords =
+  /\b(calm|kind|kindly|gentle|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|nervous|proud|lonely|thoughtful|playful|sarcastic|optimistic|melancholic|cheeky|mischievous|quiet|serious|bold|clever|bright|warm|cold|stern|determined|fierce|tender|dreamy|restless|weary|energetic|focused|dry|unsentimental|sentimental|practical|gruff|loyal|honest|personality|temperament|loves|likes|hates|fears|dreams of)\b/i;
+const relationWords =
+  /\b(grand)?(son|daughter|mother|father|mum|mom|dad|brother|sister|aunt|uncle|wife|husband|partner|friend|neighbou?r|apprentice|boss|niece|nephew|cousin)s?\b/i;
+export function isVisibleDetail(part: string): boolean {
+  const p = part.trim();
+  if (p.length < 3 || /^\d+(\s*years?\s*old)?$/i.test(p)) return false;
+  if (relationWords.test(p) && !visibleWords.test(p)) return false;
+  if (traitWords.test(p) && !visibleWords.test(p)) return false;
+  // A single word is a detail only when it names something visible ("freckles", "bald").
+  if (!/\s/.test(p) && !visibleWords.test(p)) return false;
+  return true;
+}

@@ -1,5 +1,5 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
-import { castFromBrief, castOf, referenceKey, sameCast, lookParts } from '../../../shared/cast.js';
+import { castFromBrief, castOf, referenceKey, sameCast, lookParts, isVisibleDetail } from '../../../shared/cast.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
@@ -525,7 +525,7 @@ const headAndFace =
   /\b(hair|bob|braid|curls?|fringe|bangs|freckles?|eyes?|face|scar|beard|eyebrows?|glasses|age|years?)\b/i;
 /** Who the person is ("10-year-old girl") is covered once the prompt uses their name. */
 const identity =
-  /\b(\d+[- ]year[- ]old|years? old|girl|boy|woman|man|child|kid|teen(ager)?|keeper|lighthouse keeper|female|male|non-binary|adult|elderly|(?:early|mid|late) \d0s|in (?:her|his|their) \d0s|\d0s)\b/i;
+  /\b(\d+[- ]year[- ]old|years? old|girl|boy|woman|man|child|kid|teen(ager)?|female|male|non-binary|adult|elderly|(?:early|mid|late) \d0s|in (?:her|his|their) \d0s|\d0s)\b/i;
 
 /** Missing brief details with the character they belong to (none for rules), so a fix can place them beside the name. */
 export function briefGapList(prompt: string, brief: string, shot?: ShotFields): Array<{ who?: string; where?: string; text: string }> {
@@ -611,7 +611,7 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
         // A state that belongs to particular shots ("in shot 4 it is mended") is not a detail every draft must carry.
         if (/\bshots?\s*\d/i.test(part)) continue;
         // Personality is not something a picture shows ("calm, dry humour", "curious").
-        if (personality.test(part)) continue;
+        if (personality.test(part) || !isVisibleDetail(part)) continue;
         // Who someone is to someone else ("grandson", "his aunt") is not something a picture shows.
         if (relation.test(part)) continue;
         if (!mentions(prompt, part)) out.push({ who: lastName, text: part.charAt(0).toLowerCase() + part.slice(1) });
