@@ -4252,3 +4252,51 @@ textarea::placeholder {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Details panel, Wider: a workspace over the board, the picture large on the left and its details beside it. */
+@media (min-width: 1100px) {
+  body.inspector-wide .inspector {
+    position: fixed;
+    inset: 0 0 0 var(--rail);
+    z-index: 40;
+    background: var(--bg);
+    display: flex;
+    flex-direction: column;
+  }
+  body.inspector-wide .inspector .body {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
+    gap: 14px 24px;
+  }
+  body.inspector-wide .inspector .hero {
+    min-height: 0;
+    display: grid;
+    place-items: center;
+    background: none;
+  }
+  body.inspector-wide .inspector .hero img,
+  body.inspector-wide .inspector .hero video {
+    max-width: 100%;
+    max-height: calc(100dvh - 110px);
+    width: auto;
+    height: auto;
+    object-fit: contain;
+  }
+  body.inspector-wide .inspector .body {
+    align-content: start;
+    align-items: start;
+    overflow-y: auto;
+  }
+  body.inspector-wide .inspector .body > .hero {
+    grid-column: 1;
+    grid-row: 1 / span 30;
+    position: sticky;
+    top: 0;
+  }
+  body.inspector-wide .inspector .body > :not(.hero) {
+    grid-column: 2;
+    min-width: 0;
+  }
+}

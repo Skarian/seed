@@ -12,7 +12,7 @@ import {
   type JobRecord,
   type AssetCollection,
 } from '../api.js';
-import { useApp, type ViewerItem } from '../data.js';
+import { useApp, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
 import { Media, MenuButton, Thumb, Confirm, Dialog, downloadAsset, useModalFocus } from '../ui.js';
 import { titleOf, settingChips, duration, targetLabel, promptChanges } from '../format.js';
@@ -753,6 +753,14 @@ export function Inspector({
 }) {
   const app = useApp();
   const i = siblings.findIndex(s => s.asset === item.asset);
+  // Wider gives the picture most of the screen beside the board; the choice is remembered.
+  const [wide, setWide] = useStoredState('seed.inspector.wide', false);
+  useEffect(() => {
+    document.body.classList.toggle('inspector-wide', wide);
+    return () => {
+      document.body.classList.remove('inspector-wide');
+    };
+  }, [wide]);
   // Escape closes the panel only when nothing inside it (a menu, a dialog, a field) has already handled the key,
   // and focus returns to the result it was opened from. Enter on the image opens it full screen (the button does that).
   const latest = useRef({ onClose, item, onPick, siblings, i });
@@ -808,6 +816,14 @@ export function Inspector({
         <h2 className="inspector-title" ref={heading} tabIndex={-1}>
           {item.title}
         </h2>
+        <button
+          className="btn small quiet no-phone"
+          aria-pressed={wide}
+          title={wide ? 'Give the board more room' : 'Give the picture more room'}
+          onClick={() => setWide(!wide)}
+        >
+          {wide ? 'Narrower' : 'Wider'}
+        </button>
         {siblings.length > 1 && (
           <span className="history">
             <button aria-label="Previous result" disabled={i <= 0} onClick={() => onPick(siblings[i - 1]!)}>
