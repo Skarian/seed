@@ -210,6 +210,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   )
     out.push({
       code: 'no-style',
+      soft: true,
       text: 'You asked for a style. Styles can’t be used on pictures made from references (FLUX 3 Image Klein), so this draft has none and its look comes from the prompt and the references. A picture from words (Krea 2) can use the style.',
       fixes: [],
     });

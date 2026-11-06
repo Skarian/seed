@@ -934,7 +934,19 @@ export class Chats {
                 .some(m => /\bstyle\b/i.test(m.text))
                 ? {
                     no_style:
-                      'No style is attached to this draft: styles cannot be used on pictures made from references (FLUX 3 Image Klein). Do not say it is in the style. Tell the user in one sentence that the look is described in words instead, and that a picture from words (Krea 2) can use the style with less likeness.',
+                      'No style is attached to this draft: styles cannot be used on pictures made from references (FLUX 3 Image Klein). Do not say it is in the style. If the user asked for a style on this draft, tell them in one sentence that the look is described in words instead, and that a picture from words (Krea 2) can use the style with less likeness; if their style was for another draft, say nothing about it here.',
+                  }
+                : {}),
+              // A style asked for on a draft that can carry one, but not attached: the reply must not claim it.
+              ...(request.workflow !== 'image-to-image' &&
+              !(request.loras ?? []).length &&
+              current.messages
+                .filter(m => m.role === 'user')
+                .slice(-1)
+                .some(m => /\bstyle\b/i.test(m.text))
+                ? {
+                    style_missing:
+                      'This draft has no style attached. If the user asked for a style on this draft, call edit_request with loras set to that style (from the styles listed for this kind) before replying; never say a draft uses a style unless its request shows it in loras.',
                   }
                 : {}),
               ...(silenced
@@ -962,7 +974,7 @@ export class Chats {
                   ? {
                       brief_shot: `${line.n}. ${line.name}: ${line.action}`,
                       brief_shot_note:
-                        'This is how the brief’s shot list still describes this shot. If the user’s change replaces any of it, call update_brief with that line rewritten; otherwise leave the brief as it is.',
+                        'This is how the brief’s shot list still describes this shot. If the user’s change replaces any of it, call update_brief with that line rewritten (and its name, when the name no longer fits), and give the draft the same “Shot N: Name” title; otherwise leave the brief as it is.',
                     }
                   : {};
               })(),

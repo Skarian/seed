@@ -178,6 +178,15 @@ export function ComputeSheet({
                 : 'Starts the machine first.'}{' '}
               You pay from the moment it starts, downloads included.
             </div>
+            {role !== 'video' && (
+              <>
+                <span>Makes</span>
+                <div>
+                  Pictures from words (Krea 2). Edits and pictures made from references (FLUX 3 Image Klein) run on
+                  the Seed PC only for now.
+                </div>
+              </>
+            )}
             <span>Release after</span>
             <div>
               <select

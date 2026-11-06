@@ -440,7 +440,17 @@ export function AssetPanel({
                   : job.worker?.executor === 'cloud'
                     ? 'Cloud GPU'
                     : targetLabel(r?.target)}
-                {job.metrics?.elapsed_to_saved_seconds ? ' · ' + duration(job.metrics.elapsed_to_saved_seconds) : ''}
+                {(() => {
+                  // Waiting in the queue and working on the GPU are different times: say both when they differ.
+                  const m = job.metrics,
+                    total = m?.elapsed_to_saved_seconds;
+                  if (!total) return '';
+                  const work =
+                    m?.submitted_at && m.saved_at ? (Date.parse(m.saved_at) - Date.parse(m.submitted_at)) / 1000 : 0;
+                  return work > 0 && total - work >= 2
+                    ? ` · ready in ${duration(total)} (${duration(work)} on the GPU)`
+                    : ` · ready in ${duration(total)}`;
+                })()}
               </div>
             </>
           )}

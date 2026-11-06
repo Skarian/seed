@@ -795,6 +795,10 @@ function DraftEditor({
   const route = routeOf(r);
   const available = useMemo(() => styles.filter(s => s.route === route), [styles, route]);
   const style = f.loras[0];
+  // A style added since this page loaded (in Settings or another tab) shows as soon as the editor opens.
+  useEffect(() => {
+    dispatchEvent(new Event('seed:styles-changed'));
+  }, []);
   // A style added in another tab is not in this tab's list yet: ask for the current list once.
   useEffect(() => {
     if (style && !available.some(s => s.id === style.id)) dispatchEvent(new Event('seed:styles-changed'));
