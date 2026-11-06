@@ -56,3 +56,19 @@ describe('cast names', () => {
     expect(c.map(e => e.name)).toEqual(['Dr. Amara Okafor-Lind', 'Élodie Marchand', 'Teo']);
   });
 });
+
+describe('looks that belong to particular shots', () => {
+  it('never carries a per-shot state into every shot, and keeps bracketed lists whole', async () => {
+    const { withCastLooks, lookParts } = await import('../server/chat/references.js');
+    expect(lookParts('paper lanterns (red, amber, white) on the beams, a brass hook')).toEqual([
+      'paper lanterns (red, amber, white) on the beams',
+      'a brass hook',
+    ]);
+    const c = castFromBrief('## Props\n- Carp Lantern: red paper carp lantern, In shots 1-3 it is crushed flat on one side; in shot 4 it is fully mended and glowing');
+    const p = { 'ref:Carp Lantern': 'lamp' };
+    const r = { workflow: 'image-to-image', prompt: 'A market stall.', references: [{ id: 'input1', asset_id: 'lamp', kind: 'image', role: 'source' }] } as any;
+    const out = withCastLooks(r, c, p);
+    expect(out).not.toMatch(/shot 4|shots 1-3/i);
+    expect(out).toContain('Carp Lantern’s look: red paper carp lantern.');
+  });
+});

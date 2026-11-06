@@ -168,3 +168,22 @@ export function sameCast(a: string, b: string): boolean {
   if (!x || !y) return false;
   return x === y || x.split(' ')[0] === y.split(' ')[0];
 }
+
+/** A look split into its details at commas, semicolons and sentence ends, never inside brackets ("(red, amber)"). */
+export function lookParts(look: string): string[] {
+  const out: string[] = [];
+  let depth = 0,
+    cur = '';
+  for (let i = 0; i < look.length; i++) {
+    const c = look[i]!;
+    if (c === '(') depth++;
+    if (c === ')') depth = Math.max(0, depth - 1);
+    const end = depth === 0 && (c === ',' || c === ';' || (c === '.' && /\s/.test(look[i + 1] ?? ' ')));
+    if (end) {
+      out.push(cur);
+      cur = '';
+    } else cur += c;
+  }
+  out.push(cur);
+  return out.map(p => p.trim().replace(/\.$/, '')).filter(Boolean);
+}

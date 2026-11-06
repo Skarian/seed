@@ -1,5 +1,5 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
-import { castFromBrief, castOf, referenceKey, sameCast } from '../../../shared/cast.js';
+import { castFromBrief, castOf, referenceKey, sameCast, lookParts } from '../../../shared/cast.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
@@ -384,7 +384,8 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     });
   // Brief details that apply to this draft but are missing from its prompt. Words only: this checks the request, not the picture.
   // A clip that starts from a keyframe takes the characters' look from that image; their words need no check.
-  const fromFrame = r.workflow === 'reference-to-video' && (r.references ?? []).some(x => x.role === 'first_frame');
+  // A clip that animates a keyframe (its start frame or a picture reference) takes the look from that picture.
+  const fromFrame = r.workflow === 'reference-to-video' && (r.references ?? []).some(x => x.kind === 'image');
   // A character, place or prop whose approved reference image is an input of this draft is carried by that image.
   const shown = new Set(
     castOf(project)
@@ -591,8 +592,7 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
           framing,
         ) || /^wide$/i.test(shot?.framing?.trim() ?? '');
       if (far && !generic) continue;
-      for (const part of m[2]!
-        .split(/[,;]|\.\s/)
+      for (const part of lookParts(m[2]!)
         .map(p =>
           p
             .trim()
@@ -608,6 +608,8 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
           continue;
         // An instruction ("preserve her specific wardrobe") is not a visible detail to add to one prompt.
         if (abstractRule.test(part) || deliveryNote.test(part)) continue;
+        // A state that belongs to particular shots ("in shot 4 it is mended") is not a detail every draft must carry.
+        if (/\bshots?\s*\d/i.test(part)) continue;
         // Personality is not something a picture shows ("calm, dry humour", "curious").
         if (personality.test(part)) continue;
         // Who someone is to someone else ("grandson", "his aunt") is not something a picture shows.
@@ -628,8 +630,7 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
         ? words.some(w => recorded.includes(w))
         : words.length > 0 && words.every(w => new RegExp('\\b' + w + '\\b', 'i').test(prompt));
       if (!here) continue;
-      for (const part of m[2]!
-        .split(/[,;]|\.\s/)
+      for (const part of lookParts(m[2]!)
         .map(p =>
           p
             .trim()

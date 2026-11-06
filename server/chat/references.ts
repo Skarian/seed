@@ -1,6 +1,7 @@
 import type { ImageRequest } from '../workflows.js';
 import { inputLabels, promptBindings, remapReferences } from '../../shared/reference-labels.js';
-import { referenceKey, type CastEntry } from '../../shared/cast.js';
+import { referenceKey, lookParts, type CastEntry } from '../../shared/cast.js';
+export { lookParts };
 export function chatReferenceLabels(request: ImageRequest) {
   return inputLabels(request.references ?? []);
 }
@@ -73,7 +74,7 @@ export function withCastLooks(request: ImageRequest, cast: CastEntry[], picks: R
   const low = request.prompt.toLowerCase();
   const visible = (part: string) =>
     !/^\d+(\s*years?\s*old)?$/i.test(part) &&
-    !/\b(grand)?(son|daughter|mother|father|brother|sister|aunt|uncle|wife|husband|friend|apprentice|calm|kind|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|proud|lonely|playful|loves|likes|hates|fears)\b/i.test(
+    !/\b(grand)?(son|daughter|mother|father|brother|sister|aunt|uncle|wife|husband|friend|apprentice|calm|kind|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|proud|lonely|playful|focused|determined|gentle|quiet|serious|warm|loves|likes|hates|fears)\b/i.test(
       part,
     );
   const carried = (part: string) => {
@@ -85,11 +86,14 @@ export function withCastLooks(request: ImageRequest, cast: CastEntry[], picks: R
     if (e.kind === 'place' || !inputs.has(picks[referenceKey(e.name)] ?? '')) continue;
     // A prompt that already carries this person's look line (from an earlier save) never gets a second one.
     if (low.includes(e.name.toLowerCase() + '’s look:') || low.includes(e.name.toLowerCase() + "'s look:")) continue;
-    const missing = e.look
-      .split(/[,;]|\.\s/)
-      .map(p => p.trim().replace(/\.$/, ''))
-      .filter(p => p.length > 2 && visible(p) && !carried(p));
+    const missing = lookParts(e.look)
+      // A state that belongs to particular shots ("in shot 4 it is mended") is the shot's to say, never every shot's.
+      .filter(p => !/\bshots?\s*\d|\bin (?:the )?(?:first|last|final|opening|closing) shots?\b/i.test(p))
+      .filter(p => p.length > 2 && visible(p) && !carried(p))
+      // Fragments read as one phrase: "a teal coat", not "A teal coat" mid-sentence.
+      .map(p => (/^\p{Lu}\p{Ll}/u.test(p) && !/^\p{Lu}\p{Ll}+\s+\p{Lu}/u.test(p) ? p[0]!.toLowerCase() + p.slice(1) : p));
     if (missing.length) add.push(`${e.name}’s look: ${missing.join(', ')}.`);
   }
   return add.length ? request.prompt.replace(/\s*$/, '') + ' ' + add.join(' ') : request.prompt;
 }
+
