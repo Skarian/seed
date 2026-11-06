@@ -9,8 +9,9 @@ import { useApp } from '../data.js';
 import { latest, titleOf, settingChips, changesBetween, outputNoun, assetName } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
-import { checkDraft, readablePrompt, editablePrompt, chooseFrame, type Check } from './checks.js';
+import { askedFor, checkDraft, readablePrompt, editablePrompt, chooseFrame, type Check } from './checks.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
+import { swapInput } from './swap.js';
 
 export type Selection = Record<string, boolean>;
 type Props = {
@@ -143,7 +144,11 @@ export function PlanCard({
               'divider' as const,
               // The delivery frame: results show its guides and Crop starts there. Models still make their own shapes.
               ...(['', '2.39:1', '1.85:1', '21:9', '2:3'] as const).map(frame => ({
-                label: frame ? `Crop to ${frame} later` : 'No delivery crop (keep the shape made)',
+                label: frame
+                  ? `Crop to ${frame} later`
+                  : !project.frame && askedFor(project.messages).other
+                    ? `No delivery crop chosen yet (you asked for ${askedFor(project.messages).other})`
+                    : 'No delivery crop (keep the shape made)',
                 hint: frame ? 'Results show its guides' : undefined,
                 checked: (project.frame ?? '') === frame,
                 onSelect: () => chooseFrame(project.id, frame),
@@ -616,7 +621,15 @@ function Draft({
               const old = inputs.find(x => x.id === id);
               const was = old ? plain(assetName(project, old.asset_id, tasks)) : '';
               const now = plain(assetName(project, a.id, tasks));
-              setSwapped(was && now && was.toLowerCase() !== now.toLowerCase() ? { was, now } : null);
+              // Someone's approved picture is never dropped by a swap: it stays on as a reference, and the prompt
+              // follows it, so their name never ends up on a place's picture.
+              const keep = Boolean(
+                old && Object.entries(project.picks ?? {}).some(([k, v]) => k.startsWith('ref:') && v === old.asset_id),
+              );
+              const next = swapInput(r, id, { id: a.id, kind: a.kind }, keep);
+              setSwapped(
+                !next.kept && was && now && was.toLowerCase() !== now.toLowerCase() ? { was, now } : null,
+              );
               const {
                 workflow: _w,
                 mode: _m,
@@ -625,7 +638,8 @@ function Draft({
               } = r as typeof r & { resolved_seeds?: unknown };
               void onRevise({
                 ...rest,
-                references: inputs.map(x => (x.id === id ? { ...x, asset_id: a.id, kind: a.kind } : x)),
+                prompt: next.prompt,
+                references: next.references,
               });
             }}
           />

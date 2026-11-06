@@ -470,8 +470,15 @@ export class Chats {
         .get(id) as { note: string } | undefined;
       // A generated result is named by the draft that made it and its take, so Seed can tell "Shot 2 · take 1" from "Shot 1".
       const job = typeof asset?.metadata?.job_id === 'string' ? this.jobs.get(asset.metadata.job_id) : undefined;
+      // A shot renumbered in the brief is named by its current number ("Shot 6: First Light", not "Shot 5: …").
+      const renumbered = (t: string) => {
+        const own = shotFromTitle(t);
+        if (own.n === null) return t;
+        const listed = shotsFromBrief(chat.brief).find(s => shotNameKey(s.name) === shotNameKey(own.name));
+        return listed && listed.n !== own.n ? t.replace(/^shot\s*\d+/i, 'Shot ' + listed.n) : t;
+      };
       const title = job?.request.title
-        ? `${job.request.title}${(job.request.count ?? 1) > 1 ? ` · take ${(job.submission_index ?? 0) + 1} of ${job.request.count}` : ''}`
+        ? `${renumbered(job.request.title)}${(job.request.count ?? 1) > 1 ? ` · take ${(job.submission_index ?? 0) + 1} of ${job.request.count}` : ''}`
         : undefined;
       const shotLabel = (k: string) => {
         const m = k.match(/^shot:(.+):(?:image|clip)$/);
@@ -918,6 +925,18 @@ export class Chats {
                 : 'Tell the user the draft is ready to review and has not been made yet. Name the images in inputs_now.',
               ...(before ? { changed, inputs_before: inputsBefore } : {}),
               inputs_now: inputsNow,
+              // A style the user asked for cannot ride on a picture made from references: the reply must say so.
+              ...(request.workflow === 'image-to-image' &&
+              !(request.loras ?? []).length &&
+              current.messages
+                .filter(m => m.role === 'user')
+                .slice(-3)
+                .some(m => /\bstyle\b/i.test(m.text))
+                ? {
+                    no_style:
+                      'No style is attached to this draft: styles cannot be used on pictures made from references (FLUX 3 Image Klein). Do not say it is in the style. Tell the user in one sentence that the look is described in words instead, and that a picture from words (Krea 2) can use the style with less likeness.',
+                  }
+                : {}),
               ...(silenced
                 ? {
                     saved_silent:
@@ -1877,9 +1896,11 @@ export class Chats {
     this.save(chat);
     return this.view(id);
   }
-  restore(id: string, cardId: string, number: number, raw: unknown) {
+  /** Brings a set-aside draft back as a new plan; with `join`, into the plan under review ("Bring back all"). */
+  restore(id: string, cardId: string, number: number, raw: unknown, join = false) {
     const chat = this.get(id);
-    if (this.tasks.has(id) || this.preparing.has(id) || openGroup(chat))
+    const open = openGroup(chat);
+    if (this.tasks.has(id) || this.preparing.has(id) || (open && !(join && open.state === 'reviewing')))
       throw Error('Resolve or stop current proposals first.');
     const source = chat.groups.flatMap(g => g.cards).find(c => c.id === cardId),
       prior = source?.revisions.find(r => r.number === number);
@@ -1891,13 +1912,15 @@ export class Chats {
       workflow: source.workflow,
       revisions: [...source.revisions, this.revision(chat, request, latest(source).number + 1)],
     };
-    chat.groups.push({
-      id: randomUUID(),
-      after_message_id: chat.messages.at(-1)?.id ?? null,
-      workflow: source.workflow,
-      state: 'reviewing',
-      cards: [card],
-    });
+    if (open && join) open.cards.push(card);
+    else
+      chat.groups.push({
+        id: randomUUID(),
+        after_message_id: chat.messages.at(-1)?.id ?? null,
+        workflow: source.workflow,
+        state: 'reviewing',
+        cards: [card],
+      });
     chat.version++;
     this.save(chat);
     return this.view(id);

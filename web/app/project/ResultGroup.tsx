@@ -25,6 +25,7 @@ type Actions = {
   onVariations: (card: ChatCard) => void;
   onRetryFailed: (card: ChatCard) => void;
   onBringBack: (card: ChatCard) => void;
+  onBringBackAll: (cards: ChatCard[]) => void;
   onRedoCancelled: (card: ChatCard) => void;
   onMakeAgain: (card: ChatCard) => void;
   onReuse: (card: ChatCard) => void;
@@ -267,6 +268,14 @@ function CardResults({
   const notNowRow = notNow.length > 0 && (
     <div className="notnow">
       <span>Not made this time:</span>
+      {notNow.filter(c => !broughtBack(c) && !madeLater(c)).length > 1 && (
+        <button
+          className="btn small"
+          onClick={() => actions.onBringBackAll(notNow.filter(c => !broughtBack(c) && !madeLater(c)))}
+        >
+          Bring back all {notNow.filter(c => !broughtBack(c) && !madeLater(c)).length}
+        </button>
+      )}
       {notNow.map(c => (
         <span key={c.id}>
           <b>{titleOf(latest(c).request)}</b>

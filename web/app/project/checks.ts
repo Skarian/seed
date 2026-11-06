@@ -100,7 +100,11 @@ export function askedFor(messages: ChatMessage[]) {
       const composition = (extra: string) =>
         `(?![\\s-]*(?:lens|lighting|mode|framing|framed|composition|close-?up|crop|style|pose|angle|pan|tilt|move|lines?|stripes?|painting|photography|artist|of\\b${extra}))`;
       const portrait =
-        new RegExp('(?<!three-quarter |3/4 |profile )\\b(?:vertical|portrait)\\b' + composition('|shot')).test(t) &&
+        // "Noor's portrait", "her portrait" or "the portrait" is a picture, not a shape.
+        new RegExp(
+          "(?<!three-quarter |3/4 |profile |['’]s |her |his |their |its |my |your |the )\\b(?:vertical|portrait)\\b" +
+            composition('|shot'),
+        ).test(t) &&
         !/\bportrait(?:\s+orientation)?\s+of\b/.test(t);
       const landscape = new RegExp('\\b(?:landscape|horizontal|widescreen)\\b' + composition('')).test(t);
       // One message naming several shapes ("a portrait one-sheet, a square tile and a wide banner") is about several
@@ -196,8 +200,13 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   if (
     r.workflow === 'image-to-image' &&
     !(r.loras ?? []).length &&
-    trigger &&
-    /\b(my|the|in|with|use|using)\b[^.?!]{0,40}\bstyle\b|\bstyle\b[^.?!]{0,10}\b(lora|preset)\b/i.test(trigger.text)
+    // The style may have been asked a message or two before the one that drafted this ("Draft 3 keyframes").
+    (at > 0 ? project.messages.slice(0, at) : [])
+      .filter(m => m.role === 'user')
+      .slice(-3)
+      .some(m =>
+        /\b(my|the|in|with|use|using)\b[^.?!]{0,40}\bstyle\b|\bstyle\b[^.?!]{0,10}\b(lora|preset)\b/i.test(m.text),
+      )
   )
     out.push({
       code: 'no-style',
@@ -235,7 +244,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
         });
     }
   }
-  if (asked.other && aspect !== 'source') {
+  if (asked.other && aspect !== 'source' && !isReference) {
     const [w, h] = asked.other.split(':').map(Number) as [number, number],
       want = w / h;
     const supported: Aspect[] = video ? ['16:9', '9:16'] : ['16:9', '1:1', '4:5', '9:16'];
@@ -362,9 +371,20 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       })
       .map(e => e.name.split(' ')[0]!.toLowerCase()),
   );
+  const shownPlaces = new Set(
+    castFromBrief(project.brief)
+      .filter(e => e.kind !== 'character')
+      .filter(e => {
+        const id = project.picks?.[referenceKey(e.name)];
+        return id && (r.references ?? []).some(x => x.asset_id === id);
+      })
+      .map(e => e.name.toLowerCase().replace(/^the /, '')),
+  );
   const subject = (r.title ?? '').match(/^reference(?: sheet)?:\s*(.+)$/i)?.[1]?.toLowerCase();
   const gaps = (fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '', r.shot))
     .filter(g => !g.who || !shown.has(g.who.split(' ')[0]!.toLowerCase()))
+    // A place whose approved picture is an input carries its own look.
+    .filter(g => !g.where || !shownPlaces.has(g.where.toLowerCase().replace(/^the /, '')))
     .filter(g => !subject || (g.who !== undefined && subject.includes(g.who.toLowerCase())));
   if (gaps.length) {
     const whose = [...new Set(gaps.map(g => g.who).filter(Boolean))];
@@ -484,9 +504,9 @@ const identity =
   /\b(\d+[- ]year[- ]old|years? old|girl|boy|woman|man|child|kid|teen(ager)?|keeper|lighthouse keeper|female|male|non-binary|adult|elderly|(?:early|mid|late) \d0s|in (?:her|his|their) \d0s|\d0s)\b/i;
 
 /** Missing brief details with the character they belong to (none for rules), so a fix can place them beside the name. */
-export function briefGapList(prompt: string, brief: string, shot?: ShotFields): Array<{ who?: string; text: string }> {
+export function briefGapList(prompt: string, brief: string, shot?: ShotFields): Array<{ who?: string; where?: string; text: string }> {
   if (!brief.trim()) return [];
-  const out: Array<{ who?: string; text: string }> = [];
+  const out: Array<{ who?: string; where?: string; text: string }> = [];
   // A draft that records its shot says who is in frame and how it is framed; the wording is read only for older drafts.
   const framing = shot?.framing ?? prompt;
   const inShot = (first: string) => {
@@ -592,7 +612,7 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
             .replace(/^(and|or|with)\s+/i, ''),
         )
         .filter(p => p.length > 2 && !abstractRule.test(p) && !deliveryNote.test(p) && !mentions(prompt, p)))
-        out.push({ text: part.charAt(0).toLowerCase() + part.slice(1) });
+        out.push({ where: m[1]!.trim(), text: part.charAt(0).toLowerCase() + part.slice(1) });
     } else if (/rule|always|never|constraint/.test(section)) {
       // A rule about the project as a whole ("keep wardrobe consistent across shots") is not a visible detail to
       // put in one prompt; only concrete rules ("no text anywhere") are checked.

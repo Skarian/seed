@@ -55,9 +55,16 @@ export function ResultsView({
     ...(filter === 'image' || filter === 'video' ? { kind: filter } : {}),
   });
   const jobsById = useMemo(() => new Map(project.jobs.map(j => [j.id, j])), [project.jobs]);
+  const shotsNow = useMemo(() => shotsFromBrief(project.brief), [project.brief]);
   const items: ViewerItem[] = list.items.map(a => {
     const job = a.job_id ? jobsById.get(a.job_id) : undefined,
-      base = a.title ?? (job ? titleOf(job.request) : a.name);
+      made = a.title ?? (job ? titleOf(job.request) : a.name),
+      // A shot renumbered in the brief ("First Light" moved from 5 to 6) shows its current number everywhere.
+      placed = placeShot(made, shotsNow),
+      base =
+        placed.n !== null && /^shot\s*\d+\s*[:·.-]/i.test(made) && !new RegExp('^shot\\s*' + placed.n + '\\b', 'i').test(made)
+          ? made.replace(/^shot\s*\d+/i, 'Shot ' + placed.n)
+          : made;
     return {
       asset: a.id,
       kind: a.kind,
@@ -246,6 +253,24 @@ export function ResultsView({
     const { n } = placeShot(t, briefShots);
     if (n !== null && shots.has('n' + n)) shots.get('n' + n)!.saved.push(t);
   }
+  // A take chosen for a shot belongs in that shot's row wherever it was made (a picture from Make now, chosen by
+  // asking Seed), so the Storyboard, the Library's "Chosen for" and the clip plan agree.
+  for (const [key, s] of shots)
+    for (const kind of ['image', 'clip'] as const) {
+      if (s.n === null) continue;
+      const id = chosenTake(picks, s.n, s.name, kind);
+      const list = kind === 'image' ? s.images : s.clips;
+      if (!id || list.some(i => i.asset === id)) continue;
+      for (const [k2, other] of shots) {
+        const from = kind === 'image' ? other.images : other.clips;
+        const at = from.findIndex(i => i.asset === id);
+        if (at < 0) continue;
+        list.push(from.splice(at, 1)[0]!);
+        const empty = !other.images.length && !other.clips.length && !other.making.length;
+        if (other.n === null && empty && !other.planned.length && k2 !== key) shots.delete(k2);
+        break;
+      }
+    }
   const shotList = [...shots.values()].sort((a, b) => (a.n ?? 1e6) - (b.n ?? 1e6));
   // Previous and next in the viewer follow the board as it is shown: shot by shot, keyframes then clips.
   const inOrder = shotList.flatMap(s => [...s.images, ...s.clips]);

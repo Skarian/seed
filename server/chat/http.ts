@@ -205,8 +205,13 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
   );
   app.post(
     '/api/v1/chats/:id/cards/:card/restore',
-    { bodyLimit: 64 * 1024, schema: { body: object({ revision: version, request: { type: 'object' } }) } },
-    perform(r => chats.restore(id(r), r.params.card, r.body.revision, r.body.request)),
+    {
+      bodyLimit: 64 * 1024,
+      schema: {
+        body: object({ revision: version, request: { type: 'object' }, join: { type: 'boolean' } }, ['revision', 'request']),
+      },
+    },
+    perform(r => chats.restore(id(r), r.params.card, r.body.revision, r.body.request, r.body.join === true)),
   );
   app.post(
     '/api/v1/chats/:id/cards/:card/repeat',

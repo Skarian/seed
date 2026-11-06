@@ -641,6 +641,23 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         } = latest(card).request as never as Record<string, unknown>;
         await run('', () => projectsApi.restore(id, card.id, latest(card).number, request));
       }),
+    // Several set-aside drafts come back together as one plan.
+    onBringBackAll: (cards: ChatCard[]) =>
+      needsNewPlan('Bring back', async () => {
+        await run('', async () => {
+          let view: Awaited<ReturnType<typeof projectsApi.restore>> | undefined;
+          for (const [i, card] of cards.entries()) {
+            const {
+              workflow: _w,
+              mode: _m,
+              resolved_seeds: _s,
+              ...request
+            } = latest(card).request as never as Record<string, unknown>;
+            view = await projectsApi.restore(id, card.id, latest(card).number, request, i > 0);
+          }
+          return view!;
+        });
+      }),
   };
 
   // Scroll: follow new content unless the user scrolled up; jump to a focused group.
@@ -1716,7 +1733,15 @@ function friendlyError(error?: string | null) {
     ? `Seed stopped: ${e}. Nothing was made.`
     : 'Seed couldn’t finish that. Drafts without a new version are unchanged, and nothing was made.';
 }
+/** What Seed is doing now, and how many of its steps are done, so a long turn has something to watch. */
 function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
+  const tools = turn.steps.filter(s => s.kind === 'tool');
+  const done = tools.filter(s => s.state === 'succeeded').length,
+    failed = tools.filter(s => s.state === 'failed').length;
+  const tally = done || failed ? ` · ${done} ${done === 1 ? 'step' : 'steps'} done${failed ? `, ${failed} retried` : ''}` : '';
+  return stageNow(turn) + tally;
+}
+function stageNow(turn: NonNullable<ChatMessage['transcript']>) {
   const last = [...turn.steps].reverse().find(s => s.kind === 'tool');
   if (last?.state === 'running')
     return (
@@ -1726,7 +1751,12 @@ function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
         update_brief: 'Updating the brief',
         leave_out_request: 'Narrowing the plan',
         edit_request: 'Changing a draft',
-      }[last.name ?? ''] ?? 'Writing a draft'
+        create_request: 'Writing a draft',
+        cast_and_places: 'Reading the cast',
+        approve_reference: 'Approving a reference',
+        choose_take: 'Choosing a take',
+        order_requests: 'Ordering the plan',
+      }[last.name ?? ''] ?? 'Working'
     );
   const drafts = turn.steps.filter(
     s => s.kind === 'tool' && s.name === 'create_request' && s.state === 'succeeded',

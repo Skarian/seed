@@ -135,8 +135,8 @@ export const projects = {
   ) => pj('chats/' + id + '/groups/' + group + '/decisions', { body: { decisions } }),
   revise: (id: string, card: string, revision: number, request: Record<string, unknown>) =>
     pj('chats/' + id + '/cards/' + card + '/revise', { body: { revision, request } }),
-  restore: (id: string, card: string, revision: number, request: Record<string, unknown>) =>
-    pj('chats/' + id + '/cards/' + card + '/restore', { body: { revision, request } }),
+  restore: (id: string, card: string, revision: number, request: Record<string, unknown>, join = false) =>
+    pj('chats/' + id + '/cards/' + card + '/restore', { body: { revision, request, ...(join ? { join } : {}) } }),
   repeat: (
     id: string,
     card: string,

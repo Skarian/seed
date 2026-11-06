@@ -590,3 +590,12 @@ it('marks a cast entry Not needed without a picture, and undoes it',async()=>fix
  expect(chats.pick(c.id,'skip:Blue Lantern','skip').picks?.['skip:Blue Lantern']).toBe('skip');
  expect(chats.pick(c.id,'skip:Blue Lantern',null).picks?.['skip:Blue Lantern']).toBeUndefined();
 }));
+
+it('bringing back several drafts joins them into one plan',async()=>fixture(async({chats,queue})=>{
+  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
+  const card=c.groups[0]!.cards[0]!;chats.stop(c.id);
+  c=chats.restore(c.id,card.id,1,request);const groups=c.groups.length;
+  expect(()=>chats.restore(c.id,card.id,1,request)).toThrow(/Resolve or stop/);
+  c=chats.restore(c.id,card.id,1,{...request,prompt:'Another'},true);
+  expect(c.groups).toHaveLength(groups);expect(c.groups.at(-1)!.cards).toHaveLength(2);
+}));

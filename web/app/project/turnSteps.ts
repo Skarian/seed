@@ -18,7 +18,8 @@ function errorText(result: unknown): string {
   const walk = (v: unknown) => {
     if (typeof v === 'string') texts.push(v);
     else if (Array.isArray(v)) v.forEach(walk);
-    else if (v && typeof v === 'object') Object.values(v).forEach(walk);
+    // A part's type ("text") is not a message.
+    else if (v && typeof v === 'object') Object.entries(v).forEach(([k, x]) => k !== 'type' && k !== 'mimeType' && walk(x));
   };
   walk(result);
   for (const t of texts) {
