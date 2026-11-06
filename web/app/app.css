@@ -4165,3 +4165,21 @@ textarea::placeholder {
     inset: -11px;
   }
 }
+
+/* Compare: each picture fits the space its half really has (the differences panel included), never cropped. */
+.compare-grid figure {
+  container-type: size;
+}
+.compare-grid .frame img,
+.compare-grid .frame video {
+  max-height: min(calc(100dvh - 200px), calc(100cqh - 64px));
+  max-width: 100cqw;
+}
+
+/* Large text: the selection summary wraps onto its own row instead of shrinking to nothing beside the Make buttons. */
+.makebar {
+  flex-wrap: wrap;
+}
+.makebar .sum {
+  flex: 1 1 6rem;
+}

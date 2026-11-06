@@ -106,7 +106,7 @@ export function ResultsView({
   // A film goes on to clips; a set of stills is finished when every shot has its chosen picture.
   // A brief that says stills only ("image-only", "no clips") is a set of pictures even if it mentions clips.
   const stillsOnly =
-    /\b(image[- ]only|stills?[- ]only|no (clips|videos?|animation)|(do not|don.t|won.t) (make|render|draft|run) (any )?(clips|videos?)|image sequence|picture[- ]?books?|storybook|illustrated (?:book|story)|comic|graphic novel)\b/i.test(
+    /\b(image[- ]only|stills?[- ]only|no (clips|videos?|animation)|(do not|don.t|won.t) (make|render|draft|run) (any )?(clips|videos?)|image sequence|picture[- ]?books?|storybook|illustrated (?:book|story|stories|sequence)|illustrations?|(?:not|no) (?:a )?(?:video|film|clip|animation)|comic|graphic novel)\b/i.test(
       project.brief ?? '',
     );
   const film =
