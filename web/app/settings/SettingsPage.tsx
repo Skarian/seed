@@ -102,18 +102,21 @@ function Keys() {
       <p className="muted" style={{ margin: 0 }}>
         Keys are stored only on the Seed PC. OpenRouter powers Seed's replies; Vast or RunPod rent cloud GPUs.
       </p>
-      {credentialDefinitions.map(d => (
-        <Key
-          key={d.id}
-          id={d.id}
-          name={d.name}
-          description={d.description}
-          url={d.keyUrl}
-          configured={settings.credentials[d.id]?.configured}
-          validation={settings.credentials[d.id]?.validation}
-          onChange={c => setSettings(s => s && { ...s, credentials: c })}
-        />
-      ))}
+      {/* OpenRouter powers Seed's replies, so it comes first. */}
+      {[...credentialDefinitions]
+        .sort((x, y) => Number(y.id === 'openrouterApiKey') - Number(x.id === 'openrouterApiKey'))
+        .map(d => (
+          <Key
+            key={d.id}
+            id={d.id}
+            name={d.name}
+            description={d.description}
+            url={d.keyUrl}
+            configured={settings.credentials[d.id]?.configured}
+            validation={settings.credentials[d.id]?.validation}
+            onChange={c => setSettings(s => s && { ...s, credentials: c })}
+          />
+        ))}
       <details className="box">
         <summary>Where Seed keeps its files</summary>
         <p className="muted" style={{ margin: 0 }}>
@@ -261,7 +264,7 @@ function Key({
             )}
             <button
               type="button"
-              className="btn quiet small"
+              className="btn quiet small danger"
               disabled={busy}
               onClick={() => setRemoving(true)}
               aria-label={'Remove ' + name + ' key'}

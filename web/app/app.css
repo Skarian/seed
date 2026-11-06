@@ -1356,6 +1356,8 @@ button.chip:hover {
 }
 .menu .menu-item[data-highlighted] {
   background: var(--s3);
+  box-shadow: inset 3px 0 0 var(--accent);
+  color: var(--text);
 }
 .menu .menu-item[data-disabled] {
   opacity: 0.45;
@@ -2472,12 +2474,7 @@ h2.subhead {
   }
 }
 
-/* An odd last draft spans the row instead of leaving an empty cell. */
-@media (min-width: 700px) {
-  .drafts > :last-child:nth-child(odd):not(:first-child) {
-    grid-column: 1 / -1;
-  }
-}
+/* An odd last draft keeps its column width, like the drafts beside it. */
 
 /* Touch: every tappable control gets a comfortable hit area, even when it looks compact. */
 @media (pointer: coarse) {
