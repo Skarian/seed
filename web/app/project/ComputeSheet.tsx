@@ -226,7 +226,9 @@ export function ComputeSheet({
                     .join(' and ')}
                   {others.some(w => w.worker_class !== role)
                     ? '; image and video need different GPUs.'
-                    : '; the running one cannot take this work (for example a style added after it started).'}
+                    : action === 'keep it ready'
+                      ? '; this adds another of the same kind.'
+                      : '; the running one cannot take this work (for example a style added after it started).'}
                   {idleOthers.length > 0 && (
                     <label className="release-row">
                       <input type="checkbox" checked={releaseIdle} onChange={e => setReleaseIdle(e.target.checked)} />
