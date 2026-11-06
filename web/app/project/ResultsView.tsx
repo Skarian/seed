@@ -109,11 +109,12 @@ export function ResultsView({
     /\b(image[- ]only|stills?[- ]only|no (clips|videos?|animation)|(do not|don.t|won.t) (make|render|draft|run) (any )?(clips|videos?)|image sequence|picture[- ]?books?|storybook|illustrated (?:book|story|stories|sequence)|illustrations?|(?:not|no) (?:a )?(?:video|film|clip|animation)|comic|graphic novel)\b/i.test(
       project.brief ?? '',
     );
+  // A film when the brief says it is one (film, short, trailer, animation) or a clip has actually been made. A word
+  // like "video" in a rule ("never run video") or one optional clip draft does not turn a set of stills into a film.
   const film =
     (!stillsOnly &&
-      /\b(film|films|clip|clips|video|videos|animat\w*|motion|trailer|short)\b/i.test(project.brief ?? '')) ||
-    project.jobs.some(j => isVideoKind(kindOf[j.request.workflow])) ||
-    project.groups.some(g => g.cards.some(c => isVideoKind(kindOf[latest(c).request.workflow])));
+      /\b(film|films|short film|trailer|animated|animation|music video|clips? for each shot)\b/i.test(project.brief ?? '')) ||
+    project.jobs.some(j => isVideoKind(kindOf[j.request.workflow]) && j.state === 'completed');
   const toggle = (id: string) => setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s.slice(-1), id]));
   const min = { s: embedded ? 110 : 120, m: 170, l: 260 }[size];
   // Grid tiles take the shape most of these pictures have (16:9 for a film), so frames fill them instead of
