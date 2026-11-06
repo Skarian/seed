@@ -9,7 +9,7 @@ function fixture(run:(db:ReturnType<typeof openDatabase>)=>void){
   try{
     const job=(id:string,chat:string,prompt:string,title:string)=>db.prepare("INSERT INTO jobs VALUES (?,'text-to-image','completed',?,?,?,?,0)").run(id,JSON.stringify({request:{prompt,title,mode:'sfw'},source:{chat_id:chat}}),'2026-11-01T00:00:00Z','2026-11-01T00:00:00Z','sub-'+id);
     const asset=(id:string,at:string,meta:object)=>db.prepare("INSERT INTO assets VALUES (?,'image',?,?,?,?)").run(id,'Generated image','files/'+id+'.png',JSON.stringify({mode:'sfw',...meta}),at);
-    job('job-lake','chat-a','A quiet lake at dawn, bioluminescent reeds by “Ines’s” boat','Quiet lake');job('job-ridge','chat-b','A misty ridge','Misty ridge');
+    job('job-lake','chat-a','A quiet lake at dawn, bioluminescent reeds by “Ines’s” boat, a yellow sou’wester for the one-sheet','Quiet lake');job('job-ridge','chat-b','A misty ridge','Misty ridge');
     asset('a-lake','2026-11-01T01:00:00Z',{job_id:'job-lake'});asset('a-ridge','2026-11-01T02:00:00Z',{job_id:'job-ridge'});asset('a-upload','2026-11-01T03:00:00Z',{});
     db.prepare("INSERT INTO asset_notes VALUES ('a-upload','Reference sketch of a lighthouse',1)").run();
     run(db);
@@ -29,7 +29,7 @@ it('searches prompts, titles and notes, and filters by source and project',()=>f
   expect(listAssets(db,'',50,'sfw',undefined,{q:'lake'})[0]!.note).toBeUndefined();
   expect(ids({q:'100%'})).toEqual([]);
   // Words match where a word starts, after punctuation too, never inside another word.
-  expect(ids({q:'ines'})).toEqual(['a-lake']);expect(ids({q:'lumin'})).toEqual([]);expect(ids({q:'biolum'})).toEqual(['a-lake']);
+  expect(ids({q:'ines'})).toEqual(['a-lake']);expect(ids({q:"sou’wester"})).toEqual(['a-lake']);expect(ids({q:"sou'wester"})).toEqual(['a-lake']);expect(ids({q:'one-sheet'})).toEqual(['a-lake']);expect(ids({q:'Ines’s'})).toEqual(['a-lake']);expect(ids({q:'lumin'})).toEqual([]);expect(ids({q:'biolum'})).toEqual(['a-lake']);
   expect(ids({source:'uploaded'})).toEqual(['a-upload']);
   expect(ids({source:'made'})).toEqual(['a-ridge','a-lake']);
   expect(ids({chat_id:'chat-b'})).toEqual(['a-ridge']);

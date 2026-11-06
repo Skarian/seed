@@ -114,7 +114,7 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
   const oldest = filters.order === 'oldest';
   // Search matches every word, in any order and anywhere in the prompt, title or note ("Maren brick-red").
   // Each word must start a word in the text (punctuation counts as a space), so "Ines" never matches "bioluminescent".
-  const terms = (filters.q ?? '').toLowerCase().replace(/[%_]/g, '').split(/\s+/).filter(Boolean).map(w => '% ' + w + '%');
+  const terms = (filters.q ?? '').toLowerCase().replace(/[%_]/g, '').replace(/[()[\]<>"“”‘’'\-/,.:;!?]/g, ' ').split(/\s+/).filter(Boolean).map(w => '% ' + w + '%');
   const q = terms[0] ?? null, more = terms.slice(1);
   const used = usedAs(db);
   const rows = db.prepare(`WITH items AS (

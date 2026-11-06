@@ -595,7 +595,13 @@ export class Jobs {
         continue;
       }
       if(localExecutor(worker)&&worker.issue){
-        if(worker.issue.code==='local_adapter_failed'&&!job.worker.submitted&&!job.submission_pending)job.worker.local_preparation_blocked=true;
+        // A style that cannot be downloaded fails only this job; Seed PC is freed for everything else.
+        if(worker.issue.code==='local_adapter_failed'&&!job.worker.submitted&&!job.submission_pending){
+          const detail=worker.issue.message.replace(/\s*Check the Civitai key and source in Admin, then retry the download\.?/i,'').trim();
+          job.state='failed';
+          job.error=`Couldn't get this draft's style on Seed PC${detail?` (${detail.replace(/\.$/,'')})`:''}. Make it again without the style, or check the Civitai key in Settings › API keys.`;
+          this.save(job);this.pool.complete(job.id);continue;
+        }
         job.state='needs_attention';job.error=worker.issue.message;this.save(job);continue;
       }
       if(localExecutor(worker)&&job.worker.local_preparation_blocked&&!job.worker.submitted&&!job.submission_pending){
