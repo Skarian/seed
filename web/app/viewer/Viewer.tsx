@@ -1249,6 +1249,7 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
       ? ja
       : null;
   const technical = rows.length;
+  let phrases: string[] = [];
   // An edit of the other one: the change that was asked for leads, ahead of engine and size.
   if (childJob) {
     // Each input token reads as the picture it stands for: "Tomo’s reference", not "the source".
@@ -1276,8 +1277,8 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
     const wa = new Set(ja.request.prompt.toLowerCase().split(/\W+/).filter(Boolean)),
       wb = new Set(jb.request.prompt.toLowerCase().split(/\W+/).filter(Boolean));
     const shared = [...wa].filter(w => wb.has(w)).length / Math.max(1, new Set([...wa, ...wb]).size);
-    if (shared >= 0.5)
-      rows.unshift(['What differs', promptChanges(ja.request.prompt, jb.request.prompt).slice(0, 8).join(' · ')]);
+    // Every changed phrase, one per line, after the settings: nothing is folded into "and 7 more".
+    if (shared >= 0.5) phrases = promptChanges(ja.request.prompt, jb.request.prompt);
     else {
       const brief = (p: string) => '“' + p + '”';
       rows.unshift(['A asks for', brief(ja.request.prompt)], ['B asks for', brief(jb.request.prompt)]);
@@ -1293,7 +1294,7 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
   return (
     <div className="diffbar" aria-label="Differences between A and B">
       {lineage && <span className="chip on">{lineage}</span>}
-      {!rows.length && !lineage && (
+      {!rows.length && !phrases.length && !lineage && (
         <span className="faint">Same prompt and settings{ja.seed === jb.seed ? ' and seed' : ''}.</span>
       )}
       {rows.map(([k, v], n) =>
@@ -1316,6 +1317,36 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
             <b style={{ fontWeight: 600 }}>{k}</b>&nbsp;{v}
           </span>
         ),
+      )}
+      {phrases.length > 0 && <PromptPhrases phrases={phrases} a={ja.request.prompt} b={jb.request.prompt} />}
+    </div>
+  );
+}
+
+/** The prompt's changed phrases, each on its own line, with both whole prompts one click away. */
+function PromptPhrases({ phrases, a, b }: { phrases: string[]; a: string; b: string }) {
+  const [whole, setWhole] = useState(false);
+  const plain = (p: string) => p.replace(/<(?:image|Picture|Video|Audio) ?\d+>|\[\[input\d+\]\]/gi, 'the reference');
+  return (
+    <div className="diff-phrases">
+      <b style={{ fontWeight: 600 }}>Prompt changes</b>
+      <ul>
+        {phrases.map((p, i) => (
+          <li key={i}>{p}</li>
+        ))}
+      </ul>
+      <button className="link" style={{ fontSize: '0.875rem' }} aria-expanded={whole} onClick={() => setWhole(w => !w)}>
+        {whole ? 'Hide both prompts' : 'Show both prompts'}
+      </button>
+      {whole && (
+        <div className="diff-both">
+          <p>
+            <b>A</b> {plain(a)}
+          </p>
+          <p>
+            <b>B</b> {plain(b)}
+          </p>
+        </div>
       )}
     </div>
   );

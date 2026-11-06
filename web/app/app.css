@@ -4326,3 +4326,29 @@ textarea::placeholder {
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
+
+/* Compare: the prompt's changed phrases as a list, both prompts behind a link. */
+.diff-phrases {
+  flex-basis: 100%;
+  font-size: 0.875rem;
+}
+.diff-phrases ul {
+  margin: 4px 0 6px;
+  padding-left: 1.2em;
+  max-height: 30vh;
+  overflow-y: auto;
+}
+.diff-phrases li {
+  margin: 2px 0;
+}
+.diff-both {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+  gap: 12px;
+  max-height: 34vh;
+  overflow-y: auto;
+  color: var(--muted);
+}
+.diff-both p {
+  margin: 0;
+}
