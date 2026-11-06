@@ -97,7 +97,7 @@ test('a GPU released from the Activity panel is actually released', async ({ pag
   const panel = page.getByRole('dialog', { name: 'Activity and GPUs' });
   await panel.getByRole('tab', { name: /^GPUs/ }).click();
   await panel.getByRole('button', { name: 'Release…' }).first().click();
-  const confirm = page.getByRole('dialog', { name: /^Release the / });
+  const confirm = page.getByRole('dialog', { name: /^Release / });
   await confirm.getByRole('button', { name: /^(Release|Finish current work, then release)$/ }).click();
   await expect(confirm).toHaveCount(0);
   await expect.poll(running, { timeout: 30_000 }).toBe(before - 1);
