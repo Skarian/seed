@@ -19,6 +19,7 @@ import { styleName, type StyleEntry } from './readiness.js';
 import { readablePrompt } from './checks.js';
 import { roleLabels } from './requests.js';
 import { castFromBrief, referenceKey } from '../../../shared/cast.js';
+import { shotFromTitle } from '../../../shared/shots.js';
 
 type Actions = {
   onVariations: (card: ChatCard) => void;
@@ -171,10 +172,22 @@ function CardResults({
         {!app.split && done.length > 1 && (
           <button
             className="btn quiet small"
-            onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })}
-            title="See these results large, side by side"
+            onClick={() => {
+              app.go({ name: 'project', id: project.id, view: 'results' });
+              // Land on this shot's takes, not the top of the storyboard.
+              const shot = shotFromTitle(titleOf(latest(card).request)).n;
+              if (shot === null) return;
+              let tries = 0;
+              const find = () => {
+                const row = document.getElementById('shot-' + shot);
+                if (row) row.scrollIntoView({ block: 'start' });
+                else if (tries++ < 40) requestAnimationFrame(find);
+              };
+              requestAnimationFrame(find);
+            }}
+            title="See these takes large, in their shot on the storyboard"
           >
-            Review all
+            Review takes
           </button>
         )}
         {collapsed ? (
