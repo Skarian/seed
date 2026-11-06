@@ -1,6 +1,6 @@
 import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../icons.js';
-import { MenuButton, Thumb, Dialog } from '../ui.js';
+import { MenuButton, Thumb, Dialog, useInertBehind } from '../ui.js';
 import { kindLabels, isVideoKind, type Kind } from '../api.js';
 import { useApp, type ViewerItem } from '../data.js';
 import {
@@ -96,19 +96,7 @@ export function Composer(p: Props) {
   // Expanded, the composer is a writing sheet over the page: everything behind it is inert, so focus and screen
   // readers stay in it until Collapse or Escape.
   const root = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    if (!expanded || !narrow) return;
-    const behind: HTMLElement[] = [];
-    for (let el: HTMLElement | null = root.current; el && el !== document.body; el = el.parentElement)
-      for (const sib of Array.from(el.parentElement?.children ?? []))
-        if (sib !== el && sib instanceof HTMLElement && !sib.inert) {
-          sib.inert = true;
-          behind.push(sib);
-        }
-    return () => {
-      for (const b of behind) b.inert = false;
-    };
-  }, [expanded, narrow]);
+  useInertBehind(root, expanded && narrow);
   useLayoutEffect(() => {
     const el = area.current;
     if (!el) return;

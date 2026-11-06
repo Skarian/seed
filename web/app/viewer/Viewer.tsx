@@ -14,7 +14,7 @@ import {
 } from '../api.js';
 import { useApp, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
-import { Media, MenuButton, Thumb, Confirm, Dialog, downloadAsset, useModalFocus } from '../ui.js';
+import { Media, MenuButton, Thumb, Confirm, Dialog, downloadAsset, useModalFocus, useInertBehind } from '../ui.js';
 import { titleOf, settingChips, duration, targetLabel, promptChanges } from '../format.js';
 import { roleLabels } from '../project/requests.js';
 import { StatusControl } from '../App.js';
@@ -928,6 +928,7 @@ export function Viewer({
   const app = useApp();
   const root = useRef<HTMLDivElement>(null);
   useModalFocus(root);
+  useInertBehind(root);
   const i = siblings.findIndex(s => s.asset === item.asset);
   const { job, detail, refresh } = useDetail(item);
   const fav = Boolean(detail?.favorite);
@@ -1116,6 +1117,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
   const [favs, setFavs] = useState<Record<string, boolean>>({});
   const root = useRef<HTMLDivElement>(null);
   useModalFocus(root);
+  useInertBehind(root);
   // Both takes of one numbered shot: either can be chosen for the shot right here.
   const shotOf = (x: ViewerItem) => shotFromTitle(x.job ? titleOf(x.job.request) : x.title);
   const shotN = (x: ViewerItem) => shotOf(x).n?.toString();

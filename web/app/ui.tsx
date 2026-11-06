@@ -513,3 +513,24 @@ export async function downloadAsset(id: string, title: string) {
   a.remove();
   setTimeout(() => URL.revokeObjectURL(url), 30_000);
 }
+
+/**
+ * While an overlay is shown (a full-screen viewer, Compare, the phone writing sheet), everything behind it is inert:
+ * no focus, clicks or screen-reader reading leave the overlay. One implementation for every overlay that is not a
+ * Radix dialog.
+ */
+export function useInertBehind(ref: React.RefObject<HTMLElement | null>, active = true) {
+  useEffect(() => {
+    if (!active) return;
+    const behind: HTMLElement[] = [];
+    for (let el: HTMLElement | null = ref.current; el && el !== document.body; el = el.parentElement)
+      for (const sib of Array.from(el.parentElement?.children ?? []))
+        if (sib !== el && sib instanceof HTMLElement && !sib.inert && !sib.matches('[aria-live], .toasts')) {
+          sib.inert = true;
+          behind.push(sib);
+        }
+    return () => {
+      for (const b of behind) b.inert = false;
+    };
+  }, [active]);
+}
