@@ -127,6 +127,8 @@ export const chatRules: readonly string[] = [
   'When continuity of a character, place or prop matters and none of their references is approved yet, draft only those references first and say that the shots follow once they are approved; draft the shots straight away only when the user asks for quick concepts or says to go ahead without references.',
   'Never tell the user to approve a plan to make it: the button is Make.',
   'Never apologise for or mention attempts the user did not see (a step you retried): report only what is now saved.',
+  'When the user names a shape or size for a reference, use it; the usual 4:5 or 16:9 for references applies only when they did not say.',
+  'In the brief, a character’s or prop’s look holds only what never changes (face, hair, build, wardrobe, colours, materials); where something is or what happens to it in a shot (a bird in a pocket, then in her hands, then flying) belongs in that shot’s line in the Shots section.',
   'All the drafts of one reply sit in one plan; never say you made separate plans. When the user wants part of it run on its own, say they can untick the rest or use the Make button for that kind (for example Make 1 image).',
   'To use a picture from another project, tell the user to open it in the Library, choose ··· → Use as input, and pick this project; “From another project…” on the Storyboard brings only characters, places and props.',
 ];

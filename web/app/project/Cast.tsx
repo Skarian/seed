@@ -31,6 +31,7 @@ export function CastStrip({
   onOpen,
   onImport,
   projectId,
+  shotsMade,
 }: {
   brief: string | null | undefined;
   /** The project's cast record (read from the brief when the project has none yet). */
@@ -47,6 +48,8 @@ export function CastStrip({
   onImport?: (items: Array<{ entry: CastEntry; asset: string }>) => Promise<void>;
   /** This project, left out of the projects to bring from. */
   projectId?: string;
+  /** Shots already have results: setup gives way to the work, whatever is still unapproved. */
+  shotsMade?: boolean;
 }) {
   const cast = stored ?? castFromBrief(brief);
   const [picking, setPicking] = useState<CastEntry | null>(null);
@@ -58,7 +61,7 @@ export function CastStrip({
   const skipped = (name: string) => Boolean(picks['skip:' + name]);
   const approved = cast.filter(e => picks[referenceKey(e.name)] || skipped(e.name)).length;
   // Once every entry is settled the cast is a reference row: small pictures, names, and each one's actions in a menu.
-  const compact = cast.length > 0 && approved === cast.length;
+  const compact = cast.length > 0 && (approved === cast.length || Boolean(shotsMade));
   return (
     // Once every reference is approved, the cast becomes a compact row so the film stays near the top.
     <section className={'cast-strip' + (compact ? ' compact' : '')} aria-label="Cast and places">

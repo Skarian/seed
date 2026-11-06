@@ -733,6 +733,7 @@ export function ResultsView({
             <CastStrip
               brief={project.brief}
               cast={castOf(project)}
+              shotsMade={items.some(i => i.kind === 'image' && /^shot\s*\d/i.test(i.title))}
               onEdit={async (from, entry) => {
                 try {
                   onChanged?.(await projectsApi.editCast(project.id, from, entry));
