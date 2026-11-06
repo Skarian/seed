@@ -1189,14 +1189,28 @@ function Differences({ a, b }: { a: ViewerItem; b: ViewerItem }) {
       : null;
   const technical = rows.length;
   // An edit of the other one: the change that was asked for leads, ahead of engine and size.
-  if (childJob)
-    rows.unshift([
-      'Change asked',
-      '“' +
-        (childJob.request.prompt.length > 180 ? childJob.request.prompt.slice(0, 179) + '…' : childJob.request.prompt) +
-        '”',
-    ]);
-  else if (ja.request.prompt !== jb.request.prompt) {
+  if (childJob) {
+    // Each input token reads as the picture it stands for: "Tomo’s reference", not "the source".
+    const nameOf = (asset: string) => {
+      const t = app.tasks.find(j => j.outputs.includes(asset));
+      const title = t ? titleOf(t.request) : '';
+      return title
+        ? title.replace(
+            /^Reference( sheet)?:\s*(.+)$/i,
+            (_m, sheet, who) => `${who}’s reference${sheet ? ' sheet' : ''}`,
+          )
+        : 'the attached picture';
+    };
+    const refs = childJob.request.references ?? [];
+    const named = childJob.request.prompt.replace(
+      /<(?:image|Picture|Video|Audio) ?(\d+)>|\[\[input(\d+)\]\]/gi,
+      (_m, x?: string, y?: string) => {
+        const r = refs[Number(x ?? y) - 1];
+        return r ? nameOf(r.asset_id) : 'the source';
+      },
+    );
+    rows.unshift(['Change asked', '“' + (named.length > 180 ? named.slice(0, 179) + '…' : named) + '”']);
+  } else if (ja.request.prompt !== jb.request.prompt) {
     // Variations of one idea (most words shared) show only what changed; different requests show what each asks for.
     const wa = new Set(ja.request.prompt.toLowerCase().split(/\W+/).filter(Boolean)),
       wb = new Set(jb.request.prompt.toLowerCase().split(/\W+/).filter(Boolean));

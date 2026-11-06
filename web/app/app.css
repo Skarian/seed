@@ -4094,3 +4094,9 @@ textarea::placeholder {
   margin: 4px 0 0;
   color: var(--muted);
 }
+
+/* Picker tiles show the whole picture: a landscape place is not cropped into a portrait tile. */
+.pick-thumb img {
+  object-fit: contain;
+  background: #0d0e0c;
+}
