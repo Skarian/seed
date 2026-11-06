@@ -4381,3 +4381,30 @@ textarea::placeholder {
 .viewer .nav-arrow {
   z-index: 5;
 }
+
+/* The plan's brief check: one line per draft, not a run-on paragraph. */
+.preflight-list {
+  margin: 4px 0 0;
+  padding-left: 1.2em;
+}
+.preflight-list li {
+  margin: 2px 0;
+}
+/* Faint helper text keeps readable contrast: placeholders and key hints at 4.5:1 or more. */
+.cast-thumb .faint,
+.composer .kbd,
+.composer kbd {
+  color: var(--muted);
+}
+
+/* Touch screens: icon buttons are a full 44 × 44, and the resting message box is a full-height target. */
+@media (hover: none), (pointer: coarse) {
+  .icon-btn,
+  .head .icon-btn,
+  .cast-cell .icon-btn {
+    min-width: 44px;
+  }
+  .composer.resting textarea {
+    min-height: 44px;
+  }
+}

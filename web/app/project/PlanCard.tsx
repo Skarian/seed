@@ -212,19 +212,17 @@ export function PlanCard({
           if (!missing.length) return null;
           return (
             <div className="check-note plan-wide preflight">
-              <span>
-                {missing.length === 1 ? 'This draft may be missing' : `These ${missing.length} drafts may be missing`}{' '}
-                brief details:{' '}
-                {missing
-                  .map(
-                    m =>
-                      `${short(m.card) || titleOf(latest(m.card).request)} (${m.check.text
-                        .replace(/^Missing from this prompt:\s*/, '')
-                        .replace(/\.$/, '')})`,
-                  )
-                  .join('; ')}
-                .
-              </span>
+              <div>
+                <b>{missing.length === 1 ? 'One draft leaves out' : `${missing.length} drafts leave out`} details from the brief</b>
+                <ul className="preflight-list">
+                  {missing.map(m => (
+                    <li key={m.card.id}>
+                      <b>{short(m.card) || titleOf(latest(m.card).request)}:</b>{' '}
+                      {m.check.text.replace(/^Missing from this prompt:\s*/, '').replace(/\.$/, '')}
+                    </li>
+                  ))}
+                </ul>
+              </div>
               <button
                 className="btn small"
                 disabled={busy || working}

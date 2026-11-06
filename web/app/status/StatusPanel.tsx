@@ -32,10 +32,11 @@ export function StatusPanel({
       const t = e.target as HTMLElement;
       if (!ref.current?.contains(t) && !t.closest('.status, .backdrop, .menu')) onClose();
     };
-    addEventListener('keydown', key);
+    // Capture: runs before a dialog on top closes itself, so Escape closes only that dialog, never the panel too.
+    addEventListener('keydown', key, true);
     addEventListener('pointerdown', out);
     return () => {
-      removeEventListener('keydown', key);
+      removeEventListener('keydown', key, true);
       removeEventListener('pointerdown', out);
       opener?.focus?.();
     };

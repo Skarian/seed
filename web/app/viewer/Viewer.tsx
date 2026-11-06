@@ -580,7 +580,16 @@ export function AssetPanel({
               .then(() => {
                 setDel(false);
                 app.toast('Deleted');
+                // The project that showed it updates at once, so the deleted picture leaves its conversation and board.
+                if (item.project)
+                  void projectsApi
+                    .get(item.project)
+                    .then(p => dispatchEvent(new CustomEvent('seed:project', { detail: p })))
+                    .catch(() => {});
+                app.refreshTasks();
                 onClosed?.();
+                // Focus goes back into the page, never to nothing.
+                requestAnimationFrame(() => document.querySelector<HTMLElement>('main h1 button, main [tabindex="-1"], main')?.focus());
               })
               .catch(e => {
                 setDel(false);

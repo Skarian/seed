@@ -289,6 +289,14 @@ export function Dialog({
     if (target) {
       e.preventDefault();
       target.focus({ preventScroll: true });
+      return;
+    }
+    // What opened the dialog is gone (a released GPU, a deleted picture): focus the page's heading, never nothing.
+    const heading = document.querySelector<HTMLElement>('main h1, main h2, [role="main"] h1');
+    if (heading) {
+      e.preventDefault();
+      if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
+      heading.focus({ preventScroll: true });
     }
   };
   return (
