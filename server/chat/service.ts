@@ -388,7 +388,11 @@ export class Chats {
     if (asset) {
       const known =
         this.jobIds(chat).some(j => this.jobs.get(j)?.outputs.includes(asset)) || chat.assets.includes(asset);
-      if (!known) throw Error('Choose a result from this project.');
+      // A reference can come from another project (a new project with the same brief): it is attached here.
+      if (!known && key.startsWith('ref:') && this.jobs.media.get(asset)?.kind === 'image') {
+        this.assertAssets(chat, [asset], false);
+        chat.assets = [...chat.assets, asset];
+      } else if (!known) throw Error('Choose a result from this project.');
       picks[key] = asset;
     } else delete picks[key];
     chat.picks = picks;

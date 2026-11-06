@@ -291,6 +291,10 @@ export function App() {
                   let p = await projectsApi.create(mode);
                   const source = await projectsApi.get(from).catch(() => null);
                   if (source?.brief) p = await projectsApi.setBrief(p, source.brief);
+                  // The cast's approved references come along, so new shots are drafted from the same pictures.
+                  for (const [key, asset] of Object.entries(source?.picks ?? {}))
+                    if (key.startsWith('ref:')) p = await projectsApi.pick(p.id, key, asset).catch(() => p);
+                  if (source?.title) p = await projectsApi.rename(p, source.title + ' · continued').catch(() => p);
                   list.refresh();
                   handTo(d.item, d.intent, p.id);
                 })();

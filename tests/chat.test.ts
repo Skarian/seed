@@ -572,3 +572,15 @@ it('approves a reference for a cast name when the owner asks, and refuses names 
  const sent=JSON.stringify(requests.at(-1).messages);
  expect(sent).toContain('not in cast_and_places');expect(sent).toContain('approved');
 }));
+
+it('approves a reference from another project of the same mode by attaching it',async()=>fixture(async({chats,db,paths})=>{
+ const sharp=(await import('sharp')).default;
+ const relative='media/originals/elsewhere.png';mkdirSync(path.dirname(path.join(paths.data,relative)),{recursive:true});
+ await sharp({create:{width:4,height:4,channels:3,background:'red'}}).png().toFile(path.join(paths.data,relative));
+ db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('elsewhere','image','Reference: Ines',relative,JSON.stringify({mode:'sfw'}),'2026-01-01');
+ const c=chats.create('sfw');
+ expect(()=>chats.pick(c.id,'1:image','elsewhere')).toThrow('Choose a result from this project.');
+ const v=chats.pick(c.id,'ref:Ines','elsewhere');
+ expect(v.picks?.['ref:Ines']).toBe('elsewhere');
+ const n=chats.create('nsfw');expect(()=>chats.pick(n.id,'ref:Ines','elsewhere')).toThrow();
+}));
