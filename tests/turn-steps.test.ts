@@ -110,7 +110,7 @@ it('hides a draft failure a later try made good, and never shows raw JSON', () =
       { ...tool('create_request', 'failed', { title: 'Watercolor study' }), result: { content: [{ type: 'text', text: 'Validation failed for tool "create_request": - root: must not have additional properties' }] } },
     ],
   };
-  expect(unfinishedSteps(turn)).toEqual([{ label: 'Write a draft', reason: 'Seed couldn’t finish this step. Nothing was lost; ask again to retry it.' }]);
+  expect(unfinishedSteps(turn)).toEqual([{ label: 'Write a draft: Watercolor study', reason: 'Seed couldn’t finish this step. Nothing was lost; ask again to retry it.' }]);
 });
 
 it('adds missing details after the whole name, without labels or unseen clothes', async () => {

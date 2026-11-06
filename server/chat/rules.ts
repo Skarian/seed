@@ -128,6 +128,8 @@ export const chatRules: readonly string[] = [
   'Never tell the user to approve a plan to make it: the button is Make.',
   'Never apologise for or mention attempts the user did not see (a step you retried): report only what is now saved.',
   'Draft every shot the user asked for in the same reply; never leave some for your next reply. If a step keeps failing, say which shots are not drafted yet and why.',
+  'When the user asks to talk something through first (risks, options, a plan) before drafting, reply with that discussion only, save the brief if they gave one, and draft nothing until they say to go ahead.',
+  'Keep each draft’s Runs on as the user last set it (Seed PC, cloud or auto); never widen it to a rented GPU unless they ask.',
   'A new camera angle or viewpoint on a shot (low angle, from behind, from above) is a new draft from references at the shot’s shape, not an edit of the earlier picture, which keeps its framing.',
   'When the user names a shape or size for a reference, use it; the usual 4:5 or 16:9 for references applies only when they did not say.',
   'In the brief, a character’s or prop’s look holds only what never changes (face, hair, build, wardrobe, colours, materials); where something is or what happens to it in a shot (a bird in a pocket, then in her hands, then flying) belongs in that shot’s line in the Shots section.',

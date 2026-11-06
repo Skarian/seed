@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { type ChatMessage, type Project } from '../api.js';
 import { useApp, useNow } from '../data.js';
 import { Markdown, Thumb, cleanReply } from '../ui.js';
-import { duration, assetName } from '../format.js';
+import { duration, assetName, titleOf, latest } from '../format.js';
 import { type Attachment } from './requests.js';
 import { unfinishedSteps, turnReceipt } from './turnSteps.js';
 import { buttonAction } from './timeline.js';
@@ -103,7 +103,10 @@ export function Message({
     /\?\s*$/.test(text.trim()) ||
     /\b(please (attach|send|share|tell)|could you|which (one|of)|do you want|would you like)\b/i.test(text);
   const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan && !asking;
-  const unfinished = unfinishedSteps(turn);
+  const unfinished = unfinishedSteps(turn, id => {
+    const card = project.groups.flatMap(g => g.cards).find(c => c.id === id);
+    return card ? titleOf(latest(card).request) : undefined;
+  });
   // Filled in as Seed works, so a long turn shows what has landed so far.
   const receipt = turnReceipt(turn);
   const leaked = /<\|?tool_call|call:[a-z_.]+\{/i.test(message.text);

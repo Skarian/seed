@@ -882,6 +882,20 @@ export class Chats {
                 ? (({ request_id: _id, ...rest }) => ({ title: prior!.title, prompt: prior!.prompt, ...rest }))(value)
                 : value,
             );
+            // Where work runs is the owner's policy: a draft Seed writes keeps the project's latest explicit choice
+            // (Seed PC only, say) unless this call names one, so a revision never widens it to a rented GPU.
+            if (!Object.hasOwn(value, 'runs_on') && request.target === undefined) {
+              const chosen =
+                prior?.target ??
+                // Groups and cards are kept in the order they were made: the last one with a choice is the latest.
+                current.groups
+                  .flatMap(g => g.cards)
+                  .map(c => latest(c).request.target)
+                  .filter(Boolean)
+                  .at(-1);
+              if (chosen && !(chosen === 'cloud' && request.engine === 'klein' && !this.jobs.pool.cloudWorkflows().includes('image-to-image:klein')))
+                request.target = chosen;
+            }
             for (const ref of request.references ?? [])
               if (!current.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
             this.assertAssets(current, [...new Set((request.references ?? []).map(r => r.asset_id))]);

@@ -43,7 +43,11 @@ function errorText(result: unknown): string {
  * The steps of a finished turn that failed and were not made good by a later step of the same kind with the same
  * target, so a reply cannot claim work its tools did not do.
  */
-export function unfinishedSteps(turn: TurnTranscript | undefined): { label: string; reason: string }[] {
+export function unfinishedSteps(
+  turn: TurnTranscript | undefined,
+  /** The title of a draft by its id, so a failed change names the draft it was for. */
+  draftTitle: (id: string) => string | undefined = () => undefined,
+): { label: string; reason: string }[] {
   if (!turn || turn.state === 'running') return [];
   const tools = turn.steps.filter(s => s.kind === 'tool');
   const target = (input: unknown) => {
@@ -82,7 +86,12 @@ export function unfinishedSteps(turn: TurnTranscript | undefined): { label: stri
     );
     if (internal && progressed && (!savesWork || retried)) return;
     const reason = (internal ? 'Seed couldn’t finish this step. Nothing was lost; ask again to retry it.' : raw).slice(0, 220);
-    const step = { label: who && s.name === 'approve_reference' ? `${label} for ${who}` : label, reason };
+    const draft = String(((s.input ?? {}) as Record<string, unknown>).request_id ?? ''),
+      named = draft ? draftTitle(draft) : String(((s.input ?? {}) as Record<string, unknown>).title ?? '') || undefined;
+    const step = {
+      label: who && s.name === 'approve_reference' ? `${label} for ${who}` : named ? `${label}: ${named}` : label,
+      reason,
+    };
     if (out.some(o => o.label === step.label && o.reason === step.reason)) return;
     out.push(step);
   });
