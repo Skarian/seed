@@ -3886,17 +3886,31 @@ textarea::placeholder {
 }
 /* All references approved: a compact row of small cards (pictures stay recognisable, the film moves up). */
 .cast-strip.compact .cast-cells {
-  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  grid-template-columns: repeat(auto-fill, 168px);
 }
 .cast-strip.compact .cast-cell.place {
   grid-column: span 2;
-}
-.cast-strip.compact .cast-thumb {
-  max-height: 128px;
 }
 @media (hover: hover) and (pointer: fine) {
   .cast-strip.compact .cast-actions .btn {
     min-height: 30px;
     padding: 2px 10px;
+  }
+}
+
+/* Phones: the board toolbar is one row that scrolls sideways, so filters never take two rows above the film. */
+@media (max-width: 699px) {
+  .board.full .toolbar {
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+  .board.full .toolbar > * {
+    flex: none;
+  }
+}
+@media (max-width: 699px) {
+  .cast-strip.compact .cast-cells {
+    grid-auto-columns: 30%;
   }
 }
