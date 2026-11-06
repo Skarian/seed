@@ -1716,7 +1716,7 @@ button.chip:hover {
   grid-template-columns: repeat(auto-fill, minmax(120px, 1fr));
 }
 .grid .tile {
-  aspect-ratio: 1;
+  aspect-ratio: var(--tile-aspect, 1);
   max-height: none;
 }
 .cell {

@@ -103,7 +103,19 @@ export function ResultsView({
     project.groups.some(g => g.cards.some(c => isVideoKind(kindOf[latest(c).request.workflow])));
   const toggle = (id: string) => setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s.slice(-1), id]));
   const min = { s: embedded ? 110 : 120, m: 170, l: 260 }[size];
-  const grid = { gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))` };
+  // Grid tiles take the shape most of these pictures have (16:9 for a film), so frames fill them instead of
+  // sitting in black bars; odd shapes still show whole inside.
+  const shapes = new Map<string, number>();
+  for (const r of dims.values()) {
+    const k = r > 1.5 ? '16 / 9' : r < 0.7 ? '9 / 16' : r < 0.95 ? '4 / 5' : '1';
+    shapes.set(k, (shapes.get(k) ?? 0) + 1);
+  }
+  const shape = [...shapes].sort((x, y) => y[1] - x[1])[0]?.[0] ?? '1';
+  const wideMin = shape === '16 / 9' ? Math.round(min * 1.4) : min;
+  const grid = {
+    gridTemplateColumns: `repeat(auto-fill, minmax(${wideMin}px, 1fr))`,
+    ['--tile-aspect' as string]: shape,
+  };
   const tile = (it: ViewerItem) => {
     const on = selected.includes(it.asset);
     return (
@@ -840,7 +852,10 @@ export function ResultsView({
               <section>
                 {(running.length > 0 || planned.length > 0) && <div className="day">Made</div>}
                 <div className="grid" style={grid}>
-                  {items.map(tile)}
+                  {[...items]
+                    // Newest batch first, its takes in order (take 1 before take 2).
+                    .sort((x, y) => made(y)[0] - made(x)[0] || made(x)[1] - made(y)[1])
+                    .map(tile)}
                 </div>
               </section>
             ))}
