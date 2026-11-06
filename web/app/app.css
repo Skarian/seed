@@ -3942,3 +3942,48 @@ textarea::placeholder {
     display: none;
   }
 }
+
+/* Style import: strength is a slider with its value beside the label; files fold away once chosen. */
+.legacy-admin .strength-field output {
+  margin-left: 6px;
+  font-variant-numeric: tabular-nums;
+  color: var(--text);
+}
+.legacy-admin .strength-field input[type='range'] {
+  width: 100%;
+  accent-color: var(--accent);
+}
+.legacy-admin .lora-files summary {
+  cursor: pointer;
+  color: var(--muted);
+  padding: 6px 0;
+}
+/* Settings forms (styles, keys, devices) read at the app's sizes: 14 px labels and help, 15 px fields. */
+.legacy-admin .admin-form label,
+.legacy-admin .admin-import > form label,
+.legacy-admin .admin-import > p,
+.legacy-admin .admin-hint,
+.legacy-admin .lora-detected-model,
+.legacy-admin .admin-lora-card header p,
+.legacy-admin .admin-lora-card footer,
+.legacy-admin .admin-lora-card h3 small,
+.legacy-admin .credential-actions,
+.legacy-admin .credential-actions button,
+.legacy-admin .admin-access-help,
+.legacy-admin .admin-access-description,
+.legacy-admin [role='alert'],
+.legacy-admin .lora-file-table-heading,
+.legacy-admin .lora-file-name small,
+.legacy-admin .lora-file-table > p,
+.legacy-admin .lora-supported-workflows li {
+  font-size: 0.875rem;
+}
+.legacy-admin input:not([type='checkbox']):not([type='range']),
+.legacy-admin textarea,
+.legacy-admin select,
+.legacy-admin .lora-file-name strong {
+  font-size: 0.9375rem;
+}
+.legacy-admin .admin-hint {
+  margin-top: -4px;
+}

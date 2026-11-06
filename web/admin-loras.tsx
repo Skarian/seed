@@ -22,7 +22,7 @@ const emptyGuidance: LoraGuidance = {
 };
 function submitted() {
   toast.success(
-    'Style saved. This PC and cloud GPUs you start from now on can use it; a cloud GPU that is already running needs a restart to include it.',
+    'Style saved.',
     { duration: 6000 },
   );
   window.dispatchEvent(new Event('seed:activity-changed'));
@@ -42,7 +42,7 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
           className={importing ? undefined : 'admin-primary'}
           onClick={() => setImporting((current) => (current ? null : {}))}
         >
-          {importing ? 'Close' : '+ Add style'}
+          {importing ? 'Cancel adding' : '+ Add style'}
         </button>
       </div>
       {catalog.error && <p role="alert">{catalog.error}</p>}
@@ -62,7 +62,7 @@ export function AdminLoras({ mode }: { mode: 'sfw' | 'nsfw' }) {
         <p role="status">Loading styles…</p>
       ) : catalog.items.length ? (
         <div className="admin-loras">
-          <p className="admin-hint">Style changes apply to GPUs you start from now on. A GPU that is already running keeps the styles it started with.</p>
+          <p className="admin-hint">Seed PC can use a new style right away. A cloud GPU picks up styles when it starts, so one already running keeps the styles it started with.</p>
           {catalog.items.map((group) => (
             <LoraEditor
               key={group.id}
@@ -118,7 +118,7 @@ function GuidanceFields({
         />
       </label>
       <label>
-        Description &amp; usage guidance
+        When should Seed use it?
         <textarea
           rows={Math.min(14, Math.max(4, Math.ceil(value.description.length / 70) + 1))}
           maxLength={4000}
@@ -127,18 +127,19 @@ function GuidanceFields({
           placeholder="Describe the look and when Seed should use it."
         />
       </label>
-      <p className="admin-hint">Seed reads this to decide when to suggest the style, and how strongly. Strength goes from 0 to 4 in steps of 0.05; most styles look right between 0.5 and 1.</p>
-      <label>
-        Default strength
+      <label className="strength-field">
+        Strength <output>{value.default_scale.toFixed(2)}</output>
         <input
-          type="number"
+          type="range"
           min={0}
-          max={4}
+          max={2}
           step={0.05}
-          value={value.default_scale}
+          value={Math.min(2, value.default_scale)}
+          aria-valuetext={`${value.default_scale.toFixed(2)}${value.default_scale >= 0.5 && value.default_scale <= 1 ? ', the usual range' : ''}`}
           onChange={(event) => onChange({ ...value, default_scale: Number(event.target.value) })}
         />
       </label>
+      <p className="admin-hint">Most styles look right between 0.5 and 1. Seed starts from this and can go lower or higher when a draft needs it.</p>
       <label>
         Trigger words
         <input
@@ -219,7 +220,7 @@ function ImportLora({
   return (
     <section className="admin-import" aria-label="Add a style">
       <h3>Add from Civitai</h3>
-      <p>Pick a version, then say what kind of work each file is for. Seed downloads the files to a GPU when it starts.</p>
+      <p>Paste a Civitai link. Seed checks what it works with and picks its files; you name it and say when to use it.</p>
       <form
         onSubmit={(event) => {
           event.preventDefault();
@@ -256,6 +257,7 @@ function ImportLora({
             void apply();
           }}
         >
+          {preview.state.preview.versions.length > 1 && (
           <label>
             Version
             <select
@@ -278,19 +280,28 @@ function ImportLora({
               ))}
             </select>
           </label>
+          )}
           {version?.family ? (
             <>
               <p className="lora-detected-model">
-                Model family<strong>{loraFamilyLabels[version.family]}</strong>
+                Works with<strong>{version.family === 'h3' ? 'Clips · ' : 'Images · '}{loraFamilyLabels[version.family]}</strong>
               </p>
-              <LoraFileMappings
-                family={version.family}
-                files={version.files}
-                value={mapping}
-                onChange={setMapping}
-                disabled={busy}
-              />
               <GuidanceFields value={details} onChange={setDetails} />
+              {/* Files are chosen automatically; the choice opens only when it needs the owner. */}
+              <details className="lora-files" open={!selected.length || new Set(selected).size !== selected.length}>
+                <summary>
+                  {selected.length
+                    ? `Files: ${selected.length} chosen automatically`
+                    : 'Files: choose what each file is for'}
+                </summary>
+                <LoraFileMappings
+                  family={version.family}
+                  files={version.files}
+                  value={mapping}
+                  onChange={setMapping}
+                  disabled={busy}
+                />
+              </details>
               {!selected.length && <p className="admin-hint" role="status">Choose a use for at least one file to continue.</p>}
               {!details.name.trim() && <p className="admin-hint" role="status">Give the style a name to continue.</p>}
               <button
@@ -303,7 +314,7 @@ function ImportLora({
                   !details.name.trim()
                 }
               >
-                {busy ? 'Submitting…' : 'Apply'}
+                {busy ? 'Adding…' : 'Add style'}
               </button>
             </>
           ) : (
@@ -374,7 +385,7 @@ function LoraEditor({
         </div>
         <div className="lora-card-actions">
           <button aria-expanded={editing} disabled={busy} onClick={toggle} aria-label={(editing ? 'Close ' : 'Edit ') + group.name}>
-            {editing ? 'Close' : 'Edit'}
+            {editing ? 'Cancel editing' : 'Edit'}
           </button>
           <button className="admin-destructive" disabled={busy} onClick={() => setDeleting(true)} aria-label={'Delete ' + group.name}>
             Delete
