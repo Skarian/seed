@@ -834,13 +834,15 @@ export class Chats {
             // Editing a draft with another kind's tools changes its kind in place (a shot becomes an edit of a
             // reference, or its animation): it starts from that kind's defaults and keeps its title and prompt.
             const changesKind = Boolean(card && card.workflow !== kind);
-            // A clip draft never turns back into a picture: the user's clip plan would be lost without a word.
-            if (changesKind && /video/.test(card!.workflow) && !/video/.test(kind))
+            // A draft never changes between picture and clip in place: a still plan would silently become "Make 2
+            // clips", or a clip plan would be lost. The other medium is always a new draft.
+            if (changesKind && /video/.test(card!.workflow) !== /video/.test(kind))
               throw Error(
                 JSON.stringify({
                   ok: false,
-                  error:
-                    'This draft is a clip. A picture is a new draft: use create_request for it, and leave the clip draft as it is unless the user asks to remove it.',
+                  error: /video/.test(card!.workflow)
+                    ? 'This draft is a clip. A picture is a new draft: call choose_kind for it and use create_request; leave the clip draft as it is unless the user asks to remove it.'
+                    : 'This draft is a picture. A clip (an animation of it) is a new draft: use create_request with the picture as its start frame; leave the picture draft as it is.',
                 }),
               );
             const prior = card ? latest(card).request : undefined;

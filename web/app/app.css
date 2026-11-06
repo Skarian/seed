@@ -4376,3 +4376,8 @@ textarea::placeholder {
     width: 100%;
   }
 }
+
+/* The viewer's arrows sit above the picture, so a tap on them is never taken by the image. */
+.viewer .nav-arrow {
+  z-index: 5;
+}

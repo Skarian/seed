@@ -121,9 +121,11 @@ export function turnReceipt(turn: TurnTranscript | undefined): string[] {
     if (s.kind !== 'tool' || s.state !== 'succeeded') continue;
     const input = (s.input ?? {}) as Record<string, unknown>;
     const json = resultJson(s.result);
-    const title = String(
-      ((json?.request as Record<string, unknown> | undefined)?.title as string | undefined) ?? input.title ?? '',
-    ).trim();
+    const request = json?.request as Record<string, unknown> | undefined;
+    // A clip says so, so a plan of pictures can never quietly become clips.
+    const clip = request?.duration_seconds !== undefined || /video/.test(String(request?.workflow ?? ''));
+    const title =
+      String((request?.title as string | undefined) ?? input.title ?? '').trim() + (clip ? ' (clip)' : '');
     if (s.name === 'create_request') drafted.push(title || 'a draft');
     else if (s.name === 'edit_request') changed.push(title || 'a draft');
     else if (s.name === 'update_brief') {
