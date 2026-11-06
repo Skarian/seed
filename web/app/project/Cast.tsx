@@ -1,7 +1,7 @@
-import React from 'react';
+import React, { useState } from 'react';
 import { castFromBrief, referenceKey, type CastEntry } from '../../../shared/cast.js';
 import type { ViewerItem } from '../data.js';
-import { Media, MenuButton } from '../ui.js';
+import { Media, Dialog } from '../ui.js';
 
 /** What Seed is asked when the owner wants a reference drafted; Seed carries the look from the brief. */
 export const referenceAsk = (e: CastEntry) =>
@@ -35,6 +35,7 @@ export function CastStrip({
   onOpen: (item: ViewerItem) => void;
 }) {
   const cast = castFromBrief(brief);
+  const [picking, setPicking] = useState<CastEntry | null>(null);
   if (!cast.length) return null;
   const approved = cast.filter(e => picks[referenceKey(e.name)]).length;
   return (
@@ -86,33 +87,79 @@ export function CastStrip({
                   </button>
                 )}
                 {options.length > 0 && (
-                  <MenuButton
+                  <button
                     className="btn small"
-                    align="start"
-                    label={id ? `Change ${e.name}’s reference` : `Approve a result as ${e.name}’s reference`}
-                    items={[
-                      ...options.map(o => ({
-                        label: o.title,
-                        checked: o.asset === id,
-                        disabled: busy === key,
-                        onSelect: () => onChoose(key, o.asset === id ? null : o.asset),
-                      })),
-                      ...(id
-                        ? [
-                            'divider' as const,
-                            { label: 'Clear the reference', onSelect: () => onChoose(key, null), danger: true },
-                          ]
-                        : []),
-                    ]}
+                    aria-label={id ? `Change ${e.name}’s reference` : `Approve a picture as ${e.name}’s reference`}
+                    onClick={() => setPicking(e)}
                   >
                     {id ? 'Change' : 'Approve…'}
-                  </MenuButton>
+                  </button>
                 )}
               </span>
             </li>
           );
         })}
       </ul>
+      {picking &&
+        (() => {
+          const key = referenceKey(picking.name),
+            id = picks[key],
+            name = picking.name.toLowerCase();
+          const own = images
+            .filter(i => i.title.toLowerCase().includes(name))
+            .sort((x, y) => x.title.localeCompare(y.title, undefined, { numeric: true }))
+            .slice(0, 24);
+          const rest = images.filter(i => !i.title.toLowerCase().includes(name)).slice(0, 30);
+          const tile = (o: ViewerItem) => (
+            <li key={o.asset}>
+              <button
+                className={'pick-tile' + (o.asset === id ? ' on' : '')}
+                aria-pressed={o.asset === id}
+                disabled={busy === key}
+                onClick={() => {
+                  onChoose(key, o.asset);
+                  setPicking(null);
+                }}
+              >
+                <span className="pick-thumb">
+                  <Media id={o.asset} kind="image" alt="" />
+                </span>
+                <small>{o.title.replace(/^Reference:\s*/i, '')}</small>
+              </button>
+            </li>
+          );
+          return (
+            <Dialog
+              title={`${picking.name}’s reference`}
+              wide
+              onClose={() => setPicking(null)}
+              footer={
+                id ? (
+                  <button
+                    className="btn danger"
+                    onClick={() => {
+                      onChoose(key, null);
+                      setPicking(null);
+                    }}
+                  >
+                    Clear the reference
+                  </button>
+                ) : undefined
+              }
+            >
+              <p className="faint" style={{ marginTop: 0 }}>
+                Pick the picture that shows {picking.name} best. New shots with {picking.name} are drawn from it.
+              </p>
+              {own.length > 0 && <ul className="pick-grid">{own.map(tile)}</ul>}
+              {rest.length > 0 && (
+                <details open={!own.length}>
+                  <summary className="link">Other pictures in this project ({rest.length})</summary>
+                  <ul className="pick-grid">{rest.map(tile)}</ul>
+                </details>
+              )}
+            </Dialog>
+          );
+        })()}
     </section>
   );
 }

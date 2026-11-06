@@ -4021,3 +4021,45 @@ textarea::placeholder {
     grid-template-columns: minmax(0, 1fr);
   }
 }
+
+/* Reference picker: pictures in a grid, the current one ringed. */
+.pick-grid {
+  list-style: none;
+  margin: 8px 0 12px;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 10px;
+}
+.pick-tile {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 6px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: var(--s2);
+  text-align: left;
+}
+.pick-tile.on {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 1px var(--accent);
+}
+.pick-thumb {
+  display: block;
+  aspect-ratio: 4 / 5;
+  border-radius: 8px;
+  overflow: hidden;
+  background: var(--s3, var(--s1));
+}
+.pick-thumb img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.pick-tile small {
+  color: var(--muted);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}

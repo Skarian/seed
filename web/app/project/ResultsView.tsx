@@ -407,6 +407,13 @@ export function ResultsView({
   // The steps from brief to cut. Each step asks Seed for one plan covering everything it still needs.
   const cast = castFromBrief(project.brief);
   const noRef = cast.filter(e => !picks[referenceKey(e.name)]);
+  // Names whose reference takes are made and only need approving, and names that still need drafting.
+  const hasTakes = (name: string) =>
+    items.some(
+      i => i.kind === 'image' && /^reference:/i.test(i.title) && i.title.toLowerCase().includes(name.toLowerCase()),
+    );
+  const toApprove = noRef.filter(e => hasTakes(e.name)),
+    toDraftRef = noRef.filter(e => !hasTakes(e.name));
   const hasKey = (s: Shot) => Boolean(chosen(s, 'clip') || (chosen(s, 'image') && !stale(s)));
   const toDraft = numbered.filter(
     s => !hasKey(s) && !takesOf(s.images).length && !s.planned.length && !s.making.length && !s.saved.length,
@@ -426,17 +433,24 @@ export function ResultsView({
       label: 'Cast & places',
       done: cast.length - noRef.length,
       total: cast.length,
-      left: noRef.length
-        ? listOf(noRef.map(e => e.name)) + (noRef.length === 1 ? ' has' : ' have') + ' no approved reference yet.'
-        : '',
-      action: noRef.length
+      left: [
+        toApprove.length
+          ? 'Approve a take for ' + listOf(toApprove.map(e => e.name)) + ' (Approve… under Cast & places).'
+          : '',
+        toDraftRef.length
+          ? listOf(toDraftRef.map(e => e.name)) + (toDraftRef.length === 1 ? ' has' : ' have') + ' no reference yet.'
+          : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      action: toDraftRef.length
         ? {
-            label: noRef.length === 1 ? 'Draft its reference' : `Draft ${noRef.length} references`,
+            label: toDraftRef.length === 1 ? 'Draft its reference' : `Draft ${toDraftRef.length} references`,
             ask:
-              noRef.length === 1
-                ? referenceAsk(noRef[0]!)
+              toDraftRef.length === 1
+                ? referenceAsk(toDraftRef[0]!)
                 : 'Draft one plan with a reference for each of ' +
-                  listOf(noRef.map(e => e.name)) +
+                  listOf(toDraftRef.map(e => e.name)) +
                   ' from the brief: characters alone, full length, facing the camera, on a plain light-grey background in soft even light, at 4:5 with 4 takes; places wide with no people, in clear light, at 16:9 with 4 takes; props alone on a plain light-grey background, no people, at 1:1 with 4 takes. Title each "Reference: Name". Leave the other drafts as they are. Do not run anything.',
           }
         : undefined,
