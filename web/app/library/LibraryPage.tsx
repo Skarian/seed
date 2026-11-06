@@ -16,6 +16,7 @@ type Filters = {
   kind: '' | 'image' | 'video' | 'audio';
   source: '' | 'made' | 'uploaded';
   favorites: boolean;
+  approved?: boolean;
   collection: string;
   project: string;
   order: 'newest' | 'oldest';
@@ -105,6 +106,7 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
     kind: f.kind || undefined,
     source: f.source || undefined,
     favorites: f.favorites || undefined,
+    approved: f.approved || undefined,
     collection_id: f.collection || undefined,
     chat_id: f.project || undefined,
     order: f.order,
@@ -230,8 +232,8 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
         </button>
         <nav className="chips shelves" aria-label="Collections" style={{ flexBasis: '100%' }}>
           <button
-            className={'chip' + (!f.favorites && !f.collection ? ' on' : '')}
-            onClick={() => setF({ ...f, favorites: false, collection: '' })}
+            className={'chip' + (!f.favorites && !f.collection && !f.approved ? ' on' : '')}
+            onClick={() => setF({ ...f, favorites: false, collection: '', approved: false })}
           >
             Everything
           </button>
@@ -241,6 +243,13 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
           >
             <Icon.Heart width={13} height={13} />
             Favorites
+          </button>
+          <button
+            className={'chip' + (f.approved ? ' on' : '')}
+            aria-pressed={Boolean(f.approved)}
+            onClick={() => setF({ ...f, approved: !f.approved, favorites: false, collection: '' })}
+          >
+            Approved references
           </button>
           <NewShelf
             compact={cols.length > 0}
@@ -402,6 +411,7 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
                       {captions && (
                         <figcaption>
                           <Caption title={it.title} />
+                          {a.used_as?.length ? <small className="used-as">{a.used_as.join(' · ')}</small> : null}
                           <small>
                             {app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}
                           </small>

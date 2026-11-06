@@ -164,6 +164,8 @@ export type AssetQuery = {
   source?: 'made' | 'uploaded';
   chat_id?: string;
   order?: 'newest' | 'oldest';
+  /** Only approved references of characters, places and props. */
+  approved?: boolean;
   cursor?: string;
 };
 export const assets = {

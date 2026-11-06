@@ -34,6 +34,8 @@ export interface LibraryAsset {
   note?: string;
   /** A few words of the prompt around a search match, when the search matched the prompt. */
   prompt_match?: string;
+  /** What the picture is used as in its project: "Odile's reference", "Chosen for Shot 2". */
+  used_as?: string[];
   /** Pixel size, when known, so grids can show the whole frame. */
   width?: number;
   height?: number;

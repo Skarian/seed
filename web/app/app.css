@@ -4071,3 +4071,8 @@ textarea::placeholder {
   font-size: 0.9375rem;
   margin: 8px 0 0;
 }
+
+/* Library: what a picture is used as ("Odile's reference"), in the accent colour so approved pictures stand out. */
+.cell figcaption small.used-as {
+  color: var(--accent);
+}

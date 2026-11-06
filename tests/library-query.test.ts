@@ -41,3 +41,10 @@ it('searches prompts, titles and notes, and filters by source and project',()=>f
   db.prepare("INSERT INTO assets VALUES (?,'image',?,?,?,?)").run('a-dune','Generated image','files/a-dune.png',JSON.stringify({mode:'sfw',job_id:'job-dune'}),'2026-11-01T04:00:00Z');
   expect(listAssets(db,'',50,'sfw')[0]).toMatchObject({id:'a-dune',variant:2,variants:3});
 }));
+it('says what a picture is used as and can list only approved references',()=>fixture(db=>{
+  db.prepare("INSERT INTO chats (id, mode, body_json) VALUES (?, 'sfw', ?)").run('chat-a',JSON.stringify({picks:{'ref:Odile Brann':'a-lake','shot:the knock:image':'a-ridge'}}));
+  const all=listAssets(db,'',50,'sfw');
+  expect(all.find(a=>a.id==='a-lake')!.used_as).toEqual(['Odile Brann’s reference']);
+  expect(all.find(a=>a.id==='a-ridge')!.used_as).toEqual(['Chosen for The Knock']);
+  expect(listAssets(db,'',50,'sfw',undefined,{approved:true}).map(a=>a.id)).toEqual(['a-lake']);
+}));

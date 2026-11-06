@@ -90,13 +90,33 @@ export function openDatabase(dataDirectory: string) {
   }
 }
 
-export type AssetFilters = {favorites?:boolean;collection_id?:string;q?:string;source?:'made'|'uploaded';chat_id?:string;order?:'newest'|'oldest'};
+export type AssetFilters = {favorites?:boolean;collection_id?:string;q?:string;source?:'made'|'uploaded';chat_id?:string;order?:'newest'|'oldest';approved?:boolean};
+/** What each asset is used as across projects: approved references ("ref:Name") and chosen takes. */
+function usedAs(db: Database.Database) {
+  const map = new Map<string, string[]>(), refs = new Set<string>();
+  for (const row of db.prepare('SELECT body_json FROM chats').all() as Array<{ body_json: string }>) {
+    let picks: Record<string, string> = {};
+    try { picks = JSON.parse(row.body_json).picks ?? {}; } catch { continue; }
+    for (const [key, asset] of Object.entries(picks)) {
+      if (typeof asset !== 'string') continue;
+      const named = key.match(/^shot:(.+):(image|clip)$/), numbered = key.match(/^(\d+):(image|clip)$/);
+      const label = key.startsWith('ref:') ? key.slice(4) + '’s reference'
+        : named ? 'Chosen for ' + named[1]!.replace(/\b\w/g, c => c.toUpperCase())
+        : numbered ? 'Chosen for Shot ' + numbered[1] : '';
+      if (!label) continue;
+      if (key.startsWith('ref:')) refs.add(asset);
+      map.set(asset, [...(map.get(asset) ?? []), label]);
+    }
+  }
+  return { map, refs };
+}
 export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string, filters: AssetFilters = {}): LibraryAsset[] {
   const oldest = filters.order === 'oldest';
   // Search matches every word, in any order and anywhere in the prompt, title or note ("Maren brick-red").
   // Each word must start a word in the text (punctuation counts as a space), so "Ines" never matches "bioluminescent".
   const terms = (filters.q ?? '').toLowerCase().replace(/[%_]/g, '').split(/\s+/).filter(Boolean).map(w => '% ' + w + '%');
   const q = terms[0] ?? null, more = terms.slice(1);
+  const used = usedAs(db);
   const rows = db.prepare(`WITH items AS (
     SELECT a.id, a.kind, a.name, a.created_at,
       j.id AS job_id,
@@ -125,15 +145,16 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
       AND s.pending_json IS NULL
   ) SELECT * FROM items WHERE (? IS NULL OR mode=?) AND (? IS NULL OR kind=?)
     AND (?=0 OR favorite=1)
+    AND (?=0 OR id IN (SELECT value FROM json_each(?)))
     AND (? IS NULL OR EXISTS(SELECT 1 FROM collection_assets ca JOIN collections c ON c.id=ca.collection_id WHERE ca.asset_id=items.id AND c.id=? AND c.mode=items.mode))
     AND (? IS NULL OR haystack LIKE ?)${more.map(() => ' AND haystack LIKE ?').join('')}
     AND (? IS NULL OR (?='made' AND job_id IS NOT NULL) OR (?='uploaded' AND job_id IS NULL))
     AND (? IS NULL OR chat_id=?)
     AND (? = '' OR (created_at,id) ${oldest ? '>' : '<'} (SELECT created_at,id FROM items WHERE id=?))
-    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,...more,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;source_asset_id:string|null;crop_shape:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null;note:string|null;width:number|null;height:number|null;prompt:string|null}>;
+    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.approved?1:0,JSON.stringify([...used.refs]),filters.collection_id??null,filters.collection_id??null,q,q,...more,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;source_asset_id:string|null;crop_shape:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null;note:string|null;width:number|null;height:number|null;prompt:string|null}>;
   // When a search matched the prompt, return a few words around the match (never the whole prompt).
   const words = terms.map(t => t.slice(2, -1));
   const excerpt = (text: string | null) => { if (!text || !words.length) return undefined; const low = text.toLowerCase(), at = low.indexOf(words[0]!); if (at < 0 || !words.every(w => low.includes(w))) return undefined; const start = at > 30 ? text.lastIndexOf(' ', at - 30) + 1 : 0, end = Math.min(text.length, at + words[0]!.length + 50); return (start ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : ''); };
-  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,source_asset_id,crop_shape,title,chat_id,submission_index,batch_count,note,width,height,prompt,...row})=>({...row,favorite:Boolean(row.favorite),...(excerpt(prompt)?{prompt_match:excerpt(prompt)}:{}),...(note?{note}:{}),...(width&&height?{width:Number(width),height:Number(height)}:{}),...(!source_asset_id&&Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id&&!source_asset_id?{job_id}:{}),...(source_asset_id?{source_asset_id}:{}),...(crop_shape?{crop_shape}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
+  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,source_asset_id,crop_shape,title,chat_id,submission_index,batch_count,note,width,height,prompt,...row})=>({...row,favorite:Boolean(row.favorite),...(excerpt(prompt)?{prompt_match:excerpt(prompt)}:{}),...(note?{note}:{}),...(used.map.get(row.id)?{used_as:used.map.get(row.id)}:{}),...(width&&height?{width:Number(width),height:Number(height)}:{}),...(!source_asset_id&&Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id&&!source_asset_id?{job_id}:{}),...(source_asset_id?{source_asset_id}:{}),...(crop_shape?{crop_shape}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
     ...(executor==='local'||executor==='cloud'?{executor}:{}),...(typeof execution_profile==='string'?{execution_profile}:{})}));
 }

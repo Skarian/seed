@@ -43,7 +43,8 @@ export function LibraryPicker({
     q: query || undefined,
     kind: kind || undefined,
     favorites: shelf === 'fav' || undefined,
-    collection_id: shelf && shelf !== 'fav' ? shelf : undefined,
+    approved: shelf === 'approved' || undefined,
+    collection_id: shelf && shelf !== 'fav' && shelf !== 'approved' ? shelf : undefined,
     chat_id: project || undefined,
   });
   const toggle = (a: LibraryAsset) =>
@@ -115,6 +116,13 @@ export function LibraryPicker({
           <Icon.Heart width={13} height={13} />
           Favorites
         </button>
+        <button
+          className={'chip' + (shelf === 'approved' ? ' on' : '')}
+          aria-pressed={shelf === 'approved'}
+          onClick={() => setShelf(shelf === 'approved' ? '' : 'approved')}
+        >
+          Approved references
+        </button>
         {cols.map(c => (
           <button
             key={c.id}
@@ -172,6 +180,7 @@ export function LibraryPicker({
               </div>
               <figcaption title={assetTitle(a)}>
                 <Caption title={assetTitle(a)} />
+                {a.used_as?.length ? <small className="used-as">{a.used_as.join(' · ')}</small> : null}
                 <small>{app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}</small>
               </figcaption>
             </figure>
