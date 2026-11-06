@@ -4408,3 +4408,13 @@ textarea::placeholder {
     min-height: 44px;
   }
 }
+
+/* Tablets: conversation takes are larger, so the width beside them is used for the picture. */
+@media (min-width: 700px) and (max-width: 1099px) {
+  .stream .results .tile,
+  .stream .results.one .tile.landscape,
+  .stream .results.one .tile.square,
+  .stream .results.one .tile.portrait {
+    height: 300px;
+  }
+}

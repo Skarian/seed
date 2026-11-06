@@ -96,6 +96,9 @@ export function AssetPanel({
   // What this result is used as in its project ("Chosen for Shot 2", "Maren's reference"): one place to see it.
   const usedIn = job?.source?.chat_id ?? item.project;
   const [usedAs, setUsedAs] = useState<string[]>([]);
+  // The shot this take belongs to, so it can be chosen right here where it is seen largest.
+  const [shot, setShot] = useState<{ n: number; name: string; key: string; chosen: boolean } | null>(null);
+  const [choosing, setChoosing] = useState(false);
   useEffect(() => {
     if (!usedIn) return setUsedAs([]);
     let live = true;
@@ -104,6 +107,14 @@ export function AssetPanel({
       .then(p => {
         if (!live) return;
         const list = shotsFromBrief(p.brief);
+        const own = shotFromTitle(job?.request.title ?? '');
+        const listed = own.n !== null ? list.find(x => shotNameKey(x.name) === shotNameKey(own.name)) : undefined;
+        if (own.n !== null) {
+          const n = listed?.n ?? own.n,
+            name = listed?.name ?? own.name,
+            key = shotPickKey(n, name, item.kind === 'video' ? 'clip' : 'image');
+          setShot({ n, name, key, chosen: p.picks?.[key] === item.asset });
+        } else setShot(null);
         setUsedAs(
           Object.entries(p.picks ?? {})
             .filter(([, a]) => a === item.asset)
@@ -285,6 +296,28 @@ export function AssetPanel({
             }}
           >
             Check against the brief
+          </button>
+        )}
+        {shot && usedIn && (
+          <button
+            className={'btn' + (shot.chosen ? ' on' : '')}
+            aria-pressed={shot.chosen}
+            disabled={choosing}
+            title={shot.chosen ? 'Clear the choice' : 'Make this the chosen take on the Storyboard'}
+            onClick={() => {
+              setChoosing(true);
+              void projectsApi
+                .pick(usedIn, shot.key, shot.chosen ? null : item.asset)
+                .then(p => {
+                  dispatchEvent(new CustomEvent('seed:project', { detail: p }));
+                  setShot({ ...shot, chosen: !shot.chosen });
+                  app.toast(shot.chosen ? 'Choice cleared' : `Chosen for Shot ${shot.n}`);
+                })
+                .catch(e => app.toast((e as Error).message))
+                .finally(() => setChoosing(false));
+            }}
+          >
+            {shot.chosen ? `Chosen for Shot ${shot.n}` : `Use for Shot ${shot.n}`}
           </button>
         )}
         {!actionsOnly && !video && (
