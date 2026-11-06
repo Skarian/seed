@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { shotFromTitle, shotNameKey, shotPickKey } from '../../../shared/shots.js';
+import { shotFromTitle, shotNameKey, shotPickKey, shotsFromBrief } from '../../../shared/shots.js';
 import {
   assets as assetsApi,
   collections as collectionsApi,
@@ -93,6 +93,34 @@ export function AssetPanel({
   }, [item.asset]);
   const [allCols, setAllCols] = useState<AssetCollection[]>([]),
     [crop, setCrop] = useState(false);
+  // What this result is used as in its project ("Chosen for Shot 2", "Maren's reference"): one place to see it.
+  const usedIn = job?.source?.chat_id ?? item.project;
+  const [usedAs, setUsedAs] = useState<string[]>([]);
+  useEffect(() => {
+    if (!usedIn) return setUsedAs([]);
+    let live = true;
+    void projectsApi
+      .get(usedIn)
+      .then(p => {
+        if (!live) return;
+        const list = shotsFromBrief(p.brief);
+        setUsedAs(
+          Object.entries(p.picks ?? {})
+            .filter(([, a]) => a === item.asset)
+            .map(([k]) => {
+              if (k.startsWith('ref:')) return `${k.slice(4)}’s reference`;
+              const kind = k.endsWith(':clip') ? 'clip' : 'keyframe';
+              const named = k.match(/^shot:(.+):(?:image|clip)$/)?.[1];
+              const shot = named ? list.find(s => shotNameKey(s.name) === named) : undefined;
+              return `Chosen ${kind} for ${shot ? `Shot ${shot.n}: ${shot.name}` : named ? named : 'Shot ' + k.split(':')[0]}`;
+            }),
+        );
+      })
+      .catch(() => live && setUsedAs([]));
+    return () => {
+      live = false;
+    };
+  }, [usedIn, item.asset]);
   useEffect(() => {
     void collectionsApi
       .list(app.mode)
@@ -283,6 +311,12 @@ export function AssetPanel({
       </div>
       {!actionsOnly && (
         <div className="kv">
+          {usedAs.length > 0 && (
+            <>
+              <span>Used as</span>
+              <div>{usedAs.join(' · ')}</div>
+            </>
+          )}
           <span>Made from</span>
           <div>
             {parents.length ? (

@@ -422,11 +422,7 @@ export function StatusControl() {
         : hereWaiting
           ? `${hereWaiting} waiting`
           : '';
-    const rest = elsewhere
-      ? own || !wide
-        ? `+${elsewhere} elsewhere`
-        : `${elsewhere} ${elsewhere === 1 ? 'project' : 'projects'} busy elsewhere`
-      : '';
+    const rest = elsewhere ? `+${elsewhere} elsewhere` : '';
     return [own, rest].filter(Boolean).join(' · ');
   })();
   if (scoped !== undefined) words = scoped;
