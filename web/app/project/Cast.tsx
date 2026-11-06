@@ -179,7 +179,7 @@ export function CastStrip({
               }
             >
               <p className="faint" style={{ marginTop: 0 }}>
-                Pick the picture that shows {picking.name} best. New shots with {picking.name} are drawn from it.
+                Pick the picture that shows {picking.name} best. Drafts made from references (FLUX 3 Image Klein) use it; drafts made from words use {picking.name}’s description.
               </p>
               {own.length > 0 && <ul className="pick-grid">{own.map(tile)}</ul>}
               {rest.length > 0 && (

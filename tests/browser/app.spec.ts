@@ -78,7 +78,7 @@ test('the GPU page shows the running rental, its rate and a release with stated 
   const release = page.getByRole('button', { name: 'Release…' }).first();
   if (await release.count()) {
     await release.click();
-    await expect(page.getByRole('dialog', { name: /^Release the / })).toContainText('Billing stops when the provider confirms');
+    await expect(page.getByRole('dialog', { name: /^Release (the )?/ })).toContainText('Billing stops when the provider confirms');
     await page.getByRole('button', { name: 'Cancel', exact: true }).click();
   }
 });

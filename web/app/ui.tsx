@@ -434,20 +434,30 @@ export function Spinner({ label = 'Loading' }: { label?: string }) {
 }
 
 /** Keeps a failure inside one card: the rest of the project, navigation and GPUs stay usable. */
-export class LocalBoundary extends React.Component<{ label: string; children: React.ReactNode }, { failed: boolean }> {
+export class LocalBoundary extends React.Component<
+  { label: string; children: React.ReactNode; onFailed?: (failed: boolean) => void; note?: string },
+  { failed: boolean }
+> {
   state = { failed: false };
   static getDerivedStateFromError() {
     return { failed: true };
   }
   componentDidCatch(error: unknown) {
+    this.props.onFailed?.(true);
     void import('../client-failure.js').then(m => m.reportClientFailure(error, 'render')).catch(() => {});
   }
   render() {
     if (!this.state.failed) return this.props.children;
     return (
       <div className="notice error" role="alert">
-        {this.props.label} couldn't be shown. Everything else is fine.{' '}
-        <button className="link" onClick={() => this.setState({ failed: false })}>
+        {this.props.label} couldn’t be shown. {this.props.note ?? 'Nothing was lost.'}{' '}
+        <button
+          className="link"
+          onClick={() => {
+            this.props.onFailed?.(false);
+            this.setState({ failed: false });
+          }}
+        >
           Try again
         </button>
       </div>

@@ -721,7 +721,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           selectedCards[0] ? latest(selectedCards[0]).request : plan?.cards[0] && latest(plan.cards[0]).request,
           outputs,
         );
-  const planReady = plan && plan.state === 'reviewing' && !replying;
+  // A plan that failed to display cannot be approved blind: Make waits until it shows again.
+  const [hiddenPlan, setHiddenPlan] = useState<string | null>(null);
+  const planReady = plan && plan.state === 'reviewing' && !replying && hiddenPlan !== plan.id;
   const openChecks = plan
     ? selectedCards.flatMap(c =>
         checkDraft(c, project!, plan.cards.length).filter(
@@ -735,7 +737,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     ? 'Make with sound'
     : openChecks.every(c => c.code === 'unused-input')
       ? selectedCards.some(c => isVideoKind(kindOf[latest(c).request.workflow]))
-        ? 'Make, image drafts without the reference'
+        ? `Make ${makeNoun} without the attached image`
         : 'Make without the attached image'
       : openChecks.every(c => c.code === 'shape')
         ? (() => {
@@ -911,6 +913,19 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                         <LocalBoundary
                           key={item.type === 'message' ? item.message.id : item.group.id}
                           label={item.type === 'message' ? 'This message' : 'This plan or result'}
+                          note={
+                            item.type === 'message'
+                              ? undefined
+                              : 'Your drafts are saved; Make waits until the plan shows again.'
+                          }
+                          onFailed={
+                            item.type === 'message'
+                              ? undefined
+                              : failed => {
+                                  const g = item.group.id;
+                                  setHiddenPlan(h => (failed ? g : h === g ? null : h));
+                                }
+                          }
                         >
                           {item.type === 'message' ? (
                             <Message

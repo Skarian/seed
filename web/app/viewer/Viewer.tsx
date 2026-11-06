@@ -1165,11 +1165,10 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
         <span style={{ flex: 1 }} />
         <button
           className="btn small"
-          aria-pressed={zoom > 1}
           onClick={() => setZoom(z => (z === 1 ? 2 : 1))}
-          title="Zoom both to 2×, or back to fit"
+          title={zoom > 1 ? 'Both are at 2×; show both whole again' : 'Zoom both to 2×'}
         >
-          Zoom 2×
+          {zoom > 1 ? '2× · Fit both' : 'Zoom 2×'}
         </button>
         <button className="btn small" aria-pressed={diff} onClick={() => setDiff(d => !d)}>
           Settings differences

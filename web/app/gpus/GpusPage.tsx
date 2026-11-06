@@ -22,6 +22,9 @@ const workerLabel: Record<string, string> = {
   needs_attention: 'Needs attention',
 };
 
+/** A short, stable name for a rental ("#A41F"), so two GPUs of the same kind and rate can be told apart. */
+export const gpuTag = (id: string) => '#' + id.replace(/[^a-z0-9]/gi, '').slice(-4).toUpperCase();
+
 function idleNote(w: PoolWorker) {
   const cap =
     w.max_minutes && w.allocated_at
@@ -191,7 +194,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
         <div
           className="box"
           key={w.id}
-          aria-label={`${w.worker_class === 'video' ? 'Video' : 'Image'} GPU${usedFor(w.id) ? ', last used by ' + usedFor(w.id) : ''}`}
+          aria-label={`${w.worker_class === 'video' ? 'Video' : 'Image'} GPU ${gpuTag(w.id)}${usedFor(w.id) ? ', last used by ' + usedFor(w.id) : ''}`}
         >
           <div className="row">
             <span
@@ -205,7 +208,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
               }
             />
             <span className="grow">
-              <b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU</b>
+              <b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU {gpuTag(w.id)}</b>
               {usedFor(w.id) ? <> · last used by {usedFor(w.id)}</> : null} · {rate(w.hourly)}
               <br />
               <span className="muted" style={{ fontSize: '0.875rem' }}>
@@ -305,7 +308,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
       {release &&
         (release.state === 'ready' && !release.current_job_id ? (
           <Confirm
-            title={`Release the ${release.worker_class === 'video' ? 'video' : 'image'} GPU (${release.gpu})?`}
+            title={`Release ${release.worker_class === 'video' ? 'video' : 'image'} GPU ${gpuTag(release.id)} (${release.gpu})?`}
             action="Release"
             onClose={() => setRelease(null)}
             body={
@@ -321,7 +324,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
           />
         ) : (
           <Confirm
-            title={`Release the ${release.worker_class === 'video' ? 'video' : 'image'} GPU (${release.gpu})?`}
+            title={`Release ${release.worker_class === 'video' ? 'video' : 'image'} GPU ${gpuTag(release.id)} (${release.gpu})?`}
             action="Finish current work, then release"
             onClose={() => setRelease(null)}
             body={
