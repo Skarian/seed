@@ -39,6 +39,7 @@ import { buildRequest, defaultMake, defaultRoles, type Attachment, type MakeSett
 import { useStyles } from './styles.js';
 import { checkDraft, readablePrompt } from './checks.js';
 import { BriefBar } from './Brief.js';
+import { unfinishedSteps } from './turnSteps.js';
 
 const openStates = ['reviewing', 'revising', 'assembling'];
 const isOpenPlan = (g: ChatGroup) => openStates.includes(g.state) && !g.direct;
@@ -1548,6 +1549,7 @@ function Message({
     /\?\s*$/.test(text.trim()) ||
     /\b(please (attach|send|share|tell)|could you|which (one|of)|do you want|would you like)\b/i.test(text);
   const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan && !asking;
+  const unfinished = unfinishedSteps(turn);
   const leaked = /<\|?tool_call|call:[a-z_.]+\{/i.test(message.text);
   const askedToMake = !madePlan && !asking && (leaked || toolFailed || (!text && turn?.state === 'completed'));
   const stage = running ? stageOf(turn!) : '';
@@ -1608,7 +1610,27 @@ function Message({
           {open ? 'Show less' : 'Show more'}
         </button>
       )}
-      {!running && turn?.state === 'failed' && (
+      {!running && unfinished.length > 0 && (
+        <div className="notice warn" role="note">
+          <strong>Not done in this reply</strong>
+          <ul style={{ margin: '4px 0 0', paddingLeft: '1.2em' }}>
+            {unfinished.map((u, i) => (
+              <li key={i}>
+                {u.label}
+                {u.reason && <span className="faint">: {u.reason}</span>}
+              </li>
+            ))}
+          </ul>
+          {turn?.state === 'failed' && !turn.error && text && (
+            <div className="actions">
+              <button className="btn small" onClick={onRetry}>
+                Try again
+              </button>
+            </div>
+          )}
+        </div>
+      )}
+      {!running && turn?.state === 'failed' && !(unfinished.length && text && !turn.error) && (
         <div className="notice error">
           {friendlyError(turn.error)}
           <div className="actions">

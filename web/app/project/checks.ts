@@ -38,7 +38,15 @@ export function chooseFrame(projectId: string, frame: string) {
 /** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
 /** What a check is about, so the app can act on it without reading its wording. */
 export type CheckCode =
-  'shape' | 'size' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input' | 'old-reference';
+  | 'shape'
+  | 'size'
+  | 'length'
+  | 'sound'
+  | 'added-sound'
+  | 'continuity'
+  | 'unused-input'
+  | 'old-reference'
+  | 'no-style';
 export type Check = { code: CheckCode; text: string; fixes: Fix[]; soft?: boolean };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
@@ -184,6 +192,18 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     const other = latestOther ?? project.frame;
     if (other) asked.other = other;
   }
+  // A style the user asked for cannot ride on a picture made from references: say so on the draft, not only in grey.
+  if (
+    r.workflow === 'image-to-image' &&
+    !(r.loras ?? []).length &&
+    trigger &&
+    /\b(my|the|in|with|use|using)\b[^.?!]{0,40}\bstyle\b|\bstyle\b[^.?!]{0,10}\b(lora|preset)\b/i.test(trigger.text)
+  )
+    out.push({
+      code: 'no-style',
+      text: 'You asked for a style. Styles can’t be used on pictures made from references (FLUX 3 Image Klein), so this draft has none and its look comes from the prompt and the references. A picture from words (Krea 2) can use the style.',
+      fixes: [],
+    });
   const aspect = r.output.aspect;
   // References and reference sheets have their own shapes (4:5 for a character); the film's shape is not theirs.
   const isReference = /^reference( sheet)?:/i.test(r.title ?? '');
@@ -342,9 +362,10 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       })
       .map(e => e.name.split(' ')[0]!.toLowerCase()),
   );
-  const gaps = (fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '', r.shot)).filter(
-    g => !g.who || !shown.has(g.who.split(' ')[0]!.toLowerCase()),
-  );
+  const subject = (r.title ?? '').match(/^reference(?: sheet)?:\s*(.+)$/i)?.[1]?.toLowerCase();
+  const gaps = (fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '', r.shot))
+    .filter(g => !g.who || !shown.has(g.who.split(' ')[0]!.toLowerCase()))
+    .filter(g => !subject || (g.who !== undefined && subject.includes(g.who.toLowerCase())));
   if (gaps.length) {
     const whose = [...new Set(gaps.map(g => g.who).filter(Boolean))];
     const parts = [
@@ -494,8 +515,11 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
     const item = line.replace(/^(?:[-•]|\d+\.)\s*/, '');
     if (!item) continue;
     if (/character|cast|people/.test(section)) {
-      const m = item.match(/^([A-Z][\w'’-]+(?: [A-Z][\w'’-]+)?)\s*[:–—-]\s*(.+)$/);
+      const m = item.match(
+        /^((?:(?:Dr|Mr|Mrs|Ms|Prof|Capt|Captain|Sir|Lady)\.?\s+)?\p{Lu}[\p{L}\p{N}'’-]+(?: \p{Lu}[\p{L}\p{N}'’-]+)?)\s*(?:\([^)]{0,30}\))?\s*[:–—-]\s*(.+)$/u,
+      );
       if (!m) continue;
+      m[1] = m[1]!.replace(/^(?:Dr|Mr|Mrs|Ms|Prof|Capt|Captain|Sir|Lady)\.?\s+/, '');
       // "Wardrobe:" or "Props:" lines belong to the characters above them.
       const generic = /^(wardrobe|costume|outfit|props?|look|appearance)$/i.test(m[1]!);
       const first = m[1]!.split(' ')[0]!;
@@ -538,7 +562,7 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
         if ((named && identity.test(part)) || (closeUp && lowerBody.test(part)) || (hands && headAndFace.test(part)))
           continue;
         // An instruction ("preserve her specific wardrobe") is not a visible detail to add to one prompt.
-        if (abstractRule.test(part)) continue;
+        if (abstractRule.test(part) || deliveryNote.test(part)) continue;
         // Personality is not something a picture shows ("calm, dry humour", "curious").
         if (personality.test(part)) continue;
         // Who someone is to someone else ("grandson", "his aunt") is not something a picture shows.
@@ -567,14 +591,20 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
             .replace(/\.$/, '')
             .replace(/^(and|or|with)\s+/i, ''),
         )
-        .filter(p => p.length > 2 && !abstractRule.test(p) && !mentions(prompt, p)))
+        .filter(p => p.length > 2 && !abstractRule.test(p) && !deliveryNote.test(p) && !mentions(prompt, p)))
         out.push({ text: part.charAt(0).toLowerCase() + part.slice(1) });
     } else if (/rule|always|never|constraint/.test(section)) {
       // A rule about the project as a whole ("keep wardrobe consistent across shots") is not a visible detail to
       // put in one prompt; only concrete rules ("no text anywhere") are checked.
       // A negative ("no text, logos or watermarks") is not added as words: in a diffusion prompt, naming text invites it.
       if (/^(no|never|avoid|without|don.t|do not)\b/i.test(item)) continue;
-      if (item.length <= 80 && !abstractRule.test(item) && !/\bshots?\s*\d/i.test(item) && !mentions(prompt, item))
+      if (
+        item.length <= 80 &&
+        !abstractRule.test(item) &&
+        !deliveryNote.test(item) &&
+        !/\bshots?\s*\d/i.test(item) &&
+        !mentions(prompt, item)
+      )
         out.push({ text: item.charAt(0).toLowerCase() + item.slice(1).replace(/\.$/, '') });
     }
   }
@@ -777,4 +807,8 @@ const relation =
   /^(?:(?:his|her|their|the)\s+)?(?:son|daughter|child|mother|father|mum|mom|dad|parent|brother|sister|sibling|aunt|uncle|niece|nephew|cousin|wife|husband|partner|friend|neighbou?r|apprentice|boss|grandson|granddaughter|grandmother|grandfather|grandchild)s?(?:\s+of\s+\w+)?$/i;
 
 const personality =
-  /\b(calm|kind|kindly|gentle|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|nervous|proud|lonely|thoughtful|playful|sarcastic|optimistic|melancholic|personality|temperament|loves|likes|hates|fears|dreams of)\b/i;
+  /\b(calm|kind|kindly|gentle|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|nervous|proud|lonely|thoughtful|playful|sarcastic|optimistic|melancholic|cheeky|mischievous|quiet|serious|bold|clever|bright|warm|cold|stern|determined|fierce|tender|dreamy|restless|weary|tired|energetic|personality|temperament|loves|likes|hates|fears|dreams of)\b/i;
+
+/** How the film is delivered ("2.39:1 widescreen via Crop", "24 fps") is a setting of the project, not words for a prompt. */
+const deliveryNote =
+  /\b(delivery|deliver(?:ed|s)?|aspect|ratio|crop(?:ped)?|letterbox\w*|widescreen|anamorphic|format|resolution|fps|frame rate|runtime|duration)\b|\b\d+(?:\.\d+)?\s*[:x×]\s*\d+\b/i;

@@ -25,7 +25,7 @@ export function castFromBrief(brief: string | null | undefined): CastEntry[] {
       continue;
     }
     if (!section) continue;
-    const m = line.replace(/^(?:[-•]|\d+\.)\s*/, '').match(/^([A-Z][\w'’ -]{0,40}?)\s*(?:\([^)]{0,30}\))?\s*[:–—]\s*(.+)$/);
+    const m = line.replace(/^(?:[-•]|\d+\.)\s*/, '').match(/^(\p{Lu}[\p{L}\p{N}_'’. -]{0,40}?)\s*(?:\([^)]{0,30}\))?\s*[:–—]\s*(.+)$/u);
     if (!m) continue;
     const name = m[1]!.replace(/\s*\(.*\)$/, '').trim();
     // "Wardrobe:" or "Props:" lines add to the character above them; they are not people.
@@ -66,7 +66,13 @@ export function addToBrief(brief: string | null | undefined, entries: CastEntry[
 
 /** The same person, place or prop under a shorter or longer name: "Ines" ≈ "Ines Varga", "Foredeck" ≈ "The Foredeck". */
 export function sameCast(a: string, b: string): boolean {
-  const norm = (x: string) => x.toLowerCase().replace(/^the\s+/, '').replace(/[^\p{L}\p{N} ]/gu, '').trim();
+  // "The" and titles such as "Dr." are not part of who someone is: "Dr. Amara Okafor-Lind" is the same as "Amara".
+  const norm = (x: string) =>
+    x
+      .toLowerCase()
+      .replace(/^(the|dr|mr|mrs|ms|miss|prof|professor|captain|capt|sir|lady|lord)\.?\s+/, '')
+      .replace(/[^\p{L}\p{N} ]/gu, '')
+      .trim();
   const x = norm(a),
     y = norm(b);
   if (!x || !y) return false;

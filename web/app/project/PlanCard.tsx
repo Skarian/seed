@@ -395,6 +395,7 @@ function Draft({
     r = shown.request,
     current = view === card.revisions.length - 1;
   const [swap, setSwap] = useState<string | null>(null),
+    [swapped, setSwapped] = useState<{ was: string; now: string } | null>(null),
     [showSoft, setShowSoft] = useState(false),
     [allChanges, setAllChanges] = useState(false);
   const editDirty = useRef(false),
@@ -412,7 +413,7 @@ function Draft({
           const parts = (['engine', 'size'] as const).filter(k => chip(sourceJob.request, k) !== chip(r, k));
           // A Klein shot at its own shape is a new frame drawn from the images; a "same as source" edit keeps the frame.
           if (r.workflow === 'image-to-image' && r.output.aspect !== 'source')
-            return `Uses ${listOf(inputs.map(x => assetName(project, x.asset_id, tasks).replace(/^Reference( sheet)?:\s*/i, '')))}.`;
+            return `Uses ${listOf([...new Set(inputs.map(x => assetName(project, x.asset_id, tasks).replace(/^Reference( sheet)?:\s*/i, '')))])}.`;
           // A clip starts from its keyframe: the start-frame thumbnail says the rest.
           if (r.workflow === 'reference-to-video') return `Starts from “${titleOf(sourceJob.request)}”.`;
           return parts.length
@@ -611,6 +612,11 @@ function Draft({
                 id = swap;
               setSwap(null);
               if (!a || !id) return;
+              const plain = (x: string) => x.replace(/^Reference( sheet)?:\s*/i, '').trim();
+              const old = inputs.find(x => x.id === id);
+              const was = old ? plain(assetName(project, old.asset_id, tasks)) : '';
+              const now = plain(assetName(project, a.id, tasks));
+              setSwapped(was && now && was.toLowerCase() !== now.toLowerCase() ? { was, now } : null);
               const {
                 workflow: _w,
                 mode: _m,
@@ -623,6 +629,35 @@ function Draft({
               });
             }}
           />
+        )}
+        {swapped && current && (
+          <div className="notice warn" role="note">
+            This draft now uses {swapped.now} where it used {swapped.was}. Its prompt still describes {swapped.was}, so
+            change the prompt before making it.
+            <div className="actions">
+              <button
+                className="btn small"
+                onClick={() => {
+                  setSwapped(null);
+                  setEditing(true);
+                }}
+              >
+                Edit the prompt
+              </button>
+              <button
+                className="btn small"
+                onClick={() => {
+                  setSwapped(null);
+                  onAskAbout();
+                }}
+              >
+                Edit with Seed
+              </button>
+              <button className="btn small" onClick={() => setSwapped(null)}>
+                It’s right as it is
+              </button>
+            </div>
+          </div>
         )}
         {departure && !quietSource && (
           <p className="faint" style={{ margin: 0, fontSize: '0.875rem' }}>
@@ -740,7 +775,9 @@ function DraftEditor({
   const [saving, setSaving] = useState(false);
   const set = (patch: Partial<EditableFields>) => setF(v => ({ ...v, ...patch }));
   const [initial] = useState(() => JSON.stringify(f));
-  useEffect(() => onDirty?.(JSON.stringify(f) !== initial), [f]);
+  useEffect(() => {
+    onDirty?.(JSON.stringify(f) !== initial);
+  }, [f]);
   const route = routeOf(r);
   const available = useMemo(() => styles.filter(s => s.route === route), [styles, route]);
   const style = f.loras[0];

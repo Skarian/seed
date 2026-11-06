@@ -49,3 +49,10 @@ describe('looks ride along with references', () => {
     expect(withCastLooks({ ...r('x'), workflow: 'text-to-image' }, c, p)).toBe('x');
   });
 });
+
+describe('cast names', () => {
+  it('keeps titles, accents and hyphens in names', () => {
+    const c = castFromBrief('## Characters\n- Dr. Amara Okafor-Lind: 52, astronomer\n- Élodie Marchand: 30, red coat\n- Teo (boy): 8, freckles');
+    expect(c.map(e => e.name)).toEqual(['Dr. Amara Okafor-Lind', 'Élodie Marchand', 'Teo']);
+  });
+});
