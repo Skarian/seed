@@ -4200,3 +4200,13 @@ textarea::placeholder {
 .form-stack .seg {
   align-self: flex-start;
 }
+
+/* Under a reply: what Seed's tools actually changed. */
+.receipt {
+  margin: 6px 0 0;
+  font-size: 0.8125rem;
+  color: var(--muted);
+}
+.receipt > span {
+  color: var(--accent);
+}

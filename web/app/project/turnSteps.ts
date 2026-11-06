@@ -58,3 +58,56 @@ export function unfinishedSteps(turn: TurnTranscript | undefined): { label: stri
   });
   return out.slice(0, 6);
 }
+
+/** The JSON a tool returned (its text part), when it is JSON. */
+function resultJson(result: unknown): Record<string, unknown> | undefined {
+  const texts: string[] = [];
+  const walk = (v: unknown) => {
+    if (typeof v === 'string') texts.push(v);
+    else if (Array.isArray(v)) v.forEach(walk);
+    else if (v && typeof v === 'object') Object.entries(v).forEach(([k, x]) => k !== 'type' && walk(x));
+  };
+  walk(result);
+  for (const t of texts)
+    try {
+      const j = JSON.parse(t);
+      if (j && typeof j === 'object') return j as Record<string, unknown>;
+    } catch {
+      /* not JSON */
+    }
+  return undefined;
+}
+
+/**
+ * What a finished turn actually changed, read from the tools that succeeded (not from the reply's wording): drafts
+ * written or changed, the brief, approvals and choices. Shown under the reply so a claim can be checked at a glance.
+ */
+export function turnReceipt(turn: TurnTranscript | undefined): string[] {
+  if (!turn || turn.state === 'running') return [];
+  const out: string[] = [];
+  const drafted: string[] = [],
+    changed: string[] = [];
+  for (const s of turn.steps) {
+    if (s.kind !== 'tool' || s.state !== 'succeeded') continue;
+    const input = (s.input ?? {}) as Record<string, unknown>;
+    const json = resultJson(s.result);
+    const title = String(
+      ((json?.request as Record<string, unknown> | undefined)?.title as string | undefined) ?? input.title ?? '',
+    ).trim();
+    if (s.name === 'create_request') drafted.push(title || 'a draft');
+    else if (s.name === 'edit_request') changed.push(title || 'a draft');
+    else if (s.name === 'update_brief') {
+      const added = (json?.cast_added as string[] | undefined) ?? [];
+      out.push(added.length ? `Saved the brief (added ${added.join(', ')} to the cast)` : 'Saved the brief');
+    } else if (s.name === 'approve_reference') out.push(`Approved ${String(input.name ?? 'a')}’s reference`);
+    else if (s.name === 'choose_take') out.push('Chose a take' + (input.shot ? ' for shot ' + String(input.shot) : ''));
+    else if (s.name === 'leave_out_request') out.push('Left a draft out of the plan');
+  }
+  const list = (xs: string[]) => {
+    const u = [...new Set(xs)];
+    return u.length > 3 ? `${u.slice(0, 3).join(', ')} and ${u.length - 3} more` : u.join(', ');
+  };
+  if (drafted.length) out.unshift(`Drafted ${list(drafted)}`);
+  if (changed.length) out.splice(drafted.length ? 1 : 0, 0, `Changed ${list(changed.filter(c => !drafted.includes(c)))}`);
+  return [...new Set(out)].filter(x => !/^Changed $/.test(x));
+}

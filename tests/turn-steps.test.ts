@@ -75,3 +75,27 @@ it('reads someone’s portrait as a picture, not a portrait shape', async () => 
   expect(askedFor(m("Use The Pier as the base instead of Noor's portrait.")).aspect).toBeUndefined();
   expect(askedFor(m('Make it portrait, please.')).aspect).toBe('portrait');
 });
+
+it('builds a receipt from the tools that succeeded, not from the reply', async () => {
+  const { turnReceipt } = await import('../web/app/project/turnSteps.js');
+  const ok = (name: string, input: unknown, json?: unknown) => ({
+    ...tool(name, 'succeeded', input),
+    result: { content: [{ type: 'text', text: JSON.stringify(json ?? { ok: true }) }] },
+  });
+  const turn: TurnTranscript = {
+    started_at: at,
+    state: 'completed',
+    steps: [
+      ok('update_brief', { brief: 'x' }, { ok: true, cast_added: ['Teo'] }),
+      ok('create_request', { title: 'Shot 1: The Arrival' }, { ok: true, request: { title: 'Shot 1: The Arrival' } }),
+      ok('create_request', { title: 'Shot 2: The Mug' }),
+      tool('approve_reference', 'failed', { name: 'Noor' }, 'No such input.'),
+      ok('edit_request', { request_id: 'c3' }, { ok: true, request: { title: 'Shot 3: The Rope' } }),
+    ],
+  };
+  expect(turnReceipt(turn)).toEqual([
+    'Drafted Shot 1: The Arrival, Shot 2: The Mug',
+    'Changed Shot 3: The Rope',
+    'Saved the brief (added Teo to the cast)',
+  ]);
+});
