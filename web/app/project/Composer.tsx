@@ -110,9 +110,14 @@ export function Composer(p: Props) {
   useLayoutEffect(() => {
     const el = area.current;
     if (!el) return;
+    // Empty, the box takes its resting size from the stylesheet; it never keeps the height of what was just sent.
+    if (!p.text) {
+      el.style.height = '';
+      return;
+    }
     el.style.height = 'auto';
     el.style.height = Math.min(el.scrollHeight, innerHeight * 0.4) + 'px';
-  }, [p.text]);
+  }, [p.text, expanded, narrow]);
   useEffect(() => {
     if (p.focusToken) area.current?.focus();
   }, [p.focusToken]);
@@ -223,6 +228,8 @@ export function Composer(p: Props) {
   const submit = () => {
     if (!canSend) return;
     p.mode === 'make' ? p.onMake() : p.onSend();
+    // Sent: the writing sheet closes so the reply and Seed's progress are in view.
+    setExpanded(false);
   };
   return (
     <div

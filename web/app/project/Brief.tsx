@@ -51,6 +51,12 @@ export function BriefBar({
     .filter(l => l && l !== project.title)
     .slice(0, 3)
     .join(' · ');
+  // Leaving the editor with unsaved changes asks before they are thrown away.
+  const [discarding, setDiscarding] = useState(false);
+  function leave() {
+    if (text !== brief) return setDiscarding(true);
+    setEditing(false);
+  }
   async function save() {
     setError('');
     try {
@@ -115,12 +121,11 @@ export function BriefBar({
                     el.setSelectionRange(el.value.length, el.value.length);
                   }
                 }}
-                // Escape leaves the editor without saving, like Cancel.
+                // Escape leaves the editor like Cancel; with unsaved changes it asks first.
                 onKeyDown={e => {
                   if (e.key === 'Escape') {
                     e.preventDefault();
-                    setEditing(false);
-                    setText(brief);
+                    leave();
                   }
                 }}
               />
@@ -129,14 +134,28 @@ export function BriefBar({
                   {error}
                 </p>
               )}
+              {discarding && (
+                <div className="notice warn" role="alert">
+                  Discard your changes to the brief?
+                  <div className="actions">
+                    <button
+                      className="btn small danger"
+                      onClick={() => {
+                        setDiscarding(false);
+                        setEditing(false);
+                        setText(brief);
+                      }}
+                    >
+                      Discard changes
+                    </button>
+                    <button className="btn small" autoFocus onClick={() => setDiscarding(false)}>
+                      Keep editing
+                    </button>
+                  </div>
+                </div>
+              )}
               <div className="actions">
-                <button
-                  className="btn small"
-                  onClick={() => {
-                    setEditing(false);
-                    setText(brief);
-                  }}
-                >
+                <button className="btn small" onClick={leave}>
                   Cancel
                 </button>
                 <button

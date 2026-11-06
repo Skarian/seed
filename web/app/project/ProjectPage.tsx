@@ -270,6 +270,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     }
     // Ask Seed to check a take: Seed looks at the picture and compares it with the brief, the shot and its references.
     if (use.intent === 'check') {
+      // The question and its reply appear at the end of the conversation: follow it there, never open at the top.
+      follow.current = true;
+      requestAnimationFrame(() => {
+        const el = scroller.current;
+        if (el) el.scrollTop = el.scrollHeight;
+      });
       void run('', () =>
         projectsApi.send(projectRef.current ?? project, {
           text: (() => {

@@ -125,7 +125,8 @@ function CardResults({
 }) {
   const app = useApp();
   const r = latest(card).request,
-    list = cardJobs(project, card),
+    // A take whose picture was deleted leaves no empty slot behind, and is not counted.
+    list = cardJobs(project, card).filter(j => !(j.state === 'completed' && !j.outputs.length && j.deleted_outputs?.length)),
     title = titleOf(r);
   const done = list.filter(j => j.state === 'completed'),
     failed = list.filter(isFailed),
