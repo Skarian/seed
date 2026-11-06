@@ -163,6 +163,18 @@ export function AssetPanel({
       hint: 'Attach it to the composer.',
       onSelect: () => app.useResult({ ...item, job }, 'input'),
     },
+    ...(item.kind === 'image' && source?.chat_id
+      ? [
+          {
+            label: 'Ask Seed to check it',
+            hint: 'Against the brief and the approved references.',
+            onSelect: () => {
+              onClosed?.();
+              app.useResult({ ...item, job }, 'check');
+            },
+          },
+        ]
+      : []),
     ...(source?.card_id
       ? [
           {

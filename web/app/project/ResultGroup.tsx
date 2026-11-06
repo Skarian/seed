@@ -598,6 +598,15 @@ function ResultTile({
             ? [{ label: 'Animate', hint: 'Use it as a start frame', onSelect: () => app.useResult(item, 'animate') }]
             : []),
           { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },
+          ...(!video
+            ? [
+                {
+                  label: 'Ask Seed to check it',
+                  hint: 'Against the brief and references',
+                  onSelect: () => app.useResult(item, 'check'),
+                },
+              ]
+            : []),
           { label: 'Open full screen', onSelect: () => app.view(item, siblings) },
           ...approveItems,
         ]}
@@ -628,6 +637,15 @@ function ResultTile({
           placement="above"
           items={[
             { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },
+            ...(!video
+              ? [
+                  {
+                    label: 'Ask Seed to check it',
+                    hint: 'Against the brief and references',
+                    onSelect: () => app.useResult(item, 'check'),
+                  },
+                ]
+              : []),
             { label: 'Reuse settings', onSelect: () => actions.onReuse(card) },
             { label: 'Open full screen', onSelect: () => app.view(item, siblings) },
             { label: 'Download', onSelect: () => void downloadAsset(asset, title.replace(/, (\d+) of \d+$/, ' $1')) },

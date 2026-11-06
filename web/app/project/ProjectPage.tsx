@@ -234,6 +234,16 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       }
       return;
     }
+    // Ask Seed to check a take: Seed looks at the picture and compares it with the brief, the shot and its references.
+    if (use.intent === 'check') {
+      void run('', () =>
+        projectsApi.send(projectRef.current ?? project, {
+          text: `Check ${use.item.title} against the brief: look at the picture and compare it with the shot's framing and action and with the approved references of everyone and everything in it (face, hair, wardrobe, props, the place). List what matches and what doesn't, briefly. Don't draft anything unless I ask.`,
+          assets: [use.item.asset],
+        }),
+      );
+      return;
+    }
     // Use as input is a plain attachment: it can revise a waiting plan or start one, as the words say.
     if (use.intent === 'input') {
       setAttachments(list =>
@@ -1253,9 +1263,13 @@ function Header({
         <MenuButton
           label="Project options"
           items={[
+            {
+              label: 'This project in the Library',
+              hint: 'Its results and uploads',
+              onSelect: () => app.go({ name: 'library', project: project.id }),
+            },
             ...(app.narrow
               ? [
-                  { label: 'Library', hint: 'Every result and upload', onSelect: () => app.go({ name: 'library' }) },
                   { label: 'GPUs', onSelect: () => app.go({ name: 'gpus' }) },
                   { label: 'Settings', onSelect: () => app.go({ name: 'settings' }) },
                   'divider' as const,

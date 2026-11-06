@@ -146,7 +146,7 @@ export function App() {
       setViewing(null);
       setComparing(null);
       // More like this and Reuse settings belong to the draft's own project.
-      if (intent === 'more' || intent === 'reuse') {
+      if (intent === 'more' || intent === 'reuse' || intent === 'check') {
         const home = item.job?.source?.chat_id ?? item.project;
         if (home) handTo(item, intent, home);
         return;
@@ -192,7 +192,7 @@ export function App() {
           )}
           {route.name === 'projects' && <ProjectsList />}
           {route.name === 'home' && <div className="scroll" aria-busy="true" />}
-          {route.name === 'library' && <LibraryPage collection={route.collection} />}
+          {route.name === 'library' && <LibraryPage collection={route.collection} project={route.project} />}
           {route.name === 'gpus' && <GpusPage />}
           {route.name === 'settings' && <SettingsPage section={route.section} />}
           {top && <TabBar />}
@@ -233,6 +233,7 @@ export function App() {
           title={
             {
               refine: 'Refine in which project?',
+              check: 'Check in which project?',
               animate: 'Animate in which project?',
               input: 'Use in which project?',
               more: '',

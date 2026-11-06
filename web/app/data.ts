@@ -18,7 +18,7 @@ export type Route =
   | { name: 'home' }
   | { name: 'projects' }
   | { name: 'project'; id: string; view: 'conversation' | 'results'; focus?: string }
-  | { name: 'library'; collection?: string }
+  | { name: 'library'; collection?: string; project?: string }
   | { name: 'gpus' }
   | { name: 'settings'; section?: string };
 
@@ -36,7 +36,11 @@ export function parseRoute(loc: { pathname: string; search: string } = location)
   if (path === '/chat' && params.get('chat')) return { name: 'project', id: params.get('chat')!, view: 'conversation' };
   if (path === '/projects' || path === '/chat') return { name: 'projects' };
   if (path === '/library')
-    return { name: 'library', ...(params.get('collection') ? { collection: params.get('collection')! } : {}) };
+    return {
+      name: 'library',
+      ...(params.get('collection') ? { collection: params.get('collection')! } : {}),
+      ...(params.get('project') ? { project: params.get('project')! } : {}),
+    };
   if (path === '/gpus') return { name: 'gpus' };
   if (path === '/settings' || path === '/admin')
     return { name: 'settings', ...(params.get('section') ? { section: params.get('section')! } : {}) };
@@ -55,7 +59,14 @@ export function routePath(route: Route) {
       return '/projects/' + route.id + (q.size ? '?' + q : '');
     }
     case 'library':
-      return '/library' + (route.collection ? '?collection=' + encodeURIComponent(route.collection) : '');
+      return (
+        '/library' +
+        (route.collection
+          ? '?collection=' + encodeURIComponent(route.collection)
+          : route.project
+            ? '?project=' + encodeURIComponent(route.project)
+            : '')
+      );
     case 'gpus':
       return '/gpus';
     case 'settings':
@@ -336,8 +347,12 @@ export type AppContextValue = {
   view: (item: ViewerItem, siblings?: ViewerItem[]) => void;
   compare: (a: ViewerItem, b: ViewerItem) => void;
   /** Hand a result to the composer of its project (Refine, Animate, Use as input). */
-  useResult: (item: ViewerItem, intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse') => void;
-  pendingUse: { item: ViewerItem; intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse'; nonce: number } | null;
+  useResult: (item: ViewerItem, intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse' | 'check') => void;
+  pendingUse: {
+    item: ViewerItem;
+    intent: 'refine' | 'animate' | 'input' | 'more' | 'reuse' | 'check';
+    nonce: number;
+  } | null;
   clearPendingUse: () => void;
   wide: boolean;
   narrow: boolean;

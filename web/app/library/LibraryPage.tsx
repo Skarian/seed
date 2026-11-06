@@ -34,7 +34,7 @@ export const assetTitle = (a: LibraryAsset) =>
   (a.source_asset_id ? (a.crop_shape ? ` · ${a.crop_shape} crop` : ' · frame') : '');
 
 /** Every result and upload: search, filter, sort into collections, act on several at once. */
-export function LibraryPage({ collection }: { collection?: string } = {}) {
+export function LibraryPage({ collection, project }: { collection?: string; project?: string } = {}) {
   const app = useApp();
   const [q, setQ] = useState(''),
     [query, setQuery] = useState('');
@@ -58,6 +58,13 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
       app.go({ name: 'library' }, true);
     }
   }, [collection]);
+  // Opened from a project: show that project's results (the Project filter shows it and clears it).
+  useEffect(() => {
+    if (project) {
+      setF({ ...none, project });
+      app.go({ name: 'library' }, true);
+    }
+  }, [project]);
   useEffect(() => {
     void collectionsApi
       .list(app.mode)
@@ -302,15 +309,23 @@ export function LibraryPage({ collection }: { collection?: string } = {}) {
                         : 'Everything you make, and every file you attach in a project, appears here.'}
                     </p>
                     {anyFilter ? (
-                      <button
-                        className="btn"
-                        onClick={() => {
-                          setF(none);
-                          setQ('');
-                        }}
-                      >
-                        Clear search and filters
-                      </button>
+                      <span className="actions">
+                        {/* Clearing a search keeps the project or collection you chose; resetting is separate. */}
+                        {q && (
+                          <button className="btn primary" onClick={() => setQ('')}>
+                            Clear search
+                          </button>
+                        )}
+                        <button
+                          className="btn"
+                          onClick={() => {
+                            setF(none);
+                            setQ('');
+                          }}
+                        >
+                          {q ? 'Reset all filters' : 'Clear filters'}
+                        </button>
+                      </span>
                     ) : (
                       <button
                         className="btn primary"
