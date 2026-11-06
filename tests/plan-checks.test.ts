@@ -279,3 +279,12 @@ it('drops subject tags from video prompts without leaving empty brackets or doub
   const text = readablePrompt({ workflow: 'text-to-video', prompt: 'subject_definitions: <Subject 1>: Ines Marrow, a clockmaker.\n[Shot 1] Ines (<Subject 1>) bends over the bench.' } as any, project([]));
   expect(text).toBe('Subjects: Ines Marrow, a clockmaker.\nPart 1: Ines bends over the bench.');
 });
+
+it('does not ask for a look that an approved reference image of the draft already carries', () => {
+  const brief = ['## Characters', '- Mara: small scar through her left eyebrow, mustard raincoat', '## Rules', '- No text anywhere'].join('\n');
+  const prompt = 'Medium shot of the woman from <image1> at the lighthouse.';
+  const request = { workflow: 'image-to-image', engine: 'klein', prompt, output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw', references: [{ id: 'input1', asset_id: 'mara-ref', kind: 'image', role: 'source' }], shot: { number: 2, name: 'The Door', cast: ['Mara'], framing: 'medium' } };
+  const chat = (picks: Record<string, string>) => project([message('user', 'Shot 2'), message('assistant', 'Ready', 'run')], { brief, picks });
+  expect(checkDraft(card(request) as any, chat({})).find(c => c.code === 'continuity')!.text).toContain('Mara’s');
+  expect(checkDraft(card(request) as any, chat({ 'ref:Mara': 'mara-ref' })).find(c => c.code === 'continuity')!.text).toBe('Missing from this prompt: “no text anywhere”.');
+});

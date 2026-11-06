@@ -243,17 +243,17 @@ function CardResults({
       );
   const notNowRow = notNow.length > 0 && (
     <div className="notnow">
-      <span>Left out of this make:</span>
+      <span>Not made this time:</span>
       {notNow.map(c => (
         <span key={c.id}>
           <b>{titleOf(latest(c).request)}</b>
-          {madeLater(c) ? <span className="faint"> · a newer version was made</span> : null}{' '}
+          {madeLater(c) ? <span className="faint"> · redrafted since</span> : null}{' '}
           <button
             className="link"
             onClick={() => actions.onBringBack(c)}
-            aria-label={(madeLater(c) ? 'Use this earlier version of ' : 'Bring back ') + titleOf(latest(c).request)}
+            aria-label={(madeLater(c) ? 'Make this earlier version of ' : 'Bring back ') + titleOf(latest(c).request)}
           >
-            {madeLater(c) ? 'Use this earlier version' : 'Bring back'}
+            {madeLater(c) ? 'Make this version instead' : 'Bring back'}
           </button>
         </span>
       ))}

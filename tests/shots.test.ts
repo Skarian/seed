@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { shotsFromBrief } from '../shared/shots.js';
+import { shotsFromBrief, placeShot, shotPickKey, chosenTake } from '../shared/shots.js';
 
 describe('shotsFromBrief', () => {
   it('reads numbered lines under a Shots heading in story order', () => {
@@ -29,5 +29,21 @@ describe('shotsFromBrief', () => {
   it('returns nothing without a shot heading', () => {
     expect(shotsFromBrief('## Story\n1. First: x')).toEqual([]);
     expect(shotsFromBrief(null)).toEqual([]);
+  });
+});
+
+describe('shot identity', () => {
+  const list = shotsFromBrief('## Shots\n1. Shop Wide: Ines at work\n4. The Doorway: Kai arrives\n5. The Walk: dusk on the pier');
+  it('places a result made under an old number at its shot’s current number', () => {
+    expect(placeShot('Shot 4: The Walk', list)).toEqual({ n: 5, name: 'The Walk' });
+    expect(placeShot('Shot 4: The Doorway keyframe', list)).toEqual({ n: 4, name: 'The Doorway' });
+    expect(placeShot('Shot 9: Unlisted', list)).toEqual({ n: 9, name: 'Unlisted' });
+    expect(placeShot('Reference: Ines', list)).toEqual({ n: null, name: 'Reference: Ines' });
+  });
+  it('keys a chosen take by the shot’s name and still reads choices saved by number', () => {
+    expect(shotPickKey(4, 'The Walk!', 'image')).toBe('shot:the walk:image');
+    expect(shotPickKey(4, '', 'clip')).toBe('4:clip');
+    expect(chosenTake({ 'shot:the walk:image': 'a', '5:image': 'b' }, 5, 'The Walk', 'image')).toBe('a');
+    expect(chosenTake({ '5:image': 'b' }, 5, 'The Walk', 'image')).toBe('b');
   });
 });

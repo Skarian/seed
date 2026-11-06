@@ -10,7 +10,7 @@ import { jobActive } from '../../../shared/jobs.js';
 import { CastStrip, referenceAsk } from './Cast.js';
 import { Stages, listOf, type Stage } from './Stages.js';
 import { castFromBrief, referenceKey } from '../../../shared/cast.js';
-import { shotsFromBrief } from '../../../shared/shots.js';
+import { shotsFromBrief, placeShot, shotPickKey, chosenTake } from '../../../shared/shots.js';
 import type { ImageRequest } from '../../../shared/generation.js';
 
 /** A draft that records its shot is placed by that record; older drafts fall back to the "Shot N: Name" title. */
@@ -166,19 +166,14 @@ export function ResultsView({
     action: string;
   };
   const shots = new Map<string, Shot>();
+  // A shot named in the brief's shot list sits at the brief's current number, whatever number it was made under.
   const shotFor = (title: string) => {
-    const n = shotOf(title),
+    const { n, name } = placeShot(title, briefShots),
       key = n !== null ? 'n' + n : 't' + title;
     if (!shots.has(key))
       shots.set(key, {
         n,
-        name:
-          n !== null
-            ? title
-                .replace(/^.*?\bshot\s*\d+\s*[:·.-]?\s*/i, '')
-                .replace(/\s*(keyframe|animation|clip|video)\s*$/i, '')
-                .trim()
-            : title,
+        name,
         images: [],
         clips: [],
         making: [],
@@ -220,9 +215,11 @@ export function ResultsView({
   // Previous and next in the viewer follow the board as it is shown: shot by shot, keyframes then clips.
   const inOrder = shotList.flatMap(s => [...s.images, ...s.clips]);
   // A shot's chosen take is the owner's decision ("Use for shot"), stored with the project; favorites stay personal.
-  const shotKey = (s: Shot) => (s.n !== null ? String(s.n) : s.name);
+  // Chosen takes are stored by the shot's name, so they follow the shot when shots are renumbered.
+  const pickKey = (s: Shot, kind: 'image' | 'clip') =>
+    s.n !== null ? shotPickKey(s.n, s.name, kind) : s.name + ':' + kind;
   const chosen = (s: Shot, kind: 'image' | 'clip') => {
-    const id = picks[shotKey(s) + ':' + kind];
+    const id = s.n !== null ? chosenTake(picks, s.n, s.name, kind) : picks[s.name + ':' + kind];
     return (kind === 'image' ? s.images : s.clips).find(i => i.asset === id);
   };
   const takesOf = (its: ViewerItem[]) => its.filter(i => !derived.has(i.asset));
@@ -246,8 +243,8 @@ export function ResultsView({
   };
   const lane = (s: Shot, its: ViewerItem[], kind: 'image' | 'clip') => {
     const takes = takesOf(its),
-      key = shotKey(s) + ':' + kind,
-      pickedId = picks[key];
+      key = pickKey(s, kind),
+      pickedId = chosen(s, kind)?.asset;
     return its.map(it => {
       const on = selected.includes(it.asset);
       const from = derived.get(it.asset);
@@ -314,7 +311,11 @@ export function ResultsView({
                 aria-label={
                   isChosen ? `${label} is chosen for Shot ${s.n}. Clear the choice` : `Use ${label} for Shot ${s.n}`
                 }
-                onClick={() => void choose(key, isChosen ? null : it.asset)}
+                onClick={async () => {
+                  // Clearing also clears a choice saved by number before shots were named.
+                  if (isChosen && picks[s.n + ':' + kind]) await choose(s.n + ':' + kind, null);
+                  await choose(key, isChosen ? null : it.asset);
+                }}
               >
                 {isChosen ? 'Chosen' : 'Use for shot'}
               </button>
@@ -412,7 +413,7 @@ export function ResultsView({
       total: numbered.length,
       left: [
         toDraft.length ? shotWord(toDraft) + (toDraft.length === 1 ? ' has' : ' have') + ' no keyframe yet.' : '',
-        toChoose.length ? 'Choose a take for ' + shotWord(toChoose).toLowerCase() + ' (Use for shot).' : '',
+        toChoose.length ? 'Pick a keyframe for ' + shotWord(toChoose).toLowerCase() + '.' : '',
       ]
         .filter(Boolean)
         .join(' '),

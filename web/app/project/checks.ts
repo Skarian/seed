@@ -1,4 +1,5 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
+import { castFromBrief, referenceKey } from '../../../shared/cast.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
@@ -307,7 +308,18 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   // Brief details that apply to this draft but are missing from its prompt. Words only: this checks the request, not the picture.
   // A clip that starts from a keyframe takes the characters' look from that image; their words need no check.
   const fromFrame = r.workflow === 'reference-to-video' && (r.references ?? []).some(x => x.role === 'first_frame');
-  const gaps = fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '', r.shot);
+  // A character, place or prop whose approved reference image is an input of this draft is carried by that image.
+  const shown = new Set(
+    castFromBrief(project.brief)
+      .filter(e => {
+        const id = project.picks?.[referenceKey(e.name)];
+        return id && (r.references ?? []).some(x => x.asset_id === id);
+      })
+      .map(e => e.name.split(' ')[0]!.toLowerCase()),
+  );
+  const gaps = (fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '', r.shot)).filter(
+    g => !g.who || !shown.has(g.who.split(' ')[0]!.toLowerCase()),
+  );
   if (gaps.length) {
     const whose = [...new Set(gaps.map(g => g.who).filter(Boolean))];
     const parts = [

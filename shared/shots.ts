@@ -24,3 +24,47 @@ export function shotsFromBrief(brief: string | null | undefined): BriefShot[] {
   }
   return out.sort((a, b) => a.n - b.n).slice(0, 200);
 }
+
+/** A shot's name as a key: case, punctuation and spacing do not matter ("The Knock" = "the knock."). */
+export const shotNameKey = (name: string) =>
+  name
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N}]+/gu, ' ')
+    .trim();
+
+/**
+ * The picks key for a shot's chosen take. It names the shot, not its number, so a choice follows the shot when shots
+ * are inserted or renumbered. Shots without a name fall back to their number (the older "<n>:image" form).
+ */
+export const shotPickKey = (n: number | null, name: string, kind: 'image' | 'clip') =>
+  shotNameKey(name) ? `shot:${shotNameKey(name)}:${kind}` : `${n}:${kind}`;
+
+/** The chosen take of a shot: by name, or (for choices saved before names were used) by number. */
+export const chosenTake = (
+  picks: Record<string, string>,
+  n: number | null,
+  name: string,
+  kind: 'image' | 'clip',
+): string | undefined => picks[shotPickKey(n, name, kind)] ?? (n !== null ? picks[`${n}:${kind}`] : undefined);
+
+/** "Shot 4: The Walk keyframe" → { n: 4, name: "The Walk" }. */
+export function shotFromTitle(title: string): { n: number | null; name: string } {
+  const m = title.match(/\bshot\s*(\d{1,3})\b/i);
+  if (!m) return { n: null, name: title };
+  const name = title
+    .replace(/^.*?\bshot\s*\d+\s*[:·.-]?\s*/i, '')
+    .replace(/\s*(keyframe|animation|clip|video)\s*$/i, '')
+    .trim();
+  return { n: Number(m[1]), name };
+}
+
+/**
+ * Where a result belongs on the board. A shot named in the brief's shot list takes the brief's current number, so
+ * results made as "Shot 4: The Walk" move to Shot 5 when a shot is inserted before it.
+ */
+export function placeShot(title: string, list: BriefShot[]): { n: number | null; name: string } {
+  const own = shotFromTitle(title);
+  if (own.n === null) return own;
+  const match = list.find(s => shotNameKey(s.name) === shotNameKey(own.name));
+  return match ? { n: match.n, name: match.name } : own;
+}

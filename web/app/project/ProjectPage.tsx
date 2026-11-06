@@ -1218,13 +1218,14 @@ function Header({
       </h1>
       {canSplit && (
         <button
-          className="btn small quiet"
+          className="btn small"
           aria-pressed={split}
           onClick={() => onBeside(!split)}
           title={
             split ? `Show the conversation alone, with ${board} as a tab` : 'Show the board beside the conversation'
           }
         >
+          <Icon.Compare width={14} height={14} />
           {split ? 'Close side board' : `${board} beside chat`}
         </button>
       )}
@@ -1716,8 +1717,16 @@ function lastUserMessage(project: Project | null) {
   return m ? { text: m.text, assets: m.assets } : null;
 }
 function titleFromPrompt(text: string) {
-  const first = text.trim().split(/[.,;:\n]/)[0] ?? '';
-  const words = first.split(/\s+/).slice(0, 6).join(' ');
-  return words.length > 60 ? words.slice(0, 58) + '…' : words;
+  // The first clause, without a leading article, cut at a word that ends a phrase ("Storybook title card for The Salt
+  // Clock", never "A vintage storybook title card for").
+  const first = (text.trim().split(/[.,;:\n]| with | while | as /i)[0] ?? '').replace(/^(a|an|the)\s+/i, '');
+  const words = first.split(/\s+/).filter(Boolean).slice(0, 8);
+  while (
+    words.length > 2 &&
+    /^(a|an|the|of|for|in|on|at|to|with|and|or|by|from|into|her|his|its|their)$/i.test(words.at(-1)!)
+  )
+    words.pop();
+  const title = words.join(' ').replace(/^./, c => c.toUpperCase());
+  return title.length > 60 ? title.slice(0, 58) + '…' : title;
 }
 export { isOpenPlan };

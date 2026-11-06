@@ -30,6 +30,7 @@ import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js
 import { chatReferenceLabels, preserveChatLabels, validateChatReferences } from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
 import { castFromBrief, referenceKey } from '../../shared/cast.js';
+import { shotsFromBrief, shotPickKey, shotNameKey, shotFromTitle } from '../../shared/shots.js';
 
 /** Agent snapshots mirror the flat tool fields; canonical requests remain persisted unchanged. */
 function agentRequest(request: ImageRequest, assets: ToolAsset[] = []) {
@@ -452,12 +453,18 @@ export class Chats {
       const title = job?.request.title
         ? `${job.request.title}${(job.request.count ?? 1) > 1 ? ` · take ${(job.submission_index ?? 0) + 1} of ${job.request.count}` : ''}`
         : undefined;
+      const shotLabel = (k: string) => {
+        const m = k.match(/^shot:(.+):(?:image|clip)$/);
+        if (!m) return 'Shot ' + k.split(':')[0];
+        const listed = shotsFromBrief(chat.brief).find(s => shotNameKey(s.name) === m[1]);
+        return listed ? `Shot ${listed.n}: ${listed.name}` : `the shot “${m[1]}”`;
+      };
       const chosen = Object.entries(chat.picks ?? {})
         .filter(([, a]) => a === id)
         .map(([k]) =>
           k.startsWith('ref:')
             ? `approved reference for ${k.slice(4)}`
-            : `chosen ${k.endsWith(':clip') ? 'clip' : 'keyframe'} for Shot ${k.split(':')[0]}`,
+            : `chosen ${k.endsWith(':clip') ? 'clip' : 'keyframe'} for ${shotLabel(k)}`,
         );
       return {
         id,
@@ -643,7 +650,21 @@ export class Chats {
           throw Error(
             JSON.stringify({ ok: false, error: 'Give a shot number and the input handle of a made image or clip.' }),
           );
-        const view = this.pick(id, shot + ':' + (asset.kind === 'video' ? 'clip' : 'image'), asset.asset_id);
+        // The choice is stored by the shot's name (from the brief's shot list, else the result's own title), so it
+        // follows the shot when shots are renumbered.
+        const named =
+          shotsFromBrief(current.brief).find(s => s.n === Number(shot))?.name ??
+          (() => {
+            const meta = this.jobs.media.get(asset.asset_id)?.metadata as { job_id?: unknown } | undefined;
+            const job = typeof meta?.job_id === 'string' ? this.jobs.get(meta.job_id) : undefined;
+            const own = job?.request.title ? shotFromTitle(job.request.title) : undefined;
+            return own && own.n === Number(shot) ? own.name : '';
+          })();
+        const view = this.pick(
+          id,
+          shotPickKey(Number(shot), named, asset.kind === 'video' ? 'clip' : 'image'),
+          asset.asset_id,
+        );
         const result = {
           ok: true,
           shot,

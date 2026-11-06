@@ -42,7 +42,7 @@ export function CastStrip({
       <div className="film-board-head">
         <b>{cast.some(e => e.kind === 'prop') ? 'Cast, places & props' : 'Cast & places'}</b>
         <span className="faint">
-          {approved} of {cast.length} with an approved reference · shots they appear in are drafted from it
+          {approved} of {cast.length} approved · new shots use these pictures
         </span>
       </div>
       <ul className="cast-cells">
@@ -70,7 +70,7 @@ export function CastStrip({
               <span className="cast-text">
                 <b>{e.name}</b>
                 <small className="faint" title={e.look}>
-                  {kind} · {id ? 'Approved' : 'From words only'}
+                  {kind} · {id ? 'Approved' : 'No picture yet'}
                 </small>
               </span>
               <span className="cast-actions">

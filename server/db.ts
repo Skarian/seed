@@ -94,7 +94,8 @@ export type AssetFilters = {favorites?:boolean;collection_id?:string;q?:string;s
 export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string, filters: AssetFilters = {}): LibraryAsset[] {
   const oldest = filters.order === 'oldest';
   // Search matches every word, in any order and anywhere in the prompt, title or note ("Maren brick-red").
-  const terms = (filters.q ?? '').toLowerCase().replace(/[%_]/g, '').split(/\s+/).filter(Boolean).map(w => '%' + w + '%');
+  // Each word must start a word in the text (punctuation counts as a space), so "Ines" never matches "bioluminescent".
+  const terms = (filters.q ?? '').toLowerCase().replace(/[%_]/g, '').split(/\s+/).filter(Boolean).map(w => '% ' + w + '%');
   const q = terms[0] ?? null, more = terms.slice(1);
   const rows = db.prepare(`WITH items AS (
     SELECT a.id, a.kind, a.name, a.created_at,
@@ -106,7 +107,7 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
       json_extract(j.snapshot_json, '$.source.chat_id') AS chat_id,
       json_extract(j.snapshot_json, '$.submission_index') AS submission_index,
       json_extract(j.snapshot_json, '$.request.count') AS batch_count,
-      lower(COALESCE(json_extract(j.snapshot_json, '$.request.prompt'), '') || ' ' || COALESCE(json_extract(j.snapshot_json, '$.request.title'), '') || ' ' || COALESCE((SELECT note FROM asset_notes WHERE id=a.id), '') || ' ' || a.name) AS haystack,
+      ' ' || replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(lower(COALESCE(json_extract(j.snapshot_json, '$.request.prompt'), '') || ' ' || COALESCE(json_extract(j.snapshot_json, '$.request.title'), '') || ' ' || COALESCE((SELECT note FROM asset_notes WHERE id=a.id), '') || ' ' || a.name), '(', ' '), ')', ' '), '[', ' '), ']', ' '), '<', ' '), '>', ' '), '"', ' '), '“', ' '), '”', ' '), '‘', ' '), '’', ' '), '''', ' '), '-', ' '), '/', ' '), ',', ' '), '.', ' '), ':', ' '), ';', ' '), '!', ' '), '?', ' '), char(10), ' ') AS haystack,
       json_extract(a.metadata_json, '$.executor') AS executor,
       json_extract(a.metadata_json, '$.execution_profile') AS execution_profile,
       COALESCE(json_extract(a.metadata_json, '$.mode'), s.mode, 'sfw') AS mode,
@@ -131,7 +132,7 @@ export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?
     AND (? = '' OR (created_at,id) ${oldest ? '>' : '<'} (SELECT created_at,id FROM items WHERE id=?))
     ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,q,q,...more,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;source_asset_id:string|null;crop_shape:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null;note:string|null;width:number|null;height:number|null;prompt:string|null}>;
   // When a search matched the prompt, return a few words around the match (never the whole prompt).
-  const words = terms.map(t => t.slice(1, -1));
+  const words = terms.map(t => t.slice(2, -1));
   const excerpt = (text: string | null) => { if (!text || !words.length) return undefined; const low = text.toLowerCase(), at = low.indexOf(words[0]!); if (at < 0 || !words.every(w => low.includes(w))) return undefined; const start = at > 30 ? text.lastIndexOf(' ', at - 30) + 1 : 0, end = Math.min(text.length, at + words[0]!.length + 50); return (start ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : ''); };
   return rows.map(({executor,execution_profile,haystack:_haystack,job_id,source_asset_id,crop_shape,title,chat_id,submission_index,batch_count,note,width,height,prompt,...row})=>({...row,favorite:Boolean(row.favorite),...(excerpt(prompt)?{prompt_match:excerpt(prompt)}:{}),...(note?{note}:{}),...(width&&height?{width:Number(width),height:Number(height)}:{}),...(!source_asset_id&&Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id&&!source_asset_id?{job_id}:{}),...(source_asset_id?{source_asset_id}:{}),...(crop_shape?{crop_shape}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
     ...(executor==='local'||executor==='cloud'?{executor}:{}),...(typeof execution_profile==='string'?{execution_profile}:{})}));

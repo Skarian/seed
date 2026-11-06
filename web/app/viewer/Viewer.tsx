@@ -1,4 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
+import { shotFromTitle, shotNameKey, shotPickKey } from '../../../shared/shots.js';
 import {
   assets as assetsApi,
   collections as collectionsApi,
@@ -959,12 +960,24 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
   const root = useRef<HTMLDivElement>(null);
   useModalFocus(root);
   // Both takes of one numbered shot: either can be chosen for the shot right here.
-  const shotN = (x: ViewerItem) => (x.job ? titleOf(x.job.request) : x.title).match(/\bshot\s*(\d{1,3})\b/i)?.[1];
-  const sameShot = shotN(a) && shotN(a) === shotN(b) && a.project && a.kind === b.kind ? shotN(a) : undefined;
+  const shotOf = (x: ViewerItem) => shotFromTitle(x.job ? titleOf(x.job.request) : x.title);
+  const shotN = (x: ViewerItem) => shotOf(x).n?.toString();
+  const sameShot =
+    shotN(a) &&
+    shotN(a) === shotN(b) &&
+    shotNameKey(shotOf(a).name) === shotNameKey(shotOf(b).name) &&
+    a.project &&
+    a.kind === b.kind
+      ? shotN(a)
+      : undefined;
   const [chosenId, setChosenId] = useState<string | null>(null);
   async function useForShot(x: ViewerItem) {
     try {
-      const p = await projectsApi.pick(x.project!, sameShot + ':' + (x.kind === 'video' ? 'clip' : 'image'), x.asset);
+      const p = await projectsApi.pick(
+        x.project!,
+        shotPickKey(Number(sameShot), shotOf(x).name, x.kind === 'video' ? 'clip' : 'image'),
+        x.asset,
+      );
       setChosenId(x.asset);
       dispatchEvent(new CustomEvent('seed:project', { detail: p }));
       app.toast(`Chosen for Shot ${sameShot}`);

@@ -162,7 +162,7 @@ export function PlanCard({
         </span>
       </div>
       {planWide.map(c => (
-        <div className="check-note plan-wide" role="status" key={c.text}>
+        <div className="check-note plan-wide" key={c.text}>
           <span>
             ⚠ All drafts:{' '}
             {c.text.replace(
@@ -205,11 +205,18 @@ export function PlanCard({
             );
           if (!missing.length) return null;
           return (
-            <div className="check-note plan-wide preflight" role="status">
+            <div className="check-note plan-wide preflight">
               <span>
-                {missing.length === 1 ? '1 draft leaves' : `${missing.length} drafts leave`} out details from your
-                brief: {missing.map(m => short(m.card) || titleOf(latest(m.card).request)).join(', ')}. Words guide the
-                result; check each take.
+                Not in the words of {missing.length === 1 ? 'this draft' : `${missing.length} drafts`}:{' '}
+                {missing
+                  .map(
+                    m =>
+                      `${short(m.card) || titleOf(latest(m.card).request)} (${m.check.text
+                        .replace(/^Missing from this prompt:\s*/, '')
+                        .replace(/\.$/, '')})`,
+                  )
+                  .join('; ')}
+                .
               </span>
               <button
                 className="btn small"
@@ -399,6 +406,9 @@ function Draft({
       ? (() => {
           const chip = (x: typeof r, k: string) => settingChips(x, id => id).find(([key]) => key === k)?.[1];
           const parts = (['engine', 'size'] as const).filter(k => chip(sourceJob.request, k) !== chip(r, k));
+          // A Klein shot at its own shape is a new frame drawn from the images; a "same as source" edit keeps the frame.
+          if (r.workflow === 'image-to-image' && r.output.aspect !== 'source')
+            return `Drawn from ${inputs.map(x => `“${assetName(project, x.asset_id, tasks)}”`).join(' and ')}: a new ${r.output.aspect} frame made with ${chip(r, 'engine') ?? 'FLUX 3 Image Klein'}.`;
           return parts.length
             ? `“${titleOf(sourceJob.request)}” was made with ${parts.map(k => chip(sourceJob.request, k)).join(' at ')}; this draft uses ${parts.map(k => chip(r, k)).join(' at ')}. Its framing and look come from the source.`
             : '';

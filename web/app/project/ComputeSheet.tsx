@@ -174,9 +174,9 @@ export function ComputeSheet({
             <span>Start-up</span>
             <div>
               {selected.model_download_bytes
-                ? `Downloads ${gb(selected.model_download_bytes)} of models first`
-                : 'Starts the machine first'}{' '}
-              (billed; how long isn't known)
+                ? `Downloads ${gb(selected.model_download_bytes)} of models first.`
+                : 'Starts the machine first.'}{' '}
+              You pay from the moment it starts, downloads included.
             </div>
             <span>Release after</span>
             <div>
