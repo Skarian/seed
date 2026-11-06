@@ -234,6 +234,14 @@ export function Message({
           </button>
         </div>
       )}
+      {/* A reply that leaves part of the work for "my next reply" gets a Continue, so the rest is one tap away. */}
+      {!running && turn?.state === 'completed' && /(?:in|with) (?:my|the) next (?:reply|message|turn)|remaining (?:shots|drafts|ones)[^.]{0,40}next/i.test(text) && (
+        <div className="actions">
+          <button className="btn small primary" onClick={onContinue}>
+            Continue: draft the rest
+          </button>
+        </div>
+      )}
       {!running && turn?.state === 'completed' && askedToMake && (
         <div className="notice">
           <b>Seed couldn't prepare that.</b> Your message and attachments are kept.
