@@ -389,16 +389,19 @@ export class Jobs {
       const asset=this.media.get(ref.asset_id);
       if(!asset || (request.mode==='sfw' && asset.metadata.mode==='nsfw')) throw Error('This input is unavailable. Choose another image.');
       prepared.push(
+        // Edit inputs are always prepared as images; a Klein draft's own shape only sets its canvas.
         await this.media.prepare(
           ref,
-          request.output.aspect,
+          request.workflow === 'image-to-image' ? 'source' : request.output.aspect,
           request.output.duration_seconds!,
           request.output.size,
         ),
       );
     }
     const dimensions = request.workflow==='image-to-image'
-      ? {width:prepared[0]!.width!,height:prepared[0]!.height!}
+      ? request.output.aspect==='source'
+        ? {width:prepared[0]!.width!,height:prepared[0]!.height!}
+        : resolveDimensions('text-to-image',request.output.size,request.output.aspect)
       : resolveDimensions(request.workflow,request.output.size,request.output.aspect);
     const submission_id = randomUUID(),
       now = new Date().toISOString();
@@ -880,7 +883,7 @@ export class Jobs {
     if (this.get(job.id)?.worker?.quit_now) return;
     if (this.finishCancellation(job)) return;
     Object.assign(metadata, {
-      ...(job.request.workflow==='image-to-image'?{runtime_profile:usesKlein(job.request)?KLEIN_PROFILE:QWEN_PROFILE,runtime_settings:usesKlein(job.request)?KLEIN_SETTINGS:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{}),
+      ...(job.request.workflow==='image-to-image'?{runtime_profile:usesKlein(job.request)?KLEIN_PROFILE:QWEN_PROFILE,runtime_settings:usesKlein(job.request)?KLEIN_SETTINGS:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),...(job.request.output.aspect==='source'?{resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{resolved_width:resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect).width,resolved_height:resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect).height})}:{}),
       job_id: job.id,
       mode: job.request.mode,
       mime_type: output.mime_type,

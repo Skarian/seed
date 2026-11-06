@@ -141,3 +141,14 @@ it('new edit drafts use Klein, saved Qwen drafts keep Qwen, and the tool can swi
   expect(prepareToolRequest({...ctx,previous:old},{request_id:'card',engine:'klein'}).engine).toBe('klein');
   expect(requestToolSchemas('image-to-image','sfw').create.properties.engine).toBeDefined();
 });
+it('runs a Klein shot at its own shape: inputs are prepared as images, only the canvas is 16:9',async()=>fixture(async f=>{
+  await f.ready();
+  const original=f.worker.prepare.getMockImplementation();f.worker.prepare.mockImplementation(async (w:any)=>({...await original(w),workflows:['text-to-image','image-to-image','image-to-image:klein']}));
+  const klein={...request,engine:'klein',output:{aspect:'16:9',size:'image-768'}};
+  const {jobs:[job]}=await f.jobs.submit(klein,'klein-shot-at-own-shape');await f.pool.tick();await f.settle();
+  const done=f.jobs.get(job.id);expect(done.state).toBe('completed');
+  expect(f.worker.submit.mock.calls[0][1].route).toBe('image-klein');
+  expect([done.prepared[0].width,done.prepared[0].height]).toEqual([256,128]); // the source keeps its own shape
+  expect(done.worker.graph['6'].inputs).toMatchObject({width:1344,height:768});
+  expect(f.jobs.media.get(done.outputs[0]).metadata).toMatchObject({runtime_profile:'flux3-klein-int8-v1',resolved_width:1344,resolved_height:768});
+}));

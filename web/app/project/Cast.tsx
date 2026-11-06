@@ -56,7 +56,7 @@ export function CastStrip({
           ].slice(0, 30);
           const kind = e.kind === 'place' ? 'Place' : 'Character';
           return (
-            <li key={e.name} className={'cast-cell' + (id ? ' done' : '')}>
+            <li key={e.name} className={'cast-cell ' + e.kind + (id ? ' done' : '')}>
               <button
                 className="cast-thumb"
                 disabled={!item}

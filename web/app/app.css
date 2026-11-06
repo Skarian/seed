@@ -3755,3 +3755,23 @@ textarea::placeholder {
   gap: 6px;
   flex-wrap: wrap;
 }
+.cast-cell.place .cast-thumb {
+  aspect-ratio: 16 / 9;
+}
+.cast-cells {
+  align-items: start;
+}
+/* Phones: one swipeable row, so the cast never pushes the shots off the screen. */
+@media (max-width: 699px) {
+  .cast-cells {
+    grid-auto-flow: column;
+    grid-template-columns: none;
+    grid-auto-columns: 44%;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    padding-bottom: 4px;
+  }
+  .cast-cell {
+    scroll-snap-align: start;
+  }
+}

@@ -205,3 +205,20 @@ def test_klein_edit_checks_its_inputs_and_canvas(tmp_path, monkeypatch):
         adapters.validate_adapters(tmp_path, {**graph, '6': {'class_type': 'EmptyLatentImage', 'inputs': {}}}, [], 'image-klein')
     with pytest.raises(ValueError):
         adapters.validate_adapters(tmp_path, graph, [{'sha256': 'x'}], 'image-klein')
+
+
+def test_square_and_portrait_stills_match_the_server_canvas():
+    # The server (shared/resolution.ts) makes 1:1 and 4:5 stills at the preset's area on a 32-pixel grid.
+    validate_canvas('image', 1024, 1024)
+    validate_canvas('image', 896, 1120)
+    for width, height in ((1000, 1000), (900, 1120)):
+        with pytest.raises(ValueError):
+            validate_canvas('image', width, height)
+    with pytest.raises(ValueError):
+        validate_canvas('video', 1024, 1024)
+
+
+@pytest.mark.parametrize('width,height', [(640, 640), (576, 736), (1024, 1024), (896, 1120), (1440, 1440), (1280, 1632), (1920, 1920), (1728, 2144)])
+def test_every_server_still_shape_is_accepted(width, height):
+    # Values from shared/resolution.ts resolveDimensions for each released image size at 1:1 and 4:5.
+    validate_canvas('image', width, height)

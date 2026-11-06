@@ -12,9 +12,12 @@ import type { ImageRequest } from '../../../shared/generation.js';
 
 /** A draft that records its shot is placed by that record; older drafts fall back to the "Shot N: Name" title. */
 const boardTitle = (r: ImageRequest | undefined) =>
-  r?.shot?.number
-    ? `Shot ${r.shot.number}: ${r.shot.name ?? titleOf(r).replace(/^.*?\bshot\s*\d+\s*[:·.-]?\s*/i, '')}`
-    : titleOf(r);
+  // References for Cast & places are never shots, whatever their record says.
+  /^reference( sheet)?:/i.test(r?.title ?? '')
+    ? titleOf(r)
+    : r?.shot?.number
+      ? `Shot ${r.shot.number}: ${r.shot.name ?? titleOf(r).replace(/^.*?\bshot\s*\d+\s*[:·.-]?\s*/i, '')}`
+      : titleOf(r);
 
 /**
  * The project board: every result in one packed grid (or grouped by request), work in progress
