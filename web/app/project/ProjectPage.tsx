@@ -759,7 +759,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       : openChecks.every(c => c.code === 'shape')
         ? (() => {
             const shapes = [...new Set(selectedCards.map(c => latest(c).request.output.aspect))];
-            return shapes.length === 1 ? 'Make at ' + shapes[0] : 'Make ' + makeNoun + ' as drafted';
+            return shapes.length === 1 ? 'Make ' + makeNoun + ' at ' + shapes[0] : 'Make ' + makeNoun + ' as drafted';
           })()
         : `Make despite ${unresolved === 1 ? '1 check' : unresolved + ' checks'}`;
   // Seed answered the latest message without changing the plan (often a clarifying question):

@@ -420,7 +420,7 @@ function Draft({
           if (r.workflow === 'image-to-image' && r.output.aspect !== 'source')
             return `Uses ${listOf([...new Set(inputs.map(x => assetName(project, x.asset_id, tasks).replace(/^Reference( sheet)?:\s*/i, '')))])}.`;
           // A clip starts from its keyframe: the start-frame thumbnail says the rest.
-          if (r.workflow === 'reference-to-video') return `Starts from “${titleOf(sourceJob.request)}”.`;
+          if (r.workflow === 'reference-to-video') return '';
           return parts.length
             ? `“${titleOf(sourceJob.request)}” was made with ${parts.map(k => chip(sourceJob.request, k)).join(' at ')}; this draft uses ${parts.map(k => chip(r, k)).join(' at ')}. Its framing and look come from the source.`
             : '';
