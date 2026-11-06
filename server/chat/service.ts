@@ -800,6 +800,7 @@ export class Chats {
                 assets,
                 previous: changesKind ? undefined : prior,
                 referenceMode: mode,
+                cloudWorkflows: this.jobs.pool.cloudWorkflows(),
               },
               changesKind
                 ? (({ request_id: _id, ...rest }) => ({ title: prior!.title, prompt: prior!.prompt, ...rest }))(value)

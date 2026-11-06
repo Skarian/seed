@@ -24,6 +24,8 @@ export interface RequestToolContext {
   previous?: ImageRequest;
   referenceMode?: ReferenceMode;
   compilePrompt?: (prompt: string, references: InputReference[], previous?: ImageRequest) => string;
+  /** What a cloud GPU can make now ("image-to-image:klein" for pictures from references); unknown means not Klein. */
+  cloudWorkflows?: string[];
 }
 export class ToolRequestError extends Error {
   constructor(public issues: RequestIssue[]) {
@@ -389,8 +391,8 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     const target = { auto: 'auto', seed_pc: 'local', cloud: 'cloud' }[String(value.runs_on)] as
       'auto' | 'local' | 'cloud' | undefined;
     if (!target) add('runs_on', 'Choose auto, seed_pc or cloud.', 'Use one of the listed values.');
-    else if (target === 'cloud' && request.engine === 'klein')
-      add('runs_on', 'Cloud GPUs cannot run FLUX 3 Image Klein yet.', 'Use seed_pc or auto for this edit, and say so.');
+    else if (target === 'cloud' && request.engine === 'klein' && !context.cloudWorkflows?.includes('image-to-image:klein'))
+      add('runs_on', 'Cloud GPUs here cannot run FLUX 3 Image Klein.', 'Use seed_pc or auto for this edit, and say so.');
     else if (target === 'auto') delete request.target;
     else request.target = target;
   }

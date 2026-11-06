@@ -320,6 +320,7 @@ describe('runs_on',()=>{
   it('refuses a cloud GPU for FLUX 3 Image Klein',()=>{
     expect(()=>prepareToolRequest(edit,{...draft,runs_on:'cloud'})).toThrow(ToolRequestError);
     expect(prepareToolRequest(edit,{...draft,engine:'qwen',aspect_ratio:'source',runs_on:'cloud'}).target).toBe('cloud');
+    expect(prepareToolRequest({...edit,cloudWorkflows:['text-to-image','image-to-image:klein']},{...draft,runs_on:'cloud'}).target).toBe('cloud');
   });
 });
 describe('styles on edits',()=>{

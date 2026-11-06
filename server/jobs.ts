@@ -562,7 +562,8 @@ export class Jobs {
             ? !localWorker?.enabled?'Turn on Seed PC on the GPUs page to make this here.':'Seed PC cannot make these settings. Check the size, shape and styles of this draft.'
             : job.worker.loras.length
             ? "Waiting for a ready worker with the selected LoRAs. Start a new worker to include recently added adapters."
-            : usesKlein(job.request) ? (this.pool.local?.supports(job.request) ? 'Cloud GPUs cannot run FLUX 3 Image Klein yet. Cancel and make it again with Runs on: Seed PC.' : 'No GPU here can run FLUX 3 Image Klein: cloud GPUs do not have it yet, and Seed PC needs it installed (GPUs → Seed PC → Add Klein).')
+            : usesKlein(job.request) && !this.pool.cloudWorkflows().includes('image-to-image:klein') ? (this.pool.local?.supports(job.request) ? 'Cloud GPUs here cannot run FLUX 3 Image Klein. Cancel and make it again with Runs on: Seed PC.' : 'No GPU here can run FLUX 3 Image Klein: cloud GPUs do not have it, and Seed PC needs it installed (GPUs → Seed PC → Add Klein).')
+            : usesKlein(job.request) ? 'Waiting for a ready image GPU that has FLUX 3 Image Klein. Start an image GPU to make this.'
             : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
           this.save(job);
           continue;

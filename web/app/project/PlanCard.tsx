@@ -781,7 +781,9 @@ function DraftEditor({
   const r = latest(card).request,
     kind = kindOf[r.workflow],
     video = isVideoKind(kind),
-    { tasks } = useApp();
+    { tasks, pool } = useApp();
+  // Cloud GPUs say what they can make; pictures from references need FLUX 3 Image Klein there.
+  const cloudKlein = Boolean(pool?.cloud_workflows?.includes('image-to-image:klein'));
   // Structured video prompts are edited as readable sections and converted back on save.
   const [readable] = useState(() => editablePrompt(r, project, tasks));
   const [f, setF] = useState<EditableFields>(() => ({ ...editableFields(r), prompt: readable?.text ?? r.prompt }));
@@ -1004,8 +1006,8 @@ function DraftEditor({
           >
             <option value="auto">Auto</option>
             <option value="local">Seed PC</option>
-            <option value="cloud" disabled={r.workflow === 'image-to-image' && r.engine === 'klein'}>
-              {r.workflow === 'image-to-image' && r.engine === 'klein'
+            <option value="cloud" disabled={r.workflow === 'image-to-image' && r.engine === 'klein' && !cloudKlein}>
+              {r.workflow === 'image-to-image' && r.engine === 'klein' && !cloudKlein
                 ? 'Cloud GPU: not for reference-based shots yet'
                 : 'Cloud GPU'}
             </option>

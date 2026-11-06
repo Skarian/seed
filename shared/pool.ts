@@ -136,6 +136,8 @@ export type PoolWorker = {
 export type PoolSnapshot = {
   local?:import('./local-worker.js').LocalWorkerView|null;
   server_time: string;
+  /** What a cloud GPU can make ("image-to-image:klein" for pictures from references). */
+  cloud_workflows?: string[];
   workers: PoolWorker[];
   summary: {
     active: number;

@@ -178,7 +178,7 @@ export function ComputeSheet({
                 : 'Starts the machine first.'}{' '}
               You pay from the moment it starts, downloads included.
             </div>
-            {role !== 'video' && (
+            {role !== 'video' && !pool?.cloud_workflows?.includes('image-to-image:klein') && (
               <>
                 <span>Makes</span>
                 <div>

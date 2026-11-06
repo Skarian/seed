@@ -127,11 +127,25 @@ export class WorkerPool {
     this.save(w);
     return w;
   }
+  /** What a cloud GPU can make: what a fresh worker of each published release offers, and what running workers report. */
+  cloudWorkflows(active: PoolWorker[] = this.all().map((w) => this.publicWorker(w)).filter((w) => w.state !== "released")) {
+    const out = new Set<string>();
+    for (const role of ["image", "video"] as const) {
+      try {
+        for (const w of this.release(role).workflows ?? (role === "image" ? ["text-to-image", "image-to-image"] : ["text-to-video", "reference-to-video"])) out.add(w);
+      } catch {
+        /* no published release for this role: nothing new can be rented */
+      }
+    }
+    for (const w of active) for (const f of w.workflows ?? []) out.add(f);
+    return [...out];
+  }
   snapshot(): PoolSnapshot {
     const workers = this.all().map((w) => this.publicWorker(w)),
       active = workers.filter((w) => w.state !== "released");
     return {
       server_time: this.date(),
+      cloud_workflows: this.cloudWorkflows(active),
       ...(this.local?{local:this.local.get()}:{}),
       workers,
       summary: {
@@ -240,7 +254,7 @@ export class WorkerPool {
       path.dirname(fileURLToPath(import.meta.url)),
       "../worker",
     );
-    let entry: { image?: string; disk_gb: number };
+    let entry: { image?: string; disk_gb: number; workflows?: string[] };
     try {
       entry = JSON.parse(
         readFileSync(path.join(root, "releases.json"), "utf8"),
@@ -267,6 +281,7 @@ export class WorkerPool {
     ].reduce((a, b) => a + b, 0);
     return {
       image: entry.image,
+      workflows: entry.workflows,
       disk_gb: entry.disk_gb + Math.ceil((extraBytes * 1.2) / 1e9),
       manifest: JSON.parse(
         readFileSync(path.join(root, `models-${role}.json`), "utf8"),
