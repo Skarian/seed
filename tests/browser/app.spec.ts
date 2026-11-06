@@ -39,7 +39,7 @@ test('a direct make asks before renting, then results land in the project and th
     await expect(consent.getByRole('radio').first()).toBeVisible();
     await consent.getByRole('button', { name: /^Start GPU and make 1 image/ }).click();
   }
-  const result = page.getByRole('button', { name: /^Open A paper lantern/ }).first();
+  const result = page.getByRole('button', { name: /^Open (A )?paper lantern/i }).first();
   await expect(result).toBeVisible({ timeout: 90_000 });
   await expect(page.getByRole('textbox', { name: /Message to Seed|Prompt to make/ })).toBeEditable();
 
@@ -62,10 +62,10 @@ test('a direct make asks before renting, then results land in the project and th
   // The Library finds it by its title.
   await page.goto('/library');
   await page.getByRole('searchbox', { name: 'Search the Library' }).fill('lantern');
-  await expect(page.getByRole('button', { name: /^Open A paper lantern/ }).first()).toBeVisible();
+  await expect(page.getByRole('button', { name: /^Open (A )?paper lantern/i }).first()).toBeVisible();
   await page.getByRole('searchbox', { name: 'Search the Library' }).fill('nothing-matches-this');
   await expect(page.getByText('Nothing matches')).toBeVisible();
-  await page.getByRole('button', { name: 'Clear search and filters' }).click();
+  await page.getByRole('button', { name: 'Clear search', exact: true }).click();
   await expect(page.getByRole('button', { name: /^Open / }).first()).toBeVisible();
 });
 
@@ -187,7 +187,7 @@ test('choosing a take for a shot is saved with the project and shown on the film
 
   await page.goto(`/projects/${project}?view=results`);
   await page.getByRole('group', { name: 'Arrange' }).getByRole('button', { name: 'By shot' }).click();
-  const board = page.getByRole('region', { name: 'The film, shot by shot' });
+  const board = page.getByRole('region', { name: /^The (film|sequence), shot by shot$/ });
   await expect(board.getByRole('button', { name: /^Shot 2: B\. Made · nothing chosen/ })).toBeVisible();
   await page.getByRole('button', { name: 'Use Keyframe for Shot 2' }).click();
   await expect(board.getByRole('button', { name: /^Shot 2: B\. Keyframe chosen/ })).toBeVisible();
