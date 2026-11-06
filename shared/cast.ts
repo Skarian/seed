@@ -1,9 +1,9 @@
 /**
- * The cast and places of a project, read from its brief: every "Name: look" line under a Characters (Cast, People)
- * or Places (Locations, Setting) heading. The brief stays the one record of how each looks; an approved reference image
+ * The cast, places and props of a project, read from its brief: every "Name: look" line under a Characters (Cast,
+ * People), Places (Locations, Setting) or Props (Objects) heading. The brief stays the one record of how each looks; an approved reference image
  * for a name is stored with the project's picks under "ref:<Name>".
  */
-export type CastEntry = { kind: 'character' | 'place'; name: string; look: string };
+export type CastEntry = { kind: 'character' | 'place' | 'prop'; name: string; look: string };
 
 export const referenceKey = (name: string) => 'ref:' + name;
 
@@ -15,7 +15,13 @@ export function castFromBrief(brief: string | null | undefined): CastEntry[] {
     const heading = line.match(/^#+\s*(.+)$/)?.[1] ?? (/^[A-Za-z ]{3,20}:?$/.test(line) && !line.includes(' ') ? line : '');
     if (heading) {
       const h = heading.toLowerCase();
-      section = /character|cast|people/.test(h) ? 'character' : /place|location|setting|environment/.test(h) ? 'place' : '';
+      section = /character|cast|people/.test(h)
+        ? 'character'
+        : /place|location|setting|environment/.test(h)
+          ? 'place'
+          : /^(key )?(props?|objects?)\b/.test(h)
+            ? 'prop'
+            : '';
       continue;
     }
     if (!section) continue;

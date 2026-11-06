@@ -18,6 +18,7 @@ import { useApp, type ViewerItem } from '../data.js';
 import { styleName, type StyleEntry } from './readiness.js';
 import { readablePrompt } from './checks.js';
 import { roleLabels } from './requests.js';
+import { castFromBrief, referenceKey } from '../../../shared/cast.js';
 
 type Actions = {
   onVariations: (card: ChatCard) => void;
@@ -27,6 +28,8 @@ type Actions = {
   onMakeAgain: (card: ChatCard) => void;
   onReuse: (card: ChatCard) => void;
   onPrepare: (card: ChatCard) => void;
+  /** Approves (or clears) an image as the reference for a character, place or prop of the brief. */
+  onApproveReference?: (name: string, asset: string | null) => void;
 };
 
 /** What a plan becomes after Make: each made draft with its results, plus drafts that were set aside. */
@@ -543,6 +546,21 @@ function ResultTile({
       </div>
     );
   const item: ViewerItem = { asset, kind: video ? 'video' : 'image', title, job, project: project.id };
+  // "Use as Ines's reference": approving is one step from any image, not only from Cast & places.
+  const approve =
+    video || !actions.onApproveReference
+      ? []
+      : castFromBrief(project.brief)
+          .slice(0, 8)
+          .map(e => {
+            const on = project.picks?.[referenceKey(e.name)] === asset;
+            return {
+              label: on ? `${e.name}’s reference` : `Use as ${e.name}’s reference`,
+              checked: on,
+              onSelect: () => actions.onApproveReference!(e.name, on ? null : asset),
+            };
+          });
+  const approveItems = approve.length ? ['divider' as const, ...approve] : [];
   return (
     <div className={`tile ${shape}`}>
       <Media id={asset} kind={item.kind} alt={title} />
@@ -575,6 +593,7 @@ function ResultTile({
             : []),
           { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },
           { label: 'Open full screen', onSelect: () => app.view(item, siblings) },
+          ...approveItems,
         ]}
       >
         <Icon.More width={16} height={16} />
@@ -606,6 +625,7 @@ function ResultTile({
             { label: 'Reuse settings', onSelect: () => actions.onReuse(card) },
             { label: 'Open full screen', onSelect: () => app.view(item, siblings) },
             { label: 'Download', onSelect: () => void downloadAsset(asset, title.replace(/, (\d+) of \d+$/, ' $1')) },
+            ...approveItems,
           ]}
         >
           <Icon.More width={14} height={14} />

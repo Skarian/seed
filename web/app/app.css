@@ -3755,8 +3755,12 @@ textarea::placeholder {
   gap: 6px;
   flex-wrap: wrap;
 }
+/* A place spans two columns at a landscape shape whose height matches the portrait cards beside it. */
+.cast-cell.place {
+  grid-column: span 2;
+}
 .cast-cell.place .cast-thumb {
-  aspect-ratio: 16 / 9;
+  aspect-ratio: 8 / 5;
 }
 .cast-cells {
   align-items: start;
@@ -3839,4 +3843,18 @@ textarea::placeholder {
   margin: 2px 0 6px;
   font-size: 0.8125rem;
   max-width: 70ch;
+}
+.stopped-row {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 4px;
+  font-size: 0.8125rem;
+}
+.check-notes {
+  display: contents;
+}
+.view-panel {
+  display: contents;
 }

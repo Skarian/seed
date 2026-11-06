@@ -401,7 +401,7 @@ export function ResultsView({
                 ? referenceAsk(noRef[0]!)
                 : 'Draft one plan with a reference for each of ' +
                   listOf(noRef.map(e => e.name)) +
-                  ' from the brief: characters alone, full length, facing the camera, on a plain light-grey background in soft even light, at 4:5 with 4 takes; places wide with no people, in clear light, at 16:9 with 4 takes. Title each "Reference: Name". Leave the other drafts as they are. Do not run anything.',
+                  ' from the brief: characters alone, full length, facing the camera, on a plain light-grey background in soft even light, at 4:5 with 4 takes; places wide with no people, in clear light, at 16:9 with 4 takes; props alone on a plain light-grey background, no people, at 1:1 with 4 takes. Title each "Reference: Name". Leave the other drafts as they are. Do not run anything.',
           }
         : undefined,
     },

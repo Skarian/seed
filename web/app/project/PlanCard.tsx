@@ -612,45 +612,49 @@ function Draft({
             )}
           </p>
         )}
-        {current && checks.some(c => c.soft) && !showSoft && (
+        {current && checks.some(c => c.soft) && (
           <button
             className="link"
             style={{ alignSelf: 'flex-start', fontSize: '0.7813rem' }}
-            onClick={() => setShowSoft(true)}
+            aria-expanded={showSoft}
+            aria-controls={'checks-' + card.id}
+            onClick={() => setShowSoft(v => !v)}
           >
-            Continuity check
+            {showSoft ? 'Hide continuity check' : 'Continuity check'}
           </button>
         )}
-        {current &&
-          checks
-            .filter(c => !c.soft || showSoft)
-            .map(c => (
-              <div className={'check-note' + (c.soft ? ' soft' : '')} role="status" key={c.text}>
-                <span>
-                  {c.soft ? '' : '⚠ '}
-                  {c.text}
-                </span>
-                {c.fixes.map(f => (
-                  <button
-                    key={f.label}
-                    className="btn small"
-                    disabled={busy}
-                    onClick={() => {
-                      if (f.action === 'edit-myself') {
-                        onEditMyself(f.assets ?? []);
-                        return;
-                      }
-                      if (f.cropTo) chooseFrame(project.id, f.cropTo);
-                      const patch = f.patch(r);
-                      if (Object.keys(patch).length) void onRevise(patch);
-                      else onAcknowledge(c.text);
-                    }}
-                  >
-                    {f.label}
-                  </button>
-                ))}
-              </div>
-            ))}
+        <div id={'checks-' + card.id} className="check-notes">
+          {current &&
+            checks
+              .filter(c => !c.soft || showSoft)
+              .map(c => (
+                <div className={'check-note' + (c.soft ? ' soft' : '')} key={c.text}>
+                  <span>
+                    {c.soft ? '' : '⚠ '}
+                    {c.text}
+                  </span>
+                  {c.fixes.map(f => (
+                    <button
+                      key={f.label}
+                      className="btn small"
+                      disabled={busy}
+                      onClick={() => {
+                        if (f.action === 'edit-myself') {
+                          onEditMyself(f.assets ?? []);
+                          return;
+                        }
+                        if (f.cropTo) chooseFrame(project.id, f.cropTo);
+                        const patch = f.patch(r);
+                        if (Object.keys(patch).length) void onRevise(patch);
+                        else onAcknowledge(c.text);
+                      }}
+                    >
+                      {f.label}
+                    </button>
+                  ))}
+                </div>
+              ))}
+        </div>
         {ready && (
           <span className={'ready ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'warn' : 'bad')}>
             <span className={'dot ' + (ready.tone === 'ok' ? '' : ready.tone === 'warn' ? 'amber' : 'red')} />

@@ -412,9 +412,9 @@ export function AssetPanel({
                   >{`${r.prompt.split(/\s+/).length} words`}</summary>
                   <div className="prompt">
                     {r.prompt.replace(
-                      /\[\[input(\d+)\]\]|<(?:Picture|Video|Audio) (\d+)>/g,
-                      (m, x?: string, y?: string) => {
-                        const p = parents[Number(x ?? y) - 1];
+                      /\[\[input(\d+)\]\]|<(?:Picture|Video|Audio) (\d+)>|<image(\d+)>/g,
+                      (m, x?: string, y?: string, z?: string) => {
+                        const p = parents[Number(x ?? y ?? z) - 1];
                         return p ? '“' + p.title + '”' : m;
                       },
                     )}

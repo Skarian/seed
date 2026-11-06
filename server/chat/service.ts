@@ -654,6 +654,53 @@ export class Chats {
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
       },
     };
+    // The owner's approval of a reference image for a character, place or prop of the brief, when they ask in words.
+    const approveReference: AgentTool = {
+      name: 'approve_reference',
+      label: 'Approve reference',
+      description:
+        'Approve a made image as the reference for a character, place or prop listed in cast_and_places, when the user asks (for example "approve take 3 as Ines\'s reference"). Give the name exactly as cast_and_places lists it and the input handle of the image. Shots that include that name are then drafted from it. Use it once per name.',
+      parameters: {
+        type: 'object',
+        additionalProperties: false,
+        properties: { name: { type: 'string', maxLength: 60 }, input: { type: 'string', maxLength: 20 } },
+        required: ['name', 'input'],
+      } as any,
+      execute: async (_call, raw) => {
+        const current = this.get(id);
+        if (current.epoch !== epoch) throw Error('This run is no longer active.');
+        const value = raw as { name?: unknown; input?: unknown };
+        const wanted = String(value.name ?? '')
+          .trim()
+          .toLowerCase();
+        const entry = castFromBrief(current.brief).find(e => e.name.toLowerCase() === wanted);
+        const asset = assets.find(
+          a =>
+            a.handle ===
+            String(value.input ?? '')
+              .replace(/[[\]]/g, '')
+              .trim(),
+        );
+        if (!entry)
+          throw Error(
+            JSON.stringify({
+              ok: false,
+              error: 'That name is not in cast_and_places. Add it to the brief first (update_brief), then approve.',
+              names: castFromBrief(current.brief).map(e => e.name),
+            }),
+          );
+        if (!asset || asset.kind !== 'image')
+          throw Error(JSON.stringify({ ok: false, error: 'Give the input handle of a made image.' }));
+        this.pick(id, referenceKey(entry.name), asset.asset_id);
+        const result = {
+          ok: true,
+          name: entry.name,
+          approved: true,
+          next_action: 'Say in one short sentence that this image is now the approved reference for the name.',
+        };
+        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
+      },
+    };
     return [
       ...(['create', 'edit'] as const).map((operation): AgentTool => ({
         name: operation + '_request',
@@ -825,6 +872,7 @@ export class Chats {
       leaveOut,
       orderTool,
       chooseTake,
+      approveReference,
     ];
   }
   send(

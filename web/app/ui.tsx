@@ -158,7 +158,12 @@ export function onTabKeys(e: React.KeyboardEvent<HTMLElement>) {
   tabs[next]!.click();
   tabs[next]!.focus();
 }
-export const tabStop = (selected: boolean) => ({ 'aria-selected': selected, tabIndex: selected ? 0 : -1 });
+export const tabStop = (selected: boolean, panel?: string, id?: string) => ({
+  'aria-selected': selected,
+  tabIndex: selected ? 0 : -1,
+  ...(panel ? { 'aria-controls': panel } : {}),
+  ...(id ? { id } : {}),
+});
 
 /* ---------- Menu anchored to a button (Radix: keyboard navigation, typeahead, focus return, roles) ---------- */
 export type MenuItem =

@@ -48,7 +48,7 @@ export function SettingsPage({ section: initial }: { section?: string }) {
           <button
             key={k}
             role="tab"
-            {...tabStop(section === k)}
+            {...tabStop(section === k, 'settings-panel', 'settings-tab-' + k)}
             onClick={() => {
               setSection(k);
               app.go({ name: 'settings', section: k }, true);
@@ -58,7 +58,7 @@ export function SettingsPage({ section: initial }: { section?: string }) {
           </button>
         ))}
       </div>
-      <div className="scroll">
+      <div className="scroll" role="tabpanel" id="settings-panel" aria-labelledby={'settings-tab-' + section}>
         <div className="col">
           <div className="page">
             {section === 'keys' && <Keys />}

@@ -26,7 +26,7 @@ async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDa
     // {say:'…'} is a text-only reply; an array may start with {operation:'say'} to write text before its tool calls.
     if(queued&&!Array.isArray(queued))return sse({id:'fake-'+requests.length,choices:[{index:0,delta:{content:(queued as any).say},finish_reason:'stop'}]});
     const said=(queued as any[]|undefined)?.find(o=>o.operation==='say')?.text,ops=(queued as any[]|undefined)?.filter(o=>o.operation!=='say');
-    return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{...(said?{content:said}:{}),tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='kind'?'choose_kind':op.operation==='brief'?'update_brief':op.operation==='leave_out'?'leave_out_request':op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='kind'?{kind:op.kind}:op.operation==='brief'?{brief:op.brief}:op.operation==='leave_out'?{request_id:op.request_id,left_out:op.left_out}:op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
+    return sse({id:'fake-'+requests.length,choices:[{index:0,delta:ops?{...(said?{content:said}:{}),tool_calls:(ops as any[]).map((op,index)=>({index,id:'call-'+requests.length+'-'+index,type:'function',function:{name:op.operation==='tool'?op.name:op.operation==='kind'?'choose_kind':op.operation==='brief'?'update_brief':op.operation==='leave_out'?'leave_out_request':op.operation==='create'?'create_request':'edit_request',arguments:JSON.stringify(op.operation==='tool'?op.args:op.operation==='kind'?{kind:op.kind}:op.operation==='brief'?{brief:op.brief}:op.operation==='leave_out'?{request_id:op.request_id,left_out:op.left_out}:op.operation==='create'?flatRequest(op.request):{request_id:op.request_id,...flatRequest(op.changes??{})})}}))}:{reasoning:'I will prepare the requested scene.',content:'Ready for review.'},finish_reason:ops?'tool_calls':'stop'}]});});
   try{await run({chats,jobs,db,paths,queue,requests,titleRequests});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
 }
 async function idle(chats:Chats,id:string){for(let i=0;i<200;i++){const value=chats.view(id);if(value.activity==='idle')return value;await new Promise(r=>setTimeout(r,5));}throw Error('Agent did not settle.');}
@@ -37,7 +37,7 @@ it('lets the agent choose the kind of work, then prepare drafts with that kind�
   chats.send(chat.id,{version:chat.version,text:'One quiet landscape image, please',assets:[]});chat=await idle(chats,chat.id);
   expect(chat.error).toBeNull();expect(chat.workflow).toBe('text-to-image');
   expect(requests[0].tools.map((t:any)=>t.function.name)).toEqual(['choose_kind','update_brief']);
-  expect(requests[1].tools.map((t:any)=>t.function.name)).toEqual(['choose_kind','update_brief','create_request','edit_request','leave_out_request','order_requests','choose_take']);
+  expect(requests[1].tools.map((t:any)=>t.function.name)).toEqual(['choose_kind','update_brief','create_request','edit_request','leave_out_request','order_requests','choose_take','approve_reference']);
   expect(requests[1].messages[0].content).toContain('Active workflow: text-to-image');
   expect(chat.groups).toHaveLength(1);expect(chat.groups[0]!.workflow).toBe('text-to-image');expect(chat.groups[0]!.cards).toHaveLength(1);
 }));
@@ -190,7 +190,7 @@ it('holds a whole group until all decisions and submits approved requests once',
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'Another landscape'}}]);
   chats.send(chat.id,{version:chat.version,text:'Two ideas',assets:[]});chat=await idle(chats,chat.id);
-  expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.map((t:any)=>t.function.name).join()==='choose_kind,update_brief,create_request,edit_request,leave_out_request,order_requests,choose_take')).toBe(true);
+  expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.map((t:any)=>t.function.name).join()==='choose_kind,update_brief,create_request,edit_request,leave_out_request,order_requests,choose_take,approve_reference')).toBe(true);
   expect(chat.groups[0]!.after_message_id).toBe(chat.messages.filter(m=>m.role==='user').at(-1)!.id);expect(chat.messages.filter(m=>m.role==='assistant').at(-1)?.reasoning_text).toContain('I will prepare the requested scene.');const cards=chat.groups[0]!.cards;expect(cards).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(0);
   await chats.decide(chat.id,cards[1]!.id,1,'denied');expect(jobs.all()).toHaveLength(1);
@@ -555,4 +555,20 @@ it('a silent clip does not keep describing sound in its prompt',async()=>fixture
   chats.send(chat.id,{version:chat.version,text:'A quiet five-second clip of fog, silent',assets:[]});chat=await idle(chats,chat.id);
   const p=chat.groups[0]!.cards[0]!.revisions.at(-1)!.request.prompt;
   expect(p).toContain('overall_soundscape: Silence.');expect(p).not.toContain('rumble');
+}));
+
+it('approves a reference for a cast name when the owner asks, and refuses names outside the brief',async()=>fixture(async({chats,db,paths,queue,requests})=>{
+ const sharp=(await import('sharp')).default;
+ const relative='media/originals/ines.png';mkdirSync(path.dirname(path.join(paths.data,relative)),{recursive:true});
+ await sharp({create:{width:4,height:4,channels:3,background:'blue'}}).png().toFile(path.join(paths.data,relative));
+ db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('ines','image','Reference: Ines',relative,JSON.stringify({mode:'sfw'}),'2026-01-01');
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
+ queue.push([{operation:'brief',brief:'## Characters\n- Ines: braid, round spectacles, green cardigan'}]);
+ chats.send(c.id,{version:c.version,text:'Ines has a braid, round spectacles and a green cardigan.',assets:[]});c=await idle(chats,c.id);
+ queue.push([{operation:'tool',name:'approve_reference',args:{name:'Kai',input:'input1'}},{operation:'tool',name:'approve_reference',args:{name:'ines',input:'input1'}}]);
+ chats.send(c.id,{version:c.version,text:'Approve this as Ines’s reference',assets:['ines']});c=await idle(chats,c.id);
+ expect(c.error).toBeNull();
+ expect(c.picks?.['ref:Ines']).toBe('ines');expect(c.picks?.['ref:Kai']).toBeUndefined();
+ const sent=JSON.stringify(requests.at(-1).messages);
+ expect(sent).toContain('not in cast_and_places');expect(sent).toContain('approved');
 }));

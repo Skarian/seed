@@ -33,6 +33,7 @@ import { Composer, type ComposerContext } from './Composer.js';
 import { ComputeSheet } from './ComputeSheet.js';
 import { ResultsView } from './ResultsView.js';
 import { shotsFromBrief } from '../../../shared/shots.js';
+import { referenceKey } from '../../../shared/cast.js';
 import { readiness, type StyleEntry } from './readiness.js';
 import { buildRequest, defaultMake, defaultRoles, type Attachment, type MakeSettings } from './requests.js';
 import { useStyles } from './styles.js';
@@ -579,6 +580,15 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     onMakeAgain: (card: ChatCard) => void remake(card, 'again'),
     onRedoCancelled: (card: ChatCard) => void remake(card, 'cancelled'),
     onReuse: reuse,
+    onApproveReference: (name: string, asset: string | null) =>
+      void projectsApi
+        .pick(id, referenceKey(name), asset)
+        .then(p => {
+          projectRef.current = p;
+          setProject(p);
+          app.toast(asset ? `Approved as ${name}’s reference` : `${name} has no approved reference now`);
+        })
+        .catch(e => app.toast((e as Error).message)),
     onPrepare: (card: ChatCard) =>
       needsNewPlan('Prepare a variation', async () => {
         await run('', () => projectsApi.repeat(id, card.id, latest(card).number, { fresh: true }));
@@ -784,288 +794,303 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         onRename={() => setRenaming(true)}
         onDelete={() => setConfirmDelete(true)}
       />
-      {view === 'results' && project && !split ? (
-        <ResultsView
-          project={project}
-          onAsk={text => {
-            app.go({ name: 'project', id: project.id, view: 'conversation' });
-            void run('', () => projectsApi.send(projectRef.current ?? project, { text, assets: [] }));
-          }}
-          onChanged={p => {
-            projectRef.current = p;
-            setProject(p);
-          }}
-        />
-      ) : (
-        <div className={split ? 'split' : 'single'}>
-          <div className="convo">
-            {project && (project.messages.length > 0 || project.brief) && (
-              <BriefBar
+      <div
+        className="view-panel"
+        role={split ? undefined : 'tabpanel'}
+        id="project-view"
+        aria-labelledby={split ? undefined : view === 'results' ? 'project-tab-results' : 'project-tab-conversation'}
+      >
+        {view === 'results' && project && !split ? (
+          <ResultsView
+            project={project}
+            onAsk={text => {
+              app.go({ name: 'project', id: project.id, view: 'conversation' });
+              void run('', () => projectsApi.send(projectRef.current ?? project, { text, assets: [] }));
+            }}
+            onChanged={p => {
+              projectRef.current = p;
+              setProject(p);
+            }}
+          />
+        ) : (
+          <div className={split ? 'split' : 'single'}>
+            <div className="convo">
+              {project && (project.messages.length > 0 || project.brief) && (
+                <BriefBar
+                  project={project}
+                  busy={replying || Boolean(busy)}
+                  onSaved={p => {
+                    projectRef.current = p;
+                    setProject(p);
+                  }}
+                  openDrafts={plan?.cards.length ?? 0}
+                  onUpdateDrafts={() =>
+                    void run('', () =>
+                      projectsApi.send(projectRef.current ?? project, {
+                        text: 'I changed the brief. Update every open draft so it matches the brief now, change nothing else, and tell me exactly what changed in each one. Do not run anything.',
+                        assets: [],
+                      }),
+                    )
+                  }
+                />
+              )}
+              <div
+                className="scroll"
+                ref={scroller}
+                onScroll={e => {
+                  const el = e.currentTarget;
+                  follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                }}
+              >
+                <div className="col">
+                  {!project ? (
+                    <div className="stream">
+                      <span className="statusline">
+                        <span className="dot live" />
+                        Opening…
+                      </span>
+                    </div>
+                  ) : !timeline.length ? (
+                    <EmptyProject
+                      making={mode === 'make'}
+                      onStarter={t => {
+                        setText(t);
+                        setFocusToken(n => n + 1);
+                      }}
+                    />
+                  ) : (
+                    <div className="stream" role="log" aria-label="Conversation" aria-relevant="additions">
+                      {timeline.map(item => (
+                        <LocalBoundary
+                          key={item.type === 'message' ? item.message.id : item.group.id}
+                          label={item.type === 'message' ? 'This message' : 'This plan or result'}
+                        >
+                          {item.type === 'message' ? (
+                            <Message
+                              key={item.message.id}
+                              message={item.message}
+                              project={project}
+                              planAfter={item.groupsAfter.some(isOpenPlan)}
+                              onRetry={() => void retry()}
+                              onEdit={() => {
+                                const last = lastSent.current ?? lastUserMessage(project);
+                                if (!last) return;
+                                setText(last.text);
+                                setFocusToken(n => n + 1);
+                              }}
+                              onContinue={() =>
+                                void run('', () =>
+                                  projectsApi.send(projectRef.current ?? project, {
+                                    text: 'Continue where you stopped and finish the rest of my last request. Tell me what you finished.',
+                                    assets: [],
+                                  }),
+                                )
+                              }
+                              onMakeItMyself={() => makeItMyself(item.message)}
+                            />
+                          ) : isOpenPlan(item.group) ? (
+                            <PlanCard
+                              key={item.group.id}
+                              project={project}
+                              group={item.group}
+                              snapshot={app.pool}
+                              styles={styles}
+                              busy={Boolean(busy) || replying}
+                              selection={selection}
+                              onSelection={setSelection}
+                              flash={flash}
+                              onRevise={async (card, request) =>
+                                run('Saving', () => projectsApi.revise(id, card.id, latest(card).number, request))
+                              }
+                              onAskAbout={card => {
+                                setMode('ask');
+                                setContext({
+                                  type: 'draft',
+                                  card: card.id,
+                                  revision: latest(card).number,
+                                  title: titleOf(latest(card).request),
+                                });
+                                setFocusToken(t => t + 1);
+                              }}
+                              onSetAside={() => void setAside(item.group)}
+                              acknowledged={acknowledged}
+                              onAcknowledge={key => setAcknowledged(s => new Set([...s, key]))}
+                              onEditMyself={(card, ids) => {
+                                // The draft becomes an edit of the attached image right where it is: same place in the
+                                // plan, same title and words, the first image as its source and any others as references.
+                                const r = latest(card).request;
+                                const images = ids.filter(
+                                  a => (project.asset_manifest?.find(x => x.id === a)?.kind ?? 'image') === 'image',
+                                );
+                                if (!images.length) return;
+                                void run('Saving', () =>
+                                  projectsApi.revise(id, card.id, latest(card).number, {
+                                    workflow: 'image-to-image',
+                                    title: r.title,
+                                    prompt: r.prompt,
+                                    count: r.count,
+                                    seed: 'random',
+                                    output: { aspect: 'source', size: r.output.size },
+                                    references: images.slice(0, 10).map((asset_id, i) => ({
+                                      id: 'input' + (i + 1),
+                                      asset_id,
+                                      kind: 'image',
+                                      role: i === 0 ? 'source' : 'reference',
+                                    })),
+                                  }),
+                                ).then(ok => {
+                                  if (ok)
+                                    app.toast(
+                                      `“${titleOf(r)}” is now an edit of “${assetName(project, images[0]!, app.tasks)}”. Edits keep the source’s shape.`,
+                                    );
+                                });
+                              }}
+                            />
+                          ) : (
+                            <ResultGroup
+                              key={item.group.id}
+                              project={project}
+                              group={item.group}
+                              styles={styles}
+                              collapsed={collapsedIds.has(item.group.id)}
+                              onExpand={() => setExpanded(s => new Set([...s, item.group.id]))}
+                              actions={actions}
+                              flash={flash}
+                            />
+                          )}
+                        </LocalBoundary>
+                      ))}
+                      {problem && (
+                        <div className="notice error" role="alert">
+                          {problem}{' '}
+                          <button className="link" onClick={() => setProblem('')}>
+                            Dismiss
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+              <div
+                className="dock"
+                onFocus={e => {
+                  if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(true);
+                }}
+                onBlur={e => {
+                  if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(false);
+                }}
+              >
+                <div className="col">
+                  {plan && (planStale || question) && (
+                    <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.8438rem' }}>
+                      {planStale ? (
+                        'Seed asked a question before changing the plan. The plan shows the earlier version until you answer.'
+                      ) : (
+                        <>Seed asked: “{question}” Answer below, or make the plan as it is.</>
+                      )}
+                    </div>
+                  )}
+                  {plan && !(app.narrow && typing) && (
+                    <div className="makebar">
+                      <button
+                        className="sum"
+                        onClick={() => {
+                          const first = selectedCards[0];
+                          if (first) setFlash(first.id);
+                        }}
+                        title="Show the selected drafts"
+                      >
+                        <b>
+                          {plan.cards.length === 1 ? '' : 'Selected · '}
+                          {makeNoun}
+                        </b>
+                        {plan.cards.length > 1 ? ` · ${selectedCards.length} of ${plan.cards.length} drafts` : ''}
+                        {selectedCards.length && planSeconds(selectedCards) !== null
+                          ? ' · ' + estimateText(planSeconds(selectedCards))
+                          : ''}
+                        {planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
+                      </button>
+                      <button
+                        className={planStale || question || unresolved ? 'btn' : 'btn primary'}
+                        disabled={!planReady || !selectedCards.length || Boolean(busy)}
+                        onClick={() => void makePlan()}
+                      >
+                        {busy === 'Making'
+                          ? 'Starting…'
+                          : replying
+                            ? 'Seed is replying…'
+                            : planStale
+                              ? 'Make this earlier version'
+                              : question
+                                ? 'Make as it is'
+                                : unresolved
+                                  ? anyway
+                                  : 'Make ' + makeNoun}
+                      </button>
+                    </div>
+                  )}
+                  {queued && (
+                    <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.8438rem' }}>
+                      Your message below sends as soon as Seed finishes this reply.{' '}
+                      <button className="link" onClick={() => setQueued(false)}>
+                        Don't send it
+                      </button>
+                    </div>
+                  )}
+                  <Composer
+                    context={context}
+                    onContext={setContext}
+                    planOpen={Boolean(plan)}
+                    mode={mode}
+                    onMode={m => {
+                      setMode(m);
+                      if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' });
+                      if (m === 'make' && context.type === 'using' && context.intent !== 'input')
+                        setSettings({ ...settings, kind: context.intent === 'animate' ? 'animate' : 'edit' });
+                    }}
+                    text={text}
+                    onText={setText}
+                    attachments={attachments}
+                    onAttachments={setAttachments}
+                    settings={settings}
+                    onSettings={setSettings}
+                    styles={styles}
+                    replying={replying}
+                    disabled={
+                      !project
+                        ? 'Opening…'
+                        : replying && mode === 'make'
+                          ? 'Seed is still replying. Stop reply to make this now.'
+                          : undefined
+                    }
+                    focusToken={focusToken}
+                    queued={queued}
+                    onQueue={() => setQueued(true)}
+                    onSend={() => void send()}
+                    onMake={() => void makeDirect()}
+                    onStopReply={() => void run('', () => projectsApi.stopReply(id))}
+                    onSetAside={() => void setAside()}
+                  />
+                </div>
+              </div>
+            </div>
+            {split && project && (
+              <ResultsView
                 project={project}
-                busy={replying || Boolean(busy)}
-                onSaved={p => {
+                embedded
+                onAsk={text =>
+                  void run('', () => projectsApi.send(projectRef.current ?? project, { text, assets: [] }))
+                }
+                onChanged={p => {
                   projectRef.current = p;
                   setProject(p);
                 }}
-                openDrafts={plan?.cards.length ?? 0}
-                onUpdateDrafts={() =>
-                  void run('', () =>
-                    projectsApi.send(projectRef.current ?? project, {
-                      text: 'I changed the brief. Update every open draft so it matches the brief now, change nothing else, and tell me exactly what changed in each one. Do not run anything.',
-                      assets: [],
-                    }),
-                  )
-                }
               />
             )}
-            <div
-              className="scroll"
-              ref={scroller}
-              onScroll={e => {
-                const el = e.currentTarget;
-                follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
-              }}
-            >
-              <div className="col">
-                {!project ? (
-                  <div className="stream">
-                    <span className="statusline">
-                      <span className="dot live" />
-                      Opening…
-                    </span>
-                  </div>
-                ) : !timeline.length ? (
-                  <EmptyProject
-                    making={mode === 'make'}
-                    onStarter={t => {
-                      setText(t);
-                      setFocusToken(n => n + 1);
-                    }}
-                  />
-                ) : (
-                  <div className="stream" role="log" aria-label="Conversation" aria-relevant="additions">
-                    {timeline.map(item => (
-                      <LocalBoundary
-                        key={item.type === 'message' ? item.message.id : item.group.id}
-                        label={item.type === 'message' ? 'This message' : 'This plan or result'}
-                      >
-                        {item.type === 'message' ? (
-                          <Message
-                            key={item.message.id}
-                            message={item.message}
-                            project={project}
-                            planAfter={item.groupsAfter.some(isOpenPlan)}
-                            onRetry={() => void retry()}
-                            onContinue={() =>
-                              void run('', () =>
-                                projectsApi.send(projectRef.current ?? project, {
-                                  text: 'Continue where you stopped and finish the rest of my last request. Tell me what you finished.',
-                                  assets: [],
-                                }),
-                              )
-                            }
-                            onMakeItMyself={() => makeItMyself(item.message)}
-                          />
-                        ) : isOpenPlan(item.group) ? (
-                          <PlanCard
-                            key={item.group.id}
-                            project={project}
-                            group={item.group}
-                            snapshot={app.pool}
-                            styles={styles}
-                            busy={Boolean(busy) || replying}
-                            selection={selection}
-                            onSelection={setSelection}
-                            flash={flash}
-                            onRevise={async (card, request) =>
-                              run('Saving', () => projectsApi.revise(id, card.id, latest(card).number, request))
-                            }
-                            onAskAbout={card => {
-                              setMode('ask');
-                              setContext({
-                                type: 'draft',
-                                card: card.id,
-                                revision: latest(card).number,
-                                title: titleOf(latest(card).request),
-                              });
-                              setFocusToken(t => t + 1);
-                            }}
-                            onSetAside={() => void setAside(item.group)}
-                            acknowledged={acknowledged}
-                            onAcknowledge={key => setAcknowledged(s => new Set([...s, key]))}
-                            onEditMyself={(card, ids) => {
-                              // The draft becomes an edit of the attached image right where it is: same place in the
-                              // plan, same title and words, the first image as its source and any others as references.
-                              const r = latest(card).request;
-                              const images = ids.filter(
-                                a => (project.asset_manifest?.find(x => x.id === a)?.kind ?? 'image') === 'image',
-                              );
-                              if (!images.length) return;
-                              void run('Saving', () =>
-                                projectsApi.revise(id, card.id, latest(card).number, {
-                                  workflow: 'image-to-image',
-                                  title: r.title,
-                                  prompt: r.prompt,
-                                  count: r.count,
-                                  seed: 'random',
-                                  output: { aspect: 'source', size: r.output.size },
-                                  references: images.slice(0, 10).map((asset_id, i) => ({
-                                    id: 'input' + (i + 1),
-                                    asset_id,
-                                    kind: 'image',
-                                    role: i === 0 ? 'source' : 'reference',
-                                  })),
-                                }),
-                              ).then(ok => {
-                                if (ok)
-                                  app.toast(
-                                    `“${titleOf(r)}” is now an edit of “${assetName(project, images[0]!, app.tasks)}”. Edits keep the source’s shape.`,
-                                  );
-                              });
-                            }}
-                          />
-                        ) : (
-                          <ResultGroup
-                            key={item.group.id}
-                            project={project}
-                            group={item.group}
-                            styles={styles}
-                            collapsed={collapsedIds.has(item.group.id)}
-                            onExpand={() => setExpanded(s => new Set([...s, item.group.id]))}
-                            actions={actions}
-                            flash={flash}
-                          />
-                        )}
-                      </LocalBoundary>
-                    ))}
-                    {problem && (
-                      <div className="notice error" role="alert">
-                        {problem}{' '}
-                        <button className="link" onClick={() => setProblem('')}>
-                          Dismiss
-                        </button>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            </div>
-            <div
-              className="dock"
-              onFocus={e => {
-                if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(true);
-              }}
-              onBlur={e => {
-                if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(false);
-              }}
-            >
-              <div className="col">
-                {plan && (planStale || question) && (
-                  <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.8438rem' }}>
-                    {planStale ? (
-                      'Seed asked a question before changing the plan. The plan shows the earlier version until you answer.'
-                    ) : (
-                      <>Seed asked: “{question}” Answer below, or make the plan as it is.</>
-                    )}
-                  </div>
-                )}
-                {plan && !(app.narrow && typing) && (
-                  <div className="makebar">
-                    <button
-                      className="sum"
-                      onClick={() => {
-                        const first = selectedCards[0];
-                        if (first) setFlash(first.id);
-                      }}
-                      title="Show the selected drafts"
-                    >
-                      <b>
-                        {plan.cards.length === 1 ? '' : 'Selected · '}
-                        {makeNoun}
-                      </b>
-                      {plan.cards.length > 1 ? ` · ${selectedCards.length} of ${plan.cards.length} drafts` : ''}
-                      {selectedCards.length && planSeconds(selectedCards) !== null
-                        ? ' · ' + estimateText(planSeconds(selectedCards))
-                        : ''}
-                      {planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
-                    </button>
-                    <button
-                      className={planStale || question || unresolved ? 'btn' : 'btn primary'}
-                      disabled={!planReady || !selectedCards.length || Boolean(busy)}
-                      onClick={() => void makePlan()}
-                    >
-                      {busy === 'Making'
-                        ? 'Starting…'
-                        : replying
-                          ? 'Seed is replying…'
-                          : planStale
-                            ? 'Make this earlier version'
-                            : question
-                              ? 'Make as it is'
-                              : unresolved
-                                ? anyway
-                                : 'Make ' + makeNoun}
-                    </button>
-                  </div>
-                )}
-                {queued && (
-                  <div className="notice" role="status" style={{ padding: '8px 12px', fontSize: '0.8438rem' }}>
-                    Your message below sends as soon as Seed finishes this reply.{' '}
-                    <button className="link" onClick={() => setQueued(false)}>
-                      Don't send it
-                    </button>
-                  </div>
-                )}
-                <Composer
-                  context={context}
-                  onContext={setContext}
-                  planOpen={Boolean(plan)}
-                  mode={mode}
-                  onMode={m => {
-                    setMode(m);
-                    if (m === 'make' && context.type !== 'using') setContext({ type: plan ? 'plan' : 'talk' });
-                    if (m === 'make' && context.type === 'using' && context.intent !== 'input')
-                      setSettings({ ...settings, kind: context.intent === 'animate' ? 'animate' : 'edit' });
-                  }}
-                  text={text}
-                  onText={setText}
-                  attachments={attachments}
-                  onAttachments={setAttachments}
-                  settings={settings}
-                  onSettings={setSettings}
-                  styles={styles}
-                  replying={replying}
-                  disabled={
-                    !project
-                      ? 'Opening…'
-                      : replying && mode === 'make'
-                        ? 'Seed is still replying. Stop reply to make this now.'
-                        : undefined
-                  }
-                  focusToken={focusToken}
-                  queued={queued}
-                  onQueue={() => setQueued(true)}
-                  onSend={() => void send()}
-                  onMake={() => void makeDirect()}
-                  onStopReply={() => void run('', () => projectsApi.stopReply(id))}
-                  onSetAside={() => void setAside()}
-                />
-              </div>
-            </div>
           </div>
-          {split && project && (
-            <ResultsView
-              project={project}
-              embedded
-              onAsk={text => void run('', () => projectsApi.send(projectRef.current ?? project, { text, assets: [] }))}
-              onChanged={p => {
-                projectRef.current = p;
-                setProject(p);
-              }}
-            />
-          )}
-        </div>
-      )}
+        )}
+      </div>
       {compute && (
         <ComputeSheet
           key={compute.role + compute.action}
@@ -1207,14 +1232,14 @@ function Header({
         <div className="seg views" role="tablist" aria-label="Project view" onKeyDown={onTabKeys}>
           <button
             role="tab"
-            {...tabStop(view === 'conversation')}
+            {...tabStop(view === 'conversation', 'project-view', 'project-tab-conversation')}
             onClick={() => app.go({ name: 'project', id: project.id, view: 'conversation' })}
           >
             Conversation
           </button>
           <button
             role="tab"
-            {...tabStop(view === 'results')}
+            {...tabStop(view === 'results', 'project-view', 'project-tab-results')}
             onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })}
           >
             {board}
@@ -1349,6 +1374,7 @@ function Message({
   project,
   planAfter,
   onRetry,
+  onEdit,
   onContinue,
   onMakeItMyself,
 }: {
@@ -1356,6 +1382,8 @@ function Message({
   project: Project;
   planAfter: boolean;
   onRetry: () => void;
+  /** Puts the user's last message back in the composer to change and send again. */
+  onEdit?: () => void;
   onContinue: () => void;
   onMakeItMyself: () => void;
 }) {
@@ -1503,9 +1531,17 @@ function Message({
         </div>
       )}
       {!running && turn?.state === 'stopped' && (
-        <p className="faint" style={{ margin: '4px 0 0', fontSize: '0.8125rem' }}>
-          Stopped.
-        </p>
+        <div className="stopped-row">
+          <span className="faint">Stopped.</span>
+          {onEdit && (
+            <button className="btn small" onClick={onEdit}>
+              Edit message
+            </button>
+          )}
+          <button className="btn small" onClick={onRetry}>
+            Try again
+          </button>
+        </div>
       )}
       {!running && turn?.state === 'completed' && askedToMake && (
         <div className="notice">

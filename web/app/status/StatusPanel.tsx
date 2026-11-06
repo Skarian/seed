@@ -134,14 +134,22 @@ export function StatusPanel({
         </button>
       </div>
       <div className="tabs" role="tablist" aria-label="Activity" onKeyDown={onTabKeys}>
-        <button role="tab" {...tabStop(tab === 'tasks')} onClick={() => onTab('tasks')}>
+        <button
+          role="tab"
+          {...tabStop(tab === 'tasks', 'activity-panel', 'activity-tab-tasks')}
+          onClick={() => onTab('tasks')}
+        >
           Tasks{active.length + planning.length ? ` (${active.length + planning.length})` : ''}
         </button>
-        <button role="tab" {...tabStop(tab === 'gpus')} onClick={() => onTab('gpus')}>
+        <button
+          role="tab"
+          {...tabStop(tab === 'gpus', 'activity-panel', 'activity-tab-gpus')}
+          onClick={() => onTab('gpus')}
+        >
           GPUs{app.pool?.summary.active ? ` (${app.pool.summary.active})` : ''}
         </button>
       </div>
-      <div style={{ overflow: 'auto' }}>
+      <div style={{ overflow: 'auto' }} role="tabpanel" id="activity-panel" aria-labelledby={'activity-tab-' + tab}>
         {tab === 'tasks' ? (
           <>
             {planning.length > 0 && (

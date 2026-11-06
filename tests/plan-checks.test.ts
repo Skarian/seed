@@ -274,3 +274,8 @@ it('reads the cast and places from the brief, folding wardrobe lines into the ch
     { kind: 'place', name: 'The Lighthouse', look: 'white tower, red door' },
   ]);
 });
+
+it('drops subject tags from video prompts without leaving empty brackets or doubled colons', () => {
+  const text = readablePrompt({ workflow: 'text-to-video', prompt: 'subject_definitions: <Subject 1>: Ines Marrow, a clockmaker.\n[Shot 1] Ines (<Subject 1>) bends over the bench.' } as any, project([]));
+  expect(text).toBe('Subjects: Ines Marrow, a clockmaker.\nPart 1: Ines bends over the bench.');
+});

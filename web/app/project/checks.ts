@@ -601,7 +601,12 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   return (
     text
       // <Subject 1> tags label people for the video model; a person reads the name alone.
+      // "Ines (<Subject 1>)" reads "Ines"; "<Subject 1>: Ines…" at the start of a definition reads "Ines…".
+      .replace(/\s*\(\s*<\s*Subject\s*\d+\s*>\s*\)/gi, '')
+      .replace(/<\s*Subject\s*\d+\s*>\s*:\s*/gi, '')
       .replace(/\s*<\s*Subject\s*\d+\s*>/gi, '')
+      .replace(/:\s*:/g, ':')
+      .replace(/\s\(\s*\)/g, '')
       .replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:')
       .replace(/\[Shot (\d+)\]/g, 'part $1')
       // The video engine's own scaffolding sentence says nothing to a person; the source is shown beside the draft.

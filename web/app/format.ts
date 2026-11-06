@@ -164,10 +164,14 @@ export function promptChanges(before: string, after: string) {
   const key = (w: string) => w.toLowerCase().replace(/[^a-z0-9-]/g, '');
   // Engine input tokens (<image1>, <Picture 2>, [[input1]]) are not words a person wrote: they read as "the reference".
   const plain = (s: string) =>
-    s.replace(
-      /<\s*(?:image|picture)\s*\d+\s*>|\[\[\s*input\d+\s*\]\]|<\s*(?:image|picture)\s*\d+(?=[\s,.;]|$)/gi,
-      'the reference',
-    );
+    s
+      .replace(
+        /<\s*(?:image|picture)\s*\d+\s*>|\[\[\s*input\d+\s*\]\]|<\s*(?:image|picture)\s*\d+(?=[\s,.;]|$)/gi,
+        'the reference',
+      )
+      // Video prompt scaffolding (<Subject 1>, subject_definitions:) is for the model, never a change a person made.
+      .replace(/\(?\s*<\s*Subject\s*\d+\s*>\s*\)?\s*:?/gi, '')
+      .replace(/\b[a-z]+(?:_[a-z]+)+\s*:/g, '');
   const a = split(plain(before)),
     b = split(plain(after));
   if (a.length * b.length > 250_000) return ['prompt rewritten'];
