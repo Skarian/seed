@@ -612,6 +612,17 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
     (_m, space: string, key: string) =>
       space + (headings[key] ?? key.replace(/_/g, ' ').replace(/^./, c => c.toUpperCase())) + ': ',
   );
+  // Each <Subject N> is named by its definition ("<Subject 1>: Ada, a courier…" names Ada).
+  const names = new Map<string, string>();
+  for (const m of text.matchAll(/<\s*Subject\s*(\d+)\s*>\s*:\s*(?:the\s+)?([^,.;:(\n]{1,40})/gi)) {
+    const name = m[2]!
+      .trim()
+      .split(/\s+/)
+      .slice(0, 3)
+      .join(' ')
+      .replace(/\s+(from|in|at|with|who|wearing)$/i, '');
+    if (name && !names.has(m[1]!)) names.set(m[1]!, name);
+  }
   // Only a shot tag that starts a line is a heading; one inside a sentence just names the shot.
   // Inside a video prompt, [Shot N] numbers the parts of this one clip, not the film's shots.
   return (
@@ -620,7 +631,11 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
       // "Ines (<Subject 1>)" reads "Ines"; "<Subject 1>: Ines…" at the start of a definition reads "Ines…".
       .replace(/\s*\(\s*<\s*Subject\s*\d+\s*>\s*\)/gi, '')
       .replace(/<\s*Subject\s*\d+\s*>\s*:\s*/gi, '')
-      .replace(/\s*<\s*Subject\s*\d+\s*>/gi, '')
+      // A bare tag stands for the person: "a shot of <Subject 1> standing" reads "a shot of Ada standing".
+      .replace(/(\s*)<\s*Subject\s*(\d+)\s*>/gi, (_m, sp: string, k: string) => (names.has(k) ? sp + names.get(k) : ''))
+      .replace(/^(\s*)(\w+): \2\b\s*/gim, '$1$2: ')
+      .replace(/^(\s*)(Detail|Summary|Keep): (Style|Look|Detail|Summary|Keep):\s*/gim, '$1$2: ')
+      .replace(/^(\s*)Sound: Silen(ce|t)\.?\s*$/gim, '$1Audio: none')
       .replace(/:\s*:/g, ':')
       .replace(/\s\(\s*\)/g, '')
       .replace(/^(\s*)\[Shot (\d+)\]/gm, '$1Part $2:')

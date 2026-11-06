@@ -39,7 +39,7 @@ export function App() {
   const [viewing, setViewing] = useState<{ item: ViewerItem; siblings: ViewerItem[]; opener: Element | null } | null>(
     null,
   );
-  const [comparing, setComparing] = useState<{ a: ViewerItem; b: ViewerItem } | null>(null);
+  const [comparing, setComparing] = useState<{ a: ViewerItem; b: ViewerItem; opener?: Element | null } | null>(null);
   const [pendingUse, setPendingUse] = useState<AppContextValue['pendingUse']>(null);
   const [destination, setDestination] = useState<{
     item: ViewerItem;
@@ -142,7 +142,7 @@ export function App() {
       setInspected(fit);
       setViewing(fit);
     },
-    compare: (a, b) => setComparing({ a, b }),
+    compare: (a, b) => setComparing({ a, b, opener: document.activeElement }),
     useResult: (item, intent) => {
       setViewing(null);
       setComparing(null);
@@ -241,7 +241,24 @@ export function App() {
           }}
         />
       )}
-      {comparing && <Compare a={comparing.a} b={comparing.b} onClose={() => setComparing(null)} />}
+      {comparing && (
+        <Compare
+          a={comparing.a}
+          b={comparing.b}
+          onClose={() => {
+            const opener = comparing.opener as HTMLElement | null;
+            const label = opener?.getAttribute('aria-label');
+            setComparing(null);
+            // Focus goes back to what opened Compare, or to its replacement after a re-render.
+            requestAnimationFrame(() =>
+              (opener?.isConnected || !label
+                ? opener
+                : document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(label)}"]`)
+              )?.focus?.(),
+            );
+          }}
+        />
+      )}
       {destination && (
         <Dialog
           title={

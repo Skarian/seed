@@ -41,7 +41,7 @@ it('does not apply a request about one draft to its siblings', () => {
 
 it('shows structured video prompts as plain sections', () => {
   const text = readablePrompt({ workflow: 'text-to-video', prompt: 'integrated_multimodal_description: A paper wave rolls in.\n[Shot 1] Slow push.\noverall_soundscape: Silence.\nnon_diegetic_music: N/A' } as any, project([]));
-  expect(text).toBe('Scene: A paper wave rolls in.\nPart 1: Slow push.\nSound: Silence.');
+  expect(text).toBe('Scene: A paper wave rolls in.\nPart 1: Slow push.\nAudio: none');
 });
 
 it('turns an unsupported ratio such as 3:2 into a visible choice with a crop path', () => {
@@ -307,4 +307,9 @@ it('adds cast and places from another project under their headings', async () =>
     'character:Odile Brann:veil',
     'place:The Orchard:old apple trees',
   ]);
+});
+
+it('names the people behind subject tags and reads template headings as plain words', () => {
+  const text = readablePrompt({ workflow: 'reference-to-video', prompt: 'subject_definitions: <Subject 1>: Ada, a courier in a green coat.\nintegrated_multimodal_description: A static medium shot of <Subject 1> standing beside the green column.\nretention_analysis: Keep the colours.\noverall_soundscape: Silence.\nnon_diegetic_music: N/A' } as any, project([]));
+  expect(text).toBe('Subjects: Ada, a courier in a green coat.\nScene: A static medium shot of Ada standing beside the green column.\nKeep: the colours.\nAudio: none');
 });

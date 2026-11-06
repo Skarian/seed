@@ -1052,7 +1052,14 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                         {selectedCards.length && planSeconds(selectedCards) !== null
                           ? ' · ' + estimateText(planSeconds(selectedCards))
                           : ''}
-                        {planNeed?.billing ? ' · GPU already running' : planNeed?.needs ? ' · needs a GPU' : ''} ›
+                        {planNeed?.billing
+                          ? /whichever is free first/.test(planNeed.label)
+                            ? ' · Seed PC or the running cloud GPU'
+                            : ' · on the running cloud GPU'
+                          : planNeed?.needs
+                            ? ' · needs a GPU'
+                            : ''}{' '}
+                        ›
                       </button>
                       {madeOf(true) > 0 && madeOf(false) > 0 && !planStale && !question && !unresolved && (
                         <button

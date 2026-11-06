@@ -450,7 +450,7 @@ function LoraEditor({
                 ? 'Used successfully'
                 : group.files.some((file) => file.compatibility === 'verified')
                   ? `Tried with ${group.files.filter((file) => file.compatibility === 'verified').length} of its ${group.files.length} files`
-                  : 'Not used yet'}
+                  : 'No renders yet'}
             </span>
             {group.source_url && (
               <a href={group.source_url} target="_blank" rel="noopener noreferrer">

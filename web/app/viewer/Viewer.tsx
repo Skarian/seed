@@ -1136,7 +1136,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
           Zoom 2×
         </button>
         <button className="btn small" aria-pressed={diff} onClick={() => setDiff(d => !d)}>
-          Differences
+          Settings differences
         </button>
       </div>
       {diff && <Differences a={a} b={b} />}

@@ -1,6 +1,6 @@
 import type { ImageRequest, PoolSnapshot, WorkerClass } from '../api.js';
 import { kindOf, isVideoKind } from '../api.js';
-import { loraRoute } from '../../../shared/workflows.js';
+import { loraRoute, capabilityFor } from '../../../shared/workflows.js';
 
 export type StyleEntry = {
   id: string;
@@ -34,7 +34,23 @@ export function readiness(r: ImageRequest, snapshot: PoolSnapshot | null, styles
     !local.paused &&
     local.workflows.includes(r.workflow) &&
     (!loras.length || r.workflow !== 'image-to-image');
-  if (target !== 'cloud' && localOk) return { tone: 'ok', label: 'Ready on Seed PC · no rental fee' };
+  const cloudCls = classOf(r);
+  // Running cloud GPUs that could take this draft (a Klein edit needs Klein, which cloud GPUs do not have yet).
+  const cloudReady = (snapshot?.workers ?? []).filter(
+    w =>
+      w.worker_class === cloudCls &&
+      !w.quit_mode &&
+      ['ready', 'generating', 'saving'].includes(w.state) &&
+      (r.workflow !== 'image-to-image' || !w.workflows || w.workflows.includes(capabilityFor(r))),
+  );
+  if (target !== 'cloud' && localOk)
+    return target === 'auto' && cloudReady.length
+      ? {
+          tone: 'ok',
+          label: `Seed PC or the running ${cloudCls} GPU (${'$' + cloudReady[0]!.hourly.toFixed(2)}/h), whichever is free first`,
+          billing: true,
+        }
+      : { tone: 'ok', label: 'Ready on Seed PC · no rental fee' };
   if (target === 'local') {
     if (local?.enabled && !local.workflows.includes(r.workflow))
       return {
@@ -55,7 +71,7 @@ export function readiness(r: ImageRequest, snapshot: PoolSnapshot | null, styles
       w.worker_class === cls &&
       !w.quit_mode &&
       ['ready', 'generating', 'saving', 'starting', 'preparing'].includes(w.state) &&
-      (r.workflow !== 'image-to-image' || !w.workflows || w.workflows.includes(r.workflow)),
+      (r.workflow !== 'image-to-image' || !w.workflows || w.workflows.includes(capabilityFor(r))),
   );
   const withStyles = workers.filter(
     w =>

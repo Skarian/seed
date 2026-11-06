@@ -163,7 +163,9 @@ function CardResults({
             className="btn small"
             onClick={() => {
               void Promise.all(running.map(j => jobsApi.cancel(j.id))).then(() => app.refreshTasks());
-              app.toast(`Cancelled ${running.length} · finished results are kept, the GPU keeps running`);
+              app.toast(
+                `Cancelled ${running.length} · finished results are kept${running.every(j => j.worker?.executor === 'local' || j.request.target === 'local') ? ' (Seed PC)' : '; a rented GPU keeps running until you release it'}`,
+              );
             }}
           >
             Cancel remaining {running.length}
