@@ -32,6 +32,7 @@ import { ResultGroup } from './ResultGroup.js';
 import { Composer, type ComposerContext } from './Composer.js';
 import { ComputeSheet } from './ComputeSheet.js';
 import { ResultsView } from './ResultsView.js';
+import { shotsFromBrief } from '../../../shared/shots.js';
 import { readiness, type StyleEntry } from './readiness.js';
 import { buildRequest, defaultMake, defaultRoles, type Attachment, type MakeSettings } from './requests.js';
 import { useStyles } from './styles.js';
@@ -1178,6 +1179,8 @@ function Header({
   onDelete: () => void;
 }) {
   const app = useApp();
+  // A film with a shot list in its brief works from a storyboard; other projects collect results.
+  const board = shotsFromBrief(project?.brief).length ? 'Storyboard' : 'Results';
   return (
     <header className="head">
       <button className="icon-btn back" aria-label="All projects" onClick={() => app.go({ name: 'projects' })}>
@@ -1194,10 +1197,10 @@ function Header({
           aria-pressed={split}
           onClick={() => onBeside(!split)}
           title={
-            split ? 'Show the conversation alone, with Results as a tab' : 'Show the board beside the conversation'
+            split ? `Show the conversation alone, with ${board} as a tab` : 'Show the board beside the conversation'
           }
         >
-          {split ? 'Close side board' : 'Results beside chat'}
+          {split ? 'Close side board' : `${board} beside chat`}
         </button>
       )}
       {project && !split && (
@@ -1214,7 +1217,7 @@ function Header({
             {...tabStop(view === 'results')}
             onClick={() => app.go({ name: 'project', id: project.id, view: 'results' })}
           >
-            Results
+            {board}
           </button>
         </div>
       )}

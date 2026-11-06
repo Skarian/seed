@@ -3775,3 +3775,68 @@ textarea::placeholder {
     scroll-snap-align: start;
   }
 }
+
+/* The steps from brief to cut, above the storyboard: done, next and later, with one plan per step. */
+.stages {
+  border: 1px solid var(--line);
+  border-radius: var(--r);
+  background: var(--s1);
+  padding: 10px 12px 12px;
+  display: grid;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+.stage-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+  gap: 8px;
+}
+.stage {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.stage-n {
+  flex: none;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  font-size: 0.75rem;
+  border: 1px solid var(--line);
+}
+.stage.done .stage-n {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: var(--accent-ink);
+}
+.stage.next .stage-n {
+  border: 2px solid var(--accent);
+  font-weight: 600;
+}
+.stage-text {
+  display: grid;
+  min-width: 0;
+}
+.stage-text small {
+  font-size: 0.7813rem;
+}
+.stage-next {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  border-top: 1px solid var(--line);
+  padding-top: 10px;
+}
+.shot-action {
+  margin: 2px 0 6px;
+  font-size: 0.8125rem;
+  max-width: 70ch;
+}

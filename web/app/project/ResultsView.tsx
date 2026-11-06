@@ -7,7 +7,10 @@ import { Icon } from '../icons.js';
 import { Media } from '../ui.js';
 import { titleOf, latest, tileState, shapeClass } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
-import { CastStrip } from './Cast.js';
+import { CastStrip, referenceAsk } from './Cast.js';
+import { Stages, listOf, type Stage } from './Stages.js';
+import { castFromBrief, referenceKey } from '../../../shared/cast.js';
+import { shotsFromBrief } from '../../../shared/shots.js';
 import type { ImageRequest } from '../../../shared/generation.js';
 
 /** A draft that records its shot is placed by that record; older drafts fall back to the "Shot N: Name" title. */
@@ -142,7 +145,10 @@ export function ResultsView({
     const m = title.match(/\bshot\s*(\d{1,3})\b/i);
     return m ? Number(m[1]) : null;
   };
+  // The brief's shot list is the plan: each of its shots is on the board before anything is drafted for it.
+  const briefShots = shotsFromBrief(project.brief);
   const allTitles = [
+    ...briefShots.map(b => `Shot ${b.n}: ${b.name}`),
     ...items.map(it => (it.job ? boardTitle(it.job.request) : it.title)),
     ...planned,
     ...running.map(j => boardTitle(j.request)),
@@ -156,6 +162,8 @@ export function ResultsView({
     clips: ViewerItem[];
     making: typeof running;
     planned: string[];
+    /** What happens in the shot, from the brief's shot list. */
+    action: string;
   };
   const shots = new Map<string, Shot>();
   const shotFor = (title: string) => {
@@ -175,11 +183,13 @@ export function ResultsView({
         clips: [],
         making: [],
         planned: [],
+        action: '',
       });
     const s = shots.get(key)!;
     if (!s.name && n !== null) s.name = title.replace(/^.*?\bshot\s*\d+\s*[:·.-]?\s*/i, '').trim();
     return s;
   };
+  for (const b of briefShots) shotFor(`Shot ${b.n}: ${b.name}`).action = b.action;
   // Oldest first inside a shot, so the newest take is last, like a strip of film.
   // Takes are numbered in the order they were made (and their place in a batch), the same everywhere.
   // A batch is ordered by its place (take 1 before take 2), even when its jobs finished or were saved out of order.
@@ -330,7 +340,9 @@ export function ResultsView({
           ? 'Making now'
           : takesOf(s.images).length || takesOf(s.clips).length
             ? 'Made · nothing chosen'
-            : 'Planned';
+            : s.planned.length
+              ? 'Planned'
+              : 'Not drafted yet';
     return (
       <li key={s.n}>
         <button
@@ -359,6 +371,87 @@ export function ResultsView({
   const chosenClips = numbered.map(s => chosen(s, 'clip')).filter(Boolean) as ViewerItem[];
   const chosenSeconds = chosenClips.reduce((t, c) => t + (c.job?.request.output.duration_seconds ?? 5), 0);
   const chosenCount = numbered.filter(s => chosen(s, 'clip') || chosen(s, 'image')).length;
+  // The steps from brief to cut. Each step asks Seed for one plan covering everything it still needs.
+  const cast = castFromBrief(project.brief);
+  const noRef = cast.filter(e => !picks[referenceKey(e.name)]);
+  const hasKey = (s: Shot) => Boolean(chosen(s, 'image') || chosen(s, 'clip'));
+  const toDraft = numbered.filter(
+    s => !hasKey(s) && !takesOf(s.images).length && !s.planned.length && !s.making.length,
+  );
+  const toChoose = numbered.filter(s => !hasKey(s) && takesOf(s.images).length > 0);
+  const toAnimate = numbered.filter(
+    s => chosen(s, 'image') && !chosen(s, 'clip') && !takesOf(s.clips).length && !s.planned.length && !s.making.length,
+  );
+  const clipsToChoose = numbered.filter(s => !chosen(s, 'clip') && takesOf(s.clips).length > 0);
+  const shotWord = (ns: Shot[]) => (ns.length === 1 ? 'Shot ' : 'Shots ') + listOf(ns.map(s => s.n!));
+  const stages: Stage[] = [
+    {
+      key: 'cast',
+      label: 'Cast & places',
+      done: cast.length - noRef.length,
+      total: cast.length,
+      left: noRef.length
+        ? listOf(noRef.map(e => e.name)) + (noRef.length === 1 ? ' has' : ' have') + ' no approved reference yet.'
+        : '',
+      action: noRef.length
+        ? {
+            label: noRef.length === 1 ? 'Draft its reference' : `Draft ${noRef.length} references`,
+            ask:
+              noRef.length === 1
+                ? referenceAsk(noRef[0]!)
+                : 'Draft one plan with a reference for each of ' +
+                  listOf(noRef.map(e => e.name)) +
+                  ' from the brief: characters alone, full length, facing the camera, on a plain light-grey background in soft even light, at 4:5 with 4 takes; places wide with no people, in clear light, at 16:9 with 4 takes. Title each "Reference: Name". Leave the other drafts as they are. Do not run anything.',
+          }
+        : undefined,
+    },
+    {
+      key: 'keyframes',
+      label: 'Keyframes',
+      done: numbered.filter(hasKey).length,
+      total: numbered.length,
+      left: [
+        toDraft.length ? shotWord(toDraft) + (toDraft.length === 1 ? ' has' : ' have') + ' no keyframe yet.' : '',
+        toChoose.length ? 'Choose a take for ' + shotWord(toChoose).toLowerCase() + ' (Use for shot).' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      action: toDraft.length
+        ? {
+            label: toDraft.length === 1 ? `Draft shot ${toDraft[0]!.n}` : `Draft ${toDraft.length} keyframes`,
+            ask:
+              'Draft one plan with a keyframe for ' +
+              shotWord(toDraft).toLowerCase() +
+              ' from the brief’s shot list, one draft per shot with 2 takes, titled "Shot N: Name", using the approved references of the cast and places in each shot. Leave the other drafts as they are. Do not run anything.',
+          }
+        : undefined,
+    },
+    {
+      key: 'clips',
+      label: 'Clips',
+      done: numbered.filter(s => chosen(s, 'clip')).length,
+      total: numbered.length,
+      left: [
+        toAnimate.length
+          ? shotWord(toAnimate) + (toAnimate.length === 1 ? ' has' : ' have') + ' a chosen keyframe and no clip.'
+          : '',
+        clipsToChoose.length ? 'Choose a clip for ' + shotWord(clipsToChoose).toLowerCase() + '.' : '',
+        !toAnimate.length && !clipsToChoose.length ? 'Clips start from chosen keyframes.' : '',
+      ]
+        .filter(Boolean)
+        .join(' '),
+      action: toAnimate.length
+        ? {
+            label:
+              toAnimate.length === 1 ? `Draft a clip for shot ${toAnimate[0]!.n}` : `Draft ${toAnimate.length} clips`,
+            ask:
+              'Draft one plan with a clip for ' +
+              shotWord(toAnimate).toLowerCase() +
+              ', each animating that shot’s chosen keyframe, with the action and sound from the brief’s shot list, titled "Shot N: Name". Leave the other drafts as they are. Do not run anything.',
+          }
+        : undefined,
+    },
+  ];
   const groups = new Map<string, ViewerItem[]>();
   if (grouped)
     for (const it of items) {
@@ -438,6 +531,9 @@ export function ResultsView({
           className={embedded ? 'boardpad' : 'col'}
           style={embedded ? undefined : { maxWidth: 1400, paddingBottom: 24 }}
         >
+          {filter === 'all' && view === 'shots' && numbered.length > 0 && (
+            <Stages stages={stages} onAsk={onAsk} onPlay={cut.length ? () => app.view(cut[0]!, cut) : undefined} />
+          )}
           {filter === 'all' && (
             <CastStrip
               brief={project.brief}
@@ -454,118 +550,122 @@ export function ResultsView({
               }
             />
           )}
-          {view === 'shots' && (items.length > 0 || running.length > 0 || planned.length > 0) && (
-            <div className="shots">
-              {numbered.length > 1 && filter === 'all' && (
-                <section className="film-board" aria-label="The film, shot by shot">
-                  <div className="film-board-head">
-                    <b>The film</b>
-                    <span className="faint">
-                      {numbered.length} shots · {chosenCount} chosen
-                      {chosenClips.length ? ` · ${chosenSeconds} s of clips` : ''}
-                    </span>
-                  </div>
-                  <ol className="film-cells">{numbered.map(boardCell)}</ol>
-                </section>
-              )}
-              {shotList.map(s => {
-                const chosenImage = Boolean(chosen(s, 'image')),
-                  chosenClip = Boolean(chosen(s, 'clip'));
-                const reference = s.n === null && !s.clips.length && !s.planned.length;
-                const stage =
-                  filter !== 'all'
-                    ? filter === 'fav'
-                      ? 'Favorites in this shot'
-                      : filter === 'image'
-                        ? 'Keyframes in this shot'
-                        : 'Clips in this shot'
-                    : reference
-                      ? 'Reference'
-                      : s.making.length
-                        ? 'Making now'
-                        : s.clips.length
-                          ? chosenClip
-                            ? 'Clip chosen'
-                            : `${takesOf(s.clips).length} ${takesOf(s.clips).length === 1 ? 'clip' : 'clips'} · none chosen`
-                          : s.images.length
-                            ? chosenImage
-                              ? 'Keyframe chosen · no clip yet'
-                              : 'Keyframe made · no clip yet'
-                            : s.planned.length
-                              ? 'In the plan, not made yet'
-                              : '';
-                return (
-                  <section
-                    key={(s.n ?? '') + s.name}
-                    className="shot-row"
-                    id={s.n !== null ? 'shot-' + s.n : undefined}
-                    aria-label={(s.n !== null ? 'Shot ' + s.n + ': ' : '') + s.name}
-                  >
-                    <div className="shot-head" role="heading" aria-level={3}>
-                      {s.n !== null && <b className="shot-n">Shot {s.n}</b>}
-                      <span className="shot-name">{s.name}</span>
-                      <span className="faint">{stage}</span>
+          {view === 'shots' &&
+            (items.length > 0 || running.length > 0 || planned.length > 0 || briefShots.length > 0) && (
+              <div className="shots">
+                {numbered.length > 1 && filter === 'all' && (
+                  <section className="film-board" aria-label="The film, shot by shot">
+                    <div className="film-board-head">
+                      <b>The film</b>
+                      <span className="faint">
+                        {numbered.length} shots · {chosenCount} chosen
+                        {chosenClips.length ? ` · ${chosenSeconds} s of clips` : ''}
+                      </span>
                     </div>
-                    <div className="shot-lanes">
-                      {(s.images.length > 0 || !s.clips.length) && (
-                        <div className="lane">
-                          <span className="lane-label">{reference ? 'Images' : 'Keyframes'}</span>
-                          <div className="lane-strip">
-                            {lane(s, s.images, 'image')}
-                            {!s.images.length && (
-                              <span className="faint lane-empty">{s.planned.length ? 'Planned' : 'None yet'}</span>
-                            )}
+                    <ol className="film-cells">{numbered.map(boardCell)}</ol>
+                  </section>
+                )}
+                {shotList.map(s => {
+                  const chosenImage = Boolean(chosen(s, 'image')),
+                    chosenClip = Boolean(chosen(s, 'clip'));
+                  const reference = s.n === null && !s.clips.length && !s.planned.length;
+                  const stage =
+                    filter !== 'all'
+                      ? filter === 'fav'
+                        ? 'Favorites in this shot'
+                        : filter === 'image'
+                          ? 'Keyframes in this shot'
+                          : 'Clips in this shot'
+                      : reference
+                        ? 'Reference'
+                        : s.making.length
+                          ? 'Making now'
+                          : s.clips.length
+                            ? chosenClip
+                              ? 'Clip chosen'
+                              : `${takesOf(s.clips).length} ${takesOf(s.clips).length === 1 ? 'clip' : 'clips'} · none chosen`
+                            : s.images.length
+                              ? chosenImage
+                                ? 'Keyframe chosen · no clip yet'
+                                : 'Keyframe made · no clip yet'
+                              : s.planned.length
+                                ? 'In the plan, not made yet'
+                                : s.action
+                                  ? 'In the shot list, not drafted yet'
+                                  : '';
+                  return (
+                    <section
+                      key={(s.n ?? '') + s.name}
+                      className="shot-row"
+                      id={s.n !== null ? 'shot-' + s.n : undefined}
+                      aria-label={(s.n !== null ? 'Shot ' + s.n + ': ' : '') + s.name}
+                    >
+                      <div className="shot-head" role="heading" aria-level={3}>
+                        {s.n !== null && <b className="shot-n">Shot {s.n}</b>}
+                        <span className="shot-name">{s.name}</span>
+                        <span className="faint">{stage}</span>
+                      </div>
+                      {s.action && <p className="shot-action faint">{s.action}</p>}
+                      <div className="shot-lanes">
+                        {(s.images.length > 0 || !s.clips.length) && (
+                          <div className="lane">
+                            <span className="lane-label">{reference ? 'Images' : 'Keyframes'}</span>
+                            <div className="lane-strip">
+                              {lane(s, s.images, 'image')}
+                              {!s.images.length && (
+                                <span className="faint lane-empty">{s.planned.length ? 'Planned' : 'None yet'}</span>
+                              )}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {!reference && (s.clips.length > 0 || s.images.length > 0) && (
-                        <div className="lane">
-                          <span className="lane-label">Clips</span>
-                          <div className="lane-strip">
-                            {lane(s, s.clips, 'clip')}
-                            {!s.clips.length &&
-                              (() => {
-                                // The next step is offered right here: animate the chosen keyframe (or the newest).
-                                const start = chosen(s, 'image') ?? takesOf(s.images).at(-1);
+                        )}
+                        {!reference && (s.clips.length > 0 || s.images.length > 0) && (
+                          <div className="lane">
+                            <span className="lane-label">Clips</span>
+                            <div className="lane-strip">
+                              {lane(s, s.clips, 'clip')}
+                              {!s.clips.length &&
+                                (() => {
+                                  // The next step is offered right here: animate the chosen keyframe (or the newest).
+                                  const start = chosen(s, 'image') ?? takesOf(s.images).at(-1);
+                                  return (
+                                    <span className="faint lane-empty">
+                                      {filter === 'all' || filter === 'video' ? 'None yet.' : 'None in this view'}{' '}
+                                      {start && (filter === 'all' || filter === 'video') && (
+                                        <button
+                                          className="btn small"
+                                          onClick={() => app.useResult(start, 'animate')}
+                                          aria-label={`Animate ${start.title}`}
+                                        >
+                                          Animate {chosen(s, 'image') ? 'the chosen keyframe' : 'the keyframe'}
+                                        </button>
+                                      )}
+                                    </span>
+                                  );
+                                })()}
+                            </div>
+                          </div>
+                        )}
+                        {s.making.length > 0 && (
+                          <div className="lane">
+                            <span className="lane-label">Making</span>
+                            <div className="lane-strip">
+                              {s.making.map(j => {
+                                const st = tileState(j);
                                 return (
-                                  <span className="faint lane-empty">
-                                    {filter === 'all' || filter === 'video' ? 'None yet.' : 'None in this view'}{' '}
-                                    {start && (filter === 'all' || filter === 'video') && (
-                                      <button
-                                        className="btn small"
-                                        onClick={() => app.useResult(start, 'animate')}
-                                        aria-label={`Animate ${start.title}`}
-                                      >
-                                        Animate {chosen(s, 'image') ? 'the chosen keyframe' : 'the keyframe'}
-                                      </button>
-                                    )}
+                                  <span key={j.id} className="chip">
+                                    <span className={'dot ' + (st.tone === 'wait' ? 'amber' : 'live')} /> {st.label}
                                   </span>
                                 );
-                              })()}
+                              })}
+                            </div>
                           </div>
-                        </div>
-                      )}
-                      {s.making.length > 0 && (
-                        <div className="lane">
-                          <span className="lane-label">Making</span>
-                          <div className="lane-strip">
-                            {s.making.map(j => {
-                              const st = tileState(j);
-                              return (
-                                <span key={j.id} className="chip">
-                                  <span className={'dot ' + (st.tone === 'wait' ? 'amber' : 'live')} /> {st.label}
-                                </span>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  </section>
-                );
-              })}
-            </div>
-          )}
+                        )}
+                      </div>
+                    </section>
+                  );
+                })}
+              </div>
+            )}
           {view === 'grid' && running.length > 0 && (
             <section>
               <div className="day">Making now</div>

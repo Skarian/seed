@@ -352,6 +352,8 @@ function LocalCard() {
       bytes_total?: number;
       required_additional_bytes?: number;
       disk_free_bytes?: number;
+      note?: string;
+      klein?: { installed: boolean; bytes_total: number; token: boolean };
     };
     worker: LocalWorkerView | null;
   } | null>(null);
@@ -448,6 +450,29 @@ function LocalCard() {
               ? 'Makes images and video.'
               : 'Makes images. Video needs a cloud GPU.'}
           </span>
+        )}
+        {s?.installed && s.klein && !s.klein.installed && s.state !== 'running' && (
+          <div className="row" style={{ alignItems: 'center' }}>
+            <span className="grow muted" style={{ fontSize: '0.8438rem' }}>
+              {s.klein.token
+                ? 'FLUX 3 Image Klein is not installed. Seed uses it for edits and for new shots from reference images.'
+                : 'FLUX 3 Image Klein (edits and shots from reference images) needs a Hugging Face token: save one in Settings, and accept the model’s licence on Hugging Face with that account.'}
+            </span>
+            {s.klein.token && (
+              <button
+                className="btn small"
+                disabled={busy || Boolean(w?.current_job_id)}
+                onClick={() => void act('setup')}
+              >
+                Add Klein · {gb(s.klein.bytes_total)}
+              </button>
+            )}
+          </div>
+        )}
+        {s?.note && s.state !== 'running' && (
+          <div className="notice" role="status">
+            {s.note}
+          </div>
         )}
         {(error || s?.error || w?.issue) && (
           <div className="notice error" role="alert">
