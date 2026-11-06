@@ -77,7 +77,7 @@ const placeholder = (c: ComposerContext, mode: 'ask' | 'make') =>
           ? c.intent === 'animate'
             ? 'How should it move? (Seed plans an Animate draft)'
             : c.intent === 'refine'
-              ? 'What should change? (Seed plans an Edit draft)'
+              ? 'What should change in this picture?'
               : 'What should Seed make with it?'
           : 'Ask Seed, or describe what to make…';
 

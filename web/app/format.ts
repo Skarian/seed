@@ -222,8 +222,15 @@ export function promptChanges(before: string, after: string) {
   const phrases = runs
     .filter(r => meaningful(r.from) || meaningful(r.to))
     .map(r => {
-      const from = clean(r.from),
-        to = clean(r.to);
+      // Small words at either end are not the change ("A → An 85mm" is "added: 85mm").
+      const trim = (ws: string[]) => {
+        const w = [...ws];
+        while (w.length && stop.has(key(w[0]!))) w.shift();
+        while (w.length && stop.has(key(w.at(-1)!))) w.pop();
+        return w;
+      };
+      const from = clean(trim(r.from)),
+        to = clean(trim(r.to));
       return from && to ? `${from} → ${to}` : to ? 'added: ' + to : 'removed: ' + from;
     });
   if (!phrases.length) return ['prompt reworded'];

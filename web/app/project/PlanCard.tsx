@@ -1,4 +1,5 @@
 import React, { useEffect, useMemo, useState } from 'react';
+import { listOf } from './Stages.js';
 import * as Checkbox from '@radix-ui/react-checkbox';
 import type { ChatCard, ChatGroup, Project, PoolSnapshot } from '../api.js';
 import { kindOf, kindLabels, isVideoKind } from '../api.js';
@@ -142,16 +143,16 @@ export function PlanCard({
               'divider' as const,
               // The delivery frame: results show its guides and Crop starts there. Models still make their own shapes.
               ...(['', '2.39:1', '1.85:1', '21:9', '2:3'] as const).map(frame => ({
-                label: frame ? `Delivery crop: ${frame}` : 'Delivery crop: none (keep the shape made)',
-                hint: frame === '2.39:1' ? 'Results show the crop guides; Crop starts at this shape.' : undefined,
+                label: frame ? `Crop to ${frame} later` : 'No delivery crop (keep the shape made)',
+                hint: frame ? 'Results show its guides' : undefined,
                 checked: (project.frame ?? '') === frame,
                 onSelect: () => chooseFrame(project.id, frame),
                 disabled: busy || working,
               })),
               'divider' as const,
               {
-                label: 'Set this plan aside',
-                hint: 'Drafts are kept under Not made yet; Bring back returns them.',
+                label: 'Put this plan aside',
+                hint: 'You can bring it back',
                 onSelect: onSetAside,
                 disabled: busy,
               },
@@ -408,7 +409,9 @@ function Draft({
           const parts = (['engine', 'size'] as const).filter(k => chip(sourceJob.request, k) !== chip(r, k));
           // A Klein shot at its own shape is a new frame drawn from the images; a "same as source" edit keeps the frame.
           if (r.workflow === 'image-to-image' && r.output.aspect !== 'source')
-            return `Drawn from ${inputs.map(x => `“${assetName(project, x.asset_id, tasks)}”`).join(' and ')}: a new ${r.output.aspect} frame made with ${chip(r, 'engine') ?? 'FLUX 3 Image Klein'}.`;
+            return `Uses ${listOf(inputs.map(x => assetName(project, x.asset_id, tasks).replace(/^Reference( sheet)?:\s*/i, '')))}.`;
+          // A clip starts from its keyframe: the start-frame thumbnail says the rest.
+          if (r.workflow === 'reference-to-video') return `Starts from “${titleOf(sourceJob.request)}”.`;
           return parts.length
             ? `“${titleOf(sourceJob.request)}” was made with ${parts.map(k => chip(sourceJob.request, k)).join(' at ')}; this draft uses ${parts.map(k => chip(r, k)).join(' at ')}. Its framing and look come from the source.`
             : '';
@@ -547,7 +550,7 @@ function Draft({
                 <span className="input-chip" key={ref.id}>
                   <Thumb id={ref.asset_id} kind={ref.kind} alt={name} />
                   <span>
-                    <b>{roleLabels[ref.role] ?? ref.role}</b> · {name}
+                    <b>{roleLabels[ref.role] ?? ref.role}</b> · {name.replace(/^Reference( sheet)?:\s*/i, '')}
                     {ref.range
                       ? ` · ${ref.range.start_seconds}–${ref.range.start_seconds + ref.range.duration_seconds} s`
                       : ''}
@@ -915,7 +918,7 @@ function DraftEditor({
             <option value="local">Seed PC</option>
             <option value="cloud" disabled={r.workflow === 'image-to-image' && r.engine === 'klein'}>
               {r.workflow === 'image-to-image' && r.engine === 'klein'
-                ? 'Cloud GPU (cannot run Klein yet)'
+                ? 'Cloud GPU: not for reference-based shots yet'
                 : 'Cloud GPU'}
             </option>
           </select>

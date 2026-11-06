@@ -140,7 +140,7 @@ export function ResultsView({
             <small>
               {it.kind === 'video' ? 'Video' : 'Image'}
               {it.job.request.workflow === 'image-to-image'
-                ? ' · edit'
+                ? ''
                 : it.job.request.workflow === 'reference-to-video'
                   ? ' · animated'
                   : ''}
