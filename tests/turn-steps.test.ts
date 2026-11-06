@@ -99,3 +99,16 @@ it('builds a receipt from the tools that succeeded, not from the reply', async (
     'Saved the brief (added Teo to the cast)',
   ]);
 });
+
+it('hides a draft failure a later try made good, and never shows raw JSON', () => {
+  const turn: TurnTranscript = {
+    started_at: at,
+    state: 'completed',
+    steps: [
+      { ...tool('create_request', 'failed', { title: 'Shot 1: The Rock' }), result: { content: [{ type: 'text', text: JSON.stringify({ ok: false, saved: false, errors: [{ field: 'inputs[0].role', message: 'Use first_frame for a start frame.' }] }) }] } },
+      tool('create_request', 'succeeded', { title: 'Shot 1: The Rock' }),
+      { ...tool('create_request', 'failed', { title: 'Watercolor study' }), result: { content: [{ type: 'text', text: 'Validation failed for tool "create_request": - root: must not have additional properties' }] } },
+    ],
+  };
+  expect(unfinishedSteps(turn)).toEqual([{ label: 'Write a draft', reason: 'Seed sent it in the wrong form.' }]);
+});

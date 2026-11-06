@@ -24,13 +24,19 @@ function errorText(result: unknown): string {
   walk(result);
   for (const t of texts) {
     try {
-      const parsed = JSON.parse(t) as { error?: unknown };
+      const parsed = JSON.parse(t) as { error?: unknown; errors?: Array<{ message?: unknown }> };
       if (typeof parsed?.error === 'string') return parsed.error;
+      // A save that failed field checks: its first reason, in words.
+      const first = parsed?.errors?.find(e => typeof e?.message === 'string')?.message;
+      if (typeof first === 'string') return first;
     } catch {
       /* plain text */
     }
   }
-  return texts.find(t => t.trim())?.trim() ?? '';
+  const text = texts.find(t => t.trim())?.trim() ?? '';
+  // A malformed tool call is Seed's own slip, never something to show as raw JSON.
+  if (/^Validation failed for tool|^\s*[{[]/.test(text)) return 'Seed sent it in the wrong form.';
+  return text;
 }
 
 /**
@@ -42,15 +48,22 @@ export function unfinishedSteps(turn: TurnTranscript | undefined): { label: stri
   const tools = turn.steps.filter(s => s.kind === 'tool');
   const target = (input: unknown) => {
     const i = (input ?? {}) as Record<string, unknown>;
-    return String(i.name ?? i.request_id ?? i.shot ?? '');
+    return String(i.name ?? i.request_id ?? i.shot ?? i.title ?? '').toLowerCase();
   };
+  // A draft written on a later try (same title, or a try whose title could not be read) made the failure good.
+  const madeGood = (s: (typeof tools)[number], t: (typeof tools)[number]) =>
+    t.name === s.name &&
+    t.state === 'succeeded' &&
+    (target(t.input) === target(s.input) ||
+      s.name === 'update_brief' ||
+      (s.name === 'create_request' && !target(s.input)) ||
+      s.name === 'choose_kind');
   const out: { label: string; reason: string }[] = [];
   tools.forEach((s, i) => {
     if (s.state !== 'failed') return;
-    const later = tools.slice(i + 1).some(t => t.name === s.name && t.state === 'succeeded' && (target(t.input) === target(s.input) || s.name === 'update_brief'));
-    if (later) return;
+    if (tools.slice(i + 1).some(t => madeGood(s, t))) return;
     const label = toolLabels[s.name ?? ''] ?? 'A step';
-    const who = target(s.input);
+    const who = String(((s.input ?? {}) as Record<string, unknown>).name ?? '');
     const reason = errorText(s.result).replace(/\s+/g, ' ').slice(0, 220);
     const step = { label: who && s.name === 'approve_reference' ? `${label} for ${who}` : label, reason };
     if (out.some(o => o.label === step.label && o.reason === step.reason)) return;

@@ -154,7 +154,10 @@ export function Message({
       {/* A reply that says the brief was saved, when this turn did not save it, is corrected right here. */}
       {!running &&
         turn &&
-        /\b(updated|saved|recorded|added|wrote|captured|organi[sz]ed|stored)\b[^.]{0,60}\bbrief\b/i.test(text) &&
+        // Only Seed's own claim ("I have updated the brief"), not a mention of "the updated brief" in a check.
+        /\b(?:I(?:'ve| have)?|I’ve)\s+(?:also\s+)?(?:updated|saved|recorded|added|written|wrote|captured|organi[sz]ed|stored)\b[^.]{0,60}\bbrief\b/i.test(
+          text,
+        ) &&
         !turn.steps.some(s => s.kind === 'tool' && s.name === 'update_brief' && s.state === 'succeeded') && (
           <p className="faint" role="note" style={{ margin: '0 0 4px', fontSize: '0.875rem' }}>
             The brief was not changed in this reply. Ask Seed to save it, or open Brief to write it.

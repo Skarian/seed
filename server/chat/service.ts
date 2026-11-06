@@ -1293,6 +1293,13 @@ export class Chats {
           duration_seconds: Number(a.metadata?.duration) || undefined,
         }))
         .filter(a => a.kind);
+      // A reply names pictures, never Seed's handles: [[input21]] reads as the picture's own name.
+      const named = (text: string) =>
+        text.replace(/\[\[\s*(input\d+)\s*\]\]/gi, (_whole, handle: string) => {
+          const a = toolAssets.find(x => x.handle === handle.toLowerCase());
+          const name = a && manifest.find(m => m.id === a.asset_id)?.name;
+          return name ? '“' + name + '”' : 'the picture';
+        });
       const defaultLabels = toolInputLabels(
         toolAssets.map(a => ({ id: a.handle, asset_id: a.asset_id, kind: a.kind, role: 'reference' as const })),
       );
@@ -1621,7 +1628,7 @@ export class Chats {
         const message = c.messages.find(m => m.id === runId);
         if (!message?.transcript) return;
         recordTurnEvent(message.transcript, event, messageIndex);
-        message.text = replyText(message.transcript.steps);
+        message.text = named(replyText(message.transcript.steps));
         this.save(c);
         lastUpdate = Date.now();
       });
@@ -1655,7 +1662,7 @@ export class Chats {
         const message = current.messages.find(m => m.id === runId)!;
         if (message.transcript) {
           finishTurn(message.transcript, toolResults.at(-1)?.isError ? 'failed' : 'completed');
-          message.text = replyText(message.transcript.steps);
+          message.text = named(replyText(message.transcript.steps));
           message.reasoning_text = message.transcript.steps
             .filter(s => s.kind === 'reasoning')
             .map(s => s.text ?? '')

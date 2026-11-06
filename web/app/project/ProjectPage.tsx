@@ -134,7 +134,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   // Composer state survives navigation per project.
   const [text, setText] = useStoredState('seed.draft.' + id, '');
   const [reading, setReading] = useState(false),
-    lastScroll = useRef(0);
+    lastScroll = useRef(0),
+    userScroll = useRef(0);
   // Phones, reading down the conversation: the header's second row (views and status) tucks away with the brief bar.
   useEffect(() => {
     document.body.classList.toggle('reading', reading);
@@ -911,14 +912,19 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
               <div
                 className="scroll"
                 ref={scroller}
+                // Only the person's own scrolling counts: following new replies, or the bars tucking away (which
+                // resizes this area), must never toggle reading mode, or the bars would flicker in a loop.
+                onTouchMove={() => (userScroll.current = Date.now())}
+                onWheel={() => (userScroll.current = Date.now())}
+                onKeyDown={() => (userScroll.current = Date.now())}
                 onScroll={e => {
                   const el = e.currentTarget;
                   follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
                   // Phones: reading down tucks the brief bar away; any scroll up (or reaching the top) shows it again.
-                  if (app.narrow) {
+                  if (app.narrow && Date.now() - userScroll.current < 600) {
                     const delta = el.scrollTop - lastScroll.current;
                     if (Math.abs(delta) > 12) setReading(delta > 0 && el.scrollTop > 120);
-                  }
+                  } else if (el.scrollTop <= 120) setReading(false);
                   lastScroll.current = el.scrollTop;
                 }}
               >
