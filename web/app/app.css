@@ -4132,8 +4132,10 @@ textarea::placeholder {
   font-size: 0.875rem;
   pointer-events: none;
 }
-.viewer .stage > *,
-.compare-grid .frame > * {
+.viewer .stage > img,
+.viewer .stage > video,
+.compare-grid .frame > img,
+.compare-grid .frame > video {
   position: relative;
   z-index: 1;
 }
