@@ -787,8 +787,9 @@ export function Viewer({
   const i = siblings.findIndex(s => s.asset === item.asset);
   const { job, detail, refresh } = useDetail(item);
   const fav = Boolean(detail?.favorite);
+  // Before/After compares an edit with the picture it changed; a new frame drawn from references has no "before".
   const source =
-    job?.request.workflow === 'image-to-image'
+    job?.request.workflow === 'image-to-image' && (job.request.output.aspect === 'source' || !job.request.engine)
       ? job.request.references?.find(r => r.role === 'source')?.asset_id
       : undefined;
   const [before, setBefore] = useState(false),
