@@ -104,7 +104,8 @@ export function Message({
     /\b(please (attach|send|share|tell)|could you|which (one|of)|do you want|would you like)\b/i.test(text);
   const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan && !asking;
   const unfinished = unfinishedSteps(turn);
-  const receipt = running ? [] : turnReceipt(turn);
+  // Filled in as Seed works, so a long turn shows what has landed so far.
+  const receipt = turnReceipt(turn);
   const leaked = /<\|?tool_call|call:[a-z_.]+\{/i.test(message.text);
   const askedToMake = !madePlan && !asking && (leaked || toolFailed || (!text && turn?.state === 'completed'));
   const stage = running ? stageOf(turn!) : '';
@@ -167,8 +168,9 @@ export function Message({
       )}
       {/* What the tools actually did this turn, so the reply's wording can be checked at a glance. */}
       {receipt.length > 0 && (
-        <p className="receipt" aria-label="What Seed changed">
-          <span aria-hidden="true">✓</span> {receipt.join(' · ')}
+        <p className="receipt" aria-label={running ? 'Done so far' : 'What Seed changed'}>
+          <span aria-hidden="true">✓</span> {running ? 'So far: ' : ''}
+          {receipt.join(' · ')}
         </p>
       )}
       {!running && unfinished.length > 0 && (

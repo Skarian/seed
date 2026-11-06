@@ -83,7 +83,7 @@ function resultJson(result: unknown): Record<string, unknown> | undefined {
  * written or changed, the brief, approvals and choices. Shown under the reply so a claim can be checked at a glance.
  */
 export function turnReceipt(turn: TurnTranscript | undefined): string[] {
-  if (!turn || turn.state === 'running') return [];
+  if (!turn) return [];
   const out: string[] = [];
   const drafted: string[] = [],
     changed: string[] = [];
