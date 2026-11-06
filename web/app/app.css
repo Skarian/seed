@@ -3914,3 +3914,24 @@ textarea::placeholder {
     grid-auto-columns: 30%;
   }
 }
+/* Portrait takes get a taller row: four 4:5 takes fill the column instead of sitting small on the left. */
+@media (min-width: 700px) {
+  .stream .results .tile.portrait45,
+  .stream .results .tile.portrait,
+  .stream .results .tile.pending.portrait45,
+  .stream .results .tile.pending.portrait {
+    height: 240px;
+  }
+}
+/* A take's caption is one row: its name on the left, "Use for shot" on the right. */
+.lane-cell figcaption {
+  flex-direction: row;
+  align-items: center;
+  justify-content: space-between;
+}
+/* Touch screens: compare boxes appear only while choosing two to compare (Select two to compare), or once one is ticked. */
+@media (hover: none) {
+  .board:not(.selecting):not(:has(.check.big[aria-checked='true'])) .tile .check.big {
+    display: none;
+  }
+}

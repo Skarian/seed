@@ -347,7 +347,7 @@ export function App() {
 
 /** The status control: active work and the running rental rate, in every header. */
 export function StatusControl() {
-  const { tasks, pool, openStatus, projectList, route, narrow } = useApp();
+  const { tasks, pool, openStatus, projectList, route, narrow, wide } = useApp();
   const active = tasks.filter(jobActive),
     waiting = active.filter(
       j => j.state === 'queued' || (!j.progress && j.state !== 'running' && j.state !== 'copying'),
@@ -419,7 +419,7 @@ export function StatusControl() {
           ? `${hereWaiting} waiting`
           : '';
     const rest = elsewhere
-      ? own || narrow
+      ? own || !wide
         ? `+${elsewhere} elsewhere`
         : `${elsewhere} ${elsewhere === 1 ? 'project' : 'projects'} busy elsewhere`
       : '';
