@@ -86,6 +86,7 @@ export function Composer(p: Props) {
   const area = useRef<HTMLTextAreaElement>(null),
     file = useRef<HTMLInputElement>(null);
   const [settingsOpen, setSettingsOpen] = useState(false),
+    [expanded, setExpanded] = useState(false),
     [picker, setPicker] = useState(false),
     [roleFor, setRoleFor] = useState<string | null>(null);
   const touch = useMemo(() => matchMedia('(pointer: coarse)').matches, []);
@@ -208,7 +209,13 @@ export function Composer(p: Props) {
   };
   return (
     <div
-      className="composer"
+      className={'composer' + (expanded ? ' expanded' : '')}
+      onKeyDown={e => {
+        if (e.key === 'Escape' && expanded) {
+          e.stopPropagation();
+          setExpanded(false);
+        }
+      }}
       onDragOver={e => e.preventDefault()}
       onDrop={e => {
         e.preventDefault();
@@ -317,6 +324,19 @@ export function Composer(p: Props) {
         </p>
       )}
       <div className="tools">
+        {/* Long messages and prompts get a large writing area; it shows once the text is long. */}
+        {(expanded || p.text.length > 280 || p.text.split('\n').length > 4) && (
+          <button
+            className="btn small quiet expand-toggle"
+            aria-expanded={expanded}
+            onClick={() => {
+              setExpanded(v => !v);
+              requestAnimationFrame(() => area.current?.focus());
+            }}
+          >
+            {expanded ? 'Collapse' : 'Expand'}
+          </button>
+        )}
         {p.mode === 'ask' ? (
           p.planOpen || p.context.type !== 'talk' ? (
             <MenuButton
