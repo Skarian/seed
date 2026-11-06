@@ -3935,3 +3935,10 @@ textarea::placeholder {
     display: none;
   }
 }
+
+/* Phones, reading down the conversation: the brief bar tucks away; scrolling up brings it back. */
+@media (max-width: 699px) {
+  .convo.reading .brief {
+    display: none;
+  }
+}

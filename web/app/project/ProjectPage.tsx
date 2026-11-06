@@ -125,6 +125,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
 
   // Composer state survives navigation per project.
   const [text, setText] = useStoredState('seed.draft.' + id, '');
+  const [reading, setReading] = useState(false),
+    lastScroll = useRef(0);
   // The mode is kept with the text it was written for, so a reload never sends a direct-make prompt to the planner.
   const [mode, setMode] = useStoredState<'ask' | 'make'>('seed.mode.' + id, 'ask');
   const [settings, setSettings] = useStoredState<MakeSettings>('seed.make.' + id, defaultMake);
@@ -824,7 +826,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           />
         ) : (
           <div className={split ? 'split' : 'single'}>
-            <div className="convo">
+            <div className={'convo' + (reading ? ' reading' : '')}>
               {project && (project.messages.length > 0 || project.brief) && (
                 <BriefBar
                   project={project}
@@ -850,6 +852,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                 onScroll={e => {
                   const el = e.currentTarget;
                   follow.current = el.scrollHeight - el.scrollTop - el.clientHeight < 80;
+                  // Phones: reading down tucks the brief bar away; any scroll up (or reaching the top) shows it again.
+                  if (app.narrow) {
+                    const delta = el.scrollTop - lastScroll.current;
+                    if (Math.abs(delta) > 12) setReading(delta > 0 && el.scrollTop > 120);
+                  }
+                  lastScroll.current = el.scrollTop;
                 }}
               >
                 <div className="col">

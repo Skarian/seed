@@ -134,6 +134,14 @@ export function GpusPage() {
 
 /** Seed PC, rented cloud GPUs, starting one, and what it all cost. Used on the GPUs page and in the status panel. */
 export function GpuOverview({ compact = false }: { compact?: boolean }) {
+  // Which project a GPU worked for, from the newest job that ran on it: tells similar GPUs apart.
+  const { tasks: allJobs, projectList } = useApp();
+  const usedFor = (worker: string) => {
+    const job = allJobs
+      .filter(j => j.worker?.id === worker)
+      .sort((a, b) => Date.parse(b.created_at) - Date.parse(a.created_at))[0];
+    return job ? projectList.find(p => p.id === job.source?.chat_id)?.title : undefined;
+  };
   const { pool, refreshPool } = useApp();
   const [start, setStart] = useState<WorkerClass | null>(null);
   const [release, setRelease] = useState<PoolWorker | null>(null),
@@ -180,7 +188,11 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
         </div>
       </div>
       {active.map(w => (
-        <div className="box" key={w.id}>
+        <div
+          className="box"
+          key={w.id}
+          aria-label={`${w.worker_class === 'video' ? 'Video' : 'Image'} GPU${usedFor(w.id) ? ' for ' + usedFor(w.id) : ''}`}
+        >
           <div className="row">
             <span
               className={
@@ -193,7 +205,8 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
               }
             />
             <span className="grow">
-              <b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU</b> · {rate(w.hourly)}
+              <b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU</b>
+              {usedFor(w.id) ? <> for {usedFor(w.id)}</> : null} · {rate(w.hourly)}
               <br />
               <span className="muted" style={{ fontSize: '0.875rem' }}>
                 Up {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} so far · {w.gpu} on{' '}
@@ -262,7 +275,8 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
             <div className="box" key={w.id}>
               <div className="row">
                 <span className="grow">
-                  {w.worker_class === 'video' ? 'Video' : 'Image'} GPU · {w.gpu}
+                  {w.worker_class === 'video' ? 'Video' : 'Image'} GPU{usedFor(w.id) ? ' for ' + usedFor(w.id) : ''} ·{' '}
+                  {w.gpu}
                   <br />
                   <span className="muted" style={{ fontSize: '0.875rem' }}>
                     {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} estimated
