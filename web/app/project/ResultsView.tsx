@@ -92,6 +92,15 @@ export function ResultsView({
   const planned = project.groups
     .filter(g => ['reviewing', 'revising', 'assembling'].includes(g.state) && !g.direct)
     .flatMap(g => g.cards.map(c => boardTitle(latest(c).request)));
+  // Drafts left out of a make stay saved in the conversation (Bring back): they are not missing.
+  const saved = project.groups
+    .filter(g => !['reviewing', 'revising', 'assembling'].includes(g.state) && !g.direct)
+    .flatMap(g => g.cards.filter(c => latest(c).decision !== 'approved').map(c => boardTitle(latest(c).request)));
+  // A film goes on to clips; a set of stills is finished when every shot has its chosen picture.
+  const film =
+    /\b(film|films|clip|clips|video|videos|animat\w*|motion|trailer|short)\b/i.test(project.brief ?? '') ||
+    project.jobs.some(j => isVideoKind(kindOf[j.request.workflow])) ||
+    project.groups.some(g => g.cards.some(c => isVideoKind(kindOf[latest(c).request.workflow])));
   const toggle = (id: string) => setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s.slice(-1), id]));
   const min = { s: embedded ? 110 : 120, m: 170, l: 260 }[size];
   const grid = { gridTemplateColumns: `repeat(auto-fill, minmax(${min}px, 1fr))` };
@@ -162,6 +171,8 @@ export function ResultsView({
     clips: ViewerItem[];
     making: typeof running;
     planned: string[];
+    /** Drafts saved in the conversation but left out of their make. */
+    saved: string[];
     /** What happens in the shot, from the brief's shot list. */
     action: string;
   };
@@ -178,6 +189,7 @@ export function ResultsView({
         clips: [],
         making: [],
         planned: [],
+        saved: [],
         action: '',
       });
     const s = shots.get(key)!;
@@ -211,6 +223,11 @@ export function ResultsView({
   }
   for (const j of running) shotFor(boardTitle(j.request)).making.push(j);
   for (const t of planned) shotFor(t).planned.push(t);
+  // Only shots already on the board (or in the shot list) show a saved draft; a saved draft alone adds no shot.
+  for (const t of saved) {
+    const { n } = placeShot(t, briefShots);
+    if (n !== null && shots.has('n' + n)) shots.get('n' + n)!.saved.push(t);
+  }
   const shotList = [...shots.values()].sort((a, b) => (a.n ?? 1e6) - (b.n ?? 1e6));
   // Previous and next in the viewer follow the board as it is shown: shot by shot, keyframes then clips.
   const inOrder = shotList.flatMap(s => [...s.images, ...s.clips]);
@@ -343,7 +360,9 @@ export function ResultsView({
             ? 'Made · nothing chosen'
             : s.planned.length
               ? 'Planned'
-              : 'Not drafted yet';
+              : s.saved.length
+                ? 'Draft saved · not made'
+                : 'Not drafted yet';
     return (
       <li key={s.n}>
         <button
@@ -377,7 +396,10 @@ export function ResultsView({
   const noRef = cast.filter(e => !picks[referenceKey(e.name)]);
   const hasKey = (s: Shot) => Boolean(chosen(s, 'image') || chosen(s, 'clip'));
   const toDraft = numbered.filter(
-    s => !hasKey(s) && !takesOf(s.images).length && !s.planned.length && !s.making.length,
+    s => !hasKey(s) && !takesOf(s.images).length && !s.planned.length && !s.making.length && !s.saved.length,
+  );
+  const toBringBack = numbered.filter(
+    s => !hasKey(s) && !takesOf(s.images).length && !s.planned.length && !s.making.length && s.saved.length > 0,
   );
   const toChoose = numbered.filter(s => !hasKey(s) && takesOf(s.images).length > 0);
   const toAnimate = numbered.filter(
@@ -414,6 +436,11 @@ export function ResultsView({
       left: [
         toDraft.length ? shotWord(toDraft) + (toDraft.length === 1 ? ' has' : ' have') + ' no keyframe yet.' : '',
         toChoose.length ? 'Pick a keyframe for ' + shotWord(toChoose).toLowerCase() + '.' : '',
+        toBringBack.length
+          ? shotWord(toBringBack) +
+            (toBringBack.length === 1 ? ' has a saved draft' : ' have saved drafts') +
+            ': Bring back in the conversation to make.'
+          : '',
       ]
         .filter(Boolean)
         .join(' '),
@@ -429,7 +456,7 @@ export function ResultsView({
     },
     {
       key: 'clips',
-      label: 'Clips',
+      label: film ? 'Clips' : '',
       done: numbered.filter(s => chosen(s, 'clip')).length,
       total: numbered.length,
       left: [
@@ -533,7 +560,20 @@ export function ResultsView({
           style={embedded ? undefined : { maxWidth: 1400, paddingBottom: 24 }}
         >
           {filter === 'all' && view === 'shots' && numbered.length > 0 && (
-            <Stages stages={stages} onAsk={onAsk} onPlay={cut.length ? () => app.view(cut[0]!, cut) : undefined} />
+            <Stages
+              stages={stages.filter(s => s.label)}
+              onAsk={onAsk}
+              onPlay={cut.length ? () => app.view(cut[0]!, cut) : undefined}
+              finished={
+                film
+                  ? undefined
+                  : {
+                      text: `Your ${numbered.length}-image sequence is ready.`,
+                      label: 'Open it in the Library',
+                      onClick: () => app.go({ name: 'library', project: project.id }),
+                    }
+              }
+            />
           )}
           {filter === 'all' && (
             <CastStrip
@@ -555,9 +595,9 @@ export function ResultsView({
             (items.length > 0 || running.length > 0 || planned.length > 0 || briefShots.length > 0) && (
               <div className="shots">
                 {numbered.length > 1 && filter === 'all' && (
-                  <section className="film-board" aria-label="The film, shot by shot">
+                  <section className="film-board" aria-label={(film ? 'The film' : 'The sequence') + ', shot by shot'}>
                     <div className="film-board-head">
-                      <b>The film</b>
+                      <b>{film ? 'The film' : 'The sequence'}</b>
                       <span className="faint">
                         {numbered.length} shots · {chosenCount} chosen
                         {chosenClips.length ? ` · ${chosenSeconds} s of clips` : ''}

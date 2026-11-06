@@ -141,6 +141,10 @@ export function requestToolSchemas(workflow: ChatWorkflow, mode: ChatMode, hasLo
           ),
         }
       : {}),
+    runs_on: enumOf(
+      ['auto', 'seed_pc', 'cloud'],
+      'Where it is made: seed_pc is the owner’s own PC (no rental), cloud is a rented cloud GPU, auto picks whichever is ready. Set it only when the user says where to run.',
+    ),
     title: Type.String({
       minLength: 1,
       maxLength: 80,
@@ -333,6 +337,7 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     'aspect_ratio',
     'note',
     'shot',
+    'runs_on',
     ...(context.workflow === 'image-to-image' ? ['engine'] : []),
     ...(video ? ['duration_seconds', 'audio_output', 'steps', 'detail'] : []),
     ...(usesInputs(context.workflow) ? ['inputs'] : []),
@@ -373,6 +378,15 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
         : 'klein';
     if (engine === 'klein') request.engine = 'klein';
     else delete request.engine;
+  }
+  if (Object.hasOwn(value, 'runs_on')) {
+    const target = { auto: 'auto', seed_pc: 'local', cloud: 'cloud' }[String(value.runs_on)] as
+      'auto' | 'local' | 'cloud' | undefined;
+    if (!target) add('runs_on', 'Choose auto, seed_pc or cloud.', 'Use one of the listed values.');
+    else if (target === 'cloud' && request.engine === 'klein')
+      add('runs_on', 'Cloud GPUs cannot run FLUX 3 Image Klein yet.', 'Use seed_pc or auto for this edit, and say so.');
+    else if (target === 'auto') delete request.target;
+    else request.target = target;
   }
   if (Object.hasOwn(value, 'steps')) request.steps = value.steps;
   if (Object.hasOwn(value, 'detail')) request.detail = value.detail;

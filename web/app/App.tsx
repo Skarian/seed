@@ -52,7 +52,8 @@ export function App() {
     setToasts(t => [...t.slice(-2), { id, text, action }]);
     setTimeout(() => setToasts(t => t.filter(x => x.id !== id)), action ? 6000 : 3200);
   }, []);
-  // Completion notices for work in other projects; never steals navigation.
+  // Completion notices for work in other projects; never steals navigation. Inside a project they stay quiet (the
+  // status pill counts work elsewhere), so a toast never covers the composer or the plan you are deciding on.
   const finished = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (!tasks.loaded) return;
@@ -60,7 +61,7 @@ export function App() {
     if (finished.current) {
       const fresh = tasks.jobs.filter(j => done.has(j.id) && !finished.current!.has(j.id));
       const elsewhere = fresh.filter(j => !(route.name === 'project' && j.source?.chat_id === route.id));
-      if (elsewhere.length) {
+      if (elsewhere.length && route.name !== 'project') {
         const chat = elsewhere[0]!.source?.chat_id,
           title = list.items.find(p => p.id === chat)?.title;
         toast(
@@ -70,7 +71,7 @@ export function App() {
       }
     }
     finished.current = done;
-  }, [tasks.jobs]);
+  }, [tasks.jobs, route, list.items]);
   useEffect(() => {
     if (route.name === 'project') setLastProject(route.id);
   }, [route]);

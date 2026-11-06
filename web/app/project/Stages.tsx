@@ -24,14 +24,17 @@ export function Stages({
   stages,
   onAsk,
   onPlay,
+  finished,
 }: {
   stages: Stage[];
   onAsk?: (text: string) => void;
   /** Plays the chosen clips in story order. */
   onPlay?: () => void;
+  /** What a finished set of stills says and offers (a film offers Play the cut instead). */
+  finished?: { text: string; label: string; onClick: () => void };
 }) {
   const shown = stages.filter(s => s.total > 0);
-  if (shown.length < 2) return null;
+  if (shown.length < (finished ? 1 : 2)) return null;
   const next = shown.find(s => s.done < s.total);
   return (
     <section className="stages" aria-label="Steps to the finished film">
@@ -65,7 +68,17 @@ export function Stages({
           )}
         </div>
       )}
-      {!next && onPlay && (
+      {!next && finished && (
+        <div className="stage-next">
+          <span>
+            <b>{finished.text}</b> You can keep refining any shot.
+          </span>
+          <button className="btn primary small" onClick={finished.onClick}>
+            {finished.label}
+          </button>
+        </div>
+      )}
+      {!next && !finished && onPlay && (
         <div className="stage-next">
           <span>
             <b>Every shot has a chosen clip.</b> Play them in story order, or keep refining any shot.

@@ -1027,10 +1027,11 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
       className={app.narrow && side !== letter ? 'hidden-phone' : ''}
       aria-label={letter + ': ' + x.title}
     >
+      {/* The label sits above the picture, never over a face. */}
+      <span className="pill letter">
+        {letter} · {x.title}
+      </span>
       <div className="frame" onClick={() => setZoom(z => (z === 1 ? 2 : 1))}>
-        <span className="pill letter">
-          {letter} · {x.title}
-        </span>
         {x.kind === 'video' ? (
           <video src={media.content(x.asset)} controls playsInline muted loop />
         ) : (

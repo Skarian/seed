@@ -309,3 +309,16 @@ describe('shot details',()=>{
     expect(requestToolSchemas('text-to-image','sfw').create.properties.shot).toBeDefined();
   });
 });
+describe('runs_on',()=>{
+  const edit:RequestToolContext={workflow:'image-to-image',mode:'sfw',assets:[{handle:'image1',asset_id:'image-a',kind:'image'}]};
+  const draft={prompt:'The girl from [[image1]] at the door',inputs:[{asset:'image1',role:'source'}],aspect_ratio:'16:9'};
+  it('sets where a draft is made when the owner says so, and keeps it on later edits',()=>{
+    const pc=prepareToolRequest(edit,{...draft,runs_on:'seed_pc'});expect(pc.target).toBe('local');
+    expect(prepareToolRequest({...edit,previous:pc},{request_id:'card',note:'x'}).target).toBe('local');
+    expect(prepareToolRequest({...edit,previous:pc},{request_id:'card',runs_on:'auto'}).target).toBeUndefined();
+  });
+  it('refuses a cloud GPU for FLUX 3 Image Klein',()=>{
+    expect(()=>prepareToolRequest(edit,{...draft,runs_on:'cloud'})).toThrow(ToolRequestError);
+    expect(prepareToolRequest(edit,{...draft,engine:'qwen',aspect_ratio:'source',runs_on:'cloud'}).target).toBe('cloud');
+  });
+});
