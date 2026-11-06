@@ -676,6 +676,7 @@ export function ResultsView({
             {grouped ? 'Grouped by request' : 'All together'}
           </button>
         )}
+        {view === 'grid' && (
         <div className="seg no-phone" role="group" aria-label="Tile size">
           {(['s', 'm', 'l'] as const).map(k => (
             <button
@@ -688,6 +689,7 @@ export function ResultsView({
             </button>
           ))}
         </div>
+        )}
         <button
           className={selected.length || comparing ? 'btn primary small' : 'btn small'}
           aria-pressed={selected.length < 2 ? comparing : undefined}

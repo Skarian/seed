@@ -87,7 +87,8 @@ export function settingChips(r: ImageRequest, styleName: (id: string) => string)
   const kind = kindOfRequest(r),
     video = isVideoKind(kind);
   const chips: Array<[string, string]> = [
-    ['kind', kindLabels[kind]],
+    // A new frame drawn from references (FLUX 3 Image Klein at its own shape) is not an edit of one picture.
+    ['kind', kind === 'edit' && r.engine === 'klein' && r.output.aspect !== 'source' ? 'From references' : kindLabels[kind]],
     [
       'engine',
       kind === 'edit' && r.engine !== 'klein'

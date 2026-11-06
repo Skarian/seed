@@ -83,6 +83,8 @@ export function withCastLooks(request: ImageRequest, cast: CastEntry[], picks: R
   const add: string[] = [];
   for (const e of cast) {
     if (e.kind === 'place' || !inputs.has(picks[referenceKey(e.name)] ?? '')) continue;
+    // A prompt that already carries this person's look line (from an earlier save) never gets a second one.
+    if (low.includes(e.name.toLowerCase() + '’s look:') || low.includes(e.name.toLowerCase() + "'s look:")) continue;
     const missing = e.look
       .split(/[,;]|\.\s/)
       .map(p => p.trim().replace(/\.$/, ''))

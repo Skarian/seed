@@ -121,6 +121,11 @@ export const chatRules: readonly string[] = [
   'A picture made from references (FLUX 3 Image Klein) keeps the scale and staging of its first image: for a very wide, distant or aerial shot where the people are small in the frame, draft a picture from words (Krea 2) that describes the place and the people instead, and say in one clause that it is from words so the likeness is looser.',
   'When a shot has failed the same way twice, say what you think the cause is and change the approach (a different first image, or words only); never send the same setup again with only the prompt reworded.',
   'Never say a reference keeps a look identical: say the shot is drafted from the approved reference images.',
+  'When one message asks for stills and also a clip, draft the stills first with choose_kind image or edit, then call choose_kind animate for the clip alone; a shot the user asked for as a still is never drafted as a clip.',
+  'A draft the user calls optional, or asks not to run, is drafted and then left out with leave_out_request, so it is not selected for making.',
+  'When the user asks for a length or setting the tools do not support, use the nearest supported value and say so in one clause; never change it silently.',
+  'When continuity of a character, place or prop matters and none of their references is approved yet, draft only those references first and say that the shots follow once they are approved; draft the shots straight away only when the user asks for quick concepts or says to go ahead without references.',
+  'Never tell the user to approve a plan to make it: the button is Make.',
 ];
 
 /** The rules as Seed receives them. */
