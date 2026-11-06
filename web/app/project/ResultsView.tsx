@@ -9,7 +9,7 @@ import { titleOf, latest, tileState, shapeClass } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
 import { CastStrip, referenceAsk } from './Cast.js';
 import { Stages, listOf, type Stage } from './Stages.js';
-import { castFromBrief, referenceKey, addToBrief } from '../../../shared/cast.js';
+import { castFromBrief, referenceKey, addToBrief, sameCast } from '../../../shared/cast.js';
 import { shotsFromBrief, placeShot, shotPickKey, chosenTake } from '../../../shared/shots.js';
 import type { ImageRequest } from '../../../shared/generation.js';
 
@@ -336,7 +336,7 @@ export function ResultsView({
               <button
                 className={'use-shot' + (isChosen ? ' on' : '')}
                 aria-pressed={isChosen}
-                disabled={picking === key}
+                aria-busy={picking === key}
                 aria-label={
                   isChosen ? `${label} is chosen for Shot ${s.n}. Clear the choice` : `Use ${label} for Shot ${s.n}`
                 }
@@ -514,7 +514,7 @@ export function ResultsView({
             ask:
               'Draft one plan with a clip for ' +
               shotWord(toAnimate).toLowerCase() +
-              ', each animating that shot’s chosen keyframe, with the action and sound from the brief’s shot list, titled "Shot N: Name". Leave the other drafts as they are. Do not run anything.',
+              ', each animating that shot’s chosen keyframe with the action from the brief’s shot list, titled "Shot N: Name". Leave the other drafts as they are. Do not run anything.',
           }
         : undefined,
     },
@@ -624,15 +624,19 @@ export function ResultsView({
               onAsk={onAsk}
               projectId={project.id}
               onImport={async picked => {
-                // The brief gets each entry's look, then its approved picture is approved here too.
+                // A name this project already has ("Tomo", or "Ines" for "Ines Varga") gets the picture under its own
+                // name; new names join the brief with their look. Then each picture is approved here.
+                const here = castFromBrief(project.brief);
+                const target = (name: string) => here.find(e => sameCast(e.name, name))?.name;
                 let p = await projectsApi.setBrief(
                   project,
                   addToBrief(
                     project.brief,
-                    picked.map(x => x.entry),
+                    picked.filter(x => !target(x.entry.name)).map(x => x.entry),
                   ),
                 );
-                for (const x of picked) p = await projectsApi.pick(project.id, referenceKey(x.entry.name), x.asset);
+                for (const x of picked)
+                  p = await projectsApi.pick(project.id, referenceKey(target(x.entry.name) ?? x.entry.name), x.asset);
                 onChanged?.(p);
                 app.toast(`Brought in ${picked.map(x => x.entry.name).join(', ')}`);
               }}

@@ -63,3 +63,12 @@ export function addToBrief(brief: string | null | undefined, entries: CastEntry[
   }
   return out;
 }
+
+/** The same person, place or prop under a shorter or longer name: "Ines" ≈ "Ines Varga", "Foredeck" ≈ "The Foredeck". */
+export function sameCast(a: string, b: string): boolean {
+  const norm = (x: string) => x.toLowerCase().replace(/^the\s+/, '').replace(/[^\p{L}\p{N} ]/gu, '').trim();
+  const x = norm(a),
+    y = norm(b);
+  if (!x || !y) return false;
+  return x === y || x.split(' ')[0] === y.split(' ')[0];
+}

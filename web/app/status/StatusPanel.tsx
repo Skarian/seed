@@ -117,7 +117,7 @@ export function StatusPanel({
               e.stopPropagation();
               void Promise.all(live.map(x => jobsApi.cancel(x.id))).then(app.refreshTasks);
               app.toast(
-                `Cancelled ${live.length} · finished results are kept; a rented GPU keeps running until you release it`,
+                `Cancelled ${live.length} · finished results are kept${live.some(j => j.worker?.executor === 'cloud') ? '; the rented GPU keeps running until you release it' : ''}`,
               );
             }}
           >

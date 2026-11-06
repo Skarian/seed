@@ -35,3 +35,18 @@ describe('who is who in reference drafts', () => {
     ).not.toThrow();
   });
 });
+
+describe('looks ride along with references', () => {
+  it('adds the parts of a referenced character’s look the prompt does not carry', async () => {
+    const { withCastLooks } = await import('../server/chat/references.js');
+    const c = castFromBrief('## Characters\n- Ines Varga: 40, apprentice, shaved head, oil-stained blue overalls, brass goggles\n## Props\n- The Bell: tarnished brass ship’s bell');
+    const p = { 'ref:Ines Varga': 'ines', 'ref:The Bell': 'bell' };
+    const r = (prompt: string, refs = ['ines']) => ({ workflow: 'image-to-image', prompt, references: refs.map((a, i) => ({ id: 'r' + i, asset_id: a, kind: 'image', role: i ? 'reference' : 'source' })) }) as any;
+    expect(withCastLooks(r('Ines Varga, the mechanic from <image1>, in blue overalls that are oil-stained.'), c, p)).toBe(
+      'Ines Varga, the mechanic from <image1>, in blue overalls that are oil-stained. Ines Varga’s look: shaved head, brass goggles.',
+    );
+    expect(withCastLooks(r('Ines with her shaved head, oil-stained blue overalls and brass goggles.'), c, p)).toBe('Ines with her shaved head, oil-stained blue overalls and brass goggles.');
+    expect(withCastLooks(r('A bell from <image1>.', ['bell']), c, p)).toBe('A bell from <image1>. The Bell’s look: tarnished brass ship’s bell.');
+    expect(withCastLooks({ ...r('x'), workflow: 'text-to-image' }, c, p)).toBe('x');
+  });
+});

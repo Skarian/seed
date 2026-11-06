@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { castFromBrief, referenceKey, type CastEntry } from '../../../shared/cast.js';
+import { castFromBrief, referenceKey, sameCast, type CastEntry } from '../../../shared/cast.js';
 import { useApp, type ViewerItem } from '../data.js';
 import { projects as projectsApi } from '../api.js';
 import { Media, Dialog } from '../ui.js';
@@ -183,7 +183,7 @@ export function CastStrip({
       {importing && onImport && (
         <ImportCast
           projectId={projectId}
-          have={cast.map(e => e.name.toLowerCase())}
+          have={cast.filter(e => picks[referenceKey(e.name)]).map(e => e.name)}
           onClose={() => setImporting(false)}
           onImport={async items => {
             await onImport(items);
@@ -229,7 +229,7 @@ function ImportCast({
           .map(p => ({
             project: p.title,
             items: castFromBrief(p.brief)
-              .filter(e => p.picks?.[referenceKey(e.name)] && !have.includes(e.name.toLowerCase()))
+              .filter(e => p.picks?.[referenceKey(e.name)] && !have.some(h => sameCast(h, e.name)))
               .map(e => ({ entry: e, asset: p.picks![referenceKey(e.name)]! })),
           }))
           .filter(g => g.items.length),

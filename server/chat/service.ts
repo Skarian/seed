@@ -32,6 +32,7 @@ import {
   preserveChatLabels,
   validateChatReferences,
   validateCastReferences,
+  withCastLooks,
 } from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
 import { castFromBrief, referenceKey } from '../../shared/cast.js';
@@ -781,6 +782,8 @@ export class Chats {
             this.assertAssets(current, [...new Set((request.references ?? []).map(r => r.asset_id))]);
             validateChatReferences(request);
             validateCastReferences(request, castFromBrief(current.brief), current.picks ?? {});
+            // Each referenced character's look from the brief rides along in words, so a new frame keeps it.
+            request.prompt = withCastLooks(request, castFromBrief(current.brief), current.picks ?? {});
             // Sound nobody asked for is a creative change: a new clip stays silent unless the user's recent messages
             // ask for sound (an existing draft keeps the sound it already had).
             const askedText = current.messages

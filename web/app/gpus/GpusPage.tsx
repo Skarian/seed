@@ -191,7 +191,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
         <div
           className="box"
           key={w.id}
-          aria-label={`${w.worker_class === 'video' ? 'Video' : 'Image'} GPU${usedFor(w.id) ? ' for ' + usedFor(w.id) : ''}`}
+          aria-label={`${w.worker_class === 'video' ? 'Video' : 'Image'} GPU${usedFor(w.id) ? ', last used by ' + usedFor(w.id) : ''}`}
         >
           <div className="row">
             <span
@@ -206,7 +206,7 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
             />
             <span className="grow">
               <b>{w.worker_class === 'video' ? 'Video' : 'Image'} GPU</b>
-              {usedFor(w.id) ? <> for {usedFor(w.id)}</> : null} · {rate(w.hourly)}
+              {usedFor(w.id) ? <> · last used by {usedFor(w.id)}</> : null} · {rate(w.hourly)}
               <br />
               <span className="muted" style={{ fontSize: '0.875rem' }}>
                 Up {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} so far · {w.gpu} on{' '}
@@ -275,8 +275,8 @@ export function GpuOverview({ compact = false }: { compact?: boolean }) {
             <div className="box" key={w.id}>
               <div className="row">
                 <span className="grow">
-                  {w.worker_class === 'video' ? 'Video' : 'Image'} GPU{usedFor(w.id) ? ' for ' + usedFor(w.id) : ''} ·{' '}
-                  {w.gpu}
+                  {w.worker_class === 'video' ? 'Video' : 'Image'} GPU
+                  {usedFor(w.id) ? ' · last used by ' + usedFor(w.id) : ''} · {w.gpu}
                   <br />
                   <span className="muted" style={{ fontSize: '0.875rem' }}>
                     {duration(w.elapsed_seconds)} · {money(w.estimated_spend)} estimated

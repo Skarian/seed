@@ -1563,14 +1563,6 @@ function Message({
         </p>
       )}
 
-      {/* Seed can describe what a draft asks for, never vouch for a picture it has not seen. */}
-      {!running &&
-        turn?.state === 'completed' &&
-        /\b(ensured?|guarantee[sd]?|identical|perfectly|exactly match(es)?)\b/i.test(text) && (
-          <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.875rem' }}>
-            Drafts say what to make; they don't guarantee it. Check each take when it is made.
-          </p>
-        )}
       {!running && toolFailed && text && (
         <p className="faint" style={{ margin: '0 0 4px', fontSize: '0.875rem' }}>
           Seed's reply below wasn't carried out: no drafts were saved.

@@ -313,3 +313,8 @@ it('names the people behind subject tags and reads template headings as plain wo
   const text = readablePrompt({ workflow: 'reference-to-video', prompt: 'subject_definitions: <Subject 1>: Ada, a courier in a green coat.\nintegrated_multimodal_description: A static medium shot of <Subject 1> standing beside the green column.\nretention_analysis: Keep the colours.\noverall_soundscape: Silence.\nnon_diegetic_music: N/A' } as any, project([]));
   expect(text).toBe('Subjects: Ada, a courier in a green coat.\nScene: A static medium shot of Ada standing beside the green column.\nKeep: the colours.\nAudio: none');
 });
+
+it('treats a shorter or longer name as the same cast member', async () => {
+  const { sameCast } = await import('../shared/cast.js');
+  expect([sameCast('Ines', 'Ines Varga'), sameCast('Foredeck', 'The Foredeck'), sameCast('Tomo', 'tomo'), sameCast('Tomo', 'Ines')]).toEqual([true, true, true, false]);
+});

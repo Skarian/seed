@@ -51,3 +51,33 @@ export function validateCastReferences(request: ImageRequest, cast: CastEntry[],
     }
   }
 }
+
+/**
+ * A character's or prop's approved picture guides the look, but a new frame still drifts (a shaved head becomes a bun)
+ * unless the words say it too. Adds any part of each referenced name's brief look the prompt does not already carry,
+ * as one sentence at the end ("Ines Varga's look: shaved head, oil-stained overalls.").
+ */
+export function withCastLooks(request: ImageRequest, cast: CastEntry[], picks: Record<string, string>): string {
+  if (request.workflow !== 'image-to-image') return request.prompt;
+  const inputs = new Set((request.references ?? []).map(r => r.asset_id));
+  const low = request.prompt.toLowerCase();
+  const visible = (part: string) =>
+    !/^\d+(\s*years?\s*old)?$/i.test(part) &&
+    !/\b(grand)?(son|daughter|mother|father|brother|sister|aunt|uncle|wife|husband|friend|apprentice|calm|kind|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|proud|lonely|playful|loves|likes|hates|fears)\b/i.test(
+      part,
+    );
+  const carried = (part: string) => {
+    const words = part.toLowerCase().match(/[\p{L}\p{N}][\p{L}\p{N}'’-]{3,}/gu) ?? [];
+    return words.length > 0 && words.filter(w => low.includes(w)).length >= Math.ceil(words.length * 0.6);
+  };
+  const add: string[] = [];
+  for (const e of cast) {
+    if (e.kind === 'place' || !inputs.has(picks[referenceKey(e.name)] ?? '')) continue;
+    const missing = e.look
+      .split(/[,;]|\.\s/)
+      .map(p => p.trim().replace(/\.$/, ''))
+      .filter(p => p.length > 2 && visible(p) && !carried(p));
+    if (missing.length) add.push(`${e.name}’s look: ${missing.join(', ')}.`);
+  }
+  return add.length ? request.prompt.replace(/\s*$/, '') + ' ' + add.join(' ') : request.prompt;
+}
