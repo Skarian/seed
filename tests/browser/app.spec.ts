@@ -190,7 +190,7 @@ test('choosing a take for a shot is saved with the project and shown on the film
   const board = page.getByRole('region', { name: /^The (film|sequence), shot by shot$/ });
   await expect(board.getByRole('button', { name: /^Shot 2: B\. Made · nothing chosen/ })).toBeVisible();
   await page.getByRole('button', { name: 'Use Keyframe for Shot 2' }).click();
-  await expect(board.getByRole('button', { name: /^Shot 2: B\. Keyframe chosen/ })).toBeVisible();
+  await expect(board.getByRole('button', { name: /^Shot 2: B\. (Keyframe|Picture) chosen/ })).toBeVisible();
   await page.reload();
   await expect(page.getByRole('button', { name: /is chosen for Shot 2/ })).toHaveAttribute('aria-pressed', 'true');
 });

@@ -4014,3 +4014,10 @@ textarea::placeholder {
 .composer.expanded textarea {
   padding-top: 44px;
 }
+
+/* Storyboard rows: keyframes take the full width (every take visible); clips sit below them. */
+@media (min-width: 900px) {
+  .board.full .shot-lanes {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}

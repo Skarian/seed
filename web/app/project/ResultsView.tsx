@@ -342,6 +342,15 @@ export function ResultsView({
       );
     });
   };
+  // A chosen keyframe is stale when the shot changed afterwards: newer takes made from a different prompt.
+  const stale = (s: Shot) => {
+    const c = chosen(s, 'image');
+    if (!c?.job) return false;
+    const at = Date.parse(c.job.created_at);
+    return takesOf(s.images).some(
+      i => i.job && Date.parse(i.job.created_at) > at && i.job.request.prompt !== c.job!.request.prompt,
+    );
+  };
   // The film at a glance: one cell per numbered shot with its chosen (or newest) picture and where it stands.
   const numbered = shotList.filter(s => s.n !== null);
   const boardCell = (s: Shot) => {
@@ -351,9 +360,13 @@ export function ResultsView({
     const status = clip
       ? `Clip chosen · ${clip.job?.request.output.duration_seconds ?? 5} s`
       : image
-        ? takesOf(s.clips).length
-          ? 'Keyframe chosen · choose a clip'
-          : 'Keyframe chosen · no clip yet'
+        ? stale(s)
+          ? 'Chosen before the latest change · choose again'
+          : !film
+            ? 'Picture chosen'
+            : takesOf(s.clips).length
+              ? 'Keyframe chosen · choose a clip'
+              : 'Keyframe chosen · no clip yet'
         : s.making.length
           ? 'Making now'
           : takesOf(s.images).length || takesOf(s.clips).length
@@ -394,7 +407,7 @@ export function ResultsView({
   // The steps from brief to cut. Each step asks Seed for one plan covering everything it still needs.
   const cast = castFromBrief(project.brief);
   const noRef = cast.filter(e => !picks[referenceKey(e.name)]);
-  const hasKey = (s: Shot) => Boolean(chosen(s, 'image') || chosen(s, 'clip'));
+  const hasKey = (s: Shot) => Boolean(chosen(s, 'clip') || (chosen(s, 'image') && !stale(s)));
   const toDraft = numbered.filter(
     s => !hasKey(s) && !takesOf(s.images).length && !s.planned.length && !s.making.length && !s.saved.length,
   );
@@ -630,8 +643,14 @@ export function ResultsView({
                                 : `${takesOf(s.clips).length} ${takesOf(s.clips).length === 1 ? 'clip' : 'clips'} · none chosen`
                               : s.images.length
                                 ? chosenImage
-                                  ? 'Keyframe chosen · no clip yet'
-                                  : 'Keyframe made · no clip yet'
+                                  ? stale(s)
+                                    ? 'Chosen before the latest change · choose again'
+                                    : film
+                                      ? 'Keyframe chosen · no clip yet'
+                                      : 'Picture chosen'
+                                  : film
+                                    ? 'Keyframe made · no clip yet'
+                                    : 'Made · nothing chosen'
                                 : s.planned.length
                                   ? 'In the plan, not made yet'
                                   : s.action
@@ -662,7 +681,7 @@ export function ResultsView({
                               </div>
                             </div>
                           )}
-                          {!reference && (s.clips.length > 0 || s.images.length > 0) && (
+                          {!reference && (s.clips.length > 0 || (film && s.images.length > 0)) && (
                             <div className="lane">
                               <span className="lane-label">Clips</span>
                               <div className="lane-strip">
