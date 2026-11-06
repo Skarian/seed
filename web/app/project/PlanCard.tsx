@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { listOf } from './Stages.js';
 import * as Checkbox from '@radix-ui/react-checkbox';
 import type { ChatCard, ChatGroup, Project, PoolSnapshot } from '../api.js';
@@ -397,6 +397,8 @@ function Draft({
   const [swap, setSwap] = useState<string | null>(null),
     [showSoft, setShowSoft] = useState(false),
     [allChanges, setAllChanges] = useState(false);
+  const editDirty = useRef(false),
+    [discarding, setDiscarding] = useState(false);
   const [editing, setEditing] = useState(false),
     [full, setFull] = useState(false),
     { split, tasks, narrow } = useApp();
@@ -517,13 +519,38 @@ function Draft({
         </p>
       )}
       {editing && current && (
-        <Dialog title={'Edit ' + titleOf(r)} wide onClose={() => setEditing(false)}>
+        <Dialog
+          title={'Edit ' + titleOf(r)}
+          wide
+          onClose={() => (editDirty.current ? setDiscarding(true) : setEditing(false))}
+        >
+          {discarding && (
+            <div className="notice" role="alert">
+              Discard your changes to this draft?
+              <div className="actions">
+                <button
+                  className="btn small danger"
+                  onClick={() => {
+                    editDirty.current = false;
+                    setDiscarding(false);
+                    setEditing(false);
+                  }}
+                >
+                  Discard changes
+                </button>
+                <button className="btn small" autoFocus onClick={() => setDiscarding(false)}>
+                  Keep editing
+                </button>
+              </div>
+            </div>
+          )}
           <DraftEditor
             card={card}
             project={project}
             styles={styles}
             busy={busy}
-            onCancel={() => setEditing(false)}
+            onDirty={d => (editDirty.current = d)}
+            onCancel={() => (editDirty.current ? setDiscarding(true) : setEditing(false))}
             onSave={async request => {
               if (await onRevise(request)) setEditing(false);
             }}
@@ -691,12 +718,15 @@ function DraftEditor({
   busy,
   onCancel,
   onSave,
+  onDirty,
 }: {
   card: ChatCard;
   project: Project;
   styles: StyleEntry[];
   busy: boolean;
   onCancel: () => void;
+  /** Whether anything differs from the saved draft, so closing can ask before discarding it. */
+  onDirty?: (dirty: boolean) => void;
   onSave: (r: Record<string, unknown>) => Promise<void>;
 }) {
   const r = latest(card).request,
@@ -709,6 +739,8 @@ function DraftEditor({
   const engine = settingChips(r, id => id).find(([k]) => k === 'engine')?.[1];
   const [saving, setSaving] = useState(false);
   const set = (patch: Partial<EditableFields>) => setF(v => ({ ...v, ...patch }));
+  const [initial] = useState(() => JSON.stringify(f));
+  useEffect(() => onDirty?.(JSON.stringify(f) !== initial), [f]);
   const route = routeOf(r);
   const available = useMemo(() => styles.filter(s => s.route === route), [styles, route]);
   const style = f.loras[0];

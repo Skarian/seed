@@ -7,10 +7,10 @@ import { Media, Dialog } from '../ui.js';
 /** What Seed is asked when the owner wants a reference drafted; Seed carries the look from the brief. */
 export const referenceAsk = (e: CastEntry) =>
   e.kind === 'prop'
-    ? `Draft a prop reference for ${e.name} from the brief: ${e.name} alone, whole and in focus, on a plain light-grey background in soft even light, no people, at 1:1 with 4 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`
+    ? `Draft a prop reference for ${e.name} from the brief: ${e.name} alone, whole and in focus, on a plain light-grey background in soft even light, no people, at 1:1 with 2 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`
     : e.kind === 'place'
-      ? `Draft a place reference for ${e.name} from the brief: a wide picture of ${e.name} with no people, in clear light, at 16:9 with 4 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`
-      : `Draft a character reference for ${e.name} from the brief: ${e.name} alone, full length, standing and facing the camera, on a plain light-grey background in soft even light, at 4:5 with 4 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`;
+      ? `Draft a place reference for ${e.name} from the brief: a wide picture of ${e.name} with no people, in clear light, at 16:9 with 2 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`
+      : `Draft a character reference for ${e.name} from the brief: ${e.name} alone, full length, standing and facing the camera, on a plain light-grey background in soft even light, at 4:5 with 2 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`;
 export const sheetAsk = (e: CastEntry) =>
   `Draft a reference sheet for ${e.name} as an edit of ${e.name}'s approved reference, at 16:9: the same person full length from the front, three-quarter, side and back, plus a head-and-shoulders close-up, in the same outfit on a plain light-grey background, titled "Reference sheet: ${e.name}". Do not run anything.`;
 

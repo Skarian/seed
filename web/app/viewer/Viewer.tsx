@@ -275,6 +275,18 @@ export function AssetPanel({
             Animate
           </button>
         )}
+        {!video && source?.chat_id && (
+          <button
+            className="btn"
+            title="Seed looks at this picture and compares it with the shot and the approved references"
+            onClick={() => {
+              onClosed?.();
+              app.useResult({ ...item, job }, 'check');
+            }}
+          >
+            Check it
+          </button>
+        )}
         {!actionsOnly && !video && (
           <button className="btn" onClick={() => setCrop(true)}>
             Crop

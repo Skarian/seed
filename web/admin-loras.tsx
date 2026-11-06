@@ -135,6 +135,7 @@ function GuidanceFields({
           max={2}
           step={0.05}
           value={Math.min(2, value.default_scale)}
+          aria-label="Style strength"
           aria-valuetext={`${value.default_scale.toFixed(2)}${value.default_scale >= 0.5 && value.default_scale <= 1 ? ', the usual range' : ''}`}
           onChange={(event) => onChange({ ...value, default_scale: Number(event.target.value) })}
         />

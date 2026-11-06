@@ -33,12 +33,13 @@ export function Stages({
   /** What a finished set of stills says and offers (a film offers Play the cut instead). */
   finished?: { text: string; label: string; onClick: () => void };
 }) {
+  const title = finished ? 'Steps to the finished set' : 'Steps to the finished film';
   const shown = stages.filter(s => s.total > 0);
   if (shown.length < (finished ? 1 : 2)) return null;
   const next = shown.find(s => s.done < s.total);
   return (
-    <section className="stages" aria-label="Steps to the finished film">
-      <h2 className="sr-only">Steps to the finished film</h2>
+    <section className="stages" aria-label={title}>
+      <h2 className="sr-only">{title}</h2>
       <ol className="stage-list">
         {shown.map((s, i) => {
           const state = s.done >= s.total ? 'done' : s === next ? 'next' : 'later';
