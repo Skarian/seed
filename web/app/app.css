@@ -4418,3 +4418,34 @@ textarea::placeholder {
     height: 300px;
   }
 }
+
+/* By shot: each row's label sits above its takes, and the takes fill the row's width in even columns. */
+.board.full .lane {
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+  gap: 6px;
+}
+.board.full .lane-label {
+  font-weight: 600;
+}
+.board.full .lane-strip {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+  gap: 10px;
+  align-items: start;
+}
+.board.full .lane-strip .lane-cell {
+  min-width: 0;
+}
+.board.full .lane-strip .tile {
+  width: 100%;
+  height: auto;
+}
+@media (max-width: 699px) {
+  .board.full .lane-strip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .board.full .lane-strip .tile {
+    width: 100%;
+  }
+}
