@@ -293,3 +293,18 @@ it('never asks to add a negative rule or a relationship word to a prompt', () =>
   const brief = ['## Characters', '- Pim: 9, grandson, odd laces', '## Rules', '- No text, logos, or watermarks', '- Never show the sea'].join('\n');
   expect(briefGaps('Pim with odd laces walks the orchard.', brief)).toEqual([]);
 });
+
+it('adds cast and places from another project under their headings', async () => {
+  const { addToBrief, castFromBrief } = await import('../shared/cast.js');
+  const brief = '# Picture book\n\n## Characters\n- Odile Brann: veil\n';
+  const out = addToBrief(brief, [
+    { kind: 'character', name: 'Pim', look: '9, odd laces' },
+    { kind: 'place', name: 'The Orchard', look: 'old apple trees' },
+    { kind: 'character', name: 'odile brann', look: 'duplicate' },
+  ]);
+  expect(castFromBrief(out).map(e => `${e.kind}:${e.name}:${e.look}`)).toEqual([
+    'character:Pim:9, odd laces',
+    'character:Odile Brann:veil',
+    'place:The Orchard:old apple trees',
+  ]);
+});

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { castFromBrief, referenceKey, type CastEntry } from '../../../shared/cast.js';
-import type { ViewerItem } from '../data.js';
+import { useApp, type ViewerItem } from '../data.js';
+import { projects as projectsApi } from '../api.js';
 import { Media, Dialog } from '../ui.js';
 
 /** What Seed is asked when the owner wants a reference drafted; Seed carries the look from the brief. */
@@ -25,6 +26,8 @@ export function CastStrip({
   onChoose,
   onAsk,
   onOpen,
+  onImport,
+  projectId,
 }: {
   brief: string | null | undefined;
   picks: Record<string, string>;
@@ -33,10 +36,15 @@ export function CastStrip({
   onChoose: (key: string, asset: string | null) => void;
   onAsk?: (text: string) => void;
   onOpen: (item: ViewerItem) => void;
+  /** Brings characters, places and props (brief entry and approved picture) from another project. */
+  onImport?: (items: Array<{ entry: CastEntry; asset: string }>) => Promise<void>;
+  /** This project, left out of the projects to bring from. */
+  projectId?: string;
 }) {
   const cast = castFromBrief(brief);
   const [picking, setPicking] = useState<CastEntry | null>(null);
-  if (!cast.length) return null;
+  const [importing, setImporting] = useState(false);
+  if (!cast.length && !(onImport && brief?.trim())) return null;
   const approved = cast.filter(e => picks[referenceKey(e.name)]).length;
   return (
     // Once every reference is approved, the cast becomes a compact row so the film stays near the top.
@@ -47,6 +55,16 @@ export function CastStrip({
           {approved} of {cast.length} approved · new shots use these pictures
         </span>
       </div>
+      {onImport && (
+        <button className="btn small quiet cast-import" onClick={() => setImporting(true)}>
+          From another project…
+        </button>
+      )}
+      {!cast.length && (
+        <p className="faint" style={{ margin: 0 }}>
+          No characters, places or props in the brief yet. Bring them from another project, or ask Seed to add them.
+        </p>
+      )}
       <ul className="cast-cells">
         {cast.map(e => {
           const key = referenceKey(e.name),
@@ -160,6 +178,133 @@ export function CastStrip({
             </Dialog>
           );
         })()}
+      {importing && onImport && (
+        <ImportCast
+          projectId={projectId}
+          have={cast.map(e => e.name.toLowerCase())}
+          onClose={() => setImporting(false)}
+          onImport={async items => {
+            await onImport(items);
+            setImporting(false);
+          }}
+        />
+      )}
     </section>
+  );
+}
+
+/** Other projects' approved characters, places and props, as pictures to tick and bring into this project. */
+function ImportCast({
+  projectId,
+  have,
+  onClose,
+  onImport,
+}: {
+  projectId?: string;
+  have: string[];
+  onClose: () => void;
+  onImport: (items: Array<{ entry: CastEntry; asset: string }>) => Promise<void>;
+}) {
+  const { projectList } = useApp();
+  const [found, setFound] = useState<Array<{
+    project: string;
+    items: Array<{ entry: CastEntry; asset: string }>;
+  }> | null>(null);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  React.useEffect(() => {
+    let live = true;
+    void Promise.all(
+      projectList
+        .filter(p => p.id !== projectId)
+        .slice(0, 16)
+        .map(p => projectsApi.get(p.id).catch(() => null)),
+    ).then(list => {
+      if (!live) return;
+      setFound(
+        list
+          .filter((p): p is NonNullable<typeof p> => Boolean(p))
+          .map(p => ({
+            project: p.title,
+            items: castFromBrief(p.brief)
+              .filter(e => p.picks?.[referenceKey(e.name)] && !have.includes(e.name.toLowerCase()))
+              .map(e => ({ entry: e, asset: p.picks![referenceKey(e.name)]! })),
+          }))
+          .filter(g => g.items.length),
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, [projectId]);
+  const all = (found ?? []).flatMap(g => g.items);
+  const picked = all.filter(x => chosen.has(x.asset + x.entry.name));
+  return (
+    <Dialog
+      title="Bring from another project"
+      wide
+      onClose={onClose}
+      footer={
+        <button
+          className="btn primary"
+          disabled={!picked.length || busy}
+          onClick={() => {
+            setBusy(true);
+            void onImport(picked).finally(() => setBusy(false));
+          }}
+        >
+          {busy
+            ? 'Bringing them in…'
+            : picked.length
+              ? `Bring ${picked.length} into this project`
+              : 'Choose who to bring'}
+        </button>
+      }
+    >
+      <p className="faint" style={{ marginTop: 0 }}>
+        Each one comes with its approved picture and its look from that project's brief, so new shots here are drawn
+        from the same picture.
+      </p>
+      {found === null ? (
+        <p className="faint">Looking through your projects…</p>
+      ) : !found.length ? (
+        <p className="faint">No other project has an approved character, place or prop yet.</p>
+      ) : (
+        found.map(g => (
+          <section key={g.project} aria-label={g.project}>
+            <h3 className="pick-group">{g.project}</h3>
+            <ul className="pick-grid">
+              {g.items.map(x => {
+                const k = x.asset + x.entry.name,
+                  on = chosen.has(k);
+                return (
+                  <li key={k}>
+                    <button
+                      className={'pick-tile' + (on ? ' on' : '')}
+                      aria-pressed={on}
+                      onClick={() =>
+                        setChosen(c => {
+                          const next = new Set(c);
+                          if (on) next.delete(k);
+                          else next.add(k);
+                          return next;
+                        })
+                      }
+                    >
+                      <span className="pick-thumb">
+                        <Media id={x.asset} kind="image" alt="" />
+                      </span>
+                      <small>
+                        {x.entry.name} · {{ character: 'Character', place: 'Place', prop: 'Prop' }[x.entry.kind]}
+                      </small>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))
+      )}
+    </Dialog>
   );
 }

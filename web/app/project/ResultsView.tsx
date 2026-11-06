@@ -9,7 +9,7 @@ import { titleOf, latest, tileState, shapeClass } from '../format.js';
 import { jobActive } from '../../../shared/jobs.js';
 import { CastStrip, referenceAsk } from './Cast.js';
 import { Stages, listOf, type Stage } from './Stages.js';
-import { castFromBrief, referenceKey } from '../../../shared/cast.js';
+import { castFromBrief, referenceKey, addToBrief } from '../../../shared/cast.js';
 import { shotsFromBrief, placeShot, shotPickKey, chosenTake } from '../../../shared/shots.js';
 import type { ImageRequest } from '../../../shared/generation.js';
 
@@ -610,6 +610,20 @@ export function ResultsView({
               busy={picking}
               onChoose={(key, asset) => void choose(key, asset)}
               onAsk={onAsk}
+              projectId={project.id}
+              onImport={async picked => {
+                // The brief gets each entry's look, then its approved picture is approved here too.
+                let p = await projectsApi.setBrief(
+                  project,
+                  addToBrief(
+                    project.brief,
+                    picked.map(x => x.entry),
+                  ),
+                );
+                for (const x of picked) p = await projectsApi.pick(project.id, referenceKey(x.entry.name), x.asset);
+                onChanged?.(p);
+                app.toast(`Brought in ${picked.map(x => x.entry.name).join(', ')}`);
+              }}
               onOpen={it =>
                 app.view(
                   it,

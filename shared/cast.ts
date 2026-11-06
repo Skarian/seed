@@ -38,3 +38,28 @@ export function castFromBrief(brief: string | null | undefined): CastEntry[] {
   }
   return out.slice(0, 24);
 }
+
+const headings: Record<CastEntry['kind'], { re: RegExp; title: string }> = {
+  character: { re: /^#+\s*(characters?|cast|people)\b.*$/im, title: 'Characters' },
+  place: { re: /^#+\s*(places?|locations?|settings?|environments?)\b.*$/im, title: 'Places' },
+  prop: { re: /^#+\s*((key )?props?|objects?)\b.*$/im, title: 'Props' },
+};
+
+/**
+ * Adds cast, places or props to a brief under their heading ("- Name: look"), creating the heading when missing.
+ * Names already in the brief are left as they are.
+ */
+export function addToBrief(brief: string | null | undefined, entries: CastEntry[]): string {
+  let out = brief ?? '';
+  for (const e of entries) {
+    if (castFromBrief(out).some(x => x.name.toLowerCase() === e.name.toLowerCase())) continue;
+    const line = `- ${e.name}: ${e.look}`;
+    const h = headings[e.kind];
+    const m = out.match(h.re);
+    if (m && m.index !== undefined) {
+      const at = m.index + m[0].length;
+      out = out.slice(0, at) + '\n' + line + out.slice(at);
+    } else out = (out.replace(/\s*$/, '') + `\n\n## ${h.title}\n${line}\n`).replace(/^\n+/, '');
+  }
+  return out;
+}
