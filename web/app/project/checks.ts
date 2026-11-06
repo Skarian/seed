@@ -517,7 +517,7 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
     return undefined;
   };
   const closeUp =
-      /\b(close-?up|insert|macro|detail shot|waist-?up|chest-?up|head and shoulders|medium close|bust|tight on)\b/i.test(
+      /\b(close-?up|insert|macro|detail shot|waist-?up|chest-?up|head[- ]and[- ]shoulders|medium close|bust|tight on)\b/i.test(
         framing,
       ),
     hands = closeUp && /\bhands?\b/i.test(prompt);
@@ -576,6 +576,8 @@ export function briefGapList(prompt: string, brief: string, shot?: ShotFields): 
             .trim()
             .replace(/\.$/, '')
             .replace(/^(and|or|with)\s+/i, '')
+            // A label inside the line ("Wardrobe: mustard coat") is not part of the detail.
+            .replace(/^(?:wardrobe|costume|outfit|clothes|clothing|look|appearance|props?|hair|face)\s*:\s*/i, '')
             // "She has a silver earring" is the detail "a silver earring".
             .replace(/^(?:she|he|they|it)\s+(?:has|have|wears|wear|is|are|carries|carry)\s+/i, ''),
         )
@@ -648,10 +650,13 @@ export function addBriefDetails(prompt: string, gaps: Array<{ who?: string; text
       ? 'who'
       : 'with';
     if (at >= 0) {
-      const after = out.slice(at + who.length);
+      // The whole name, not just its first word: "Marit Halvorsen, with …", never "Marit, with …, Halvorsen".
+      const surname = out.slice(at + who.length).match(/^(?:\s+\p{Lu}[\p{L}'’-]+)+/u)?.[0] ?? '';
+      const end = at + who.length + surname.length;
+      const after = out.slice(end);
       // No doubled punctuation: before a comma or full stop the inserted phrase ends without its own comma.
       const close = /^\s*[,.;:!?]/.test(after) ? '' : ',';
-      out = out.slice(0, at + who.length) + `, ${joiner} ${details}${close}` + after;
+      out = out.slice(0, end) + `, ${joiner} ${details}${close}` + after;
     } else out += (/[.!?]$/.test(out) ? ' ' : '. ') + `${nameCase(who)}: ${details}.`;
   }
   const rules = gaps.filter(g => !g.who).map(g => g.text[0]!.toUpperCase() + g.text.slice(1));

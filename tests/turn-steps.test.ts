@@ -112,3 +112,15 @@ it('hides a draft failure a later try made good, and never shows raw JSON', () =
   };
   expect(unfinishedSteps(turn)).toEqual([{ label: 'Write a draft', reason: 'Seed sent it in the wrong form.' }]);
 });
+
+it('adds missing details after the whole name, without labels or unseen clothes', async () => {
+  const { briefGapList, addBriefDetails } = await import('../web/app/project/checks.js');
+  const brief = '## Characters\n- Marit Halvorsen: 62, cropped silver hair, Wardrobe: mustard-yellow oilskin coat, black rubber boots';
+  const prompt = 'Head-and-shoulders portrait of Marit Halvorsen, a 62-year-old woman, on a plain grey background.';
+  const gaps = briefGapList(prompt, brief);
+  expect(gaps.map(g => g.text)).toContain('mustard-yellow oilskin coat');
+  expect(gaps.some(g => /boots|wardrobe/i.test(g.text))).toBe(false);
+  const out = addBriefDetails(prompt, gaps);
+  expect(out).toMatch(/^Head-and-shoulders portrait of Marit Halvorsen, with [^,]*mustard-yellow oilskin coat/);
+  expect(out).not.toMatch(/Marit,/);
+});
