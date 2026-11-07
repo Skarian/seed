@@ -142,15 +142,15 @@ it('downloads selected LoRAs added after enablement, including additions while t
   expect(f.runtime.prepareAdapters.mock.calls[1][0]).toHaveLength(3);expect(f.runtime.start).toHaveBeenCalledOnce();
   expect(f.local.get().installed_loras).toHaveLength(3);
 }));
-it('keeps failed LoRA downloads retryable without submitting or replacing the image attempt',()=>jobsFixture(async f=>{
+it('fails only the job whose style cannot download, and frees Seed PC for other work',()=>jobsFixture(async f=>{
   const loras=catalog(f.paths,['a']);f.runtime.prepareAdapters.mockRejectedValueOnce(Error('HTTP 401: check the Civitai key'));
   const {jobs:[job]}=await f.jobs.submit({...f.request,target:'local',loras},'retry-local-lora');await f.settle();
-  const attempt=f.jobs.get(job.id).worker.execution_id;
-  expect(f.jobs.get(job.id)).toMatchObject({state:'needs_attention',error:expect.stringContaining('401')});
+  expect(f.jobs.get(job.id)).toMatchObject({state:'failed',error:expect.stringMatching(/^Seed PC couldn't download (?:the .+ style|this draft's style)\. Make it without the style/)});
+  expect(f.jobs.get(job.id).error).toContain('without the style');
   expect(f.runtime.start).not.toHaveBeenCalled();expect(f.worker.submit).not.toHaveBeenCalled();
-  await f.local.recover();await f.settle();
-  expect(f.jobs.get(job.id)).toMatchObject({state:'completed',worker:{execution_id:attempt}});
-  expect(f.worker.submit).toHaveBeenCalledOnce();
+  expect(f.local.get().issue).toBeUndefined();expect(f.local.get().current_job_id).toBeUndefined();
+  const {jobs:[next]}=await f.jobs.submit({...f.request,target:'local'},'after-failed-style');await f.settle();
+  expect(f.jobs.get(next.id).state).toBe('completed');
 }));
 it.each(['auto','local'])('explains local LoRA preparation for queued %s requests',target=>jobsFixture(async f=>{
   const loras=catalog(f.paths,['a']);
@@ -160,7 +160,7 @@ it.each(['auto','local'])('explains local LoRA preparation for queued %s request
   expect(f.jobs.get(queued.id)).toMatchObject({state:'queued',waiting_reason:expect.stringContaining('Missing LoRAs download automatically')});
   expect(f.jobs.get(queued.id).waiting_reason).not.toContain('Start a new worker');
   await f.local.pause();await f.jobs.reconcile();
-  expect(f.jobs.get(queued.id).waiting_reason).toBe('Resume This PC in Workers to run this request.');
+  expect(f.jobs.get(queued.id).waiting_reason).toBe('Resume Seed PC on the GPUs page to make this.');
 }));
 it('cancels an active LoRA download before releasing its reservation and never starts the engine',()=>jobsFixture(async f=>{
   const loras=catalog(f.paths,['a']);let rejectDownload!:(error:Error)=>void;

@@ -19,10 +19,20 @@ def resolution_preset(family, size):
     raise ValueError('Unsupported resolution size')
 
 
+def still_shapes(entry):
+    """Square and 4:5 stills keep the preset's pixel area on a 32-pixel grid, as shared/resolution.ts computes them."""
+    import math
+    area = entry.get('area') or entry['width'] * entry['height']
+    snap = lambda value: math.floor(value / 32 + 0.5) * 32
+    return [(snap(math.sqrt(area * ratio)), snap(math.sqrt(area / ratio))) for ratio in (1, 4 / 5)]
+
+
 def validate_canvas(family, width, height):
     if type(width) is int and type(height) is int:
         for entry in size_choices(family):
             if (width, height) in ((entry['width'], entry['height']), (entry['height'], entry['width'])):
+                return
+            if family == 'image' and (width, height) in still_shapes(entry):
                 return
     raise ValueError('Unsupported canvas dimensions')
 

@@ -205,7 +205,7 @@ describe('provider-readable enums and input instance contract',()=>{
       const schemas=requestToolSchemas(workflow,'nsfw');
       for(const schema of [schemas.create,schemas.edit]){
         const raw=JSON.parse(JSON.stringify(schema));expect(JSON.stringify(raw)).not.toContain('anyOf');
-        expect(raw.properties.aspect_ratio).toMatchObject({type:'string',enum:['16:9','9:16']});
+        expect(raw.properties.aspect_ratio).toMatchObject({type:'string',enum:workflow==='text-to-image'?['16:9','9:16','1:1','4:5']:['16:9','9:16']});
         if(workflow!=='text-to-image')expect(raw.properties.audio_output).toMatchObject({type:'string',enum:['generated','silent']});
       }
     }
@@ -294,4 +294,39 @@ it('normalizes redundant standalone audio flags and aliases without changing sou
   const refs=previous().references!;
   expect(()=>compileStablePrompt('[[image1:audio]]',refs)).toThrow('not available');
   expect(()=>compileStablePrompt('[[video1:audio]]',refs.map(r=>r.kind==='video'?{...r,include_audio:false}:r))).toThrow('not available');
+});
+
+describe('shot details',()=>{
+  const image={workflow:'text-to-image' as const,mode:'sfw' as const,assets:[]};
+  it('saves shot details and merges edits field by field',()=>{
+    const first=prepareToolRequest(image,{prompt:'A girl on a causeway.',title:'Shot 1: Causeway',shot:{number:1,name:'Causeway',cast:['Maren'],framing:'wide',delivery:'2.39:1'}});
+    expect(first.shot).toEqual({number:1,name:'Causeway',cast:['Maren'],framing:'wide',delivery:'2.39:1'});
+    const edited=prepareToolRequest({...image,previous:first},{request_id:'card',shot:{lens_mm:85,framing:'close-up'}});
+    expect(edited.shot).toEqual({number:1,name:'Causeway',cast:['Maren'],framing:'close-up',delivery:'2.39:1',lens_mm:85});
+    expect(imageRequest(edited).shot).toEqual(edited.shot);
+    expect(()=>prepareToolRequest(image,{prompt:'x',shot:{delivery:'wide'}})).toThrow();
+    expect(()=>imageRequest({...first,shot:{number:0}})).toThrow(/number/);
+    expect(requestToolSchemas('text-to-image','sfw').create.properties.shot).toBeDefined();
+  });
+});
+describe('runs_on',()=>{
+  const edit:RequestToolContext={workflow:'image-to-image',mode:'sfw',assets:[{handle:'image1',asset_id:'image-a',kind:'image'}]};
+  const draft={prompt:'The girl from [[image1]] at the door',inputs:[{asset:'image1',role:'source'}],aspect_ratio:'16:9'};
+  it('sets where a draft is made when the owner says so, and keeps it on later edits',()=>{
+    const pc=prepareToolRequest(edit,{...draft,runs_on:'seed_pc'});expect(pc.target).toBe('local');
+    expect(prepareToolRequest({...edit,previous:pc},{request_id:'card',note:'x'}).target).toBe('local');
+    expect(prepareToolRequest({...edit,previous:pc},{request_id:'card',runs_on:'auto'}).target).toBeUndefined();
+  });
+  it('refuses a cloud GPU for FLUX 3 Image Klein',()=>{
+    expect(()=>prepareToolRequest(edit,{...draft,runs_on:'cloud'})).toThrow(ToolRequestError);
+    expect(prepareToolRequest(edit,{...draft,engine:'qwen',aspect_ratio:'source',runs_on:'cloud'}).target).toBe('cloud');
+    expect(prepareToolRequest({...edit,cloudWorkflows:['text-to-image','image-to-image:klein']},{...draft,runs_on:'cloud'}).target).toBe('cloud');
+  });
+});
+describe('styles on edits',()=>{
+  it('refuses a style on a FLUX 3 Image Klein edit with an error the agent can relay',()=>{
+    const edit:RequestToolContext={workflow:'image-to-image',mode:'sfw',assets:[{handle:'image1',asset_id:'image-a',kind:'image'}]};
+    try{prepareToolRequest(edit,{prompt:'The girl from [[image1]]',inputs:[{asset:'image1',role:'source'}],loras:[{id:'x',revision:'y',scale:1}]});throw Error('accepted');}
+    catch(e){expect(e).toBeInstanceOf(ToolRequestError);expect(String((e as Error).message)).toContain('Styles cannot be used with edits');}
+  });
 });

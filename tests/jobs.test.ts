@@ -280,7 +280,7 @@ it.each(['recovery','reconciliation'] as const)('does not mistake an old engine 
   f.worker.probe.mockResolvedValue({...probe,session_id:'restarted-engine'});
   if(entry==='recovery')f.jobs.recover(job.id);
   await f.jobs.reconcile();await f.jobs.reconcile();
-  expect(f.jobs.publicJob(f.jobs.get(job.id)!)).toMatchObject({state:'needs_attention',worker:{interruption:'engine_interrupted'},recovery:{pending:false,reason:'engine_interrupted'}});
+  expect(f.jobs.get(job.id)).toMatchObject({state:'needs_attention',worker:{interruption:'engine_interrupted'}});expect(f.jobs.publicJob(f.jobs.get(job.id)!)).toMatchObject({state:'needs_attention',recovery:{pending:false,reason:'engine_interrupted'}});expect(Object.keys(f.jobs.publicJob(f.jobs.get(job.id)!).worker!)).toEqual(['id','executor']);
   expect(f.jobs.publicJob(f.jobs.get(job.id)!).recovery?.action).toBeUndefined();
   expect(()=>f.jobs.recover(job.id)).toThrow('cannot be retried safely');
   expect(f.worker.submit).toHaveBeenCalledTimes(1);

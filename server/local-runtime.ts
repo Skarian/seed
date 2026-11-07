@@ -28,10 +28,6 @@ async function availablePort(){
   const server=createServer();await new Promise<void>((resolve,reject)=>{server.once('error',reject);server.listen(0,'127.0.0.1',resolve);});
   const port=(server.address() as {port:number}).port;await new Promise<void>(resolve=>server.close(()=>resolve()));return port;
 }
-export function processGone(pid?:number){
-  if(typeof pid!=='number'||!Number.isSafeInteger(pid)||pid<=0)return false;
-  try{process.kill(pid,0);return false;}catch(error){return (error as NodeJS.ErrnoException).code==='ESRCH';}
-}
 
 /** Owns one engine process; reservations and idle policy belong to LocalWorker. */
 export class LocalRuntime {

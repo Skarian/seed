@@ -259,9 +259,14 @@ export class Loras {
     if (selected.length > 3 || new Set(selected.map((e) => e.id)).size !== selected.length)
       throw Error('Select at most three distinct LoRAs.');
     return selected.map((selection) => {
-      const entry = this.all().find(
-        (e) => e.id === selection.id && e.revision === selection.revision,
-      );
+      const all = this.all();
+      let entry = all.find((e) => e.id === selection.id && e.revision === selection.revision);
+      // One imported style has one entry per workflow route: a style picked under the other route of the same group
+      // (an animation's start-frame clip versus a reference clip) is the same look, so its sibling is used.
+      if (entry && entry.route !== route) {
+        const group = loraGroupId(entry);
+        entry = all.find((e) => loraGroupId(e) === group && e.route === route && !e.archived) ?? entry;
+      }
       if (!entry || entry.enabled === false || entry.route !== route)
         throw Error(
           'LoRA version or model variant does not match this request, or the adapter is disabled.',

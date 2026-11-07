@@ -1,6 +1,7 @@
 import { Sequences } from './sequences.js';
 import {closeService} from './service-close.js';
 import { pickFrame } from './frames.js';
+import { cropImage, type CropBox } from './crops.js';
 import {registerAdmin} from './admin.js';
 import {registerGeneratePreferences} from './generate-preferences.js';
 import {Activity,registerActivity} from './activity.js';
@@ -29,7 +30,7 @@ import fastifyStatic from '@fastify/static';
 import { randomUUID } from 'node:crypto';
 import { existsSync, createReadStream, statSync, realpathSync, unlinkSync } from 'node:fs';
 import { Jobs } from './jobs.js';
-import {jobNeedsAttention} from '../shared/jobs.js';
+import {jobActive,jobNeedsAttention,jobPhase} from '../shared/jobs.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listAssets, openDatabase } from './db.js';
@@ -39,7 +40,12 @@ import {HttpAccess} from './http-access.js';
 import {LocalWorker} from './local-worker.js';
 import {LocalSetup} from './local-setup.js';
 
-export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; poolDependencies?: PoolDependencies; providerFetch?:typeof fetch; chatFetch?:typeof fetch }) {
+/** HTML entry pages of the web app. Project pages carry the project id in the path. */
+export function isAppPage(pathname: string) {
+  return ['/', '/index.html', '/library', '/chat', '/admin', '/projects', '/gpus', '/settings'].includes(pathname)
+    || /^\/projects\/[\w-]{1,64}$/.test(pathname);
+}
+export async function createApp(options: { paths: StudioPaths; port: number; webRoot?: string; host?: string; poolDependencies?: PoolDependencies; providerFetch?:typeof fetch; chatFetch?:typeof fetch; /** Test harness: the real local GPU worker alongside offline cloud providers. */ localWorker?: boolean }) {
   const access = new HttpAccess(options.paths, options.host ?? '127.0.0.1', options.port);
   prepareStorage(options.paths);
   const releaseCoordinator=acquireCoordinator(options.paths);
@@ -50,7 +56,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   const dependencies=options.poolDependencies??{providers:createProviders(options.paths,options.providerFetch,diagnostics),worker:new PoolWorkerDriver(options.paths,diagnostics)};
   const pool=new WorkerPool(db,options.paths,new Loras(options.paths),dependencies,diagnostics);
   const localSetup=new LocalSetup(options.paths);
-  if(!options.poolDependencies)pool.local=new LocalWorker(db,options.paths);
+  if(!options.poolDependencies||options.localWorker)pool.local=new LocalWorker(db,options.paths);
   const jobs=new Jobs(db,options.paths,pool);
   const imports=new LoraImports(options.paths,jobs.loras,options.providerFetch);
   const activity=new Activity(options.paths);
@@ -75,7 +81,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     // Identity-provider redirects retain cross-site metadata on the return navigation.
     // Allow only the HTML entry pages; API/media reads and all writes remain isolated.
     const pageNavigation = ['GET', 'HEAD'].includes(request.method)
-      && ['/', '/index.html', '/library', '/chat', '/admin'].includes(request.url.split('?')[0]!)
+      && isAppPage(request.url.split('?')[0]!)
       && request.headers['sec-fetch-mode'] === 'navigate'
       && request.headers['sec-fetch-dest'] === 'document';
     if (site && site !== 'same-origin' && site !== 'none' && !pageNavigation) return fail(reply, 403, 'untrusted_origin', 'Cross-site access is not allowed.', request.id);
@@ -142,7 +148,8 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   }));
   app.get('/api/v1/diagnostics',{schema:{querystring:{type:'object',additionalProperties:false,properties:{after:{type:'integer',minimum:0},level:{enum:['info','warn','error']}}}}},async request=>diagnostics.events((request.query as any).after,(request.query as any).level));
   app.get('/api/v1/pool/offers',{schema:{querystring:{type:'object',additionalProperties:false,required:['worker_class'],properties:{worker_class:{enum:['image','video']}}}}},poolResult(r=>pool.offers(r.query.worker_class)));
-  app.post('/api/v1/pool/launch',{schema:{body:{type:'object',additionalProperties:false,required:['selections','max_hourly'],properties:{max_hourly:{type:'number',minimum:0},selections:{type:'array',minItems:1,maxItems:16,items:{type:'object',additionalProperties:false,required:['offer_id','quantity'],properties:{offer_id:{type:'string'},quantity:{type:'integer',minimum:1,maximum:16}}}}}}}},poolResult(r=>pool.launch(r.body as LaunchRequest,String(r.headers['idempotency-key']??''))));
+  app.post('/api/v1/pool/launch',{schema:{body:{type:'object',additionalProperties:false,required:['selections','max_hourly'],properties:{max_hourly:{type:'number',minimum:0},idle_release_minutes:{type:'integer',minimum:0,maximum:1440},max_minutes:{type:'integer',minimum:0,maximum:10080},selections:{type:'array',minItems:1,maxItems:16,items:{type:'object',additionalProperties:false,required:['offer_id','quantity'],properties:{offer_id:{type:'string'},quantity:{type:'integer',minimum:1,maximum:16}}}}}}}},poolResult(r=>pool.launch(r.body as LaunchRequest,String(r.headers['idempotency-key']??''))));
+  app.patch('/api/v1/pool/workers/:id',{schema:{body:{type:'object',additionalProperties:false,minProperties:1,properties:{idle_release_minutes:{type:'integer',minimum:0,maximum:1440},max_minutes:{type:'integer',minimum:0,maximum:10080}}}}},poolResult(r=>pool.limits(r.params.id,r.body)));
   app.post('/api/v1/pool/workers/:id/actions',{schema:{body:{type:'object',additionalProperties:false,required:['action'],properties:{action:{enum:['reconnect','retry_preparation','omit_loras','local_fallback','finish','quit','dismiss_launch_failure']},paths:{type:'array',maxItems:256,items:{type:'string'}}}}}},poolResult(r=>pool.action(r.params.id,r.body.action as PoolAction,r.body.paths)));
   app.post('/api/v1/pool/actions',{schema:{body:{type:'object',additionalProperties:false,required:['action'],properties:{action:{enum:['finish','quit']}}}}},poolResult(r=>pool.actionAll(r.body.action)));
   app.get('/api/v1/health', async () => ({ application: 'seed', version: '0.1.0', instance_id: instanceId }));
@@ -153,7 +160,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     return {
       loras_revision: jobs.loras.revision(),
       pool: pool.snapshot().summary,
-      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + activityJobs.filter(j => j.state === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + activityJobs.filter(j => ['uploading','submitting','running','copying','cancel_requested'].includes(j.state)&&!j.recovery_blocked).length, needs_attention: importJobs.filter(j=>j.state==='failed').length + activityJobs.filter(j=>jobNeedsAttention(j)).length },
+      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + activityJobs.filter(j => jobPhase(j) === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + activityJobs.filter(j => jobActive(j) && jobPhase(j) !== 'queued').length, needs_attention: importJobs.filter(j=>j.state==='failed').length + activityJobs.filter(j=>jobNeedsAttention(j)).length },
       outputs: { pending: jobs.all().filter(j => j.state === 'copying').length },
     };
   });
@@ -162,7 +169,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try {jobs.loras.setAvailability((request.params as {id:string}).id,(request.body as {availability:string}).availability);return {saved:true};}
     catch(error){return fail(reply,409,'lora_update_failed',(error as Error).message,request.id);}
   });
-  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},kind:{enum:['image','video','audio']},mode:{enum:['sfw','nsfw']},favorites:{type:'boolean'},collection_id:{type:'string',minLength:1}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw';kind?:string;favorites?:boolean;collection_id?:string}; const items = listAssets(db, query.cursor ?? '', 51, query.mode, query.kind, query); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
+  app.get('/api/v1/assets', {schema:{querystring:{type:'object',properties:{cursor:{type:'string'},kind:{enum:['image','video','audio']},mode:{enum:['sfw','nsfw']},favorites:{type:'boolean'},collection_id:{type:'string',minLength:1},q:{type:'string',maxLength:200},source:{enum:['made','uploaded']},chat_id:{type:'string',minLength:1},order:{enum:['newest','oldest']},approved:{type:'boolean'}}}}}, async request => { const query = request.query as {cursor?:string;mode?:'sfw'|'nsfw';kind?:string;favorites?:boolean;collection_id?:string;q?:string;source?:'made'|'uploaded';chat_id?:string;order?:'newest'|'oldest';approved?:boolean}; const items = listAssets(db, query.cursor ?? '', 51, query.mode, query.kind, query); return { items: items.slice(0, 50), next_cursor: items.length > 50 ? items[49]!.id : null }; });
   app.get('/api/v1/sequences/:id', async (request,reply)=> {
     try {return sequences.get((request.params as any).id) ?? fail(reply,404,'not_found','Sequence not found.',request.id);}
     catch(e){return fail(reply,409,'sequence_busy',(e as Error).message,request.id);}
@@ -202,6 +209,10 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   app.post('/api/v1/assets/:id/frames', {schema:{body:{type:'object',additionalProperties:false,required:['time_seconds'],properties:{time_seconds:{type:'number',minimum:0}}}}}, async (request,reply)=>jobs.serialize(async()=>{
     try {return await pickFrame(db,options.paths,(request.params as {id:string}).id,(request.body as {time_seconds:number}).time_seconds);}
     catch(error){return fail(reply,409,'frame_save_failed',(error as Error).message,request.id);}
+  }));
+  app.post('/api/v1/assets/:id/crops', {schema:{body:{type:'object',additionalProperties:false,required:['x','y','width','height'],properties:{x:{type:'number',minimum:0},y:{type:'number',minimum:0},width:{type:'number',minimum:1},height:{type:'number',minimum:1},shape:{type:'string',maxLength:12}}}}}, async (request,reply)=>jobs.serialize(async()=>{
+    try {return await cropImage(db,options.paths,(request.params as {id:string}).id,request.body as CropBox);}
+    catch(error){return fail(reply,409,'crop_failed',(error as Error).message,request.id);}
   }));
   app.delete('/api/v1/assets/:id', async (request, reply) => jobs.serialize(async () => {
     const id = (request.params as { id: string }).id;
@@ -308,9 +319,9 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     await app.register(fastifyStatic, { root: webRoot, dotfiles: 'deny', index: ['index.html'], preCompressed: true, cacheControl: false, setHeaders(response,file) {
       response.header('Cache-Control',path.relative(webRoot,file).startsWith('assets'+path.sep)?'public, max-age=31536000, immutable':'no-cache');
     } });
-    app.get('/library', async (_request, reply) => reply.sendFile('index.html'));
-    app.get('/chat', async (_request, reply) => reply.sendFile('index.html'));
-    app.get('/admin', async (_request, reply) => reply.sendFile('index.html'));
+    // App pages. /chat and /admin stay as aliases so older bookmarks still open Seed.
+    for (const page of ['/library', '/chat', '/admin', '/projects', '/projects/:id', '/gpus', '/settings'])
+      app.get(page, async (_request, reply) => reply.sendFile('index.html'));
   }
   app.setNotFoundHandler((request, reply) => fail(reply, 404, 'not_found', 'This page or operation is not available.', request.id));
   return app;

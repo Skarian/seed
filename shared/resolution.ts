@@ -30,9 +30,14 @@ export function editDimensions(width: number, height: number, size: ImageSize = 
 export function resolveDimensions(workflow: string, size: ResolutionSize, aspect: string, source?: Dimensions): Dimensions {
   const preset = (catalog[resolutionFamily(workflow)] as ResolutionPreset[]).find(p => p.id === size);
   if (!preset) throw Error('Unsupported resolution.');
-  if (workflow === 'image-to-image') {
+  if (workflow === 'image-to-image' && aspect === 'source') {
     if (!source) throw Error('Choose a source image first.');
     return editDimensions(source.width, source.height, size as ImageSize);
+  }
+  // Square and 4:5 stills keep the preset's pixel area, rounded to the model's 32-pixel grid.
+  if (resolutionFamily(workflow) === 'image' && (aspect === '1:1' || aspect === '4:5')) {
+    const area = preset.area ?? preset.width * preset.height, ratio = aspect === '1:1' ? 1 : 4 / 5;
+    return { width: Math.round(Math.sqrt(area * ratio) / 32) * 32, height: Math.round(Math.sqrt(area / ratio) / 32) * 32 };
   }
   if (aspect !== '16:9' && aspect !== '9:16') throw Error('Choose a supported orientation.');
   return aspect === '9:16' ? { width: preset.height, height: preset.width } : { width: preset.width, height: preset.height };
@@ -53,4 +58,12 @@ export function resolutionOptions(workflow: string, aspect: string, selected: Re
     if (!groups.has(label) || preset.id === selected) groups.set(label, { label, size: preset.id });
   }
   return [...groups.values()];
+}
+
+/**
+ * FLUX 3 Image Klein's canvas (EmptyFlux2LatentImage) must be a multiple of 16 on each side: 1920 × 1080 becomes
+ * 1920 × 1088. The graph, the saved size and the worker's check all use this one rounding.
+ */
+export function kleinCanvas(d: Dimensions): Dimensions {
+  return { width: Math.round(d.width / 16) * 16, height: Math.round(d.height / 16) * 16 };
 }

@@ -146,7 +146,7 @@ export type PoolDependencies = {
   releases?: Partial<
     Record<
       WorkerClass,
-      { image: string; disk_gb: number; manifest: ModelSource[] }
+      { image: string; disk_gb: number; manifest: ModelSource[]; workflows?: string[] }
     >
   >;
 };

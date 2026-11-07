@@ -1,15 +1,15 @@
 import {localExecutor,type ExecutionWorker} from './executors.js';
 import { Media, type PreparedReference, probe } from "./media.js";
-import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, supportsWorkflow, QWEN_PROFILE, QWEN_SETTINGS } from "../shared/workflows.js";
+import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, supportsWorkflow, capabilityFor, usesKlein, QWEN_PROFILE, QWEN_SETTINGS, KLEIN_PROFILE, KLEIN_SETTINGS } from "../shared/workflows.js";
 import { workerClassFor } from "../shared/pool.js";
 import { Loras, digest, sourceReady, type LoraSelection } from "./loras.js";
 import { WorkerPool } from "./pool.js";
 import type { WorkerReceipt } from "./pool-contracts.js";
 import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { hardwareProfile } from "./hardware.js";
-import { resolveDimensions } from "../shared/resolution.js";
+import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { nextProgress } from "../shared/generation-progress.js";
-import { jobState } from "../shared/jobs.js";
+import { jobCanMove, jobPhase, type JobRecord } from "../shared/jobs.js";
 import {
   WorkerHttpError,
   TransferIntegrityError,
@@ -41,6 +41,10 @@ export type Job = import("../shared/jobs.js").JobRecord & {
   prepared?: PreparedReference[];
 };
 const executionId=(job:Job)=>job.worker?.execution_id??job.id;
+/** What leaves the server about a job: no ComfyUI graph, prepared paths, receipts or retired-provider records. */
+function jobView({ worker, prepared: _p, fal: _f, input_snapshot: _i, ...job }: Job): JobRecord {
+  return worker ? { ...job, worker: { id: worker.id, executor: worker.executor } } : job;
+}
 const terminal = ["completed", "failed", "cancelled"];
 export class Jobs {
   private chain: Promise<unknown> = Promise.resolve();
@@ -63,7 +67,7 @@ export class Jobs {
             j.state === "queued" && j.request.target!=='local' &&
             j.worker &&
             workerClassFor(j.request.workflow) === w.worker_class &&
-            (supportsWorkflow(w,j.request.workflow) || (!w.ready_at && !w.workflows)) &&
+            (supportsWorkflow(w,capabilityFor(j.request)) || (!w.ready_at && !w.workflows)) &&
             (!w.finish_before || j.created_at <= w.finish_before) &&
             j.worker.loras.every((l) =>
               (w.adapters_frozen ? w.installed_loras : w.requested_loras).some(
@@ -90,7 +94,10 @@ export class Jobs {
     return next;
   }
   isInFlight(id: string) { return this.inFlight.has(id); }
-  publicJob(job: Job): Job {
+  publicJob(job: Job): JobRecord {
+    return jobView(this.withRecovery(job));
+  }
+  private withRecovery(job: Job): Job {
     const pending = this.inFlight.get(job.id)?.recovery ?? false;
     if (!job.worker || (job.state !== 'needs_attention' && !pending)) return job;
     const worker = job.worker.id ? this.pool.executor(job.worker.id) : null;
@@ -112,7 +119,7 @@ export class Jobs {
     return { ...job, recovery: { pending, reason, worker_id: job.worker.id,
       ...(reason === 'submission_unknown' && !pending ? { action: 'retry' as const } : {}) } };
   }
-  recover(id: string): Job {
+  recover(id: string): JobRecord {
     const job = this.get(id);
     if (!job) throw Error('Job not found.');
     const previous = this.inFlight.get(id);
@@ -129,7 +136,7 @@ export class Jobs {
         if (current) {
           if (current.job.worker?.receipt?.manifest?.state === 'completed') {
             current.job.recovery_blocked = actionableTransfer(error);
-            current.job.error = 'The output is retained on the worker. Retry saving after checking local storage or reconnecting.';
+            current.job.error = 'The picture was made but did not reach this PC. Try saving again, or cancel it.';
           } else {
             current.job.state = 'needs_attention';
             current.job.error = action==='retry_local'?'Local retry could not proceed. The prior attempt and any output files are preserved; check the worker before retrying.':'The worker could not confirm recovery. The original request is still reserved; check its worker before trying again.';
@@ -230,7 +237,7 @@ export class Jobs {
       // Compatibility for known saved graphs from before envelope persistence. No catalog lookups.
       const route = executionRoute(job.request), graph = job.worker.graph as Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
       const video = isVideoWorkflow(job.request.workflow), output = graph[video ? '14' : '9'];
-      const model = route === 'image' ? 'krea2_turbo_int8_convrot.safetensors' : route === 'image-edit' ? 'qwen_image_2.1_int8_convrot.safetensors' : `minimax_h3_${route}2va_pruned_int8_convrot.safetensors`;
+      const model = route === 'image' ? 'krea2_turbo_int8_convrot.safetensors' : route === 'image-edit' ? 'qwen_image_2.1_int8_convrot.safetensors' : route === 'image-klein' ? 'flux3-image-klein-int8-convrot.safetensors' : `minimax_h3_${route}2va_pruned_int8_convrot.safetensors`;
       if (graph['1']?.class_type !== 'UNETLoader' || graph['1']?.inputs?.unet_name !== model ||
         output?.class_type !== (video ? 'SeedVideoSave' : 'SaveImage') || output.inputs?.filename_prefix !== `seed/${executionId(job)}/${video ? 'video' : 'image'}`)
         throw Error('The saved submission format is not supported.');
@@ -310,6 +317,7 @@ export class Jobs {
   }
   save(job: Job) {
     const latest = this.get(job.id);
+    // A stale copy saved late cannot undo a quit or a cancellation: those intents are applied first.
     if (latest?.worker?.quit_now) {
       job.state = "cancelled";
       if (job.worker) job.worker.quit_now = true;
@@ -320,6 +328,8 @@ export class Jobs {
       } else if (["uploading", "submitting", "running", "needs_attention"].includes(job.state))
         job.state = "cancel_requested";
     }
+    if (latest && !jobCanMove(latest.state, job.state))
+      throw Error(`A request cannot go from ${latest.state} to ${job.state}.`);
     if (
       job.metrics &&
       terminal.includes(job.state) &&
@@ -332,7 +342,7 @@ export class Jobs {
     }
     delete job.recovery; // Recovery activity belongs to the current process, never restart intent.
     delete job.activity; // Replaced by progress; older records may still carry it.
-    const shown = jobState(job);
+    const shown = jobPhase(job);
     if (shown === 'starting') {
       const assigned = job.worker?.id ? this.pool.executor(job.worker.id) : null;
       const loras = Boolean(assigned && localExecutor(assigned) && assigned.state === 'preparing' && assigned.adapter_download);
@@ -382,23 +392,26 @@ export class Jobs {
     );
     if (selected.some((l) => !sourceReady(l.source)))
       throw Error(
-        "Reimport this LoRA in Admin so new workers can download its pinned source.",
+        "Add this style again in Settings → Styles so new GPUs can download it.",
       );
     const prepared: PreparedReference[] = [];
     for (const ref of request.references ?? []) {
       const asset=this.media.get(ref.asset_id);
       if(!asset || (request.mode==='sfw' && asset.metadata.mode==='nsfw')) throw Error('This input is unavailable. Choose another image.');
       prepared.push(
+        // Edit inputs are always prepared as images; a Klein draft's own shape only sets its canvas.
         await this.media.prepare(
           ref,
-          request.output.aspect,
+          request.workflow === 'image-to-image' ? 'source' : request.output.aspect,
           request.output.duration_seconds!,
           request.output.size,
         ),
       );
     }
     const dimensions = request.workflow==='image-to-image'
-      ? {width:prepared[0]!.width!,height:prepared[0]!.height!}
+      ? request.output.aspect==='source'
+        ? {width:prepared[0]!.width!,height:prepared[0]!.height!}
+        : kleinCanvas(resolveDimensions('text-to-image',request.output.size,request.output.aspect))
       : resolveDimensions(request.workflow,request.output.size,request.output.aspect);
     const submission_id = randomUUID(),
       now = new Date().toISOString();
@@ -554,11 +567,13 @@ export class Jobs {
           const local=this.pool.local, localWorker=local?.get();
           const localSupported=job.request.target!=='cloud'&&localWorker?.enabled&&local?.supports(job.request);
           job.waiting_reason = localSupported
-            ? localWorker.issue?'This PC needs attention. Open Workers to review its status.':localWorker.paused?'Resume This PC in Workers to run this request.':job.worker.loras.length?'Waiting for This PC to finish its current output. Missing LoRAs download automatically when this request starts.':'Waiting for This PC to finish its current output.'
+            ? localWorker.issue?'Seed PC needs attention. Open GPUs to see why.':localWorker.paused?'Resume Seed PC on the GPUs page to make this.':job.worker.loras.length?'Waiting for Seed PC to finish its current output. Missing LoRAs download automatically when this request starts.':'Waiting for Seed PC to finish its current output.'
             : job.request.target==='local'
-            ? !localWorker?.enabled?'Enable and set up This PC in Workers to run this request locally.':'These settings are unavailable on This PC. Check the workflow, output settings, and selected LoRA sources in Admin.'
+            ? !localWorker?.enabled?'Turn on Seed PC on the GPUs page to make this here.':'Seed PC cannot make these settings. Check the size, shape and styles of this draft.'
             : job.worker.loras.length
             ? "Waiting for a ready worker with the selected LoRAs. Start a new worker to include recently added adapters."
+            : usesKlein(job.request) && !this.pool.cloudWorkflows().includes('image-to-image:klein') ? (this.pool.local?.supports(job.request) ? 'Cloud GPUs here cannot run FLUX 3 Image Klein. Cancel and make it again with Runs on: Seed PC.' : 'No GPU here can run FLUX 3 Image Klein: cloud GPUs do not have it, and Seed PC needs it installed (GPUs → Seed PC → Add Klein).')
+            : usesKlein(job.request) ? 'Waiting for a ready image GPU that has FLUX 3 Image Klein. Start an image GPU to make this.'
             : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
           this.save(job);
           continue;
@@ -591,7 +606,14 @@ export class Jobs {
         continue;
       }
       if(localExecutor(worker)&&worker.issue){
-        if(worker.issue.code==='local_adapter_failed'&&!job.worker.submitted&&!job.submission_pending)job.worker.local_preparation_blocked=true;
+        // A style that cannot be downloaded fails only this job; Seed PC is freed for everything else.
+        if(worker.issue.code==='local_adapter_failed'&&!job.worker.submitted&&!job.submission_pending){
+          // The style's own name in plain words: no nested brackets or HTTP codes.
+          const style=worker.issue.message.match(/(?:download or verify|get) (.+?)(?: \(HTTP|\.|$)/)?.[1]?.trim();
+          job.state='failed';
+          job.error=`Seed PC couldn't download ${style?'the '+style+' style':"this draft's style"}. Make it without the style, or check your Civitai key in Settings.`;
+          this.save(job);this.pool.complete(job.id);continue;
+        }
         job.state='needs_attention';job.error=worker.issue.message;this.save(job);continue;
       }
       if(localExecutor(worker)&&job.worker.local_preparation_blocked&&!job.worker.submitted&&!job.submission_pending){
@@ -623,7 +645,7 @@ export class Jobs {
             if(this.cancelled(job.id)||worker.quit_mode==='now'){
               job.state='cancelled';job.error=null;this.save(job);this.pool.complete(job.id);return;
             }
-            job.state='needs_attention';job.error='The local engine was interrupted. Saved output recovery was checked. Retry on This PC when you are ready; generation will not restart automatically.';this.save(job);
+            job.state='needs_attention';job.error='The local engine was interrupted. Saved output recovery was checked. Retry on Seed PC when you are ready; generation will not restart automatically.';this.save(job);
             return;
           }
           if (
@@ -640,7 +662,7 @@ export class Jobs {
           if (job.worker?.receipt?.manifest?.state === "completed") {
             job.recovery_blocked = actionableTransfer(error);
             job.error =
-              "The output is retained on the worker. Retry saving after checking local storage or reconnecting.";
+              "The picture was made but did not reach this PC. Try saving again, or cancel it.";
           } else if(localExecutor(worker)&&worker.interrupted){
             job.state='needs_attention';job.error=error instanceof Error?error.message:'Local recovery needs attention.';
           } else if (job.submission_pending) {
@@ -649,7 +671,7 @@ export class Jobs {
               "The worker has not confirmed this submission. Seed will check its receipt without generating it twice.";
           } else {
             job.error =
-              localExecutor(worker)?'Cannot reach This PC. Check its worker card for recovery options.':"Cannot reach the assigned worker. Reconnect it or quit the rental; no replacement worker will be rented automatically.";
+              localExecutor(worker)?'Cannot reach Seed PC. Check its worker card for recovery options.':"Cannot reach the assigned worker. Reconnect it or quit the rental; no replacement worker will be rented automatically.";
           }
           this.save(job);
         }
@@ -733,8 +755,15 @@ export class Jobs {
         if (!receipt) {
           job.submission_pending = false;
           job.state = "failed";
-          job.error =
-            "The worker rejected these settings before generation. Review the request and worker version.";
+          // The worker's own reason is a settings check, never prompt text: show it so the fix is clear.
+          const said = (() => {
+            const d = error.detail as { error?: unknown; detail?: unknown; message?: unknown } | string | undefined;
+            const text = typeof d === 'string' ? d : typeof d?.error === 'string' ? d.error : typeof d?.detail === 'string' ? d.detail : typeof d?.message === 'string' ? d.message : '';
+            return text && text.length <= 200 ? text.replace(/\s+/g, ' ').trim() : '';
+          })();
+          job.error = said
+            ? `Generation did not start: the GPU rejected a setting (${said}). Change the size or shape and make it again.`
+            : "Generation did not start: the GPU rejected a setting. Change the size or shape and make it again.";
           this.save(job);
           this.pool.complete(job.id);
           return;
@@ -790,7 +819,7 @@ export class Jobs {
     if(localExecutor(w)&&record.manifest.state==='cancelled'&&!this.cancelled(job.id)&&w.quit_mode!=='now'){
       job.worker!.interruption='engine_interrupted';
       job.state='needs_attention';
-      job.error='The local engine stopped without a cancellation request. The prior attempt and any output files are preserved. Retry on This PC after recovery.';
+      job.error='The local engine stopped without a cancellation request. The prior attempt and any output files are preserved. Retry on Seed PC after recovery.';
       this.save(job);return; // No acknowledgement: preserve the old attempt for explicit recovery.
     }
     delete job.worker!.interruption;
@@ -880,7 +909,7 @@ export class Jobs {
     if (this.get(job.id)?.worker?.quit_now) return;
     if (this.finishCancellation(job)) return;
     Object.assign(metadata, {
-      ...(job.request.workflow==='image-to-image'?{runtime_profile:QWEN_PROFILE,runtime_settings:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{}),
+      ...(job.request.workflow==='image-to-image'?{runtime_profile:usesKlein(job.request)?KLEIN_PROFILE:QWEN_PROFILE,runtime_settings:usesKlein(job.request)?KLEIN_SETTINGS:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),...(job.request.output.aspect==='source'?{resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{resolved_width:kleinCanvas(resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect)).width,resolved_height:kleinCanvas(resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect)).height})}:{}),
       job_id: job.id,
       mode: job.request.mode,
       mime_type: output.mime_type,

@@ -74,3 +74,24 @@ it('refuses redirected cleanup targets before deleting any installation files',a
     expect(await readFile(path.join(outside,'keep'),'utf8')).toBe('Library');
   }finally{await setup.close();await rm(root,{recursive:true,force:true});}
 });
+
+it('reports FLUX 3 Image Klein as optional: not part of installed, and offered only with a saved token',async()=>{
+  await mkdir('.local/tests',{recursive:true});const root=await mkdtemp(path.resolve('.local/tests/setup-klein-'));
+  const paths=resolvePaths(root);
+  const setup=new LocalSetup(paths,root);
+  const image={path:'diffusion_models/image.bin',size:3,sha256:'image-hash'};
+  vi.spyOn(setup as any,'models').mockImplementation(async()=>[image]);
+  try{
+    await mkdir(path.join(root,'models/diffusion_models'),{recursive:true});
+    await writeFile(path.join(root,'models',image.path),'img');
+    await writeFile(path.join(root,'runtime-ready.json'),JSON.stringify({revision:engineSpec().revision}));
+    await writeFile(path.join(root,'models-verified.json'),JSON.stringify({files:[image]}));
+    const status=await setup.status();
+    expect(status).toMatchObject({installed:true,klein:{installed:false,token:false}});
+    expect(status.klein.bytes_total).toBeGreaterThan(1e10);
+    await mkdir(paths.config,{recursive:true});
+    await writeFile(path.join(paths.config,'credentials.json'),JSON.stringify({huggingFaceToken:'hf_fixture'}));
+    expect((await setup.status()).klein.token).toBe(true);
+    expect(JSON.stringify(await setup.status())).not.toContain('hf_fixture');
+  }finally{await setup.close();await rm(root,{recursive:true,force:true});}
+});

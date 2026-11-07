@@ -1,0 +1,219 @@
+import React, { useEffect, useState } from 'react';
+import { projects as projectsApi, type Project } from '../api.js';
+import { useStoredState } from '../data.js';
+import { Markdown } from '../ui.js';
+import { relativeTime } from '../format.js';
+
+/**
+ * The project's lasting brief: story, characters, locations, look, rules and shots. Seed keeps it up to date from the
+ * conversation and every draft follows it; the owner can read and edit it at any time. Collapsed to one line by default.
+ */
+export function BriefBar({
+  project,
+  busy,
+  onSaved,
+  openDrafts = 0,
+  onUpdateDrafts,
+}: {
+  project: Project;
+  busy: boolean;
+  onSaved: (p: Project) => void;
+  openDrafts?: number;
+  onUpdateDrafts?: () => void;
+}) {
+  const brief = project.brief ?? '';
+  // Opens on request each visit; an open brief left from last time would cover half the conversation.
+  const [open, setOpen] = useState(false);
+  const [editing, setEditing] = useState(false),
+    [text, setText] = useState(brief),
+    [error, setError] = useState(''),
+    [justSaved, setJustSaved] = useState(false);
+  const [seen, setSeen] = useStoredState<Record<string, string>>('seed.brief.seen', {});
+  useEffect(() => {
+    if (!editing) setText(brief);
+  }, [brief, editing]);
+  const fresh =
+    project.brief_updated_by === 'seed' && project.brief_updated_at && seen[project.id] !== project.brief_updated_at;
+  useEffect(() => {
+    if (open && fresh) setSeen({ ...seen, [project.id]: project.brief_updated_at! });
+  }, [open, fresh]);
+  // Bold-only lines ("**Characters**") read as headings, and the summary skips headings and the project's own title.
+  const shown = brief.replace(/^\s*\*\*([^*\n]{1,40})\*\*:?\s*$/gm, '## $1').replace(/^#\s+/gm, '## ');
+  const summary = shown
+    .split('\n')
+    .filter(l => !/^\s*#/.test(l))
+    .map(l =>
+      l
+        .replace(/^\s*(?:[-*]|\d+\.)\s*/, '')
+        .replace(/[*_`]/g, '')
+        .trim(),
+    )
+    .filter(l => l && l !== project.title)
+    .slice(0, 3)
+    .join(' · ');
+  // Leaving the editor with unsaved changes asks before they are thrown away.
+  const [discarding, setDiscarding] = useState(false);
+  function leave() {
+    if (text !== brief) return setDiscarding(true);
+    setEditing(false);
+  }
+  async function save() {
+    setError('');
+    try {
+      onSaved(await projectsApi.setBrief(project, text));
+      setEditing(false);
+      setJustSaved(true);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+  // Escape closes the open brief (unless a dialog or the editor has its own Escape), and focus returns to its header.
+  const head = React.useRef<HTMLButtonElement>(null);
+  React.useEffect(() => {
+    if (!open || editing) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape' || e.defaultPrevented || document.querySelector('[role="dialog"]')) return;
+      setOpen(false);
+      head.current?.focus();
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, [open, editing]);
+  return (
+    <section className={'brief' + (open ? ' open' : '')} aria-label="Project brief">
+      <button
+        ref={head}
+        className="brief-head"
+        aria-expanded={open}
+        aria-label={'Project brief' + (fresh ? ', updated by Seed' : '')}
+        onClick={() => setOpen(!open)}
+      >
+        <b>Brief</b>
+        {fresh && <span className="dot amber" aria-label="Updated by Seed" />}
+        <span className="faint brief-sum">
+          {brief ? summary : 'Characters, places, look and shots. Seed fills in the brief as you decide.'}
+        </span>
+        {project.brief_updated_at && (
+          <span className="faint brief-when">
+            {project.brief_updated_by === 'seed' ? 'Seed' : 'You'} · {relativeTime(project.brief_updated_at)}
+          </span>
+        )}
+      </button>
+      {open && (
+        <div className="brief-body">
+          {editing ? (
+            <>
+              <textarea
+                className="textarea"
+                value={text}
+                onChange={e => setText(e.target.value)}
+                rows={Math.min(18, Math.max(6, text.split('\n').length + 1))}
+                maxLength={8000}
+                aria-label="Brief"
+                placeholder={
+                  '## Characters\nMara: 32, short black curly bob, scar through her left eyebrow, mustard raincoat\n\n## Rules\nNo text anywhere\n\n## Shots\n1. Wide, Mara at the lighthouse at dawn'
+                }
+                autoFocus
+                // The caret starts at the end once, when the editor opens; later focus (a click mid-text, select-all) is left alone.
+                ref={el => {
+                  if (el && !el.dataset.placed) {
+                    el.dataset.placed = '1';
+                    el.setSelectionRange(el.value.length, el.value.length);
+                  }
+                }}
+                // Escape leaves the editor like Cancel; with unsaved changes it asks first.
+                onKeyDown={e => {
+                  if (e.key === 'Escape') {
+                    e.preventDefault();
+                    leave();
+                  }
+                }}
+              />
+              {error && (
+                <p className="changed" role="alert">
+                  {error}
+                </p>
+              )}
+              {discarding && (
+                <div className="notice warn" role="alert">
+                  Discard your changes to the brief?
+                  <div className="actions">
+                    <button
+                      className="btn small danger"
+                      onClick={() => {
+                        setDiscarding(false);
+                        setEditing(false);
+                        setText(brief);
+                      }}
+                    >
+                      Discard changes
+                    </button>
+                    <button className="btn small" autoFocus onClick={() => setDiscarding(false)}>
+                      Keep editing
+                    </button>
+                  </div>
+                </div>
+              )}
+              <div className="actions">
+                <button className="btn small" onClick={leave}>
+                  Cancel
+                </button>
+                <button
+                  className="btn small primary"
+                  disabled={busy || text.trim() === brief.trim()}
+                  onClick={() => void save()}
+                >
+                  Save brief
+                </button>
+              </div>
+              <p className="faint" style={{ margin: 0, fontSize: '0.8125rem' }}>
+                Seed uses the brief when it plans new drafts. Check each draft and result for continuity. Changing the
+                brief does not change drafts that already exist; ask Seed to update them.
+              </p>
+            </>
+          ) : (
+            <>
+              {brief ? (
+                <div className="brief-text">
+                  <Markdown text={shown} />
+                </div>
+              ) : (
+                <p className="faint" style={{ margin: 0 }}>
+                  No brief yet. Tell Seed who is in your story, where it happens and what must always or never appear,
+                  and it writes the brief. You can also write it yourself.
+                </p>
+              )}
+              {justSaved && openDrafts > 0 && onUpdateDrafts && (
+                <div className="notice" style={{ fontSize: '0.875rem' }}>
+                  Brief saved. The{' '}
+                  {openDrafts === 1 ? 'open draft still follows' : `${openDrafts} open drafts still follow`} the earlier
+                  brief.{' '}
+                  <button
+                    className="btn small"
+                    disabled={busy}
+                    onClick={() => {
+                      setJustSaved(false);
+                      onUpdateDrafts();
+                    }}
+                  >
+                    Update {openDrafts === 1 ? 'it' : `all ${openDrafts}`} to match
+                  </button>
+                </div>
+              )}
+              <div className="actions">
+                <button className="btn small" disabled={busy} onClick={() => setEditing(true)}>
+                  {brief ? 'Edit brief' : 'Write the brief'}
+                </button>
+                {busy && (
+                  <span className="faint" style={{ fontSize: '0.8125rem' }}>
+                    You can edit once Seed finishes replying.
+                  </span>
+                )}
+              </div>
+            </>
+          )}
+        </div>
+      )}
+    </section>
+  );
+}

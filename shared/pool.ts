@@ -108,6 +108,14 @@ export type PoolWorker = {
   /** Engine phase of the current output. Phase and percent only. */
   current_phase?: EnginePhase;
   quit_mode?: "finish" | "now";
+  /** Release automatically after this many idle minutes; 0 or absent never releases on idle. */
+  idle_release_minutes?: number;
+  /** When the worker last became ready with nothing to do. */
+  idle_since?: string;
+  /** Release after this many minutes of rental, whatever it is doing between jobs; 0 or absent means no cap. */
+  max_minutes?: number;
+  /** Why the worker was released, when the server released it on its own. */
+  released_reason?: "idle" | "limit";
   issue?: PoolIssue;
   preparation?: {
     error?: string;
@@ -128,6 +136,8 @@ export type PoolWorker = {
 export type PoolSnapshot = {
   local?:import('./local-worker.js').LocalWorkerView|null;
   server_time: string;
+  /** What a cloud GPU can make ("image-to-image:klein" for pictures from references). */
+  cloud_workflows?: string[];
   workers: PoolWorker[];
   summary: {
     active: number;
@@ -137,6 +147,8 @@ export type PoolSnapshot = {
     needs_attention: number;
     hourly: number;
     estimated_spend: number;
+    /** Estimated spend of active workers plus workers released in the last 24 hours. */
+    spend_24h: number;
     image: number;
     video: number;
   };
@@ -149,6 +161,10 @@ export type OffersResponse = {
 export type LaunchRequest = {
   selections: Array<{ offer_id: string; quantity: number }>;
   max_hourly: number;
+  /** Release each launched worker after this many idle minutes (0 = never). */
+  idle_release_minutes?: number;
+  /** Release each launched worker after this many minutes of rental (0 = no cap). */
+  max_minutes?: number;
 };
 export const workerStateLabels: Record<WorkerState, string> = {
   starting: "Starting",
@@ -161,10 +177,6 @@ export const workerStateLabels: Record<WorkerState, string> = {
   releasing: "Releasing",
   released: "Released",
   needs_attention: "Needs attention",
-};
-export const workerClassLabels: Record<WorkerClass, string> = {
-  image: "Image",
-  video: "Video",
 };
 export function workerClassFor(workflow: string): WorkerClass {
   return workflow === "text-to-image" || workflow === "image-to-image" ? "image" : "video";

@@ -83,7 +83,9 @@ def install(server, workspace, workspace_id, engine_id):
         import nodes
         qwen_ready = images and all(name in folder_paths.get_filename_list(category) for category,name in {
             'diffusion_models':'qwen_image_2.1_int8_convrot.safetensors', 'text_encoders':'qwen3vl_8b_int8_convrot.safetensors', 'vae':'qwen_image_2.1_vae_bf16.safetensors'}.items()) and all(n in nodes.NODE_CLASS_MAPPINGS for n in ('TextEncodeQwenImage21','QwenImage21Cache','SeedLoadEditImage'))
-        workflows = (['text-to-image'] + (['image-to-image'] if qwen_ready else [])) if images else []
+        klein_ready = images and all(name in folder_paths.get_filename_list(category) for category,name in {
+            'diffusion_models':'flux3-image-klein-int8-convrot.safetensors', 'text_encoders':'qwen3vl_4b_int8_convrot.safetensors', 'vae':'flux2-vae.safetensors'}.items()) and all(n in nodes.NODE_CLASS_MAPPINGS for n in ('ReferenceMultiLatent','EmptyFlux2LatentImage','ConditioningZeroOut','SeedLoadEditImage'))
+        workflows = (['text-to-image'] + (['image-to-image'] if qwen_ready else []) + (['image-to-image:klein'] if klein_ready else [])) if images else []
         if role == 'video' or role == 'all' and video_ready: workflows += ['text-to-video', 'reference-to-video']
         return web.json_response({**identity(), 'workspace_id': workspace_id, 'engine_session_id': engine_id,
             'workflows': workflows,
@@ -168,7 +170,7 @@ def install(server, workspace, workspace_id, engine_id):
                 return web.json_response({'prompt_id': job_id, 'already_recorded': True})
             try:
                 route = body.get('route', 'fl' if '14' in graph else 'image')
-                if (route in ('image','image-edit')) != ('14' not in graph):
+                if (route in ('image','image-edit','image-klein')) != ('14' not in graph):
                     raise ValueError('Workflow route does not match output graph')
                 if 'preset' in body:
                     raise ValueError('Legacy presets are not supported')

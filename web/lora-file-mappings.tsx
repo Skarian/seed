@@ -26,7 +26,7 @@ export function LoraFileMappings({
     <div className="lora-file-table" role="group" aria-label="File workflow mappings">
       <div className="lora-file-table-heading" aria-hidden="true">
         <span>File</span>
-        <span>Workflow mapping</span>
+        <span>Use this file for</span>
       </div>
       {files.map((file) => (
         <div className="lora-file-row" key={file.id}>
@@ -40,15 +40,16 @@ export function LoraFileMappings({
             </small>
           </div>
           <label>
-            <span className="sr-only">Workflow mapping for {file.name}</span>
+            <span className="sr-only">Use {file.name} for</span>
             <select
+              aria-label={`Use ${file.name} for`}
               disabled={disabled || file.supported === false}
               value={value[file.id] ?? ''}
               onChange={(event) =>
                 onChange({ ...value, [file.id]: event.target.value as LoraRoute | '' })
               }
             >
-              <option value="">Skip</option>
+              <option value="">Don't use</option>
               {familyRoutes(family).map((route) => (
                 <option
                   key={route}

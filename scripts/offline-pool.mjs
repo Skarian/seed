@@ -79,6 +79,8 @@ export async function offlinePool(paths) {
       {
         image: "offline/seed-" + role + "@sha256:" + "a".repeat(64),
         disk_gb: 220,
+        // The test harness's cloud image GPUs carry FLUX 3 Image Klein, as a rebuilt worker image will.
+        workflows: role === "image" ? ["text-to-image", "image-to-image", "image-to-image:klein"] : ["text-to-video", "reference-to-video"],
         manifest: [
           {
             path: "diffusion_models/" + role + ".safetensors",
@@ -250,7 +252,7 @@ export async function offlinePool(paths) {
         ready,
         active_job_id: value.current_job_id,
         activity: value.current_job_id ? scenario === 'model_loading' ? 'Loading image models' : 'Generating · 32%' : undefined,
-        workflows: value.worker_class === 'image' ? ['text-to-image', ...(scenario === 'legacy_image' ? [] : ['image-to-image'])] : ['text-to-video', 'reference-to-video'],
+        workflows: value.worker_class === 'image' ? ['text-to-image', ...(scenario === 'legacy_image' ? [] : ['image-to-image', 'image-to-image:klein'])] : ['text-to-video', 'reference-to-video'],
         session_id: "fixture-session-" + value.id,
         revision: value.preparation_revision ?? 1,
         installed_loras: ready

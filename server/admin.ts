@@ -4,6 +4,7 @@ import type {Loras} from './loras.js';
 import type {LoraImports} from './lora-imports.js';
 import type {HttpAccess} from './http-access.js';
 import {credential,credentialStatus,credentialValue,saveCredential,recordCredentialCheck,credentialFields,type CredentialField} from './credential-store.js';
+import {credentialDefinitions} from '../shared/credentials.js';
 
 export type AdminOptions = {
   access?: HttpAccess;
@@ -50,12 +51,13 @@ export function registerAdmin(app:FastifyInstance,paths:StudioPaths,loras:Loras,
   app.post('/api/v1/admin/credentials/:field/check',handle(async r=>{
     const field=fieldOf(r.params.field),key=credential(paths,field);
     if(!key)throw Error('Save a key first.');
+    const provider=credentialDefinitions.find(d=>d.id===field)?.name??'The provider';
     let response:Response;
     try{response=await fetcher(checkUrls[field],{headers:{Authorization:'Bearer '+key},redirect:'error',signal:AbortSignal.timeout(15000)});}
-    catch{throw Error('Could not reach the provider. Check your connection and try again.');}
+    catch{throw Error(`Couldn’t reach ${provider} to test this key. Check the connection, then try again. The key is still saved.`);}
     await response.body?.cancel();
-    if(response.status===401||response.status===403){recordCredentialCheck(paths,field,key,false);throw Error('The provider did not accept this key or its permissions.');}
-    if(!response.ok)throw Error('The provider could not validate the key right now. Try again later.');
+    if(response.status===401||response.status===403){recordCredentialCheck(paths,field,key,false);throw Error(`${provider} didn’t accept this key, or it lacks the permissions Seed needs. Replace it with a new key.`);}
+    if(!response.ok)throw Error(`${provider} couldn’t check the key right now. Try again later.`);
     recordCredentialCheck(paths,field,key,true);
     return {valid:true,credentials:credentialStatus(paths)};
   }));

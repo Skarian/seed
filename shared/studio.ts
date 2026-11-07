@@ -17,6 +17,28 @@ export interface LibraryAsset {
   favorite?: boolean;
   executor?: 'local'|'cloud';
   execution_profile?: string;
+  /** The job that made this asset; absent for uploads. */
+  job_id?: string;
+  /** For a crop or a frame picked from a video: the asset it came from. Title and project then come from that asset's job. */
+  source_asset_id?: string;
+  /** For a crop: the shape it was cropped to ("2.39:1"). */
+  crop_shape?: string;
+  /** The draft title from the job that made it. */
+  title?: string;
+  /** The project (chat) the job came from. */
+  chat_id?: string;
+  /** Its place in a batch, 1-based, when the job was one of several ("2 of 4"). */
+  variant?: number;
+  variants?: number;
+  /** The owner's note on this asset, when there is one. */
+  note?: string;
+  /** A few words of the prompt around a search match, when the search matched the prompt. */
+  prompt_match?: string;
+  /** What the picture is used as in its project: "Odile's reference", "Chosen for Shot 2". */
+  used_as?: string[];
+  /** Pixel size, when known, so grids can show the whole frame. */
+  width?: number;
+  height?: number;
 }
 
 export interface AssetOrganization {

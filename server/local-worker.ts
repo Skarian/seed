@@ -8,8 +8,9 @@ import {enginePhase,workerPhaseLabel} from '../shared/generation-progress.js';
 import {LocalRuntime,type StopOutcome} from './local-runtime.js';
 import {engineSpec,hardwareProfile} from './hardware.js';
 import type {ImageRequest} from './workflows.js';
-import {executionProfile,loraRoute} from '../shared/workflows.js';
-import {readdirSync} from 'node:fs';
+import {capabilityFor,executionProfile,loraRoute,KLEIN_CAPABILITY} from '../shared/workflows.js';
+import {readdirSync,readFileSync,statSync} from 'node:fs';
+import {fileURLToPath} from 'node:url';
 import path from 'node:path';
 import {Loras} from './loras.js';
 import type {LoraSourceManifest} from '../shared/loras.js';
@@ -17,7 +18,10 @@ import type {LoraSourceManifest} from '../shared/loras.js';
 export type LocalWorkerRecord=LocalWorkerView&{attempt_id?:string;interrupted?:boolean;profile?:string;adapter_sources?:LoraSourceManifest[];adapters_ready?:boolean};
 type Runtime=Pick<LocalRuntime,'installation'|'start'|'stop'|'close'|'connection'|'alive'|'recovering'|'workspace'|'prepareAdapters'|'cancelPreparation'|'keepAwake'>;
 const isLocal=(value:unknown):value is LocalWorkerRecord=>Boolean(value&&typeof value==='object'&&'executor'in value&&value.executor==='local');
-const workflowsFor=(gpu:string)=>['text-to-image','image-to-image',...(hardwareProfile(gpu)?['text-to-video','reference-to-video']:[])];
+// FLUX 3 Image Klein is optional (its weights are gated): offered once all of its pinned files are in place.
+const kleinFiles=(JSON.parse(readFileSync(path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..','worker/klein-model.json'),'utf8')) as {files:Array<{path:string;size:number}>}).files;
+const kleinInstalled=(root?:string)=>Boolean(root)&&kleinFiles.every(file=>{try{return statSync(path.join(root!,'models',file.path)).size===file.size;}catch{return false;}});
+const workflowsFor=(gpu:string,root?:string)=>['text-to-image','image-to-image',...(kleinInstalled(root)?[KLEIN_CAPABILITY]:[]),...(hardwareProfile(gpu)?['text-to-video','reference-to-video']:[])];
 const STOP_PENDING='The local engine has not finished stopping. Retry in a moment, or restart Seed if it stays stuck.';
 
 /** One durable GPU reservation, held through output acknowledgement. */
@@ -30,6 +34,7 @@ export class LocalWorker {
   private preparingSince?:number;
   private unreachableSince?:number;
   private loras:Loras;
+  private root(){return (this.runtime as {root?:string}).root;}
   constructor(private db:Database.Database,paths:StudioPaths,options:{runtime?:Runtime;now?:()=>number}={}){
     this.now=options.now??Date.now;
     this.loras=new Loras(paths);
@@ -37,7 +42,7 @@ export class LocalWorker {
     const record=this.get();
     if(record){
       // Containment ended any engine from a previous coordinator.
-      record.workflows=workflowsFor(record.gpu);record.ready=false;delete record.session_id;
+      record.workflows=workflowsFor(record.gpu,this.root());record.ready=false;delete record.session_id;
       if(record.issue?.code!=='local_adapter_failed')delete record.issue;
       if(record.current_job_id){record.interrupted=true;record.state='recovering';}
       else record.state=record.enabled&&!record.paused?'sleeping':'disabled';
@@ -73,7 +78,7 @@ export class LocalWorker {
       const available=this.adapterSources(request);
       if(request.loras.some(selected=>!available.some(source=>source.id===selected.id&&source.revision===selected.revision)))return false;
     }
-    return Boolean(this.get()?.workflows.includes(request.workflow));
+    return Boolean(this.get()?.workflows.includes(capabilityFor(request)));
   }
   async enable(enabled:boolean){
     if(this.changing)throw Error('Wait for the local worker operation to finish.');
@@ -86,7 +91,7 @@ export class LocalWorker {
         worker_class:'image',workflows:[],installed_loras:[],ready:false,created_at:new Date(this.now()).toISOString(),runtime_revision:engineSpec().revision};
       if(record.id!=='local-'+installed.gpu_uuid)throw Error('This profile belongs to a different GPU. Review the local installation.');
       record.enabled=true;record.paused=false;delete record.quit_mode;
-      record.workflows=workflowsFor(installed.gpu);record.runtime_revision=installed.revision;
+      record.workflows=workflowsFor(installed.gpu,this.root());record.runtime_revision=installed.revision;
       if(!record.current_job_id){record.state=this.runtime.alive?'ready':'sleeping';delete record.issue;}
       this.save(record);
     }else if(record){record.enabled=false;record.paused=true;this.save(record);if(!record.current_job_id)await this.sleep();}

@@ -14,7 +14,6 @@ export function videoSteps(request: { steps?: number }): VideoSteps {
 export const VIDEO_DETAILS = ['standard', 'full'] as const;
 export type VideoDetail = typeof VIDEO_DETAILS[number];
 export const DEFAULT_VIDEO_DETAIL: VideoDetail = 'standard';
-export const VIDEO_DETAIL_LABELS: Record<VideoDetail, string> = { standard: 'Fast', full: 'Full' };
 export const isVideoDetail = (value: unknown): value is VideoDetail => VIDEO_DETAILS.some(detail => detail === value);
 export const videoDetail = (request: { detail?: VideoDetail }): VideoDetail => request.detail ?? DEFAULT_VIDEO_DETAIL;
 

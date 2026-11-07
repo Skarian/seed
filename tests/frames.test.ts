@@ -24,7 +24,7 @@ it('picks original-resolution frames, preserves Spicy mode and notes, and safely
     for(const [result,channel] of [[red,0],[blue,2]] as const){const bytes=(await app.inject({url:result.json().url,headers:{host:headers.host}})).rawPayload;const stats=await sharp(bytes).stats();expect(stats.channels[channel]!.mean).toBeGreaterThan(240);expect(stats.channels[1]!.mean).toBeLessThan(10);}
     expect((await save(.5)).json().id).toBe(red.json().id);expect(db.prepare('SELECT COUNT(*) AS n FROM assets').get()).toEqual({n:3});
     expect((await app.inject({url:'/api/v1/assets?mode=sfw',headers:{host:headers.host}})).json().items).toEqual([]);
-    expect(db.prepare('SELECT note FROM asset_notes WHERE id=?').get(red.json().id)).toEqual({note:'Original note'});
+    expect(db.prepare('SELECT note FROM asset_notes WHERE id=?').get(red.json().id)).toEqual({note:'From the original’s note: Original note'});
     expect(existsSync(file)).toBe(true);expect(db.prepare('SELECT COUNT(*) AS n FROM jobs').get()).toEqual({n:0});
     writeFileSync(path.join(paths.data,'../outside.txt'),'private');
     db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('outside','video','Outside','../outside.txt','{}',new Date().toISOString());

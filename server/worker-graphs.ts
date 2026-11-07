@@ -1,7 +1,7 @@
 import type { ImageRequest } from "./workflows.js";
 import type { PreparedReference } from "./media.js";
-import { loraRoute } from "../shared/workflows.js";
-import { resolveDimensions } from "../shared/resolution.js";
+import { loraRoute, usesKlein } from "../shared/workflows.js";
+import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { videoDetail, videoSteps } from '../shared/video-settings.js';
 import type { HardwareProfile } from "./hardware.js";
 export type GraphLora = {
@@ -37,6 +37,7 @@ export function graphFor(
   references: PreparedReference[] = [],
   hardware?: HardwareProfile,
 ) {
+  if(usesKlein(request)) return kleinGraph(request,id,seed,references);
   if(request.workflow==='image-to-image') return editGraph(request,id,seed,references);
   if (request.workflow !== "text-to-image")
     return videoGraph(request, id, seed, loras, references, hardware);
@@ -117,6 +118,32 @@ function editGraph(request:ImageRequest,id:string,seed:string,refs:PreparedRefer
     '9':{class_type:'SaveImage',inputs:{images:['8',0],filename_prefix:'seed/'+id+'/image'}},
   };
   refs.forEach((r,index)=>{const key=String(100+index);graph[key]={class_type:'SeedLoadEditImage',inputs:{image:'seed/'+id+'/'+r.filename,size:index===0?request.output.size:'1mp'}};graph['4']!.inputs['images.image_'+(index+1)]=[key,0];});
+  return graph;
+}
+
+/**
+ * FLUX 3 Image Klein, distilled, following Comfy-Org/workflow_templates image_flux3_klein_distilled_image_edit.json:
+ * CLIPLoader type flux3, the prompt encoded once with a zeroed negative, references appended by ReferenceMultiLatent at
+ * about one megapixel each, euler/simple at 16 steps and CFG 1. The template's prompt upsampler is left out: Seed writes
+ * the full prompt. The canvas is an EmptyFlux2LatentImage, so the result takes the draft's shape, or the source's.
+ */
+function kleinGraph(request:ImageRequest,id:string,seed:string,refs:PreparedReference[]):Graph {
+  if(!refs.length || refs[0]?.role!=='source')throw Error('A prepared source image is required.');
+  const source=refs[0]!;
+  const {width,height}=kleinCanvas(resolveDimensions('image-to-image',request.output.size,request.output.aspect,source.width&&source.height?{width:source.width,height:source.height}:undefined));
+  const graph:Graph={
+    '1':{class_type:'UNETLoader',inputs:{unet_name:'flux3-image-klein-int8-convrot.safetensors',weight_dtype:'default'}},
+    '2':{class_type:'CLIPLoader',inputs:{clip_name:'qwen3vl_4b_int8_convrot.safetensors',type:'flux3',device:'default'}},
+    '3':{class_type:'VAELoader',inputs:{vae_name:'flux2-vae.safetensors'}},
+    '4':{class_type:'CLIPTextEncode',inputs:{clip:['2',0],text:request.prompt.replace(/<image([1-9][0-9]?)>/g,'image $1')}},
+    '5':{class_type:'ConditioningZeroOut',inputs:{conditioning:['4',0]}},
+    '6':{class_type:'EmptyFlux2LatentImage',inputs:{width,height,batch_size:1}},
+    '10':{class_type:'ReferenceMultiLatent',inputs:{positive:['4',0],negative:['5',0],vae:['3',0],resolution:'resize','resolution.megapixels':1}},
+    '7':{class_type:'KSampler',inputs:{model:['1',0],positive:['10',0],negative:['10',1],latent_image:['6',0],seed:Number(seed),steps:16,cfg:1,sampler_name:'euler',scheduler:'simple',denoise:1}},
+    '8':{class_type:'VAEDecode',inputs:{samples:['7',0],vae:['3',0]}},
+    '9':{class_type:'SaveImage',inputs:{images:['8',0],filename_prefix:'seed/'+id+'/image'}},
+  };
+  refs.forEach((r,index)=>{const key=String(100+index);graph[key]={class_type:'SeedLoadEditImage',inputs:{image:'seed/'+id+'/'+r.filename,size:index===0?request.output.size:'1mp'}};graph['10']!.inputs['images.image'+index]=[key,0];});
   return graph;
 }
 
