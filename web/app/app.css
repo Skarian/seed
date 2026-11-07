@@ -5,11 +5,7 @@
   --s2: #23261f;
   --s3: #2c3027;
   --s4: #363b30;
-  --line: #30342b;
-  --line2: #3e4337;
   --text: #ecebe4;
-  --muted: #a8ab9f;
-  --faint: #7d8174;
   --accent: #c5e88a;
   --accent-ink: #17200b;
   --accent-soft: #c5e88a1f;
@@ -29,6 +25,10 @@
   color: var(--text);
   background: var(--bg);
   -webkit-text-size-adjust: 100%;
+  --muted: #b6b9ac;
+  --faint: #969a8b;
+  --line: #2b2f27;
+  --line2: #3a3f34;
 }
 * {
   box-sizing: border-box;
@@ -625,6 +625,7 @@ button.chip:hover {
   border: 1px solid var(--line);
   border-radius: var(--r);
   overflow: hidden;
+  border-color: var(--line);
 }
 .card.flash {
   animation: flash 1.4s ease-out;
@@ -800,14 +801,6 @@ button.chip:hover {
 .history button:hover:not(:disabled) {
   background: var(--s2);
 }
-.plan-foot {
-  display: flex;
-  gap: 8px;
-  padding: 10px 14px;
-  border-top: 1px solid var(--line);
-  flex-wrap: wrap;
-  align-items: center;
-}
 .editor {
   display: grid;
   gap: 12px;
@@ -832,8 +825,6 @@ button.chip:hover {
   background: var(--s1);
   width: 100%;
   text-align: left;
-}
-.compact-row {
   padding-block: 8px;
 }
 .compact-row .lines {
@@ -862,13 +853,13 @@ button.chip:hover {
 }
 .notnow {
   padding: 10px 14px;
-  border-top: 1px solid var(--line);
   font-size: 0.875rem;
   color: var(--muted);
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
   align-items: center;
+  border-top: 0;
 }
 .notnow b {
   color: var(--text);
@@ -1495,13 +1486,13 @@ button.chip:hover {
   flex: none;
 }
 .hero {
-  position: relative;
   border-radius: var(--rt);
   overflow: hidden;
   background: var(--s2);
   max-height: 60vh;
   margin: 0 auto;
   width: 100%;
+  position: relative;
 }
 .hero img,
 .hero video {
@@ -1544,6 +1535,8 @@ button.chip:hover {
   border-radius: 8px;
   padding: 3px 8px 3px 3px;
   font-size: 0.8125rem;
+  max-width: 100%;
+  text-align: left;
 }
 .lineage img,
 .lineage .ph,
@@ -1554,10 +1547,6 @@ button.chip:hover {
   object-fit: cover;
   background: var(--s3);
   flex: none;
-}
-.lineage button {
-  max-width: 100%;
-  text-align: left;
 }
 .lineage button span {
   overflow: hidden;
@@ -1622,6 +1611,8 @@ button.chip:hover {
   padding: 10px 12px;
   border-bottom: 1px solid var(--line);
   font-size: 0.875rem;
+  max-height: 55vh;
+  overflow: auto;
 }
 .diffbar .chip {
   white-space: normal;
@@ -1642,10 +1633,6 @@ button.chip:hover {
   max-height: 40vh;
   overflow: auto;
 }
-.diffbar {
-  max-height: 55vh;
-  overflow: auto;
-}
 .diffbar .diff-wrap {
   flex-basis: 100%;
 }
@@ -1663,6 +1650,7 @@ button.chip:hover {
   flex-direction: column;
   gap: 10px;
   min-height: 0;
+  container-type: size;
 }
 .compare-grid .frame {
   flex: 1;
@@ -1754,7 +1742,7 @@ button.chip:hover {
 }
 .cell figcaption small.note-match {
   color: var(--muted);
-  font-style: italic;
+  font-style: normal;
 }
 .cell figcaption small {
   color: var(--faint);
@@ -1829,6 +1817,7 @@ button.chip:hover {
   display: inline-flex;
   align-items: center;
   gap: 5px;
+  color: var(--muted);
 }
 .prow .t {
   flex: 1;
@@ -1840,9 +1829,6 @@ button.chip:hover {
   text-overflow: ellipsis;
   white-space: nowrap;
   font-weight: 600;
-}
-.prow .t small {
-  color: var(--muted);
 }
 
 /* GPUs and settings pages */
@@ -1943,7 +1929,7 @@ h2.subhead {
 /* Tablet */
 @media (max-width: 1099px) {
   :root {
-    --rail: 68px;
+    --rail: 84px;
   }
   .shell.with-inspector {
     grid-template-columns: var(--rail) minmax(0, 1fr);
@@ -1951,9 +1937,6 @@ h2.subhead {
   .rail {
     padding: 12px 8px;
     align-items: center;
-  }
-  :root {
-    --rail: 84px;
   }
   .rail .section,
   .rail .projects,
@@ -2042,8 +2025,7 @@ h2.subhead {
     order: 4;
     max-width: 48%;
   }
-  .head > .icon-btn:last-child,
-  .head > .menu-wrap:last-child {
+  .head > .icon-btn:last-child {
     order: 2;
   }
   .card-head {
@@ -2148,9 +2130,6 @@ h2.subhead {
   .compare-grid figure.hidden-phone {
     display: none;
   }
-  .status .rate-long {
-    display: none;
-  }
   .results.tall {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -2234,16 +2213,6 @@ h2.subhead {
     display: none;
   }
 }
-.thought {
-  margin: 4px 0 0;
-  color: var(--faint);
-  font-size: 0.875rem;
-  font-style: italic;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  max-width: 100%;
-}
 
 /* Project workspace: conversation beside the board on wide screens */
 .single,
@@ -2285,11 +2254,11 @@ h2.subhead {
   position: absolute;
   top: 4px;
   left: 4px;
-  width: 36px;
-  height: 36px;
   border-radius: 10px;
   background: #121311aa;
   border-color: #ecebe499;
+  width: 32px;
+  height: 32px;
 }
 .check.big[aria-checked='true'] {
   background: var(--accent);
@@ -2354,10 +2323,6 @@ h2.subhead {
   background: var(--amber-soft);
   border-radius: 8px;
   padding: 6px 8px;
-}
-.check.big {
-  width: 32px;
-  height: 32px;
 }
 .check.big::after {
   content: '';
@@ -2799,12 +2764,6 @@ h2.subhead {
 }
 
 /* ---------- Visual refresh: calmer surfaces, clearer type, fewer lines ---------- */
-:root {
-  --muted: #b6b9ac;
-  --faint: #969a8b;
-  --line: #2b2f27;
-  --line2: #3a3f34;
-}
 .serif {
   font-family: var(--sans);
   font-weight: 650;
@@ -2817,9 +2776,6 @@ h2.subhead {
   font-size: 1.75rem;
 }
 /* Cards hold their parts with space, not with dividers */
-.card {
-  border-color: var(--line);
-}
 .card-head {
   border-bottom: 0;
   padding: 14px 16px 6px;
@@ -2833,14 +2789,12 @@ h2.subhead {
   padding: 0 12px 12px;
   background: none;
   align-items: start;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
 }
 .draft {
   background: var(--s2);
   border-radius: 10px;
   padding: 14px;
-}
-.notnow {
-  border-top: 0;
 }
 /* Chips are quiet labels, not outlined buttons */
 .chip {
@@ -2979,6 +2933,7 @@ button.chip:hover {
   font-size: 0.8125rem;
   color: var(--faint);
   margin: 0;
+  margin-top: -4px;
 }
 .legacy-admin .admin-status {
   font-size: 0.8125rem;
@@ -3068,11 +3023,6 @@ button.chip:hover {
   display: grid;
   gap: 14px;
 }
-.legacy-admin .admin-form-row {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
-  gap: 14px;
-}
 .legacy-admin .lora-edit-actions,
 .legacy-admin .lora-card-actions,
 .legacy-admin .admin-access-actions {
@@ -3114,20 +3064,6 @@ button.chip:hover {
 .legacy-admin [role='alert'] {
   color: var(--red);
   font-size: 0.875rem;
-}
-.hero {
-  position: relative;
-}
-.hero-play {
-  position: absolute;
-  inset: 0;
-  margin: auto;
-  width: 56px;
-  height: 56px;
-  border-radius: 50%;
-  background: #121311cc;
-  display: grid;
-  place-items: center;
 }
 @media (orientation: portrait) and (min-width: 700px) {
   .compare-grid {
@@ -3202,9 +3138,6 @@ button.chip:hover {
 }
 .box .seg {
   align-self: flex-start;
-}
-.cell figcaption small.note-match {
-  font-style: normal;
 }
 .cell figcaption mark {
   background: var(--accent-soft);
@@ -3303,10 +3236,6 @@ button.chip:hover {
 .lane-cell.chosen .tile {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
-}
-.chosen-tag {
-  color: var(--accent);
-  font-weight: 500;
 }
 .use-shot {
   flex: none;
@@ -3639,9 +3568,6 @@ textarea::placeholder {
   flex: 1 1 12em;
 }
 /* Two drafts side by side only when each has room for a readable title and prompt. */
-.drafts {
-  grid-template-columns: repeat(auto-fit, minmax(min(100%, 380px), 1fr));
-}
 @media (max-width: 700px) {
   .draft .history button {
     min-width: 44px;
@@ -3721,6 +3647,7 @@ textarea::placeholder {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(170px, 1fr));
   gap: 8px;
+  align-items: start;
 }
 .cast-cell {
   display: grid;
@@ -3777,9 +3704,6 @@ textarea::placeholder {
 }
 .cast-cell.place .cast-thumb {
   aspect-ratio: 8 / 5;
-}
-.cast-cells {
-  align-items: start;
 }
 /* Phones: one swipeable row, so the cast never pushes the shots off the screen. */
 @media (max-width: 699px) {
@@ -3965,8 +3889,6 @@ textarea::placeholder {
 .legacy-admin .admin-lora-card header p,
 .legacy-admin .admin-lora-card footer,
 .legacy-admin .admin-lora-card h3 small,
-.legacy-admin .credential-actions,
-.legacy-admin .credential-actions button,
 .legacy-admin .admin-access-help,
 .legacy-admin .admin-access-description,
 .legacy-admin [role='alert'],
@@ -3981,9 +3903,6 @@ textarea::placeholder {
 .legacy-admin select,
 .legacy-admin .lora-file-name strong {
   font-size: 0.9375rem;
-}
-.legacy-admin .admin-hint {
-  margin-top: -4px;
 }
 
 /* Expanded composer: one large writing area over the conversation, with the same tools and send button. */
@@ -4003,14 +3922,12 @@ textarea::placeholder {
   height: auto !important;
   font-size: 1rem;
   line-height: 1.55;
+  padding-top: 44px;
 }
 .composer.expanded .expand-toggle {
   position: absolute;
   top: 8px;
   right: 8px;
-}
-.composer.expanded textarea {
-  padding-top: 44px;
 }
 
 /* Storyboard rows: keyframes take the full width (every take visible); clips sit below them. */
@@ -4053,7 +3970,8 @@ textarea::placeholder {
 .pick-thumb img {
   width: 100%;
   height: 100%;
-  object-fit: cover;
+  object-fit: contain;
+  background: #0d0e0c;
 }
 .pick-tile small {
   color: var(--muted);
@@ -4097,10 +4015,6 @@ textarea::placeholder {
 }
 
 /* Picker tiles show the whole picture: a landscape place is not cropped into a portrait tile. */
-.pick-thumb img {
-  object-fit: contain;
-  background: #0d0e0c;
-}
 
 /* Phones: a resting composer is one row, the message box beside Send; tapping it brings the tools back. */
 .composer.resting {
@@ -4168,9 +4082,6 @@ textarea::placeholder {
 }
 
 /* Compare: each picture fits the space its half really has (the differences panel included), never cropped. */
-.compare-grid figure {
-  container-type: size;
-}
 .compare-grid .frame img,
 .compare-grid .frame video {
   max-height: min(calc(100dvh - 200px), calc(100cqh - 64px));
@@ -4269,6 +4180,9 @@ textarea::placeholder {
     display: grid;
     grid-template-columns: minmax(0, 1fr) minmax(360px, 440px);
     gap: 14px 24px;
+    align-content: start;
+    align-items: start;
+    overflow-y: auto;
   }
   body.inspector-wide .inspector .hero {
     min-height: 0;
@@ -4283,11 +4197,6 @@ textarea::placeholder {
     width: auto;
     height: auto;
     object-fit: contain;
-  }
-  body.inspector-wide .inspector .body {
-    align-content: start;
-    align-items: start;
-    overflow-y: auto;
   }
   body.inspector-wide .inspector .body > .hero {
     grid-column: 1;

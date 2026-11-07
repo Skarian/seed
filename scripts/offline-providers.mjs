@@ -184,8 +184,17 @@ export async function offlineProviders(paths, { liveChat = false } = {}) {
       JSON.stringify(body.messages[0]).includes("Generate a concise chat title")
     )
       return sse({ content: "Watercolor landscape" });
-    const edit = JSON.stringify(body.tools?.find(t=>t.function?.name==='create_request')?.function?.parameters).includes('"source"');
-    if (body.messages.at(-1).role === "tool")
+    const edit = String(JSON.stringify(body.tools?.find(t=>t.function?.name==='create_request')?.function?.parameters)).includes('"source"');
+    // A new project has no kind of work yet: the agent picks pictures first, then drafts with the tools that loads.
+    const tools = (body.tools ?? []).map(t => t.function?.name);
+    if (!tools.includes("create_request") && tools.includes("choose_kind") && body.messages.at(-1).role !== "tool")
+      return sse({
+        tool_calls: [
+          { index: 0, id: randomUUID(), type: "function", function: { name: "choose_kind", arguments: JSON.stringify({ kind: "image" }) } },
+        ],
+      });
+    const last = body.messages.at(-1);
+    if (last.role === "tool" && !String(JSON.stringify(last.content)).includes('\\"kind\\"'))
       return sse({
         content:
           edit ? "I prepared an edit to make the sky pink while preserving the mountains. Review the source and instructions before approving." : "I prepared a watercolor landscape with a gentle strength of 0.8. Review the request when you are ready.",
