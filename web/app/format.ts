@@ -1,6 +1,6 @@
 import type { ImageRequest, JobRecord, Project, ChatCard, ChatRevision, ChatGroup } from './api.js';
 import { kindOf, kindLabels, isVideoKind, type Kind } from './api.js';
-import { jobState } from '../../shared/jobs.js';
+import { jobPhase } from '../../shared/jobs.js';
 import { progressParts } from '../../shared/generation-progress.js';
 import { sizeName } from './project/requests.js';
 
@@ -88,7 +88,10 @@ export function settingChips(r: ImageRequest, styleName: (id: string) => string)
     video = isVideoKind(kind);
   const chips: Array<[string, string]> = [
     // A new frame drawn from references (FLUX 3 Image Klein at its own shape) is not an edit of one picture.
-    ['kind', kind === 'edit' && r.engine === 'klein' && r.output.aspect !== 'source' ? 'From references' : kindLabels[kind]],
+    [
+      'kind',
+      kind === 'edit' && r.engine === 'klein' && r.output.aspect !== 'source' ? 'From references' : kindLabels[kind],
+    ],
     [
       'engine',
       kind === 'edit' && r.engine !== 'klein'
@@ -250,15 +253,15 @@ export type TileState = {
   retained?: boolean;
 };
 export function tileState(job: JobRecord, now = Date.now()): TileState {
-  const state = jobState(job);
+  const state = jobPhase(job);
   if (state === 'completed') return { label: 'Done', tone: 'done', cancellable: false };
   // Made on a GPU but not yet saved here: not a failure while the job is still open, and it can still be cancelled.
-  if (job.recovery_blocked && !['failed', 'cancelled', 'completed'].includes(job.state))
+  if (state === 'unsaved')
     return { label: 'Made, not saved here yet', tone: 'wait', cancellable: true, retained: true };
   if (state === 'cancelled') return { label: 'Cancelled', tone: 'off', cancellable: false };
-  if (state === 'failed' || state === 'blocked')
+  if (state === 'failed' || state === 'held')
     return { label: job.error ? 'Failed · ' + job.error : 'Failed', tone: 'bad', cancellable: false };
-  if (state === 'unknown') return { label: 'Lost contact', tone: 'bad', cancellable: false };
+  if (state === 'uncertain') return { label: 'Lost contact', tone: 'bad', cancellable: false };
   if (state === 'cancelling') return { label: 'Cancelling…', tone: 'wait', cancellable: false };
   if (state === 'saving') return { label: 'Saving', tone: 'live', cancellable: false };
   if (state === 'queued')
@@ -275,8 +278,7 @@ export function tileState(job: JobRecord, now = Date.now()): TileState {
   }
   return { label: state === 'starting' ? 'Starting' : 'Making', tone: 'live', cancellable: true };
 }
-export const isDone = (j: JobRecord) => jobState(j) === 'completed';
-export const isFailed = (j: JobRecord) => ['failed', 'blocked'].includes(jobState(j));
+export const isFailed = (j: JobRecord) => ['failed', 'held'].includes(jobPhase(j));
 
 /** A group's jobs in output order. */
 export function groupJobs(project: Project, group: ChatGroup) {

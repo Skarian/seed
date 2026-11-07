@@ -76,41 +76,33 @@ export type JobRecord = {
   submission_pending?: boolean;
   recovery_blocked?: boolean;
 };
-export function jobState(job: JobRecord) {
-  if (job.state === "completed") return "completed";
-  if (job.recovery_blocked) return "failed";
-  return (
-    (
-      {
-        needs_attention: "unknown",
-        uploading: "starting",
-        submitting: "starting",
-        copying: "saving",
-        cancel_requested: "cancelling",
-      } as Record<string, string>
-    )[job.state] ?? job.state
-  );
-}
-export const jobStateLabels: Record<string, string> = {
-  queued: "Queued",
-  starting: "Starting",
-  running: "Generating",
-  saving: "Saving",
-  cancelling: "Cancelling",
-  completed: "Complete",
-  failed: "Failed",
-  blocked: "Needs action",
-  unknown: "Status unknown",
-  cancelled: "Cancelled",
+/**
+ * How a job stands: the one reading every route and screen uses. `held` waits for review before it may run;
+ * `unsaved` was made on a GPU but has not reached this PC yet; `uncertain` lost contact mid-run.
+ */
+export type JobPhase =
+  | 'queued' | 'held' | 'starting' | 'running' | 'saving' | 'unsaved' | 'cancelling' | 'uncertain'
+  | 'completed' | 'failed' | 'cancelled';
+const phases: Record<string, JobPhase> = {
+  queued: 'queued', blocked: 'held', uploading: 'starting', submitting: 'starting', running: 'running',
+  copying: 'saving', cancel_requested: 'cancelling', needs_attention: 'uncertain',
+  completed: 'completed', failed: 'failed', cancelled: 'cancelled',
 };
-export const jobActive = (j: JobRecord) =>
-  !["completed", "failed", "cancelled", "unknown", "blocked"].includes(
-    jobState(j),
-  );
+const finished: JobPhase[] = ['completed', 'failed', 'cancelled'];
+export function jobPhase(job: Pick<JobRecord, 'state' | 'recovery_blocked'>): JobPhase {
+  const phase = phases[job.state] ?? 'uncertain';
+  return job.recovery_blocked && !finished.includes(phase) ? 'unsaved' : phase;
+}
+export const jobFinished = (job: JobRecord) => finished.includes(jobPhase(job));
+/** Work a GPU is doing or will do. */
+export const jobActive = (job: JobRecord) =>
+  ['queued', 'starting', 'running', 'saving', 'cancelling'].includes(jobPhase(job));
 /** Acknowledging old API history must not hide unresolved worker assignments. */
-export const jobNeedsAttention = (job: JobRecord) =>
-  ['failed', 'blocked'].includes(jobState(job)) ||
-  (jobState(job) === 'unknown' && (Boolean(job.worker || job.recovery) || !job.uncertainty_acknowledged));
+export function jobNeedsAttention(job: JobRecord) {
+  const phase = jobPhase(job);
+  if (phase === 'uncertain') return Boolean(job.worker || job.recovery) || !job.uncertainty_acknowledged;
+  return phase === 'failed' || phase === 'held' || phase === 'unsaved';
+}
 export function groupJobs(jobs: JobRecord[]) {
   const groups = new Map<string, JobRecord[]>();
   for (const job of jobs) {

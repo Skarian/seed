@@ -30,7 +30,7 @@ import fastifyStatic from '@fastify/static';
 import { randomUUID } from 'node:crypto';
 import { existsSync, createReadStream, statSync, realpathSync, unlinkSync } from 'node:fs';
 import { Jobs } from './jobs.js';
-import {jobNeedsAttention} from '../shared/jobs.js';
+import {jobActive,jobNeedsAttention,jobPhase} from '../shared/jobs.js';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { listAssets, openDatabase } from './db.js';
@@ -160,7 +160,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     return {
       loras_revision: jobs.loras.revision(),
       pool: pool.snapshot().summary,
-      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + activityJobs.filter(j => j.state === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + activityJobs.filter(j => ['uploading','submitting','running','copying','cancel_requested'].includes(j.state)&&!j.recovery_blocked).length, needs_attention: importJobs.filter(j=>j.state==='failed').length + activityJobs.filter(j=>jobNeedsAttention(j)).length },
+      activity: { waiting: importJobs.filter(j=>j.state==='queued').length + activityJobs.filter(j => jobPhase(j) === 'queued').length, active: importJobs.filter(j=>['downloading','validating','uploading'].includes(j.state)).length + activityJobs.filter(j => jobActive(j) && jobPhase(j) !== 'queued').length, needs_attention: importJobs.filter(j=>j.state==='failed').length + activityJobs.filter(j=>jobNeedsAttention(j)).length },
       outputs: { pending: jobs.all().filter(j => j.state === 'copying').length },
     };
   });

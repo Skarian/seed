@@ -11,7 +11,7 @@ import {
   type LibraryAsset,
   type AssetQuery,
 } from './api.js';
-import { jobActive } from '../../shared/jobs.js';
+import { jobActive, jobPhase } from '../../shared/jobs.js';
 
 /* ---------- Routing ---------- */
 export type Route =
@@ -234,7 +234,7 @@ export function useProject(id: string | null) {
     const timer = setInterval(() => {
       setProject(p => {
         // A take made but not yet saved is still open work: keep reading until it is saved or cancelled.
-        if (p && (p.jobs.some(j => jobActive(j) || (j.recovery_blocked && !['completed', 'failed', 'cancelled'].includes(j.state))) || p.activity !== 'idle')) void reload();
+        if (p && (p.jobs.some(j => jobActive(j) || jobPhase(j) === 'unsaved') || p.activity !== 'idle')) void reload();
         return p;
       });
     }, 1500);

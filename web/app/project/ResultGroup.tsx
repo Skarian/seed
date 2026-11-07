@@ -20,6 +20,7 @@ import { readablePrompt } from './checks.js';
 import { roleLabels } from './requests.js';
 import { castOf, referenceKey } from '../../../shared/cast.js';
 import { shotFromTitle } from '../../../shared/shots.js';
+import { jobActive } from '../../../shared/jobs.js';
 
 type Actions = {
   onVariations: (card: ChatCard) => void;
@@ -132,7 +133,7 @@ function CardResults({
     title = titleOf(r);
   const done = list.filter(j => j.state === 'completed'),
     failed = list.filter(isFailed),
-    running = list.filter(j => !['completed', 'failed', 'cancelled'].includes(j.state) && !isFailed(j));
+    running = list.filter(jobActive);
   const [how, setHow] = useState(false);
   const items: ViewerItem[] = done.flatMap((j, n) =>
     j.outputs.map(asset => ({

@@ -23,7 +23,7 @@ import type { Agent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-co
 import type { ChatView, ChatMode, ChatWorkflow, ChatGroup, ChatCard, ChatRevision } from '../../shared/chat.js';
 import type { StudioPaths } from '../storage.js';
 import { imageRequest, seeds, type ImageRequest } from '../workflows.js';
-import type { Jobs } from '../jobs.js';
+import type { Job, Jobs } from '../jobs.js';
 import { createChatAgent, type ChatAccounting } from './provider.js';
 import { chatCredential } from './credentials.js';
 import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js';
@@ -36,6 +36,7 @@ import {
 } from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
 import { asksSavedStyle } from '../../shared/styles-asked.js';
+import { jobActive } from '../../shared/jobs.js';
 import {
   castFromBrief,
   castOf,
@@ -281,17 +282,14 @@ export class Chats {
   private jobIds(chat: ChatView) {
     return [...new Set(chat.groups.flatMap(g => g.cards.flatMap(c => c.revisions.flatMap(r => r.job_ids))))];
   }
-  private activeJobs(chat: ChatView) {
+  private chatJobs(chat: ChatView) {
     return this.jobIds(chat)
       .map(id => this.jobs.get(id))
-      .filter(job => job && !terminal.includes(job.state));
+      .filter((job): job is Job => Boolean(job));
   }
-  private generating(chat: ChatView) {
-    return this.activeJobs(chat).some(
-      job =>
-        !['needs_attention', 'blocked'].includes(job!.state) &&
-        !job!.recovery_blocked &&
-        !this.db.prepare('SELECT id FROM job_cancel_intents WHERE id=?').get(job!.id),
+  private generating(chat: ChatView, jobs = this.chatJobs(chat)) {
+    return jobs.some(
+      job => jobActive(job) && !this.db.prepare('SELECT id FROM job_cancel_intents WHERE id=?').get(job.id),
     );
   }
   private busy(chat: ChatView) {
@@ -306,24 +304,21 @@ export class Chats {
   }
   view(id: string) {
     const chat = this.get(id);
-    const { runs, ...view } = chat;
+    const { runs, ...view } = chat,
+      jobs = this.chatJobs(chat);
     view.activity = this.tasks.has(id)
       ? 'thinking'
       : this.preparing.has(id)
         ? 'preparing'
-        : this.generating(chat)
+        : this.generating(chat, jobs)
           ? 'generating'
           : 'idle';
-    for (const job of this.jobIds(chat).map(id => this.jobs.get(id)))
-      for (const asset of job?.outputs ?? []) if (!chat.assets.includes(asset)) chat.assets.push(asset);
+    for (const job of jobs) for (const asset of job.outputs) if (!chat.assets.includes(asset)) chat.assets.push(asset);
     return {
       ...view,
       cast: castOf(chat),
       asset_manifest: this.contextAssets(chat),
-      jobs: this.jobIds(chat)
-        .map(id => this.jobs.get(id))
-        .filter(Boolean)
-        .map(job => this.jobs.publicJob(job!)),
+      jobs: jobs.map(job => this.jobs.publicJob(job)),
       accounting: [...runs.flatMap(run => run.accounting), ...(chat.title_accounting ?? [])],
     };
   }
@@ -498,7 +493,7 @@ export class Chats {
   delete(id: string) {
     const chat = this.get(id);
     if (this.busy(chat)) throw Error('Stop generation before deleting this chat, then try again.');
-    if (this.activeJobs(chat).length)
+    if (this.chatJobs(chat).some(job => !terminal.includes(job.state)))
       throw Error(
         'Remote cancellation or output saving is still pending. Check the worker status and try deletion after it settles.',
       );

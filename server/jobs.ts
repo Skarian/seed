@@ -9,7 +9,7 @@ import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { hardwareProfile } from "./hardware.js";
 import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { nextProgress } from "../shared/generation-progress.js";
-import { jobState } from "../shared/jobs.js";
+import { jobPhase, type JobRecord } from "../shared/jobs.js";
 import {
   WorkerHttpError,
   TransferIntegrityError,
@@ -41,6 +41,10 @@ export type Job = import("../shared/jobs.js").JobRecord & {
   prepared?: PreparedReference[];
 };
 const executionId=(job:Job)=>job.worker?.execution_id??job.id;
+/** What leaves the server about a job: no ComfyUI graph, prepared paths, receipts or retired-provider records. */
+function jobView({ worker, prepared: _p, fal: _f, input_snapshot: _i, ...job }: Job): JobRecord {
+  return worker ? { ...job, worker: { id: worker.id, executor: worker.executor } } : job;
+}
 const terminal = ["completed", "failed", "cancelled"];
 export class Jobs {
   private chain: Promise<unknown> = Promise.resolve();
@@ -90,7 +94,10 @@ export class Jobs {
     return next;
   }
   isInFlight(id: string) { return this.inFlight.has(id); }
-  publicJob(job: Job): Job {
+  publicJob(job: Job): JobRecord {
+    return jobView(this.withRecovery(job));
+  }
+  private withRecovery(job: Job): Job {
     const pending = this.inFlight.get(job.id)?.recovery ?? false;
     if (!job.worker || (job.state !== 'needs_attention' && !pending)) return job;
     const worker = job.worker.id ? this.pool.executor(job.worker.id) : null;
@@ -112,7 +119,7 @@ export class Jobs {
     return { ...job, recovery: { pending, reason, worker_id: job.worker.id,
       ...(reason === 'submission_unknown' && !pending ? { action: 'retry' as const } : {}) } };
   }
-  recover(id: string): Job {
+  recover(id: string): JobRecord {
     const job = this.get(id);
     if (!job) throw Error('Job not found.');
     const previous = this.inFlight.get(id);
@@ -332,7 +339,7 @@ export class Jobs {
     }
     delete job.recovery; // Recovery activity belongs to the current process, never restart intent.
     delete job.activity; // Replaced by progress; older records may still carry it.
-    const shown = jobState(job);
+    const shown = jobPhase(job);
     if (shown === 'starting') {
       const assigned = job.worker?.id ? this.pool.executor(job.worker.id) : null;
       const loras = Boolean(assigned && localExecutor(assigned) && assigned.state === 'preparing' && assigned.adapter_download);
