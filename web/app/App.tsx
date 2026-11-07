@@ -25,7 +25,7 @@ import { SettingsPage } from './settings/SettingsPage.js';
 import { StatusPanel } from './status/StatusPanel.js';
 import { Viewer, Compare, Inspector } from './viewer/Viewer.js';
 import { ProjectsList } from './project/ProjectsList.js';
-import { Dialog, useModalFocus } from './ui.js';
+import { Dialog, Overlay } from './ui.js';
 
 export function App() {
   const { route, go } = useRouter();
@@ -631,33 +631,15 @@ function TabBar() {
 
 /** The projects list as a modal drawer: focus stays inside, Escape closes it, focus returns to what opened it. */
 function ProjectsDrawer({ onClose }: { onClose: () => void }) {
-  const panel = useRef<HTMLDivElement>(null);
-  useModalFocus(panel);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      if (e.key === 'Escape' && !e.defaultPrevented && !document.querySelector('[role=menu]')) onClose();
-    };
-    document.addEventListener('keydown', key);
-    return () => document.removeEventListener('keydown', key);
-  }, [onClose]);
   return (
-    <div className="backdrop drawer" onClick={onClose}>
-      <div
-        ref={panel}
-        className="drawer-panel"
-        role="dialog"
-        aria-modal="true"
-        aria-label="Projects"
-        onClick={e => e.stopPropagation()}
-      >
-        <div className="dialog-head">
-          <h2>Projects</h2>
-          <button className="icon-btn" aria-label="Close" onClick={onClose} autoFocus>
-            <Icon.Close />
-          </button>
-        </div>
-        <ProjectsList compact onChosen={onClose} />
+    <Overlay label="Projects" className="drawer-panel" backdrop="backdrop drawer" onClose={onClose}>
+      <div className="dialog-head">
+        <h2>Projects</h2>
+        <button className="icon-btn" aria-label="Close" onClick={onClose} autoFocus>
+          <Icon.Close />
+        </button>
       </div>
-    </div>
+      <ProjectsList compact onChosen={onClose} />
+    </Overlay>
   );
 }

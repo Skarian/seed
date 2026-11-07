@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as RadixDialog from '@radix-ui/react-dialog';
 import { createPortal } from 'react-dom';
@@ -185,8 +185,10 @@ export function MenuButton({
   placement?: 'below' | 'above';
 }) {
   const trigger = useRef<HTMLButtonElement>(null);
+  // Inside a dialog or overlay the menu traps focus itself, so the layer's own trap waits instead of pulling focus back.
+  const inLayer = useContext(Layered);
   return (
-    <DropdownMenu.Root modal={false}>
+    <DropdownMenu.Root modal={inLayer}>
       <DropdownMenu.Trigger asChild>
         <button ref={trigger} className={className} aria-label={label} title={label} onClick={e => e.stopPropagation()}>
           {children}
@@ -247,6 +249,90 @@ export function MenuButton({
   );
 }
 
+/**
+ * Dialogs and overlays open without a Radix trigger, so they remember what had focus and return there on close. If that
+ * element was re-rendered meanwhile (a saved draft remounts), its replacement is found by the same accessible name; if it
+ * is gone (a released GPU, a deleted picture), the page's heading takes focus, never nothing.
+ */
+function useReturnFocus() {
+  const opener = useRef<{ el: HTMLElement | null; name: string | null }>({ el: null, name: null });
+  if (!opener.current.el && typeof document !== 'undefined') {
+    let el = openerNow();
+    // Opened from a menu item: the item disappears with the menu, so return to the button that opened the menu.
+    const trigger = el?.closest<HTMLElement>('[role="menu"]')?.getAttribute('aria-labelledby');
+    if (trigger) el = document.getElementById(trigger) ?? el;
+    if (el === document.body) el = null;
+    opener.current = { el, name: el?.getAttribute('aria-label') ?? el?.textContent?.trim().slice(0, 60) ?? null };
+  }
+  return (e: Event) => {
+    const { el, name } = opener.current;
+    const target =
+      (el?.isConnected ? el : null) ??
+      (name
+        ? (document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(name)}"]`) ??
+          [...document.querySelectorAll<HTMLElement>('main button')].find(b => b.textContent?.trim() === name))
+        : null) ??
+      document.querySelector<HTMLElement>('main h1, main h2, [role="main"] h1');
+    if (!target) return;
+    e.preventDefault();
+    if (target.matches('h1, h2') && !target.hasAttribute('tabindex')) target.setAttribute('tabindex', '-1');
+    target.focus({ preventScroll: true });
+  };
+}
+
+/**
+ * A full-screen layer (the viewer, Compare, the projects drawer): a Radix dialog without the dialog frame. Tab stays
+ * inside, Escape and a click outside close it, the page behind is hidden from focus and screen readers, and focus
+ * returns to what opened it. Escape in a field is left to the field.
+ */
+export function Overlay({
+  label,
+  onClose,
+  className,
+  backdrop,
+  onKeyDown,
+  children,
+}: {
+  label: string;
+  onClose: () => void;
+  className: string;
+  /** A backdrop around the layer (the drawer's); full-screen layers have none. */
+  backdrop?: string;
+  /** Keys pressed inside the layer itself (not in a field, a menu or a dialog opened from it). */
+  onKeyDown?: (e: React.KeyboardEvent) => void;
+  children: React.ReactNode;
+}) {
+  const returnFocus = useReturnFocus();
+  const content = (
+    <RadixDialog.Content
+      className={className}
+      aria-label={label}
+      aria-describedby={undefined}
+      onCloseAutoFocus={returnFocus}
+      onEscapeKeyDown={e => {
+        if ((e.target as HTMLElement).closest?.('input,textarea,select')) e.preventDefault();
+      }}
+      onKeyDown={e => {
+        const target = e.target as HTMLElement;
+        if (!onKeyDown || !e.currentTarget.contains(target) || target.closest('input,textarea,select,[role=menu]'))
+          return;
+        onKeyDown(e);
+      }}
+    >
+      <RadixDialog.Title className="sr-only">{label}</RadixDialog.Title>
+      <Layered.Provider value>{children}</Layered.Provider>
+    </RadixDialog.Content>
+  );
+  return (
+    <RadixDialog.Root open onOpenChange={open => !open && onClose()}>
+      <RadixDialog.Portal>{backdrop ? <div className={backdrop}>{content}</div> : content}</RadixDialog.Portal>
+    </RadixDialog.Root>
+  );
+}
+
+/** Set inside dialogs and overlays. */
+const Layered = createContext(false);
+
 /* ---------- Dialog, a bottom sheet on phones (Radix: focus trap and return, Escape, labelling, scroll lock) ---------- */
 export function Dialog({
   title,
@@ -265,40 +351,7 @@ export function Dialog({
   sheet?: boolean;
   label?: string;
 }) {
-  // These dialogs open without a Radix trigger, so remember what had focus and return there on close. If that
-  // element was re-rendered meanwhile (a saved draft remounts), find its replacement by the same accessible name.
-  const opener = useRef<{ el: HTMLElement | null; name: string | null }>({ el: null, name: null });
-  if (!opener.current.el && typeof document !== 'undefined') {
-    let el = openerNow();
-    // Opened from a menu item: the item disappears with the menu, so return to the button that opened the menu.
-    const menu = el?.closest<HTMLElement>('[role="menu"]');
-    const trigger = menu?.getAttribute('aria-labelledby');
-    if (trigger) el = document.getElementById(trigger) ?? el;
-    if (el === document.body) el = null;
-    opener.current = { el, name: el?.getAttribute('aria-label') ?? el?.textContent?.trim().slice(0, 60) ?? null };
-  }
-  const returnFocus = (e: Event) => {
-    const { el, name } = opener.current;
-    const target = el?.isConnected
-      ? el
-      : name
-        ? (document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(name)}"]`) ??
-          [...document.querySelectorAll<HTMLElement>('main button')].find(b => b.textContent?.trim() === name) ??
-          null)
-        : null;
-    if (target) {
-      e.preventDefault();
-      target.focus({ preventScroll: true });
-      return;
-    }
-    // What opened the dialog is gone (a released GPU, a deleted picture): focus the page's heading, never nothing.
-    const heading = document.querySelector<HTMLElement>('main h1, main h2, [role="main"] h1');
-    if (heading) {
-      e.preventDefault();
-      if (!heading.hasAttribute('tabindex')) heading.setAttribute('tabindex', '-1');
-      heading.focus({ preventScroll: true });
-    }
-  };
+  const returnFocus = useReturnFocus();
   return (
     <RadixDialog.Root
       open
@@ -334,7 +387,9 @@ export function Dialog({
                 </button>
               </RadixDialog.Close>
             </div>
-            <div className="dialog-body">{children}</div>
+            <div className="dialog-body">
+              <Layered.Provider value>{children}</Layered.Provider>
+            </div>
             {footer && <div className="dialog-foot">{footer}</div>}
           </RadixDialog.Content>
         </div>
@@ -515,9 +570,8 @@ export async function downloadAsset(id: string, title: string) {
 }
 
 /**
- * While an overlay is shown (a full-screen viewer, Compare, the phone writing sheet), everything behind it is inert:
- * no focus, clicks or screen-reader reading leave the overlay. One implementation for every overlay that is not a
- * Radix dialog.
+ * While the phone writing sheet is open, everything behind it is inert: no focus, clicks or screen-reader reading leave
+ * it. (Overlays and dialogs are Radix dialogs, which do this themselves.)
  */
 export function useInertBehind(ref: React.RefObject<HTMLElement | null>, active = true) {
   useEffect(() => {

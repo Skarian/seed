@@ -15,7 +15,7 @@ import {
 } from '../api.js';
 import { useApp, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
-import { Media, MenuButton, Thumb, Confirm, Dialog, downloadAsset, useModalFocus, useInertBehind } from '../ui.js';
+import { Media, MenuButton, Thumb, Confirm, Dialog, Overlay, downloadAsset } from '../ui.js';
 import { titleOf, settingChips, duration, targetLabel, promptChanges } from '../format.js';
 import { roleLabels } from '../project/requests.js';
 import { StatusControl } from '../App.js';
@@ -935,9 +935,6 @@ export function Viewer({
   onPick: (i: ViewerItem) => void;
 }) {
   const app = useApp();
-  const root = useRef<HTMLDivElement>(null);
-  useModalFocus(root);
-  useInertBehind(root);
   const i = siblings.findIndex(s => s.asset === item.asset);
   const { job, detail, refresh } = useDetail(item);
   const fav = Boolean(detail?.favorite);
@@ -959,27 +956,6 @@ export function Viewer({
       setBefore(false);
     }
   };
-  // Escape and the arrows work while the viewer is the top layer (it is itself a dialog); a field, a menu or a dialog
-  // opened above it handles its own keys. The latest handlers are read through a ref, so they are never stale.
-  const keys = useRef({ onClose, step });
-  keys.current = { onClose, step };
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        e.defaultPrevented ||
-        target.closest('input,textarea,select,[role=menu]') ||
-        document.querySelector('[role=menu]') ||
-        [...document.querySelectorAll('[role=dialog]')].at(-1) !== root.current
-      )
-        return;
-      if (e.key === 'Escape') keys.current.onClose();
-      if (e.key === 'ArrowLeft') keys.current.step(-1);
-      if (e.key === 'ArrowRight') keys.current.step(1);
-    };
-    addEventListener('keydown', key);
-    return () => removeEventListener('keydown', key);
-  }, []);
   async function pickFrame() {
     const t = videoRef.current?.currentTime ?? 0;
     try {
@@ -998,7 +974,15 @@ export function Viewer({
   }
   const shown = before && source ? source : item.asset;
   return (
-    <div className="viewer" role="dialog" aria-modal="true" aria-label={item.title} ref={root}>
+    <Overlay
+      className="viewer"
+      label={item.title}
+      onClose={onClose}
+      onKeyDown={e => {
+        if (e.key === 'ArrowLeft') step(-1);
+        if (e.key === 'ArrowRight') step(1);
+      }}
+    >
       <div className="vtop">
         <button className="btn small close" onClick={onClose} autoFocus>
           <Icon.Close />
@@ -1113,7 +1097,7 @@ export function Viewer({
           <AssetPanel item={item} compact actionsOnly onClosed={onClose} />
         </div>
       )}
-    </div>
+    </Overlay>
   );
 }
 
@@ -1124,9 +1108,6 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
     [zoom, setZoom] = useState(1),
     [diff, setDiff] = useState(!app.narrow);
   const [favs, setFavs] = useState<Record<string, boolean>>({});
-  const root = useRef<HTMLDivElement>(null);
-  useModalFocus(root);
-  useInertBehind(root);
   // Both takes of one numbered shot: either can be chosen for the shot right here.
   const shotOf = (x: ViewerItem) => shotFromTitle(x.job ? titleOf(x.job.request) : x.title);
   const shotN = (x: ViewerItem) => shotOf(x).n?.toString();
@@ -1160,23 +1141,6 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
         .then(d => setFavs(f => ({ ...f, [x.asset]: Boolean(d.favorite) })))
         .catch(() => {});
   }, [a.asset, b.asset]);
-  useEffect(() => {
-    const key = (e: KeyboardEvent) => {
-      const target = e.target as HTMLElement;
-      if (
-        e.defaultPrevented ||
-        target.closest('input,textarea,select,[role=menu]') ||
-        document.querySelector('[role=menu]') ||
-        [...document.querySelectorAll('[role=dialog]')].at(-1) !== root.current
-      )
-        return;
-      if (e.key === 'Escape') onClose();
-      if (e.key === 'a' || e.key === 'ArrowLeft') setSide('A');
-      if (e.key === 'b' || e.key === 'ArrowRight') setSide('B');
-    };
-    addEventListener('keydown', key);
-    return () => removeEventListener('keydown', key);
-  }, []);
   const fig = (x: ViewerItem, letter: 'A' | 'B') => (
     <figure
       key={letter}
@@ -1229,7 +1193,15 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
     </figure>
   );
   return (
-    <div className="viewer" role="dialog" aria-modal="true" aria-label="Compare two results" ref={root}>
+    <Overlay
+      className="viewer"
+      label="Compare two results"
+      onClose={onClose}
+      onKeyDown={e => {
+        if (e.key === 'a' || e.key === 'ArrowLeft') setSide('A');
+        if (e.key === 'b' || e.key === 'ArrowRight') setSide('B');
+      }}
+    >
       <div className="vtop">
         <button className="btn small close" onClick={onClose} autoFocus>
           <Icon.Close />
@@ -1264,7 +1236,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
         {fig(a, 'A')}
         {fig(b, 'B')}
       </div>
-    </div>
+    </Overlay>
   );
 }
 
