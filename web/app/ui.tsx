@@ -83,61 +83,6 @@ export function Markdown({ text, streaming = false }: { text: string; streaming?
 }
 
 /**
- * For full-screen overlays that are not Radix dialogs (the viewer, Compare): keeps Tab inside the overlay while it is
- * the topmost layer, and on close returns focus to whatever opened it (or a control with the same accessible name).
- */
-export function useModalFocus(ref: React.RefObject<HTMLElement | null>) {
-  const opener = useRef<{ el: HTMLElement | null; name: string | null } | null>(null);
-  if (opener.current === null && typeof document !== 'undefined') {
-    const el = openerNow();
-    opener.current = el
-      ? { el, name: el.getAttribute('aria-label') ?? el.textContent?.trim().slice(0, 60) ?? null }
-      : { el: null, name: null };
-  }
-  useEffect(() => {
-    const trap = (e: KeyboardEvent) => {
-      const root = ref.current;
-      if (e.key !== 'Tab' || !root) return;
-      // A dialog or menu opened on top handles its own focus.
-      if (document.querySelector('[role=menu]') || [...document.querySelectorAll('[role=dialog]')].at(-1) !== root)
-        return;
-      const items = [
-        ...root.querySelectorAll<HTMLElement>(
-          'a[href],button:not([disabled]),input:not([disabled]),select,textarea,video[controls],[tabindex]:not([tabindex="-1"])',
-        ),
-      ].filter(x => x.offsetParent !== null || x === document.activeElement);
-      if (!items.length) return;
-      const first = items[0]!,
-        last = items.at(-1)!;
-      const inside = root.contains(document.activeElement);
-      if (e.shiftKey && (document.activeElement === first || !inside)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (document.activeElement === last || !inside)) {
-        e.preventDefault();
-        first.focus();
-      }
-    };
-    document.addEventListener('keydown', trap, true);
-    return () => {
-      document.removeEventListener('keydown', trap, true);
-      const { el, name } = opener.current ?? { el: null, name: null };
-      requestAnimationFrame(() => {
-        if (document.activeElement && document.activeElement !== document.body) return;
-        const target = el?.isConnected
-          ? el
-          : name
-            ? (document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(name)}"]`) ??
-              [...document.querySelectorAll<HTMLElement>('main button')].find(b => b.textContent?.trim() === name) ??
-              null)
-            : null;
-        target?.focus({ preventScroll: true });
-      });
-    };
-  }, []);
-}
-
-/**
  * Keyboard for any role="tablist": Left/Right (and Home/End) move to the neighbouring tab and select it, the
  * WAI-ARIA "automatic activation" pattern. Put on the tablist; selected tabs should carry aria-selected.
  * Only the selected tab is in the Tab order (tabIndex), so Tab moves on to the panel.

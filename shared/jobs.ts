@@ -93,7 +93,6 @@ export function jobPhase(job: Pick<JobRecord, 'state' | 'recovery_blocked'>): Jo
   const phase = phases[job.state] ?? 'uncertain';
   return job.recovery_blocked && !finished.includes(phase) ? 'unsaved' : phase;
 }
-export const jobFinished = (job: JobRecord) => finished.includes(jobPhase(job));
 /** Work a GPU is doing or will do. */
 export const jobActive = (job: JobRecord) =>
   ['queued', 'starting', 'running', 'saving', 'cancelling'].includes(jobPhase(job));
@@ -102,14 +101,4 @@ export function jobNeedsAttention(job: JobRecord) {
   const phase = jobPhase(job);
   if (phase === 'uncertain') return Boolean(job.worker || job.recovery) || !job.uncertainty_acknowledged;
   return phase === 'failed' || phase === 'held' || phase === 'unsaved';
-}
-export function groupJobs(jobs: JobRecord[]) {
-  const groups = new Map<string, JobRecord[]>();
-  for (const job of jobs) {
-    const key = job.submission_id || job.id;
-    groups.set(key, [...(groups.get(key) ?? []), job]);
-  }
-  return [...groups.values()].map((g) =>
-    g.sort((a, b) => a.submission_index - b.submission_index),
-  );
 }

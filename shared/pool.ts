@@ -178,10 +178,6 @@ export const workerStateLabels: Record<WorkerState, string> = {
   released: "Released",
   needs_attention: "Needs attention",
 };
-export const workerClassLabels: Record<WorkerClass, string> = {
-  image: "Image",
-  video: "Video",
-};
 export function workerClassFor(workflow: string): WorkerClass {
   return workflow === "text-to-image" || workflow === "image-to-image" ? "image" : "video";
 }

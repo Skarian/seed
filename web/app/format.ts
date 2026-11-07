@@ -78,10 +78,6 @@ export function sizeLabel(r: ImageRequest) {
 export function targetLabel(t: string | undefined, host?: string) {
   return t === 'cloud' ? 'Cloud GPU' : t === 'local' ? 'Seed PC' + (host ? ' (' + host + ')' : '') : 'Auto';
 }
-export function countLabel(r: ImageRequest) {
-  const video = isVideoKind(kindOfRequest(r));
-  return '×' + r.count + (video ? ' · ' + (r.output.duration_seconds ?? 5) + ' s' : '');
-}
 /** Settings chips for a request, as [key, label] so a plan can show shared ones once. */
 export function settingChips(r: ImageRequest, styleName: (id: string) => string): Array<[string, string]> {
   const kind = kindOfRequest(r),
@@ -112,9 +108,6 @@ export function settingChips(r: ImageRequest, styleName: (id: string) => string)
     chips.push(['style:' + l.id, styleName(l.id) + (l.scale !== 1 ? ' · ' + l.scale : '')]);
   chips.push(['target', targetLabel(r.target)]);
   return chips;
-}
-export function outputsOf(cards: ChatCard[], decided: (c: ChatCard) => boolean) {
-  return cards.filter(decided).reduce((n, c) => n + latest(c).request.count, 0);
 }
 export const outputNoun = (r: ImageRequest | undefined, n: number) =>
   !r ? plural(n, 'output') : isVideoKind(kindOfRequest(r)) ? plural(n, 'clip') : plural(n, 'image');
@@ -280,11 +273,6 @@ export function tileState(job: JobRecord, now = Date.now()): TileState {
 }
 export const isFailed = (j: JobRecord) => ['failed', 'held'].includes(jobPhase(j));
 
-/** A group's jobs in output order. */
-export function groupJobs(project: Project, group: ChatGroup) {
-  const ids = group.cards.flatMap(c => (latest(c).decision === 'approved' ? latest(c).job_ids : []));
-  return ids.map(id => project.jobs.find(j => j.id === id)).filter((j): j is JobRecord => Boolean(j));
-}
 export function cardJobs(project: Project, card: ChatCard) {
   return latest(card)
     .job_ids.map(id => project.jobs.find(j => j.id === id))
