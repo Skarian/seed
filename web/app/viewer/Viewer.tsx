@@ -1,5 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { shotFromTitle, shotNameKey, shotPickKey, shotsFromBrief } from '../../../shared/shots.js';
+import { shotFromTitle, shotNameKey, shotsFromBrief } from '../../../shared/shots.js';
+import { chosenAs, chosenTake, shotKey } from '../../../shared/choices.js';
 import {
   assets as assetsApi,
   collections as collectionsApi,
@@ -97,7 +98,7 @@ export function AssetPanel({
   const usedIn = job?.source?.chat_id ?? item.project;
   const [usedAs, setUsedAs] = useState<string[]>([]);
   // The shot this take belongs to, so it can be chosen right here where it is seen largest.
-  const [shot, setShot] = useState<{ n: number; name: string; key: string; chosen: boolean } | null>(null);
+  const [shot, setShot] = useState<{ n: number; name: string; chosen: boolean } | null>(null);
   const [choosing, setChoosing] = useState(false);
   useEffect(() => {
     if (!usedIn) return setUsedAs([]);
@@ -111,20 +112,24 @@ export function AssetPanel({
         const listed = own.n !== null ? list.find(x => shotNameKey(x.name) === shotNameKey(own.name)) : undefined;
         if (own.n !== null) {
           const n = listed?.n ?? own.n,
-            name = listed?.name ?? own.name,
-            key = shotPickKey(n, name, item.kind === 'video' ? 'clip' : 'image');
-          setShot({ n, name, key, chosen: p.picks?.[key] === item.asset });
+            name = listed?.name ?? own.name;
+          setShot({
+            n,
+            name,
+            chosen: chosenTake(p.choices, n, name, item.kind === 'video' ? 'clip' : 'image') === item.asset,
+          });
         } else setShot(null);
         setUsedAs(
-          Object.entries(p.picks ?? {})
-            .filter(([, a]) => a === item.asset)
-            .map(([k]) => {
-              if (k.startsWith('ref:')) return `${k.slice(4)}’s reference`;
-              const kind = k.endsWith(':clip') ? 'clip' : 'keyframe';
-              const named = k.match(/^shot:(.+):(?:image|clip)$/)?.[1];
-              const shot = named ? list.find(s => shotNameKey(s.name) === named) : undefined;
-              return `Chosen ${kind} for ${shot ? `Shot ${shot.n}: ${shot.name}` : named ? named : 'Shot ' + k.split(':')[0]}`;
-            }),
+          chosenAs(p.choices, item.asset).map(c => {
+            if ('reference' in c) return `${c.reference}’s reference`;
+            const listed = list.find(s => shotNameKey(s.name) === c.shot);
+            const where = listed
+              ? `Shot ${listed.n}: ${listed.name}`
+              : c.shot.startsWith('#')
+                ? 'Shot ' + c.shot.slice(1)
+                : c.shot;
+            return `Chosen ${c.kind === 'clip' ? 'clip' : 'keyframe'} for ${where}`;
+          }),
         );
       })
       .catch(() => live && setUsedAs([]));
@@ -307,7 +312,11 @@ export function AssetPanel({
             onClick={() => {
               setChoosing(true);
               void projectsApi
-                .pick(usedIn, shot.key, shot.chosen ? null : item.asset)
+                .choose(usedIn, {
+                  shot: shotKey(shot.n, shot.name),
+                  kind: item.kind === 'video' ? 'clip' : 'image',
+                  asset: shot.chosen ? null : item.asset,
+                })
                 .then(p => {
                   dispatchEvent(new CustomEvent('seed:project', { detail: p }));
                   setShot({ ...shot, chosen: !shot.chosen });
@@ -1132,11 +1141,11 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
   const [chosenId, setChosenId] = useState<string | null>(null);
   async function useForShot(x: ViewerItem) {
     try {
-      const p = await projectsApi.pick(
-        x.project!,
-        shotPickKey(Number(sameShot), shotOf(x).name, x.kind === 'video' ? 'clip' : 'image'),
-        x.asset,
-      );
+      const p = await projectsApi.choose(x.project!, {
+        shot: shotKey(Number(sameShot), shotOf(x).name),
+        kind: x.kind === 'video' ? 'clip' : 'image',
+        asset: x.asset,
+      });
       setChosenId(x.asset);
       dispatchEvent(new CustomEvent('seed:project', { detail: p }));
       app.toast(`Chosen for Shot ${sameShot}`);

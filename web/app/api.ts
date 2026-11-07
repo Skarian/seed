@@ -1,5 +1,6 @@
 import type { ChatView, ChatMessage, ChatGroup, ChatCard, ChatRevision, ChatWorkflow } from '../../shared/chat.js';
 import type { JobRecord } from '../../shared/jobs.js';
+import type { Choice } from '../../shared/choices.js';
 import type { LibraryAsset, AssetCollection } from '../../shared/studio.js';
 import type { PoolSnapshot, OffersResponse, WorkerClass, LaunchRequest, PoolAction } from '../../shared/pool.js';
 import type { ImageRequest } from '../../shared/generation.js';
@@ -119,9 +120,8 @@ export const projects = {
     pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, frame } }),
   setBrief: (p: Project, brief: string) =>
     pj('chats/' + p.id, { method: 'PATCH', body: { version: p.version, brief } }),
-  /** Choose the take used for a shot (key "<shot>:image" or "<shot>:clip"), or clear it with null. */
-  pick: (id: string, key: string, asset: string | null) =>
-    pj('chats/' + id + '/picks', { method: 'PUT', body: { key, asset } }),
+  /** Choose a shot's take or a name's reference picture, or clear it with a null asset. */
+  choose: (id: string, choice: Choice) => pj('chats/' + id + '/choices', { method: 'PUT', body: choice }),
   /** Adds (from null), changes or removes (entry null) a character, place or prop. */
   editCast: (id: string, from: string | null, entry: { kind: string; name: string; look: string } | null) =>
     pj('chats/' + id + '/cast', { method: 'PUT', body: { from, entry } }),

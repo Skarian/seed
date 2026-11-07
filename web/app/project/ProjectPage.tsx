@@ -1,10 +1,4 @@
-import {
-  useEffect,
-  useLayoutEffect,
-  useMemo,
-  useRef,
-  useState,
-} from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import {
   projects as projectsApi,
   randomKey,
@@ -35,21 +29,22 @@ import { ResultGroup } from './ResultGroup.js';
 import { Composer, type ComposerContext } from './Composer.js';
 import { ComputeSheet } from './ComputeSheet.js';
 import { ResultsView } from './ResultsView.js';
-import { referenceKey } from '../../../shared/cast.js';
+import { approvedReferences } from '../../../shared/choices.js';
 import { readiness } from './readiness.js';
-import {
-  buildRequest,
-  defaultMake,
-  defaultRoles,
-  type Attachment,
-  type MakeSettings,
-} from './requests.js';
+import { buildRequest, defaultMake, defaultRoles, type Attachment, type MakeSettings } from './requests.js';
 import { useStyles } from './styles.js';
 import { checkDraft, readablePrompt } from './checks.js';
 import { BriefBar } from './Brief.js';
 import { Header, RenameDialog, EmptyProject } from './ProjectHeader.js';
 import { Message } from './Message.js';
-import { isOpenPlan, buildTimeline, nextVersion, substantialRequest, lastUserMessage, titleFromPrompt } from './timeline.js';
+import {
+  isOpenPlan,
+  buildTimeline,
+  nextVersion,
+  substantialRequest,
+  lastUserMessage,
+  titleFromPrompt,
+} from './timeline.js';
 
 export function ProjectPage({ id, view, focus }: { id: string; view: 'conversation' | 'results'; focus?: string }) {
   const app = useApp();
@@ -642,7 +637,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     onReuse: reuse,
     onApproveReference: (name: string, asset: string | null) =>
       void projectsApi
-        .pick(id, referenceKey(name), asset)
+        .choose(id, { reference: name, asset })
         .then(p => {
           projectRef.current = p;
           setProject(p);
@@ -1173,7 +1168,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                     context={context}
                     onContext={setContext}
                     planOpen={Boolean(plan)}
-                    castApproved={Object.keys(project?.picks ?? {}).some(k => k.startsWith('ref:'))}
+                    castApproved={approvedReferences(project?.choices).length > 0}
                     mode={mode}
                     onMode={m => {
                       setMode(m);
@@ -1279,8 +1274,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
             ) : (
               <>{conflict.label} starts a new plan. </>
             )}
-            The waiting drafts stay listed under “Not run · kept as drafts” with their settings, and Move back to the plan returns any of them.
-            Nothing is made or deleted, and your message is kept.
+            The waiting drafts stay listed under “Not run · kept as drafts” with their settings, and Move back to the
+            plan returns any of them. Nothing is made or deleted, and your message is kept.
           </p>
         </Dialog>
       )}

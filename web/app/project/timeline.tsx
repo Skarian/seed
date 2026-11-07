@@ -1,8 +1,8 @@
 import { type ChatGroup, type ChatMessage, type Project } from '../api.js';
 import { latest, titleOf } from '../format.js';
+import { planOpen } from '../../../shared/plan.js';
 
-export const openStates = ['reviewing', 'revising', 'assembling'];
-export const isOpenPlan = (g: ChatGroup) => openStates.includes(g.state) && !g.direct;
+export const isOpenPlan = (g: ChatGroup) => planOpen(g) && !g.direct;
 
 export type TimelineItem =
   { type: 'message'; message: ChatMessage; groupsAfter: ChatGroup[] } | { type: 'group'; group: ChatGroup };

@@ -3,7 +3,7 @@ import { validateCastReferences } from '../server/chat/references.js';
 import { castFromBrief } from '../shared/cast.js';
 
 const cast = castFromBrief('## Characters\n- Odile Brann: 62, veil\n- Pim: 9, odd laces\n## Places\n- The Orchard: old apple trees');
-const picks = { 'ref:Odile Brann': 'odile', 'ref:Pim': 'pim', 'ref:The Orchard': 'orchard' };
+const picks = { references: { 'Odile Brann': 'odile', 'Pim': 'pim', 'The Orchard': 'orchard' }, takes: {} };
 const request = (prompt: string) =>
   ({
     workflow: 'image-to-image',
@@ -31,7 +31,7 @@ describe('who is who in reference drafts', () => {
   });
   it('leaves places and unapproved images alone', () => {
     const p = 'Odile from <image1> and Pim from <image2> under trees from <image3>.';
-    expect(validateCastReferences(request(p), cast, { 'ref:Odile Brann': 'odile', 'ref:Pim': 'pim' })).toBe(p);
+    expect(validateCastReferences(request(p), cast, { references: { 'Odile Brann': 'odile', 'Pim': 'pim' }, takes: {} })).toBe(p);
   });
 });
 
@@ -39,7 +39,7 @@ describe('looks ride along with references', () => {
   it('adds the parts of a referenced character’s look the prompt does not carry', async () => {
     const { withCastLooks } = await import('../server/chat/references.js');
     const c = castFromBrief('## Characters\n- Ines Varga: 40, apprentice, shaved head, oil-stained blue overalls, brass goggles\n## Props\n- The Bell: tarnished brass ship’s bell');
-    const p = { 'ref:Ines Varga': 'ines', 'ref:The Bell': 'bell' };
+    const p = { references: { 'Ines Varga': 'ines', 'The Bell': 'bell' }, takes: {} };
     const r = (prompt: string, refs = ['ines']) => ({ workflow: 'image-to-image', prompt, references: refs.map((a, i) => ({ id: 'r' + i, asset_id: a, kind: 'image', role: i ? 'reference' : 'source' })) }) as any;
     expect(withCastLooks(r('Ines Varga, the mechanic from <image1>, in blue overalls that are oil-stained.'), c, p)).toBe(
       'Ines Varga, the mechanic from <image1>, in blue overalls that are oil-stained. Ines Varga’s look: shaved head, brass goggles.',
@@ -65,7 +65,7 @@ describe('looks that belong to particular shots', () => {
       'a brass hook',
     ]);
     const c = castFromBrief('## Props\n- Carp Lantern: red paper carp lantern, In shots 1-3 it is crushed flat on one side; in shot 4 it is fully mended and glowing');
-    const p = { 'ref:Carp Lantern': 'lamp' };
+    const p = { references: { 'Carp Lantern': 'lamp' }, takes: {} };
     const r = { workflow: 'image-to-image', prompt: 'A market stall.', references: [{ id: 'input1', asset_id: 'lamp', kind: 'image', role: 'source' }] } as any;
     const out = withCastLooks(r, c, p);
     expect(out).not.toMatch(/shot 4|shots 1-3/i);
@@ -80,7 +80,7 @@ describe('looks follow the shot record', () => {
     expect(['dry', 'unsentimental', 'calm', 'her granddaughter'].map(isVisibleDetail)).toEqual([false, false, false, false]);
     expect(['freckles', 'long silver hair', 'mustard-yellow oilskin'].map(isVisibleDetail)).toEqual([true, true, true]);
     const c = castFromBrief('## Characters\n- Odile Marchetti: dry, unsentimental, long silver hair, mustard-yellow oilskin\n- Tomás Reyes: 9, curly black hair, navy jumper');
-    const p = { 'ref:Odile Marchetti': 'odile', 'ref:Tomás Reyes': 'tomas' };
+    const p = { references: { 'Odile Marchetti': 'odile', 'Tomás Reyes': 'tomas' }, takes: {} };
     const refs = [
       { id: 'input1', asset_id: 'tomas', kind: 'image', role: 'source' },
       { id: 'input2', asset_id: 'odile', kind: 'image', role: 'reference' },

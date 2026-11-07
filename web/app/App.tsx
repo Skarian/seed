@@ -17,6 +17,7 @@ import { projects as projectsApi } from './api.js';
 import { Icon } from './icons.js';
 import { rate } from './format.js';
 import { jobActive } from '../../shared/jobs.js';
+import { approvedReferences } from '../../shared/choices.js';
 import { ProjectPage } from './project/ProjectPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
 import { GpusPage } from './gpus/GpusPage.js';
@@ -323,8 +324,8 @@ export function App() {
                   const source = await projectsApi.get(from).catch(() => null);
                   if (source?.brief) p = await projectsApi.setBrief(p, source.brief);
                   // The cast's approved references come along, so new shots are drafted from the same pictures.
-                  for (const [key, asset] of Object.entries(source?.picks ?? {}))
-                    if (key.startsWith('ref:')) p = await projectsApi.pick(p.id, key, asset).catch(() => p);
+                  for (const [name, asset] of approvedReferences(source?.choices))
+                    p = await projectsApi.choose(p.id, { reference: name, asset }).catch(() => p);
                   if (source?.title) p = await projectsApi.rename(p, source.title + ' · continued').catch(() => p);
                   list.refresh();
                   handTo(d.item, d.intent, p.id);

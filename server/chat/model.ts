@@ -1,10 +1,9 @@
-import type { AgentMessage } from '@earendil-works/pi-agent-core';
 import type { ChatCard, ChatView, ChatWorkflow } from '../../shared/chat.js';
 import { isVideoWorkflow } from '../../shared/workflows.js';
+import { movePlan, planOpen } from '../../shared/plan.js';
 import { videoDetail, videoSteps } from '../../shared/video-settings.js';
 import type { ImageRequest } from '../workflows.js';
 import type { ChatAccounting } from './provider.js';
-import type { chatPromptSnapshot } from './prompts.js';
 import type { ConversationSummary } from './context.js';
 import { toolPromptBindings, toolPromptReferencePattern, type ToolAsset } from './request-tools.js';
 
@@ -19,18 +18,15 @@ export interface StoredChat extends ChatView {
     workflow?: ChatWorkflow | null;
     source_assets?: string[];
     target_request_id?: string;
-    prompt: ReturnType<typeof chatPromptSnapshot>;
     accounting: ChatAccounting[];
-    messages: AgentMessage[];
     state: string;
-    summary?: ConversationSummary;
   }>;
 }
 
 export const latest = (card: ChatCard) => card.revisions.at(-1)!;
 export const now = () => new Date().toISOString();
 /** The plan still open for review or revision, if any. */
-export const openGroup = (chat: ChatView) => chat.groups.find(g => !['released', 'stopped'].includes(g.state));
+export const openGroup = (chat: ChatView) => chat.groups.find(planOpen);
 /** When a turn ends (or a restart cuts it off), the open plan goes back to review, or away if it is still empty. */
 export function settlePlan(chat: StoredChat) {
   const plan = openGroup(chat);
@@ -39,7 +35,7 @@ export function settlePlan(chat: StoredChat) {
     chat.groups = chat.groups.filter(g => g.id !== plan.id);
     return;
   }
-  plan.state = 'reviewing';
+  movePlan(plan, 'reviewing');
   for (const card of plan.cards)
     if (card.timeline_start && card.timeline_start > latest(card).number) card.timeline_start = latest(card).number;
 }

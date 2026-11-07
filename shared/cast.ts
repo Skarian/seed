@@ -1,12 +1,11 @@
 /**
  * The cast, places and props of a project. Once a project has a stored cast it is the record: entries are added from
  * the brief's "Name: look" lines (under a Characters, Places or Props heading) and edited or removed only on purpose,
- * so a reworded brief line can never make someone vanish. The brief shows the same entries in its sections. An
- * approved reference image for a name is stored with the project's picks under "ref:<Name>".
+ * so a reworded brief line can never make someone vanish. The brief shows the same entries in its sections. A name's
+ * approved reference picture is one of the project's choices.
  */
 export type CastEntry = { kind: 'character' | 'place' | 'prop'; name: string; look: string };
 
-export const referenceKey = (name: string) => 'ref:' + name;
 
 /** Generic sub-lines ("Wardrobe:") that add to the entry above them; they are not people. */
 const subLine = /^(wardrobe|costume|outfit|props?|look|appearance|age|notes?)$/i;

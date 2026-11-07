@@ -1,5 +1,6 @@
-import { castOf, referenceKey } from '../../../shared/cast.js';
-import { shotsFromBrief, shotPickKey, shotFromTitle } from '../../../shared/shots.js';
+import { castOf } from '../../../shared/cast.js';
+import { shotKey } from '../../../shared/choices.js';
+import { shotsFromBrief, shotFromTitle } from '../../../shared/shots.js';
 import { latest, openGroup } from '../model.js';
 import { current, defineTool, namedInput, ToolFailure, type ToolSession } from './define.js';
 
@@ -89,15 +90,11 @@ export function planTools(session: ToolSession) {
           const own = job?.request.title ? shotFromTitle(job.request.title) : undefined;
           return own && own.n === Number(shot) ? own.name : '';
         })();
-      const view = host.pick(
-        session.id,
-        shotPickKey(Number(shot), named, asset.kind === 'video' ? 'clip' : 'image'),
-        asset.asset_id,
-      );
+      const kind = asset.kind === 'video' ? 'clip' : 'image';
+      host.choose(session.id, { shot: shotKey(Number(shot), named), kind, asset: asset.asset_id });
       return {
         shot,
-        chosen: asset.kind === 'video' ? 'clip' : 'keyframe',
-        picks: Object.keys(view.picks ?? {}),
+        chosen: kind === 'clip' ? 'clip' : 'keyframe',
         next_action: 'Say in one short sentence which take is now chosen for the shot.',
       };
     },
@@ -122,7 +119,7 @@ export function planTools(session: ToolSession) {
           { names: castOf(chat).map(e => e.name) },
         );
       if (!asset || asset.kind !== 'image') throw new ToolFailure('Give the input handle of a made image.');
-      host.pick(session.id, referenceKey(entry.name), asset.asset_id);
+      host.choose(session.id, { reference: entry.name, asset: asset.asset_id });
       return {
         name: entry.name,
         approved: true,

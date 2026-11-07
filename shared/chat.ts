@@ -17,8 +17,8 @@ export interface ChatView {
   brief?:string;brief_updated_by?:'you'|'seed';brief_updated_at?:string;
   /** The project's characters, places and props: added from the brief, edited or removed only on purpose. */
   cast?:import('./cast.js').CastEntry[];
-  /** The owner's chosen take per shot, keyed "<shot>:image" or "<shot>:clip" (shot is the number, or the title when unnumbered). */
-  picks?:Record<string,string>;
+  /** The owner's approved references and chosen takes. */
+  choices?:import('./choices.js').ProjectChoices;
   /** The shape the owner will deliver ("2.39:1"), when it differs from what the models make; results show its guides and Crop starts there. */
   frame?:string;
   partial?:string;partial_reasoning?:string;

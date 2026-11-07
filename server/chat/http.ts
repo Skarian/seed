@@ -3,6 +3,7 @@ import type { ServerResponse } from 'node:http';
 import type { FastifyInstance } from 'fastify';
 import type { Chats } from './service.js';
 import type { ChatMode, ChatWorkflow } from '../../shared/chat.js';
+import type { Choice } from '../../shared/choices.js';
 const object = (properties: Record<string, unknown>, required = Object.keys(properties)) => ({
   type: 'object',
   additionalProperties: false,
@@ -120,19 +121,23 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
     perform(r => chats.editCast(id(r), r.body.from, r.body.entry)),
   );
   app.put(
-    '/api/v1/chats/:id/picks',
+    '/api/v1/chats/:id/choices',
     {
       schema: {
-        body: object(
-          {
-            key: { type: 'string', minLength: 3, maxLength: 140 },
+        body: {
+          type: 'object',
+          additionalProperties: false,
+          properties: {
+            reference: { type: 'string', minLength: 1, maxLength: 60 },
+            shot: { type: 'string', minLength: 1, maxLength: 130 },
+            kind: { enum: ['image', 'clip'] },
             asset: { type: ['string', 'null'], maxLength: 200 },
           },
-          ['key', 'asset'],
-        ),
+          required: ['asset'],
+        },
       },
     },
-    perform(r => chats.pick(id(r), r.body.key as string, r.body.asset as string | null)),
+    perform(r => chats.choose(id(r), r.body as Choice)),
   );
   app.delete(
     '/api/v1/chats/:id',
@@ -233,7 +238,10 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
     {
       bodyLimit: 64 * 1024,
       schema: {
-        body: object({ revision: version, request: { type: 'object' }, join: { type: 'boolean' } }, ['revision', 'request']),
+        body: object({ revision: version, request: { type: 'object' }, join: { type: 'boolean' } }, [
+          'revision',
+          'request',
+        ]),
       },
     },
     perform(r => chats.restore(id(r), r.params.card, r.body.revision, r.body.request, r.body.join === true)),

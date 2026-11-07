@@ -2,6 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import type { LibraryAsset } from '../shared/studio.js';
+import { choicesFromPicks, type ProjectChoices } from '../shared/choices.js';
 
 export function openDatabase(dataDirectory: string) {
   const db = new Database(path.join(dataDirectory, 'studio.sqlite'));
@@ -13,7 +14,7 @@ export function openDatabase(dataDirectory: string) {
     db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
     db.transaction(() => {
       const latest = db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {version:number|null};
-      if (latest.version === 7 || latest.version === 8 || latest.version === 9 || latest.version === 10) return;
+      if (latest.version !== null && latest.version >= 7 && latest.version <= 11) return;
       if (latest.version === 6) {
         // Preserve old held requests instead of unexpectedly submitting them during migration.
         const state=db.prepare('SELECT paused FROM dispatcher_state WHERE id=1').get() as {paused:number};
@@ -83,6 +84,7 @@ export function openDatabase(dataDirectory: string) {
         CREATE INDEX IF NOT EXISTS asset_collections ON collection_assets(asset_id);`);
       db.prepare('INSERT OR IGNORE INTO schema_migrations VALUES (10,?)').run(new Date().toISOString());
     })();
+    migrateChats(db, dataDirectory);
     return db;
   } catch (error) {
     db.close();
@@ -90,22 +92,46 @@ export function openDatabase(dataDirectory: string) {
   }
 }
 
+/**
+ * Version 11: a project keeps the owner's choices as a typed record (not "ref:Name" and "shot:<key>:image" keys), and
+ * an agent run keeps only what is read again (its accounting and what it worked on), not the whole model history.
+ */
+function migrateChats(db: Database.Database, dataDirectory: string) {
+  const version = (db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version;
+  if (version !== 10) return;
+  const rows = db.prepare('SELECT id, body_json FROM chats').all() as Array<{ id: string; body_json: string }>;
+  const backup = path.join(dataDirectory, 'studio-before-chat-v11.sqlite');
+  if (rows.length && !existsSync(backup)) db.prepare('VACUUM INTO ?').run(backup);
+  db.transaction(() => {
+    const update = db.prepare('UPDATE chats SET body_json=? WHERE id=?');
+    for (const row of rows) {
+      const chat = JSON.parse(row.body_json);
+      if (chat.picks) chat.choices = choicesFromPicks(chat.picks);
+      delete chat.picks;
+      for (const run of chat.runs ?? []) {
+        delete run.messages;
+        delete run.prompt;
+        delete run.summary;
+      }
+      update.run(JSON.stringify(chat), row.id);
+    }
+    db.prepare('INSERT INTO schema_migrations VALUES (11,?)').run(new Date().toISOString());
+  })();
+}
+
 export type AssetFilters = {favorites?:boolean;collection_id?:string;q?:string;source?:'made'|'uploaded';chat_id?:string;order?:'newest'|'oldest';approved?:boolean};
-/** What each asset is used as across projects: approved references ("ref:Name") and chosen takes. */
+/** What each asset is used as across projects: approved references and chosen takes. */
 function usedAs(db: Database.Database) {
   const map = new Map<string, string[]>(), refs = new Set<string>();
+  const add = (asset: string, label: string) => map.set(asset, [...(map.get(asset) ?? []), label]);
   for (const row of db.prepare('SELECT body_json FROM chats').all() as Array<{ body_json: string }>) {
-    let picks: Record<string, string> = {};
-    try { picks = JSON.parse(row.body_json).picks ?? {}; } catch { continue; }
-    for (const [key, asset] of Object.entries(picks)) {
-      if (typeof asset !== 'string') continue;
-      const named = key.match(/^shot:(.+):(image|clip)$/), numbered = key.match(/^(\d+):(image|clip)$/);
-      const label = key.startsWith('ref:') ? key.slice(4) + '’s reference'
-        : named ? 'Chosen for ' + named[1]!.replace(/\b\w/g, c => c.toUpperCase())
-        : numbered ? 'Chosen for Shot ' + numbered[1] : '';
-      if (!label) continue;
-      if (key.startsWith('ref:')) refs.add(asset);
-      map.set(asset, [...(map.get(asset) ?? []), label]);
+    let choices: ProjectChoices | undefined;
+    try { choices = JSON.parse(row.body_json).choices; } catch { continue; }
+    if (!choices) continue;
+    for (const [name, asset] of Object.entries(choices.references)) if (asset !== 'skip') { refs.add(asset); add(asset, name + '’s reference'); }
+    for (const [shot, take] of Object.entries(choices.takes)) {
+      const label = shot.startsWith('#') ? 'Chosen for Shot ' + shot.slice(1) : 'Chosen for ' + shot.replace(/\b\w/g, c => c.toUpperCase());
+      for (const asset of [take.image, take.clip]) if (asset) add(asset, label);
     }
   }
   return { map, refs };

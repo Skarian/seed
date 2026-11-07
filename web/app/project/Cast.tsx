@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
-import { castFromBrief, castOf, referenceKey, sameCast, type CastEntry } from '../../../shared/cast.js';
+import { castFromBrief, castOf, sameCast, type CastEntry } from '../../../shared/cast.js';
+import { approvedReference, referenceSkipped, type ProjectChoices } from '../../../shared/choices.js';
 import { useApp, type ViewerItem } from '../data.js';
 import { projects as projectsApi } from '../api.js';
 import { Media, Dialog, MenuButton } from '../ui.js';
@@ -23,7 +24,7 @@ export function CastStrip({
   brief,
   cast: stored,
   onEdit,
-  picks,
+  choices,
   images,
   busy,
   onChoose,
@@ -38,10 +39,12 @@ export function CastStrip({
   cast?: CastEntry[];
   /** Adds (from null), changes or removes (entry null) one entry; the brief follows. */
   onEdit?: (from: string | null, entry: CastEntry | null) => Promise<void>;
-  picks: Record<string, string>;
+  choices: ProjectChoices | undefined;
   images: ViewerItem[];
+  /** The cast name whose choice is being saved. */
   busy: string;
-  onChoose: (key: string, asset: string | null) => void;
+  /** Approves a name's reference picture, says it needs none ('skip'), or clears either (null). */
+  onChoose: (name: string, asset: string | 'skip' | null) => void;
   onAsk?: (text: string) => void;
   onOpen: (item: ViewerItem) => void;
   /** Brings characters, places and props (brief entry and approved picture) from another project. */
@@ -58,8 +61,8 @@ export function CastStrip({
   const [editing, setEditing] = useState<{ from: string | null; entry: CastEntry } | null>(null);
   if (!cast.length && !(onImport && brief?.trim()) && !onEdit) return null;
   // Entries the owner marked Not needed stop counting; they stay listed so the choice can be undone.
-  const skipped = (name: string) => Boolean(picks['skip:' + name]);
-  const approved = cast.filter(e => picks[referenceKey(e.name)] || skipped(e.name)).length;
+  const skipped = (name: string) => referenceSkipped(choices, name);
+  const approved = cast.filter(e => choices?.references[e.name]).length;
   // Once every entry is settled the cast is a reference row: small pictures, names, and each one's actions in a menu.
   const compact = cast.length > 0 && (approved === cast.length || Boolean(shotsMade));
   return (
@@ -71,7 +74,7 @@ export function CastStrip({
         </b>
         <span className="faint">
           {(() => {
-            const skips = cast.filter(e => !picks[referenceKey(e.name)] && skipped(e.name)).length;
+            const skips = cast.filter(e => skipped(e.name)).length;
             return `${approved - skips} of ${cast.length - skips} approved${skips ? ` · ${skips} not needed` : ''} · drafts from references use these pictures`;
           })()}
         </span>
@@ -98,8 +101,7 @@ export function CastStrip({
       )}
       <ul className="cast-cells">
         {cast.map(e => {
-          const key = referenceKey(e.name),
-            id = picks[key],
+          const id = approvedReference(choices, e.name),
             item = images.find(i => i.asset === id);
           const name = e.name.toLowerCase();
           // Results drafted as this name's reference come first in the menu.
@@ -129,56 +131,72 @@ export function CastStrip({
                   label={`${e.name}: actions`}
                   items={[
                     ...(id && item ? [{ label: 'Open reference', onSelect: () => onOpen(item) }] : []),
-                    ...(options.length ? [{ label: id ? 'Change reference…' : 'Approve a picture…', onSelect: () => setPicking(e) }] : []),
-                    ...(onAsk && id && e.kind === 'character'
-                      ? [{ label: 'Draft a reference sheet', hint: 'Front, side and back in one picture', onSelect: () => onAsk(sheetAsk(e)) }]
+                    ...(options.length
+                      ? [{ label: id ? 'Change reference…' : 'Approve a picture…', onSelect: () => setPicking(e) }]
                       : []),
-                    ...(!id ? [{ label: 'Needed after all', onSelect: () => onChoose('skip:' + e.name, null) }] : []),
-                    ...(onEdit ? [{ label: 'Edit…', hint: 'Name, kind and look', onSelect: () => setEditing({ from: e.name, entry: { ...e } }) }] : []),
+                    ...(onAsk && id && e.kind === 'character'
+                      ? [
+                          {
+                            label: 'Draft a reference sheet',
+                            hint: 'Front, side and back in one picture',
+                            onSelect: () => onAsk(sheetAsk(e)),
+                          },
+                        ]
+                      : []),
+                    ...(!id ? [{ label: 'Needed after all', onSelect: () => onChoose(e.name, null) }] : []),
+                    ...(onEdit
+                      ? [
+                          {
+                            label: 'Edit…',
+                            hint: 'Name, kind and look',
+                            onSelect: () => setEditing({ from: e.name, entry: { ...e } }),
+                          },
+                        ]
+                      : []),
                   ]}
                 >
                   <Icon.More />
                 </MenuButton>
               ) : (
-              <span className="cast-actions">
-                {onAsk && !id && !skipped(e.name) && (
-                  <button className="btn small" onClick={() => onAsk(referenceAsk(e))}>
-                    Draft reference
-                  </button>
-                )}
-                {!id && (
-                  <button
-                    className="btn small quiet"
-                    aria-pressed={skipped(e.name)}
-                    onClick={() => onChoose('skip:' + e.name, skipped(e.name) ? null : 'skip')}
-                  >
-                    {skipped(e.name) ? 'Needed after all' : 'Not needed'}
-                  </button>
-                )}
-                {onAsk && id && e.kind === 'character' && (
-                  <button className="btn small" onClick={() => onAsk(sheetAsk(e))}>
-                    Draft sheet
-                  </button>
-                )}
-                {options.length > 0 && (
-                  <button
-                    className="btn small"
-                    aria-label={id ? `Change ${e.name}’s reference` : `Approve a picture as ${e.name}’s reference`}
-                    onClick={() => setPicking(e)}
-                  >
-                    {id ? 'Change' : 'Approve…'}
-                  </button>
-                )}
-                {onEdit && (
-                  <button
-                    className="btn small quiet"
-                    aria-label={`Edit ${e.name}`}
-                    onClick={() => setEditing({ from: e.name, entry: { ...e } })}
-                  >
-                    Edit
-                  </button>
-                )}
-              </span>
+                <span className="cast-actions">
+                  {onAsk && !id && !skipped(e.name) && (
+                    <button className="btn small" onClick={() => onAsk(referenceAsk(e))}>
+                      Draft reference
+                    </button>
+                  )}
+                  {!id && (
+                    <button
+                      className="btn small quiet"
+                      aria-pressed={skipped(e.name)}
+                      onClick={() => onChoose(e.name, skipped(e.name) ? null : 'skip')}
+                    >
+                      {skipped(e.name) ? 'Needed after all' : 'Not needed'}
+                    </button>
+                  )}
+                  {onAsk && id && e.kind === 'character' && (
+                    <button className="btn small" onClick={() => onAsk(sheetAsk(e))}>
+                      Draft sheet
+                    </button>
+                  )}
+                  {options.length > 0 && (
+                    <button
+                      className="btn small"
+                      aria-label={id ? `Change ${e.name}’s reference` : `Approve a picture as ${e.name}’s reference`}
+                      onClick={() => setPicking(e)}
+                    >
+                      {id ? 'Change' : 'Approve…'}
+                    </button>
+                  )}
+                  {onEdit && (
+                    <button
+                      className="btn small quiet"
+                      aria-label={`Edit ${e.name}`}
+                      onClick={() => setEditing({ from: e.name, entry: { ...e } })}
+                    >
+                      Edit
+                    </button>
+                  )}
+                </span>
               )}
             </li>
           );
@@ -186,8 +204,7 @@ export function CastStrip({
       </ul>
       {picking &&
         (() => {
-          const key = referenceKey(picking.name),
-            id = picks[key],
+          const id = approvedReference(choices, picking.name),
             name = picking.name.toLowerCase();
           const own = images
             .filter(i => i.title.toLowerCase().includes(name))
@@ -200,9 +217,9 @@ export function CastStrip({
                 className={'pick-tile' + (o.asset === id ? ' on' : '')}
                 aria-pressed={o.asset === id}
                 aria-label={`${o.title.replace(/^Reference:\s*/i, '') || 'Untitled picture'} as ${picking.name}’s reference`}
-                disabled={busy === key}
+                disabled={busy === picking.name}
                 onClick={() => {
-                  onChoose(key, o.asset);
+                  onChoose(picking.name, o.asset);
                   setPicking(null);
                 }}
               >
@@ -223,7 +240,7 @@ export function CastStrip({
                   <button
                     className="btn danger"
                     onClick={() => {
-                      onChoose(key, null);
+                      onChoose(picking.name, null);
                       setPicking(null);
                     }}
                   >
@@ -233,7 +250,8 @@ export function CastStrip({
               }
             >
               <p className="faint" style={{ marginTop: 0 }}>
-                Pick the picture that shows {picking.name} best. Drafts made from references (FLUX 3 Image Klein) use it; drafts made from words use {picking.name}’s description.
+                Pick the picture that shows {picking.name} best. Drafts made from references (FLUX 3 Image Klein) use
+                it; drafts made from words use {picking.name}’s description.
               </p>
               {own.length > 0 && <ul className="pick-grid">{own.map(tile)}</ul>}
               {rest.length > 0 && (
@@ -249,7 +267,7 @@ export function CastStrip({
         <CastEditor
           editing={editing}
           taken={cast.filter(x => x.name !== editing.from).map(x => x.name.toLowerCase())}
-          approved={Boolean(editing.from && picks[referenceKey(editing.from)])}
+          approved={Boolean(editing.from && approvedReference(choices, editing.from))}
           onClose={() => setEditing(null)}
           onSave={async entry => {
             await onEdit(editing.from, entry);
@@ -260,7 +278,7 @@ export function CastStrip({
       {importing && onImport && (
         <ImportCast
           projectId={projectId}
-          have={cast.filter(e => picks[referenceKey(e.name)]).map(e => e.name)}
+          have={cast.filter(e => approvedReference(choices, e.name)).map(e => e.name)}
           onClose={() => setImporting(false)}
           onImport={async items => {
             await onImport(items);
@@ -306,8 +324,8 @@ function ImportCast({
           .map(p => ({
             project: p.title,
             items: castOf(p)
-              .filter(e => p.picks?.[referenceKey(e.name)] && !have.some(h => sameCast(h, e.name)))
-              .map(e => ({ entry: e, asset: p.picks![referenceKey(e.name)]! })),
+              .filter(e => approvedReference(p.choices, e.name) && !have.some(h => sameCast(h, e.name)))
+              .map(e => ({ entry: e, asset: approvedReference(p.choices, e.name)! })),
           }))
           .filter(g => g.items.length),
       );
@@ -407,7 +425,11 @@ function CastEditor({
   const [error, setError] = useState('');
   const [removing, setRemoving] = useState(false);
   const name = e.name.trim();
-  const problem = !name ? 'Give it a name.' : taken.includes(name.toLowerCase()) ? name + ' is already in the cast.' : '';
+  const problem = !name
+    ? 'Give it a name.'
+    : taken.includes(name.toLowerCase())
+      ? name + ' is already in the cast.'
+      : '';
   const save = async (entry: CastEntry | null) => {
     setBusy(true);
     setError('');
@@ -446,7 +468,8 @@ function CastEditor({
     >
       {removing ? (
         <div className="notice warn" role="alert">
-          Remove {editing.from} from the cast and the brief?{approved ? ' Its approved picture stays in the Library.' : ''}
+          Remove {editing.from} from the cast and the brief?
+          {approved ? ' Its approved picture stays in the Library.' : ''}
           <div className="actions">
             <button className="btn small danger" disabled={busy} onClick={() => void save(null)}>
               Remove {editing.from}

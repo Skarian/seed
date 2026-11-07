@@ -12,6 +12,7 @@ import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableF
 import { askedFor, checkDraft, readablePrompt, editablePrompt, chooseFrame, type Check } from './checks.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 import { swapInput } from './swap.js';
+import { approvedReferences } from '../../../shared/choices.js';
 
 export type Selection = Record<string, boolean>;
 type Props = {
@@ -633,7 +634,7 @@ function Draft({
               // Someone's approved picture is never dropped by a swap: it stays on as a reference, and the prompt
               // follows it, so their name never ends up on a place's picture.
               const keep = Boolean(
-                old && Object.entries(project.picks ?? {}).some(([k, v]) => k.startsWith('ref:') && v === old.asset_id),
+                old && approvedReferences(project.choices).some(([, asset]) => asset === old.asset_id),
               );
               const next = swapInput(r, id, { id: a.id, kind: a.kind }, keep);
               setSwapped(!next.kept && was && now && was.toLowerCase() !== now.toLowerCase() ? { was, now } : null);

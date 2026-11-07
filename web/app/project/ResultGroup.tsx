@@ -18,9 +18,11 @@ import { useApp, type ViewerItem } from '../data.js';
 import { styleName, type StyleEntry } from './readiness.js';
 import { readablePrompt } from './checks.js';
 import { roleLabels } from './requests.js';
-import { castOf, referenceKey } from '../../../shared/cast.js';
+import { castOf } from '../../../shared/cast.js';
+import { approvedReference } from '../../../shared/choices.js';
 import { shotFromTitle } from '../../../shared/shots.js';
 import { jobActive } from '../../../shared/jobs.js';
+import { planOpen } from '../../../shared/plan.js';
 
 type Actions = {
   onVariations: (card: ChatCard) => void;
@@ -264,10 +266,7 @@ function CardResults({
   // A draft already brought back into the open plan needs no second Bring back here.
   const broughtBack = (c: ChatCard) =>
     project.groups.some(
-      g =>
-        g !== group &&
-        ['reviewing', 'revising', 'assembling'].includes(g.state) &&
-        g.cards.some(x => titleOf(latest(x).request) === titleOf(latest(c).request)),
+      g => g !== group && planOpen(g) && g.cards.some(x => titleOf(latest(x).request) === titleOf(latest(c).request)),
     );
   // Drafts still waiting lead; versions since redrafted or already brought back fold into a short history.
   const waiting = notNow.filter(c => !broughtBack(c) && !madeLater(c)),
@@ -652,7 +651,7 @@ function ResultTile({
       : castOf(project)
           .slice(0, 8)
           .map(e => {
-            const on = project.picks?.[referenceKey(e.name)] === asset;
+            const on = approvedReference(project.choices, e.name) === asset;
             return {
               label: on ? `${e.name}’s reference` : `Use as ${e.name}’s reference`,
               checked: on,

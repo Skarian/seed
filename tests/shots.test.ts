@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { shotsFromBrief, placeShot, shotPickKey, chosenTake } from '../shared/shots.js';
+import { shotsFromBrief, placeShot } from '../shared/shots.js';
+import { applyChoice, chosenTake, noChoices, shotKey } from '../shared/choices.js';
 
 describe('shotsFromBrief', () => {
   it('reads numbered lines under a Shots heading in story order', () => {
@@ -41,9 +42,12 @@ describe('shot identity', () => {
     expect(placeShot('Reference: Ines', list)).toEqual({ n: null, name: 'Reference: Ines' });
   });
   it('keys a chosen take by the shot’s name and still reads choices saved by number', () => {
-    expect(shotPickKey(4, 'The Walk!', 'image')).toBe('shot:the walk:image');
-    expect(shotPickKey(4, '', 'clip')).toBe('4:clip');
-    expect(chosenTake({ 'shot:the walk:image': 'a', '5:image': 'b' }, 5, 'The Walk', 'image')).toBe('a');
-    expect(chosenTake({ '5:image': 'b' }, 5, 'The Walk', 'image')).toBe('b');
+    expect(shotKey(4, 'The Walk!')).toBe('the walk');
+    expect(shotKey(4, '')).toBe('#4');
+    const both = { references: {}, takes: { 'the walk': { image: 'a' }, '#5': { image: 'b' } } };
+    expect(chosenTake(both, 5, 'The Walk', 'image')).toBe('a');
+    expect(chosenTake({ references: {}, takes: { '#5': { image: 'b' } } }, 5, 'The Walk', 'image')).toBe('b');
+    const cleared = applyChoice(applyChoice(noChoices(), { shot: 'the walk', kind: 'clip', asset: 'c' }), { shot: 'the walk', kind: 'clip', asset: null });
+    expect(cleared.takes).toEqual({});
   });
 });

@@ -22,7 +22,7 @@ import { briefTool } from './tools/brief.js';
 import type Database from 'better-sqlite3';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
-import type { Agent, AgentMessage, AgentTool } from '@earendil-works/pi-agent-core';
+import type { Agent, AgentTool } from '@earendil-works/pi-agent-core';
 import type { ChatView, ChatMode, ChatWorkflow, ChatGroup, ChatCard, ChatRevision } from '../../shared/chat.js';
 import type { StudioPaths } from '../storage.js';
 import { imageRequest, seeds, type ImageRequest } from '../workflows.js';
@@ -33,7 +33,17 @@ import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js
 import { chatReferenceLabels, preserveChatLabels, validateChatReferences } from './references.js';
 import { compactConversation, settingsOnlyMessage } from './context.js';
 import { jobActive } from '../../shared/jobs.js';
-import { castOf, mergeCast, briefWithCast, referenceKey, type CastEntry } from '../../shared/cast.js';
+import { movePlan, planOpen } from '../../shared/plan.js';
+import { castOf, mergeCast, briefWithCast, type CastEntry } from '../../shared/cast.js';
+import {
+  applyChoice,
+  approvedReference,
+  chosenAs,
+  noChoices,
+  referenceSkipped,
+  renameReference,
+  type Choice,
+} from '../../shared/choices.js';
 import { shotsFromBrief, shotNameKey, shotFromTitle } from '../../shared/shots.js';
 
 /**
@@ -136,7 +146,7 @@ export class Chats {
             changed = true;
           }
         } else {
-          group.state = 'released';
+          movePlan(group, 'released');
           delete group.submission_error;
           changed = true;
         }
@@ -313,36 +323,25 @@ export class Chats {
     return this.view(id);
   }
   /**
-   * Choose (or clear) the take used for a shot ("<shot>:image" or "<shot>:clip"), or the approved reference image of a
-   * character or place in the brief ("ref:<Name>"). Not an agent setting: allowed while Seed replies, no version check.
+   * Choose (or clear) the take used for a shot, or the approved reference picture of a cast name ('skip' when it needs
+   * none). Not an agent setting: allowed while Seed replies, no version check.
    */
-  pick(id: string, key: string, asset: string | null) {
+  choose(id: string, choice: Choice) {
     const chat = this.get(id);
-    // "Not needed" for a cast entry: no picture, it just stops asking for one.
-    if (/^skip:[^\n]{1,60}$/.test(key)) {
-      const picks = { ...(chat.picks ?? {}) };
-      if (asset) picks[key] = 'skip';
-      else delete picks[key];
-      chat.picks = picks;
-      chat.version++;
-      this.save(chat);
-      return this.view(id);
-    }
-    if (!/^(?:.{1,130}:(image|clip)|ref:[^\n]{1,60})$/.test(key)) throw Error('Choose a shot.');
-    if (key.startsWith('ref:') && asset && this.jobs.media.get(asset)?.kind !== 'image')
-      throw Error('A reference must be an image.');
-    const picks = { ...(chat.picks ?? {}) };
-    if (asset) {
+    const { asset } = choice,
+      reference = 'reference' in choice;
+    if (!reference && (!choice.shot || !['image', 'clip'].includes(choice.kind))) throw Error('Choose a shot.');
+    if (asset && asset !== 'skip') {
+      if (reference && this.jobs.media.get(asset)?.kind !== 'image') throw Error('A reference must be an image.');
       const known =
         this.jobIds(chat).some(j => this.jobs.get(j)?.outputs.includes(asset)) || chat.assets.includes(asset);
       // A reference can come from another project (a new project with the same brief): it is attached here.
-      if (!known && key.startsWith('ref:') && this.jobs.media.get(asset)?.kind === 'image') {
+      if (!known && reference) {
         this.assertAssets(chat, [asset], false);
         chat.assets = [...chat.assets, asset];
       } else if (!known) throw Error('Choose a result from this project.');
-      picks[key] = asset;
-    } else delete picks[key];
-    chat.picks = picks;
+    } else if (asset === 'skip' && !reference) throw Error('Choose a result for the shot.');
+    chat.choices = applyChoice(chat.choices ?? noChoices(), choice);
     chat.version++;
     this.save(chat);
     return this.view(id);
@@ -374,15 +373,8 @@ export class Chats {
       const old = cast[at]!;
       if (!entry) removed.push(old.name);
       else if (old.name !== entry.name) renames[old.name] = entry.name;
-      if (entry && old.name !== entry.name) {
-        const picks = { ...(chat.picks ?? {}) };
-        for (const k of [referenceKey(old.name), 'skip:' + old.name])
-          if (picks[k] !== undefined) {
-            picks[k.startsWith('ref:') ? referenceKey(entry.name) : 'skip:' + entry.name] = picks[k]!;
-            delete picks[k];
-          }
-        chat.picks = picks;
-      }
+      if (entry && old.name !== entry.name && chat.choices)
+        chat.choices = renameReference(chat.choices, old.name, entry.name);
       if (entry) cast[at] = entry;
       else cast.splice(at, 1);
     } else if (entry) cast.push(entry);
@@ -416,8 +408,7 @@ export class Chats {
     for (const message of chat.messages)
       if (message.transcript?.state === 'running') finishTurn(message.transcript, 'stopped');
     for (const group of chat.groups)
-      if (group.state !== 'released')
-        group.state = scope === 'reply' && group.state !== 'stopped' && group.cards.length ? 'reviewing' : 'stopped';
+      if (planOpen(group)) movePlan(group, scope === 'reply' && group.cards.length ? 'reviewing' : 'stopped');
     this.db.transaction(() => {
       if (scope === 'chat') this.jobs.stopJobs(this.jobIds(chat));
       this.save(chat);
@@ -459,19 +450,16 @@ export class Chats {
       const title = job?.request.title
         ? `${renumbered(job.request.title)}${(job.request.count ?? 1) > 1 ? ` · take ${(job.submission_index ?? 0) + 1} of ${job.request.count}` : ''}`
         : undefined;
-      const shotLabel = (k: string) => {
-        const m = k.match(/^shot:(.+):(?:image|clip)$/);
-        if (!m) return 'Shot ' + k.split(':')[0];
-        const listed = shotsFromBrief(chat.brief).find(s => shotNameKey(s.name) === m[1]);
-        return listed ? `Shot ${listed.n}: ${listed.name}` : `the shot “${m[1]}”`;
+      const shotLabel = (key: string) => {
+        if (key.startsWith('#')) return 'Shot ' + key.slice(1);
+        const listed = shotsFromBrief(chat.brief).find(s => shotNameKey(s.name) === key);
+        return listed ? `Shot ${listed.n}: ${listed.name}` : `the shot “${key}”`;
       };
-      const chosen = Object.entries(chat.picks ?? {})
-        .filter(([, a]) => a === id)
-        .map(([k]) =>
-          k.startsWith('ref:')
-            ? `approved reference for ${k.slice(4)}`
-            : `chosen ${k.endsWith(':clip') ? 'clip' : 'keyframe'} for ${shotLabel(k)}`,
-        );
+      const chosen = chosenAs(chat.choices, id).map(c =>
+        'reference' in c
+          ? `approved reference for ${c.reference}`
+          : `chosen ${c.kind === 'clip' ? 'clip' : 'keyframe'} for ${shotLabel(c.shot)}`,
+      );
       return {
         id,
         name: title ?? asset?.name ?? 'Missing media',
@@ -520,7 +508,7 @@ export class Chats {
     return {
       get: id => this.get(id),
       save: chat => this.save(chat),
-      pick: (id, key, asset) => this.pick(id, key, asset),
+      choose: (id, choice) => this.choose(id, choice),
       revision: (chat, request, number, source) => this.revision(chat, request, number, source),
       assertAssets: (chat, ids) => this.assertAssets(chat, ids),
       contextAssets: chat => this.contextAssets(chat),
@@ -639,7 +627,7 @@ export class Chats {
     const needsTitle = chat.messages.filter(m => m.role === 'user').length === 1 && !chat.title_manual;
     if (input.keep_plan && input.card_id)
       throw Error('Choose either a draft to revise or talk without changing the plan.');
-    if (group && !input.keep_plan) group.state = 'revising';
+    if (group && !input.keep_plan) movePlan(group, 'revising');
     chat.activity = 'thinking';
     chat.error = null;
     chat.partial = '';
@@ -650,9 +638,7 @@ export class Chats {
       workflow: chat.workflow,
       source_assets: [...input.assets],
       target_request_id: target?.id,
-      prompt: snapshot,
       accounting: [] as ChatAccounting[],
-      messages: [] as AgentMessage[],
       state: 'running',
     };
     chat.runs.push(run);
@@ -869,7 +855,6 @@ export class Chats {
       const afterSummary = this.get(id);
       if (afterSummary.epoch !== epoch) return;
       afterSummary.summary = compact.summary;
-      afterSummary.runs.find(r => r.id === runId)!.summary = compact.summary;
       this.save(afterSummary);
       const currentRun = chat.runs.find(r => r.id === runId)!;
       let previousAttempt;
@@ -937,14 +922,14 @@ export class Chats {
           name: e.name,
           kind: e.kind,
           // The exact token of the approved picture, so the model never guesses which handle is whose.
-          reference: chat.picks?.[referenceKey(e.name)]
+          reference: approvedReference(chat.choices, e.name)
             ? (() => {
-                const handle = toolAssets.find(t => t.asset_id === chat.picks![referenceKey(e.name)])?.handle;
+                const handle = toolAssets.find(t => t.asset_id === approvedReference(chat.choices, e.name))?.handle;
                 return handle
                   ? `approved: [[${handle}]] is ${e.name}; write ${e.name}’s name beside [[${handle}]]`
                   : `approved: the input whose chosen_for is “approved reference for ${e.name}”`;
               })()
-            : chat.picks?.['skip:' + e.name]
+            : referenceSkipped(chat.choices, e.name)
               ? 'not needed (the owner said so)'
               : 'none yet',
         })),
@@ -1078,17 +1063,7 @@ export class Chats {
       await agent.prompt('Conversation and application context (data):\n' + context, images);
       const current = this.get(id),
         run = current.runs.find(r => r.id === runId)!;
-      run.messages = agent.state.messages;
       run.state = current.epoch !== epoch ? 'stopped' : 'completed';
-      // Image bytes stay in assets, not duplicated indefinitely in persisted runs.
-      run.messages = run.messages.map(m =>
-        m.role === 'user'
-          ? {
-              ...m,
-              content: typeof m.content === 'string' ? m.content : m.content.filter(part => part.type !== 'image'),
-            }
-          : m,
-      );
       if (current.epoch === epoch) {
         const final = agent.state.messages.at(-1);
         if (final?.role === 'assistant' && ['error', 'aborted', 'length'].includes(final.stopReason)) {
@@ -1185,7 +1160,7 @@ export class Chats {
     if (settled) {
       delete group.submission_error;
       chat.activity = prepare ? 'preparing' : 'idle';
-      if (!prepare) group.state = 'released';
+      if (!prepare) movePlan(group, 'released');
     }
     // Persist the handoff together with the final decision, before any async work.
     chat.version++;
@@ -1238,7 +1213,7 @@ export class Chats {
     delete group.submission_error;
     const prepare = group.cards.some(c => latest(c).decision === 'approved');
     chat.activity = prepare ? 'preparing' : 'idle';
-    if (!prepare) group.state = 'released';
+    if (!prepare) movePlan(group, 'released');
     chat.version++;
     this.save(chat);
     if (prepare) await this.release(id, group.id, chat.epoch);
@@ -1279,7 +1254,7 @@ export class Chats {
     const after = this.get(id),
       made = after.groups.find(g => g.id === group.id);
     if (made && made.state === 'reviewing') {
-      made.state = 'stopped';
+      movePlan(made, 'stopped');
       after.version++;
       this.save(after);
     }
@@ -1322,7 +1297,7 @@ export class Chats {
           for (const card of now)
             this.assertAssets(final, [...new Set((latest(card).request.references ?? []).map(r => r.asset_id))]);
           now.forEach((card, i) => (latest(card).job_ids = staged[i]!.commit().jobs.map(j => j.id)));
-          plan.state = 'released';
+          movePlan(plan, 'released');
           final.activity = 'idle';
           delete plan.submission_error;
           this.save(final);

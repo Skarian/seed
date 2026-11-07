@@ -1,5 +1,6 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
 import type { ChatRevision, ChatView } from '../../../shared/chat.js';
+import type { Choice } from '../../../shared/choices.js';
 import type { ImageRequest } from '../../workflows.js';
 import type { Jobs } from '../../jobs.js';
 import type { StoredChat } from '../model.js';
@@ -25,7 +26,7 @@ export type ToolFailureResult = { ok: false; error: string; internal?: true } & 
 export interface ToolHost {
   get(id: string): StoredChat;
   save(chat: StoredChat): void;
-  pick(id: string, key: string, asset: string | null): ChatView;
+  choose(id: string, choice: Choice): ChatView;
   revision(chat: StoredChat, request: ImageRequest, number: number, sourceJobId?: string): ChatRevision;
   assertAssets(chat: StoredChat, ids: string[]): void;
   contextAssets(chat: StoredChat): Array<{ id: string; name: string }>;

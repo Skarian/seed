@@ -278,9 +278,9 @@ it('keeps a choice made while a plan prepares, and still starts the plan',async(
   let entered!:()=>void,finish!:()=>void;const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{finish=resolve;});
   const prepare=jobs.prepareSubmission.bind(jobs);jobs.prepareSubmission=async(...args)=>{const result=await prepare(...args);entered();await gate;return result;};
   const approval=chats.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');await started;
-  chats.pick(c.id,'skip:Mara','skip');finish();const after=await approval;
+  chats.choose(c.id,{reference:'Mara',asset:'skip'});finish();const after=await approval;
   expect(jobs.all()).toHaveLength(1);expect(after.groups[0]!.state).toBe('released');expect(after.groups[0]!.submission_error).toBeUndefined();
-  expect(after.picks?.['skip:Mara']).toBe('skip');
+  expect(after.choices?.references.Mara).toBe('skip');
 }));
 
 it('lets the owner decide a plan whose revision was cut off by a restart',async()=>fixture(async({chats,jobs,queue,db,paths})=>{
@@ -599,7 +599,7 @@ it('approves a reference for a cast name when the owner asks, and refuses names 
  queue.push([{operation:'tool',name:'approve_reference',args:{name:'Kai',input:'input1'}},{operation:'tool',name:'approve_reference',args:{name:'ines',input:'input1'}}]);
  chats.send(c.id,{version:c.version,text:'Approve this as Ines’s reference',assets:['ines']});c=await idle(chats,c.id);
  expect(c.error).toBeNull();
- expect(c.picks?.['ref:Ines']).toBe('ines');expect(c.picks?.['ref:Kai']).toBeUndefined();
+ expect(c.choices?.references.Ines).toBe('ines');expect(c.choices?.references.Kai).toBeUndefined();
  const sent=JSON.stringify(requests.at(-1).messages);
  expect(sent).toContain('not in cast_and_places');expect(sent).toContain('approved');
 }));
@@ -610,16 +610,16 @@ it('approves a reference from another project of the same mode by attaching it',
  await sharp({create:{width:4,height:4,channels:3,background:'red'}}).png().toFile(path.join(paths.data,relative));
  db.prepare('INSERT INTO assets VALUES (?,?,?,?,?,?)').run('elsewhere','image','Reference: Ines',relative,JSON.stringify({mode:'sfw'}),'2026-01-01');
  const c=chats.create('sfw');
- expect(()=>chats.pick(c.id,'1:image','elsewhere')).toThrow('Choose a result from this project.');
- const v=chats.pick(c.id,'ref:Ines','elsewhere');
- expect(v.picks?.['ref:Ines']).toBe('elsewhere');
- const n=chats.create('nsfw');expect(()=>chats.pick(n.id,'ref:Ines','elsewhere')).toThrow();
+ expect(()=>chats.choose(c.id,{shot:'#1',kind:'image',asset:'elsewhere'})).toThrow('Choose a result from this project.');
+ const v=chats.choose(c.id,{reference:'Ines',asset:'elsewhere'});
+ expect(v.choices?.references.Ines).toBe('elsewhere');
+ const n=chats.create('nsfw');expect(()=>chats.choose(n.id,{reference:'Ines',asset:'elsewhere'})).toThrow();
 }));
 
 it('marks a cast entry Not needed without a picture, and undoes it',async()=>fixture(async({chats})=>{
  const c=chats.create('sfw');
- expect(chats.pick(c.id,'skip:Blue Lantern','skip').picks?.['skip:Blue Lantern']).toBe('skip');
- expect(chats.pick(c.id,'skip:Blue Lantern',null).picks?.['skip:Blue Lantern']).toBeUndefined();
+ expect(chats.choose(c.id,{reference:'Blue Lantern',asset:'skip'}).choices?.references['Blue Lantern']).toBe('skip');
+ expect(chats.choose(c.id,{reference:'Blue Lantern',asset:null}).choices?.references['Blue Lantern']).toBeUndefined();
 }));
 
 it('bringing back several drafts joins them into one plan',async()=>fixture(async({chats,queue})=>{
@@ -636,9 +636,9 @@ it('edits the cast on purpose: a rename carries its approved picture and the bri
   let c=chats.create('sfw');
   c=chats.settings(c.id,c.version,{brief:'## Characters\n- Noor Haddad: deckhand, red scarf\n## Places\n- The Pier: long pier'});
   expect(c.cast!.map(e=>e.name)).toEqual(['Noor Haddad','The Pier']);
-  c=chats.pick(c.id,'ref:Noor Haddad','ref-noor');
+  c=chats.choose(c.id,{reference:'Noor Haddad',asset:'ref-noor'});
   c=chats.editCast(c.id,'Noor Haddad',{kind:'character',name:'Noor',look:'deckhand, red scarf, oilskin'});
-  expect(c.picks!['ref:Noor']).toBe('ref-noor');expect(c.picks!['ref:Noor Haddad']).toBeUndefined();
+  expect(c.choices!.references.Noor).toBe('ref-noor');expect(c.choices!.references['Noor Haddad']).toBeUndefined();
   expect(c.brief).toContain('- Noor: deckhand, red scarf, oilskin');expect(c.brief).not.toContain('Noor Haddad');
   c=chats.editCast(c.id,null,{kind:'prop',name:'The Lantern',look:'tin lantern'});
   expect(c.brief).toContain('## Props\n- The Lantern: tin lantern');

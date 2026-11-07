@@ -1,6 +1,7 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
 import { asksSavedStyle } from '../../../shared/styles-asked.js';
-import { castFromBrief, castOf, referenceKey, sameCast, lookParts, isVisibleDetail } from '../../../shared/cast.js';
+import { castFromBrief, castOf, sameCast, lookParts, isVisibleDetail } from '../../../shared/cast.js';
+import { approvedReference } from '../../../shared/choices.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
@@ -39,15 +40,7 @@ export function chooseFrame(projectId: string, frame: string) {
 /** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
 /** What a check is about, so the app can act on it without reading its wording. */
 export type CheckCode =
-  | 'shape'
-  | 'size'
-  | 'length'
-  | 'sound'
-  | 'added-sound'
-  | 'continuity'
-  | 'unused-input'
-  | 'old-reference'
-  | 'no-style';
+  'shape' | 'size' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input' | 'old-reference' | 'no-style';
 export type Check = { code: CheckCode; text: string; fixes: Fix[]; soft?: boolean };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
@@ -105,8 +98,7 @@ export function askedFor(messages: ChatMessage[]) {
         new RegExp(
           "(?<!three-quarter |3/4 |profile |['’]s |her |his |their |its |my |your |the )\\b(?:vertical|portrait)\\b" +
             composition('|shot'),
-        ).test(t) &&
-        !/\bportrait(?:\s+orientation)?\s+of\b/.test(t);
+        ).test(t) && !/\bportrait(?:\s+orientation)?\s+of\b/.test(t);
       const landscape = new RegExp('\\b(?:landscape|horizontal|widescreen)\\b' + composition('')).test(t);
       // One message naming several shapes ("a portrait one-sheet, a square tile and a wide banner") is about several
       // deliverables: there is no single shape to hold every draft to, so no shape check at all.
@@ -170,7 +162,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     const made = project.jobs.find(j => j.outputs.includes(ref.asset_id));
     const who = made?.request.title?.match(/^Reference:\s*(.+)$/i)?.[1];
     const entry = who ? cast.find(e => sameCast(e.name, who)) : undefined;
-    const approved = entry ? project.picks?.[referenceKey(entry.name)] : undefined;
+    const approved = entry ? approvedReference(project.choices, entry.name) : undefined;
     if (!entry || !approved || approved === ref.asset_id) continue;
     out.push({
       code: 'old-reference',
@@ -208,9 +200,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     (at > 0 ? project.messages.slice(0, at) : [])
       .filter(m => m.role === 'user')
       .slice(-3)
-      .some(m =>
-        asksSavedStyle(m.text),
-      )
+      .some(m => asksSavedStyle(m.text))
   )
     out.push({
       code: 'no-style',
@@ -230,9 +220,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
       .some(
         s =>
           /\bstyle\b/i.test(s) &&
-          (video
-            ? /\b(clip|animat\w*|video|motion)\b/i.test(s)
-            : !/\b(clip|animat\w*|video|motion)\b/i.test(s)),
+          (video ? /\b(clip|animat\w*|video|motion)\b/i.test(s) : !/\b(clip|animat\w*|video|motion)\b/i.test(s)),
       )
   )
     out.push({
@@ -391,21 +379,18 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   // A clip that animates a keyframe (its start frame or a picture reference) takes the look from that picture.
   const fromFrame = r.workflow === 'reference-to-video' && (r.references ?? []).some(x => x.kind === 'image');
   // A character, place or prop whose approved reference image is an input of this draft is carried by that image.
+  const carried = (name: string) => {
+    const id = approvedReference(project.choices, name);
+    return Boolean(id && (r.references ?? []).some(x => x.asset_id === id));
+  };
   const shown = new Set(
     castOf(project)
-      .filter(e => {
-        const id = project.picks?.[referenceKey(e.name)];
-        return id && (r.references ?? []).some(x => x.asset_id === id);
-      })
+      .filter(e => carried(e.name))
       .map(e => e.name.split(' ')[0]!.toLowerCase()),
   );
   const shownPlaces = new Set(
     castOf(project)
-      .filter(e => e.kind !== 'character')
-      .filter(e => {
-        const id = project.picks?.[referenceKey(e.name)];
-        return id && (r.references ?? []).some(x => x.asset_id === id);
-      })
+      .filter(e => e.kind !== 'character' && carried(e.name))
       .map(e => e.name.toLowerCase().replace(/^the /, '')),
   );
   const subject = (r.title ?? '').match(/^reference(?: sheet)?:\s*(.+)$/i)?.[1]?.toLowerCase();
@@ -532,7 +517,11 @@ const identity =
   /\b(\d+[- ]year[- ]old|years? old|girl|boy|woman|man|child|kid|teen(ager)?|female|male|non-binary|adult|elderly|(?:early|mid|late) \d0s|in (?:her|his|their) \d0s|\d0s)\b/i;
 
 /** Missing brief details with the character they belong to (none for rules), so a fix can place them beside the name. */
-export function briefGapList(prompt: string, brief: string, shot?: ShotFields): Array<{ who?: string; where?: string; text: string }> {
+export function briefGapList(
+  prompt: string,
+  brief: string,
+  shot?: ShotFields,
+): Array<{ who?: string; where?: string; text: string }> {
   if (!brief.trim()) return [];
   const out: Array<{ who?: string; where?: string; text: string }> = [];
   // A draft that records its shot says who is in frame and how it is framed; the wording is read only for older drafts.
@@ -865,4 +854,3 @@ const personality =
 /** How the film is delivered ("2.39:1 widescreen via Crop", "24 fps") is a setting of the project, not words for a prompt. */
 const deliveryNote =
   /\b(delivery|deliver(?:ed|s)?|aspect|ratio|crop(?:ped)?|letterbox\w*|widescreen|anamorphic|format|resolution|fps|frame rate|runtime|duration)\b|\b\d+(?:\.\d+)?\s*[:x×]\s*\d+\b/i;
-

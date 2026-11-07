@@ -34,21 +34,6 @@ export const shotNameKey = (name: string) =>
     .replace(/[^\p{L}\p{N}]+/gu, ' ')
     .trim();
 
-/**
- * The picks key for a shot's chosen take. It names the shot, not its number, so a choice follows the shot when shots
- * are inserted or renumbered. Shots without a name fall back to their number (the older "<n>:image" form).
- */
-export const shotPickKey = (n: number | null, name: string, kind: 'image' | 'clip') =>
-  shotNameKey(name) ? `shot:${shotNameKey(name)}:${kind}` : `${n}:${kind}`;
-
-/** The chosen take of a shot: by name, or (for choices saved before names were used) by number. */
-export const chosenTake = (
-  picks: Record<string, string>,
-  n: number | null,
-  name: string,
-  kind: 'image' | 'clip',
-): string | undefined => picks[shotPickKey(n, name, kind)] ?? (n !== null ? picks[`${n}:${kind}`] : undefined);
-
 /** "Shot 4: The Walk keyframe" → { n: 4, name: "The Walk" }. */
 export function shotFromTitle(title: string): { n: number | null; name: string } {
   const m = title.match(/\bshot\s*(\d{1,3})\b/i);

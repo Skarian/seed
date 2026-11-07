@@ -148,7 +148,7 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
           if (!chat.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
         host.assertAssets(chat, [...new Set((request.references ?? []).map(r => r.asset_id))]);
         validateChatReferences(request);
-        request.prompt = validateCastReferences(request, castOf(chat), chat.picks ?? {}, session.castWarned);
+        request.prompt = validateCastReferences(request, castOf(chat), chat.choices, session.castWarned);
         // A saved style named in the prompt must also be selected, so the words and the controls agree.
         if (request.workflow !== 'image-to-image') {
           const named = host.jobs.loras
@@ -160,7 +160,7 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
             );
         }
         // Each referenced character's look from the brief rides along in words, so a new frame keeps it.
-        request.prompt = withCastLooks(request, castOf(chat), chat.picks ?? {});
+        request.prompt = withCastLooks(request, castOf(chat), chat.choices);
         // Sound nobody asked for is a creative change: a new clip stays silent unless the user's recent messages ask
         // for sound (an existing draft keeps the sound it already had).
         const askedText = asked(chat, 3).join(' ');

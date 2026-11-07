@@ -284,9 +284,9 @@ it('does not ask for a look that an approved reference image of the draft alread
   const brief = ['## Characters', '- Mara: small scar through her left eyebrow, mustard raincoat', '## Rules', '- Soft film grain'].join('\n');
   const prompt = 'Medium shot of the woman from <image1> at the lighthouse.';
   const request = { workflow: 'image-to-image', engine: 'klein', prompt, output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw', references: [{ id: 'input1', asset_id: 'mara-ref', kind: 'image', role: 'source' }], shot: { number: 2, name: 'The Door', cast: ['Mara'], framing: 'medium' } };
-  const chat = (picks: Record<string, string>) => project([message('user', 'Shot 2'), message('assistant', 'Ready', 'run')], { brief, picks });
+  const chat = (references: Record<string, string>) => project([message('user', 'Shot 2'), message('assistant', 'Ready', 'run')], { brief, choices: { references, takes: {} } });
   expect(checkDraft(card(request) as any, chat({})).find(c => c.code === 'continuity')!.text).toContain('Mara’s');
-  expect(checkDraft(card(request) as any, chat({ 'ref:Mara': 'mara-ref' })).find(c => c.code === 'continuity')!.text).toBe('Missing from this prompt: “soft film grain”.');
+  expect(checkDraft(card(request) as any, chat({ Mara: 'mara-ref' })).find(c => c.code === 'continuity')!.text).toBe('Missing from this prompt: “soft film grain”.');
 });
 
 it('never asks to add a negative rule or a relationship word to a prompt', () => {
@@ -325,7 +325,7 @@ it('flags a draft that uses an older picture of someone and swaps in the approve
     { id: 'old', outputs: ['old-pic'], request: { title: 'Reference: The Lighthouse', workflow: 'text-to-image' } },
     { id: 'new', outputs: ['new-pic'], request: { title: 'Reference: The Lighthouse', workflow: 'text-to-image' } },
   ];
-  const p = project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief, picks: { 'ref:The Lighthouse': 'new-pic' }, jobs });
+  const p = project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], { brief, choices: { references: { 'The Lighthouse': 'new-pic' }, takes: {} }, jobs });
   const request = { workflow: 'image-to-image', engine: 'klein', prompt: 'The lighthouse from <image1>.', output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw', references: [{ id: 'input1', asset_id: 'old-pic', kind: 'image', role: 'source' }] };
   const check = checkDraft(card(request) as any, p).find(c => c.code === 'old-reference')!;
   expect(check.text).toBe('This draft uses an older picture of The Lighthouse, not the approved reference.');

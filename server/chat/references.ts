@@ -1,6 +1,7 @@
 import type { ImageRequest } from '../workflows.js';
 import { inputLabels, promptBindings, remapReferences } from '../../shared/reference-labels.js';
-import { referenceKey, lookParts, isVisibleDetail, type CastEntry } from '../../shared/cast.js';
+import { lookParts, isVisibleDetail, type CastEntry } from '../../shared/cast.js';
+import { approvedReference, type ProjectChoices } from '../../shared/choices.js';
 export { lookParts };
 export function chatReferenceLabels(request: ImageRequest) {
   return inputLabels(request.references ?? []);
@@ -31,7 +32,7 @@ export function preserveChatLabels(previous: ImageRequest, next: ImageRequest) {
 export function validateCastReferences(
   request: ImageRequest,
   cast: CastEntry[],
-  picks: Record<string, string>,
+  choices: ProjectChoices | undefined,
   warned: Set<string> = new Set(),
 ): string {
   if (request.workflow !== 'image-to-image') return request.prompt;
@@ -44,7 +45,7 @@ export function validateCastReferences(
   let prompt = request.prompt;
   for (const ref of request.references ?? []) {
     const label = labels.get(ref.id ?? ref.asset_id);
-    const owner = people.find(e => picks[referenceKey(e.name)] === ref.asset_id);
+    const owner = people.find(e => approvedReference(choices, e.name) === ref.asset_id);
     if (!label || !owner) continue;
     const near = (at: number) => prompt.slice(Math.max(0, at - 90), at + label.length + 40);
     const at = prompt.indexOf(label);
@@ -68,7 +69,7 @@ export function validateCastReferences(
  * unless the words say it too. Adds any part of each referenced name's brief look the prompt does not already carry,
  * as one sentence at the end ("Ines Varga's look: shaved head, oil-stained overalls.").
  */
-export function withCastLooks(request: ImageRequest, cast: CastEntry[], picks: Record<string, string>): string {
+export function withCastLooks(request: ImageRequest, cast: CastEntry[], choices: ProjectChoices | undefined): string {
   if (request.workflow !== 'image-to-image') return request.prompt;
   const inputs = new Set((request.references ?? []).map(r => r.asset_id));
   const low = request.prompt.toLowerCase();
@@ -87,7 +88,7 @@ export function withCastLooks(request: ImageRequest, cast: CastEntry[], picks: R
   };
   const add: string[] = [];
   for (const e of cast) {
-    if (e.kind === 'place' || !inputs.has(picks[referenceKey(e.name)] ?? '') || !inShot(e.name)) continue;
+    if (e.kind === 'place' || !inputs.has(approvedReference(choices, e.name) ?? '') || !inShot(e.name)) continue;
     // A prompt that already carries this person's look line (from an earlier save) never gets a second one.
     if (low.includes(e.name.toLowerCase() + '’s look:') || low.includes(e.name.toLowerCase() + "'s look:")) continue;
     const missing = lookParts(e.look)
@@ -95,9 +96,10 @@ export function withCastLooks(request: ImageRequest, cast: CastEntry[], picks: R
       .filter(p => !/\bshots?\s*\d|\bin (?:the )?(?:first|last|final|opening|closing) shots?\b/i.test(p))
       .filter(p => isVisibleDetail(p) && !carried(p))
       // Fragments read as one phrase: "a teal coat", not "A teal coat" mid-sentence.
-      .map(p => (/^\p{Lu}\p{Ll}/u.test(p) && !/^\p{Lu}\p{Ll}+\s+\p{Lu}/u.test(p) ? p[0]!.toLowerCase() + p.slice(1) : p));
+      .map(p =>
+        /^\p{Lu}\p{Ll}/u.test(p) && !/^\p{Lu}\p{Ll}+\s+\p{Lu}/u.test(p) ? p[0]!.toLowerCase() + p.slice(1) : p,
+      );
     if (missing.length) add.push(`${e.name}’s look: ${missing.join(', ')}.`);
   }
   return add.length ? request.prompt.replace(/\s*$/, '') + ' ' + add.join(' ') : request.prompt;
 }
-

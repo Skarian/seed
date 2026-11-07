@@ -9,8 +9,10 @@ import { titleOf, latest, tileState, shapeClass, assetName } from '../format.js'
 import { jobActive } from '../../../shared/jobs.js';
 import { CastStrip, referenceAsk } from './Cast.js';
 import { Stages, listOf, type Stage } from './Stages.js';
-import { castOf, referenceKey, addToBrief, sameCast } from '../../../shared/cast.js';
-import { shotsFromBrief, placeShot, shotPickKey, chosenTake } from '../../../shared/shots.js';
+import { castOf, addToBrief, sameCast } from '../../../shared/cast.js';
+import { shotsFromBrief, placeShot } from '../../../shared/shots.js';
+import { planOpen } from '../../../shared/plan.js';
+import { approvedReference, chosenTake, referenceSkipped, shotKey, type Choice } from '../../../shared/choices.js';
 import type { ImageRequest } from '../../../shared/generation.js';
 
 /** A draft that records its shot is placed by that record; older drafts fall back to the "Shot N: Name" title. */
@@ -62,7 +64,9 @@ export function ResultsView({
       // A shot renumbered in the brief ("First Light" moved from 5 to 6) shows its current number everywhere.
       placed = placeShot(made, shotsNow),
       base =
-        placed.n !== null && /^shot\s*\d+\s*[:·.-]/i.test(made) && !new RegExp('^shot\\s*' + placed.n + '\\b', 'i').test(made)
+        placed.n !== null &&
+        /^shot\s*\d+\s*[:·.-]/i.test(made) &&
+        !new RegExp('^shot\\s*' + placed.n + '\\b', 'i').test(made)
           ? made.replace(/^shot\s*\d+/i, 'Shot ' + placed.n)
           : made;
     return {
@@ -78,12 +82,13 @@ export function ResultsView({
   const derived = new Map(list.items.filter(a => a.source_asset_id).map(a => [a.id, a.source_asset_id!]));
   // Each tile keeps its own frame (a 2.39:1 crop stays wide), using the saved pixel size when it is known.
   const dims = new Map(list.items.filter(a => a.width && a.height).map(a => [a.id, a.width! / a.height!]));
-  const picks = project.picks ?? {};
+  const choices = project.choices;
+  // The choice being saved: a cast name, or "<shot key>:<kind>".
   const [picking, setPicking] = useState('');
-  async function choose(key: string, asset: string | null) {
-    setPicking(key);
+  async function choose(choice: Choice) {
+    setPicking('reference' in choice ? choice.reference : choice.shot + ':' + choice.kind);
     try {
-      onChanged?.(await projectsApi.pick(project.id, key, asset));
+      onChanged?.(await projectsApi.choose(project.id, choice));
     } catch (e) {
       app.toast((e as Error).message);
     } finally {
@@ -97,11 +102,11 @@ export function ResultsView({
         )
       : [];
   const planned = project.groups
-    .filter(g => ['reviewing', 'revising', 'assembling'].includes(g.state) && !g.direct)
+    .filter(g => planOpen(g) && !g.direct)
     .flatMap(g => g.cards.map(c => boardTitle(latest(c).request)));
   // Drafts left out of a make stay saved in the conversation (Bring back): they are not missing.
   const saved = project.groups
-    .filter(g => !['reviewing', 'revising', 'assembling'].includes(g.state) && !g.direct)
+    .filter(g => !planOpen(g) && !g.direct)
     .flatMap(g => g.cards.filter(c => latest(c).decision !== 'approved').map(c => boardTitle(latest(c).request)));
   // A film goes on to clips; a set of stills is finished when every shot has its chosen picture.
   // A brief that says stills only ("image-only", "no clips") is a set of pictures even if it mentions clips.
@@ -113,7 +118,9 @@ export function ResultsView({
   // like "video" in a rule ("never run video") or one optional clip draft does not turn a set of stills into a film.
   const film =
     (!stillsOnly &&
-      /\b(film|films|short film|trailer|animated|animation|music video|clips? for each shot)\b/i.test(project.brief ?? '')) ||
+      /\b(film|films|short film|trailer|animated|animation|music video|clips? for each shot)\b/i.test(
+        project.brief ?? '',
+      )) ||
     project.jobs.some(j => isVideoKind(kindOf[j.request.workflow]) && j.state === 'completed');
   const toggle = (id: string) => setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s.slice(-1), id]));
   const min = { s: embedded ? 110 : 120, m: 170, l: 260 }[size];
@@ -259,7 +266,7 @@ export function ResultsView({
   for (const [key, s] of shots)
     for (const kind of ['image', 'clip'] as const) {
       if (s.n === null) continue;
-      const id = chosenTake(picks, s.n, s.name, kind);
+      const id = chosenTake(choices, s.n, s.name, kind);
       const list = kind === 'image' ? s.images : s.clips;
       if (!id || list.some(i => i.asset === id)) continue;
       for (const [k2, other] of shots) {
@@ -277,10 +284,8 @@ export function ResultsView({
   const inOrder = shotList.flatMap(s => [...s.images, ...s.clips]);
   // A shot's chosen take is the owner's decision ("Use for shot"), stored with the project; favorites stay personal.
   // Chosen takes are stored by the shot's name, so they follow the shot when shots are renumbered.
-  const pickKey = (s: Shot, kind: 'image' | 'clip') =>
-    s.n !== null ? shotPickKey(s.n, s.name, kind) : s.name + ':' + kind;
   const chosen = (s: Shot, kind: 'image' | 'clip') => {
-    const id = s.n !== null ? chosenTake(picks, s.n, s.name, kind) : picks[s.name + ':' + kind];
+    const id = chosenTake(choices, s.n, s.name, kind);
     return (kind === 'image' ? s.images : s.clips).find(i => i.asset === id);
   };
   const takesOf = (its: ViewerItem[]) => its.filter(i => !derived.has(i.asset));
@@ -304,7 +309,7 @@ export function ResultsView({
   };
   const lane = (s: Shot, its: ViewerItem[], kind: 'image' | 'clip') => {
     const takes = takesOf(its),
-      key = pickKey(s, kind),
+      shot = shotKey(s.n, s.name),
       pickedId = chosen(s, kind)?.asset;
     // Newest first, so the latest fixes are in view; take numbers keep the order they were made in.
     return [...its].reverse().map(it => {
@@ -365,8 +370,12 @@ export function ResultsView({
               {label}
               {kind === 'clip' && !crop ? fromTake(s, it) : ''}
               {olderReference(it) && (
-                <small className="older-ref" title={`Made from an earlier picture of ${olderReference(it)}; the approved one has changed since`}>
-                  {' '}· older {olderReference(it)}
+                <small
+                  className="older-ref"
+                  title={`Made from an earlier picture of ${olderReference(it)}; the approved one has changed since`}
+                >
+                  {' '}
+                  · older {olderReference(it)}
                 </small>
               )}
             </span>
@@ -374,14 +383,15 @@ export function ResultsView({
               <button
                 className={'use-shot' + (isChosen ? ' on' : '')}
                 aria-pressed={isChosen}
-                aria-busy={picking === key}
+                aria-busy={picking === shot + ':' + kind}
                 aria-label={
                   isChosen ? `${label} is chosen for Shot ${s.n}. Clear the choice` : `Use ${label} for Shot ${s.n}`
                 }
                 onClick={async () => {
                   // Clearing also clears a choice saved by number before shots were named.
-                  if (isChosen && picks[s.n + ':' + kind]) await choose(s.n + ':' + kind, null);
-                  await choose(key, isChosen ? null : it.asset);
+                  if (isChosen && choices?.takes['#' + s.n]?.[kind])
+                    await choose({ shot: '#' + s.n, kind, asset: null });
+                  await choose({ shot, kind, asset: isChosen ? null : it.asset });
                 }}
               >
                 {isChosen ? 'Chosen' : 'Use for shot'}
@@ -396,8 +406,8 @@ export function ResultsView({
   const olderReference = (it: ViewerItem) => {
     for (const r of it.job?.request.references ?? []) {
       const who = assetName(project, r.asset_id, app.tasks).match(/^Reference: (.+?)(?: · \d+ of \d+)?$/)?.[1];
-      const now = who ? picks[referenceKey(who)] : undefined;
-      if (who && now && now !== 'skip' && now !== r.asset_id) return who;
+      const now = who ? approvedReference(choices, who) : undefined;
+      if (who && now && now !== r.asset_id) return who;
     }
     return '';
   };
@@ -470,7 +480,7 @@ export function ResultsView({
   const chosenCount = numbered.filter(s => chosen(s, 'clip') || chosen(s, 'image')).length;
   // The steps from brief to cut. Each step asks Seed for one plan covering everything it still needs.
   const cast = castOf(project);
-  const noRef = cast.filter(e => !picks[referenceKey(e.name)] && !picks['skip:' + e.name]);
+  const noRef = cast.filter(e => !choices?.references[e.name]);
   // Names whose reference takes are made and only need approving, and names that still need drafting.
   const hasTakes = (name: string) =>
     items.some(
@@ -498,8 +508,10 @@ export function ResultsView({
       done: cast.length - noRef.length,
       total: cast.length,
       count: (() => {
-        const skips = cast.filter(e => !picks[referenceKey(e.name)] && picks['skip:' + e.name]).length;
-        return skips ? `${cast.length - noRef.length - skips} of ${cast.length - skips} approved · ${skips} not needed` : undefined;
+        const skips = cast.filter(e => referenceSkipped(choices, e.name)).length;
+        return skips
+          ? `${cast.length - noRef.length - skips} of ${cast.length - skips} approved · ${skips} not needed`
+          : undefined;
       })(),
       left: [
         toApprove.length
@@ -534,7 +546,10 @@ export function ResultsView({
         toBringBack.length
           ? shotWord(toBringBack) +
             (toBringBack.length === 1 ? ' has a saved draft' : ' have saved drafts') +
-            ': move ' + (toBringBack.length === 1 ? 'it' : 'them') + ' back to the plan in the conversation to make ' + (toBringBack.length === 1 ? 'it.' : 'them.')
+            ': move ' +
+            (toBringBack.length === 1 ? 'it' : 'them') +
+            ' back to the plan in the conversation to make ' +
+            (toBringBack.length === 1 ? 'it.' : 'them.')
           : '',
       ]
         .filter(Boolean)
@@ -612,7 +627,13 @@ export function ResultsView({
                 ? [{ label: 'Group by request', checked: grouped, onSelect: () => setGrouped(!grouped) }]
                 : []),
               ...(view === 'shots' && cut.length > 1
-                ? [{ label: 'Play in order', hint: 'The chosen clips, shot by shot', onSelect: () => app.view(cut[0]!, cut) }]
+                ? [
+                    {
+                      label: 'Play in order',
+                      hint: 'The chosen clips, shot by shot',
+                      onSelect: () => app.view(cut[0]!, cut),
+                    },
+                  ]
                 : []),
             ]}
           >
@@ -623,7 +644,11 @@ export function ResultsView({
             className={selected.length || comparing ? 'btn primary small' : 'btn small'}
             aria-pressed={selected.length < 2 ? comparing : undefined}
             aria-label={
-              selected.length === 2 ? 'Compare' : selected.length ? 'Select one more to compare' : 'Select two to compare'
+              selected.length === 2
+                ? 'Compare'
+                : selected.length
+                  ? 'Select one more to compare'
+                  : 'Select two to compare'
             }
             onClick={() => {
               if (selected.length < 2) {
@@ -639,74 +664,74 @@ export function ResultsView({
           </button>
         </div>
       ) : (
-      <div className="toolbar">
-        {embedded && <b style={{ marginRight: 4 }}>Board</b>}
-        <div className="seg" role="group" aria-label="Show">
-          {(
-            [
-              ['all', 'All'],
-              ['fav', 'Favorites'],
-              ['image', 'Images'],
-              ['video', 'Videos'],
-            ] as const
-          ).map(([k, l]) => (
-            <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>
-              {k === 'fav' ? <Icon.Heart width={14} height={14} /> : null}
-              {l}
+        <div className="toolbar">
+          {embedded && <b style={{ marginRight: 4 }}>Board</b>}
+          <div className="seg" role="group" aria-label="Show">
+            {(
+              [
+                ['all', 'All'],
+                ['fav', 'Favorites'],
+                ['image', 'Images'],
+                ['video', 'Videos'],
+              ] as const
+            ).map(([k, l]) => (
+              <button key={k} aria-pressed={filter === k} onClick={() => setFilter(k)}>
+                {k === 'fav' ? <Icon.Heart width={14} height={14} /> : null}
+                {l}
+              </button>
+            ))}
+          </div>
+          <span style={{ flex: 1 }} />
+          {view === 'shots' && cut.length > 1 && (
+            <button className="btn small" onClick={() => app.view(cut[0]!, cut)}>
+              <Icon.Play width={14} height={14} />
+              Play in order
             </button>
-          ))}
-        </div>
-        <span style={{ flex: 1 }} />
-        {view === 'shots' && cut.length > 1 && (
-          <button className="btn small" onClick={() => app.view(cut[0]!, cut)}>
-            <Icon.Play width={14} height={14} />
-            Play in order
-          </button>
-        )}
-        <div className="seg" role="group" aria-label="Arrange">
-          <button aria-pressed={view === 'shots'} onClick={() => setView('shots')}>
-            By shot
-          </button>
-          <button aria-pressed={view === 'grid'} onClick={() => setView('grid')}>
-            Grid
-          </button>
-        </div>
-        {view === 'grid' && (
-          <button className="btn small quiet" aria-pressed={grouped} onClick={() => setGrouped(!grouped)}>
-            {grouped ? 'Grouped by request' : 'All together'}
-          </button>
-        )}
-        {view === 'grid' && (
-        <div className="seg no-phone" role="group" aria-label="Tile size">
-          {(['s', 'm', 'l'] as const).map(k => (
-            <button
-              key={k}
-              aria-pressed={size === k}
-              aria-label={{ s: 'Small tiles', m: 'Medium tiles', l: 'Large tiles' }[k]}
-              onClick={() => setSize(k)}
-            >
-              {k.toUpperCase()}
+          )}
+          <div className="seg" role="group" aria-label="Arrange">
+            <button aria-pressed={view === 'shots'} onClick={() => setView('shots')}>
+              By shot
             </button>
-          ))}
+            <button aria-pressed={view === 'grid'} onClick={() => setView('grid')}>
+              Grid
+            </button>
+          </div>
+          {view === 'grid' && (
+            <button className="btn small quiet" aria-pressed={grouped} onClick={() => setGrouped(!grouped)}>
+              {grouped ? 'Grouped by request' : 'All together'}
+            </button>
+          )}
+          {view === 'grid' && (
+            <div className="seg no-phone" role="group" aria-label="Tile size">
+              {(['s', 'm', 'l'] as const).map(k => (
+                <button
+                  key={k}
+                  aria-pressed={size === k}
+                  aria-label={{ s: 'Small tiles', m: 'Medium tiles', l: 'Large tiles' }[k]}
+                  onClick={() => setSize(k)}
+                >
+                  {k.toUpperCase()}
+                </button>
+              ))}
+            </div>
+          )}
+          <button
+            className={selected.length || comparing ? 'btn primary small' : 'btn small'}
+            aria-pressed={selected.length < 2 ? comparing : undefined}
+            onClick={() => {
+              // Before two are chosen, the button starts choosing: every take shows its box until two are ticked.
+              if (selected.length < 2) {
+                setComparing(c => !c);
+                return;
+              }
+              const [a, b] = selected.map(id => items.find(i => i.asset === id)!);
+              if (a && b) app.compare(a, b);
+            }}
+          >
+            <Icon.Compare />
+            {selected.length === 2 ? 'Compare' : selected.length ? 'Select one more' : 'Select two to compare'}
+          </button>
         </div>
-        )}
-        <button
-          className={selected.length || comparing ? 'btn primary small' : 'btn small'}
-          aria-pressed={selected.length < 2 ? comparing : undefined}
-          onClick={() => {
-            // Before two are chosen, the button starts choosing: every take shows its box until two are ticked.
-            if (selected.length < 2) {
-              setComparing(c => !c);
-              return;
-            }
-            const [a, b] = selected.map(id => items.find(i => i.asset === id)!);
-            if (a && b) app.compare(a, b);
-          }}
-        >
-          <Icon.Compare />
-          {selected.length === 2 ? 'Compare' : selected.length ? 'Select one more' : 'Select two to compare'}
-        </button>
-      </div>
       )}
       <div className="scroll">
         <div
@@ -742,10 +767,10 @@ export function ResultsView({
                   throw e;
                 }
               }}
-              picks={picks}
+              choices={choices}
               images={items.filter(i => i.kind === 'image')}
               busy={picking}
-              onChoose={(key, asset) => void choose(key, asset)}
+              onChoose={(reference, asset) => void choose({ reference, asset })}
               onAsk={onAsk}
               projectId={project.id}
               onImport={async picked => {
@@ -761,7 +786,10 @@ export function ResultsView({
                   ),
                 );
                 for (const x of picked)
-                  p = await projectsApi.pick(project.id, referenceKey(target(x.entry.name) ?? x.entry.name), x.asset);
+                  p = await projectsApi.choose(project.id, {
+                    reference: target(x.entry.name) ?? x.entry.name,
+                    asset: x.asset,
+                  });
                 onChanged?.(p);
                 app.toast(`Brought in ${picked.map(x => x.entry.name).join(', ')}`);
               }}
