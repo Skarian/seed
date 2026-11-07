@@ -15,6 +15,7 @@ import {
   engines,
   defaultRoles,
 } from './requests.js';
+import { RequestFields } from './RequestFields.js';
 import type { StyleEntry } from './readiness.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 import { workflowOf } from '../api.js';
@@ -349,7 +350,8 @@ export function Composer(p: Props) {
       )}
       {p.mode === 'make' && p.castApproved && !p.attachments?.length && (
         <p className="faint make-note" role="note">
-          Make now works from these words only; your approved cast pictures aren’t used. Plan with Seed to draw from them.
+          Make now works from these words only; your approved cast pictures aren’t used. Plan with Seed to draw from
+          them.
         </p>
       )}
       <div className="tools">
@@ -538,7 +540,6 @@ function MakeSettingsDialog({
   const video = isVideoKind(s.kind),
     workflow = workflowOf[s.kind];
   const route = s.kind === 'image' ? 'image' : s.kind === 'video' ? 'fl' : 'ref';
-  const available = styles.filter(x => x.route === route);
   return (
     <Dialog
       title="Make settings"
@@ -570,141 +571,25 @@ function MakeSettingsDialog({
         </span>
       </div>
       <div className="editor">
+        <RequestFields
+          workflow={workflow}
+          route={route}
+          styles={styles}
+          shape={s.kind !== 'edit'}
+          value={{
+            ...s,
+            aspect: video && (s.aspect === '1:1' || s.aspect === '4:5') ? '9:16' : s.aspect,
+            size: video ? s.videoSize : s.imageSize,
+          }}
+          onChange={({ size, aspect, ...rest }) =>
+            set({
+              ...rest,
+              ...(aspect ? { aspect: aspect as MakeSettings['aspect'] } : {}),
+              ...(size ? (video ? { videoSize: size as never } : { imageSize: size as never }) : {}),
+            })
+          }
+        />
         <div className="row">
-          {s.kind !== 'edit' && (
-            <label className="field">
-              <span>Shape</span>
-              <select
-                aria-label="Shape"
-                className="select"
-                value={video && (s.aspect === '1:1' || s.aspect === '4:5') ? '9:16' : s.aspect}
-                onChange={e => set({ aspect: e.target.value as MakeSettings['aspect'] })}
-              >
-                {s.kind === 'image' ? (
-                  <>
-                    <option value="16:9">Landscape 16:9</option>
-                    <option value="1:1">Square 1:1</option>
-                    <option value="4:5">Portrait 4:5</option>
-                    <option value="9:16">Tall portrait 9:16</option>
-                  </>
-                ) : (
-                  <>
-                    <option value="16:9">Landscape 16:9</option>
-                    <option value="9:16">Portrait 9:16</option>
-                  </>
-                )}
-              </select>
-            </label>
-          )}
-          <label className="field">
-            <span>Size</span>
-            <select
-              aria-label="Size"
-              className="select"
-              value={video ? s.videoSize : s.imageSize}
-              onChange={e =>
-                set(video ? { videoSize: e.target.value as never } : { imageSize: e.target.value as never })
-              }
-            >
-              {sizeOptions(workflow, s.kind === 'edit' ? 'source' : s.aspect).map(o => (
-                <option key={o.id} value={o.id}>
-                  {o.label}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="field">
-            <span>How many</span>
-            <select
-              aria-label="How many"
-              className="select"
-              value={s.count}
-              onChange={e => set({ count: Number(e.target.value) })}
-            >
-              {[1, 2, 3, 4, 6, 8].map(n => (
-                <option key={n}>{n}</option>
-              ))}
-            </select>
-          </label>
-          {video && (
-            <label className="field">
-              <span>Length</span>
-              <select
-                aria-label="Length"
-                className="select"
-                value={s.duration}
-                onChange={e => set({ duration: Number(e.target.value) })}
-              >
-                {[5, 6, 8, 10, 12, 15].map(n => (
-                  <option key={n} value={n}>
-                    {n} seconds
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          {video && (
-            <label className="field">
-              <span>Sound</span>
-              <select
-                aria-label="Sound"
-                className="select"
-                value={s.sound}
-                onChange={e => set({ sound: e.target.value as 'generated' | 'silent' })}
-              >
-                <option value="generated">With sound</option>
-                <option value="silent">Silent</option>
-              </select>
-            </label>
-          )}
-          {video && (
-            <label className="field">
-              <span>Detail</span>
-              <select
-                aria-label="Detail"
-                className="select"
-                value={s.detail}
-                onChange={e => set({ detail: e.target.value as 'standard' | 'full' })}
-              >
-                <option value="standard">Fast</option>
-                <option value="full">Full (slower)</option>
-              </select>
-            </label>
-          )}
-          {s.kind !== 'edit' && (
-            <label className="field">
-              <span>Style</span>
-              <select
-                aria-label="Style"
-                className="select"
-                value={s.style?.id ?? ''}
-                onChange={e => {
-                  const x = available.find(v => v.id === e.target.value);
-                  set({ style: x ? { id: x.id, revision: x.revision, scale: x.default_scale ?? 1 } : undefined });
-                }}
-              >
-                <option value="">No style</option>
-                {available.map(x => (
-                  <option key={x.id} value={x.id} disabled={x.source_status === 'needs_source'}>
-                    {x.name}
-                  </option>
-                ))}
-              </select>
-            </label>
-          )}
-          <label className="field">
-            <span>Runs on</span>
-            <select
-              aria-label="Runs on"
-              className="select"
-              value={s.target}
-              onChange={e => set({ target: e.target.value as MakeSettings['target'] })}
-            >
-              <option value="auto">Auto</option>
-              <option value="local">Seed PC</option>
-              <option value="cloud">Cloud GPU</option>
-            </select>
-          </label>
           <label className="field">
             <span>Variation</span>
             <select

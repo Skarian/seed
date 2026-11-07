@@ -12,6 +12,7 @@ import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableF
 import { askedFor, checkDraft, readablePrompt, editablePrompt, chooseFrame, type Check } from './checks.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 import { swapInput } from './swap.js';
+import { RequestFields } from './RequestFields.js';
 import { approvedReferences } from '../../../shared/choices.js';
 
 export type Selection = Record<string, boolean>;
@@ -860,168 +861,19 @@ function DraftEditor({
           rows={Math.min(18, Math.max(6, Math.ceil(f.prompt.length / 60)))}
         />
       </label>
-      <div className="row">
-        {(r.output.aspect !== 'source' || (r.workflow === 'image-to-image' && r.engine === 'klein')) && (
-          <label className="field">
-            <span>Shape</span>
-            <select
-              aria-label="Shape"
-              className="select"
-              value={f.aspect}
-              onChange={e => set({ aspect: e.target.value as never })}
-            >
-              {r.workflow !== 'text-to-image' && r.workflow !== 'image-to-image' ? null : (
-                <>
-                  {r.workflow === 'image-to-image' && <option value="source">Same as the source</option>}
-                  <option value="16:9">Landscape 16:9</option>
-                  <option value="1:1">Square 1:1</option>
-                  <option value="4:5">Portrait 4:5</option>
-                  <option value="9:16">Tall portrait 9:16</option>
-                </>
-              )}
-              {(r.workflow === 'text-to-video' || r.workflow === 'reference-to-video') && (
-                <>
-                  <option value="16:9">Landscape 16:9</option>
-                  <option value="9:16">Portrait 9:16</option>
-                </>
-              )}
-            </select>
-          </label>
-        )}
-        <label className="field">
-          <span>Size</span>
-          <select
-            aria-label="Size"
-            className="select"
-            value={f.size}
-            onChange={e => set({ size: e.target.value as never })}
-          >
-            {sizeOptions(r.workflow, f.aspect).map(o => (
-              <option key={o.id} value={o.id}>
-                {o.label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="field">
-          <span>How many</span>
-          <select
-            aria-label="How many"
-            className="select"
-            value={f.count}
-            onChange={e => set({ count: Number(e.target.value) })}
-          >
-            {[1, 2, 3, 4, 6, 8].map(n => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        {video && (
-          <label className="field">
-            <span>Length</span>
-            <select
-              aria-label="Length"
-              className="select"
-              value={f.duration}
-              onChange={e => set({ duration: Number(e.target.value) })}
-            >
-              {[5, 6, 8, 10, 12, 15].map(n => (
-                <option key={n} value={n}>
-                  {n} seconds
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {video && (
-          <label className="field">
-            <span>Sound</span>
-            <select
-              aria-label="Sound"
-              className="select"
-              value={f.sound}
-              onChange={e => set({ sound: e.target.value as 'generated' | 'silent' })}
-            >
-              <option value="generated">With sound</option>
-              <option value="silent">Silent</option>
-            </select>
-          </label>
-        )}
-        {video && (
-          <label className="field">
-            <span>Detail</span>
-            <select
-              aria-label="Detail"
-              className="select"
-              value={f.detail}
-              onChange={e => set({ detail: e.target.value as 'standard' | 'full' })}
-            >
-              <option value="standard">Fast</option>
-              <option value="full">Full (slower)</option>
-            </select>
-          </label>
-        )}
-        {kind !== 'edit' && (
-          <label className="field">
-            <span>Style</span>
-            <select
-              aria-label="Style"
-              className="select"
-              value={style?.id ?? ''}
-              onChange={e => {
-                const s = available.find(x => x.id === e.target.value);
-                set({ loras: s ? [{ id: s.id, revision: s.revision, scale: s.default_scale ?? 1 }] : [] });
-              }}
-            >
-              <option value="">No style</option>
-              {style && !available.some(s => s.id === style.id) && (
-                <option value={style.id}>
-                  {styleName(styles, style.id) === 'Style' ? 'The chosen style' : styleName(styles, style.id)}
-                </option>
-              )}
-              {available.map(s => (
-                <option key={s.id} value={s.id} disabled={s.source_status === 'needs_source'}>
-                  {s.name}
-                  {s.source_status === 'needs_source' ? ' (needs source)' : ''}
-                </option>
-              ))}
-            </select>
-          </label>
-        )}
-        {style && (
-          <label className="field">
-            <span>Style strength</span>
-            <input
-              className="input"
-              type="number"
-              min={0}
-              max={4}
-              step={0.05}
-              value={style.scale}
-              onChange={e => set({ loras: [{ ...style, scale: Number(e.target.value) }] })}
-            />
-          </label>
-        )}
-        <label className="field">
-          <span>Runs on</span>
-          <select
-            aria-label="Runs on"
-            className="select"
-            value={f.target}
-            onChange={e => set({ target: e.target.value as 'auto' | 'local' | 'cloud' })}
-          >
-            <option value="auto">Auto</option>
-            <option value="local">Seed PC</option>
-            <option value="cloud" disabled={r.workflow === 'image-to-image' && r.engine === 'klein' && !cloudKlein}>
-              {r.workflow === 'image-to-image' && r.engine === 'klein' && !cloudKlein
-                ? 'Cloud GPU: not for reference-based shots yet'
-                : 'Cloud GPU'}
-            </option>
-          </select>
-        </label>
-      </div>
+      <RequestFields
+        workflow={r.workflow}
+        route={route}
+        styles={styles}
+        shape={r.output.aspect !== 'source' || (r.workflow === 'image-to-image' && r.engine === 'klein')}
+        fromSource={r.workflow === 'image-to-image'}
+        cloudBlocked={r.workflow === 'image-to-image' && r.engine === 'klein' && !cloudKlein}
+        value={{ ...f, style }}
+        onChange={patch => {
+          const { style: next, ...rest } = patch;
+          set({ ...(rest as Partial<EditableFields>), ...('style' in patch ? { loras: next ? [next] : [] } : {}) });
+        }}
+      />
       {engine && (
         <p className="faint" style={{ margin: 0, fontSize: '0.875rem' }}>
           {video ? 'Video' : 'Image'} model: {engine}
