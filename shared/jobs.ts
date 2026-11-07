@@ -93,6 +93,21 @@ export function jobPhase(job: Pick<JobRecord, 'state' | 'recovery_blocked'>): Jo
   const phase = phases[job.state] ?? 'uncertain';
   return job.recovery_blocked && !finished.includes(phase) ? 'unsaved' : phase;
 }
+const pipeline = ['queued', 'uploading', 'submitting', 'running', 'copying', 'completed'];
+/**
+ * How a stored job may move. Any open job can fail, be cancelled (or asked to cancel), or lose contact. Otherwise it
+ * moves forward through the pipeline, skipping steps a fast worker already finished; a held request is released to
+ * the queue, an upload can start over, and a job that lost contact or was asked to cancel can resume anywhere. A
+ * finished job never changes.
+ */
+export function jobCanMove(from: string, to: string) {
+  if (from === to) return true;
+  if (finished.includes(phases[from] ?? 'uncertain')) return false;
+  if (['failed', 'cancelled', 'cancel_requested', 'needs_attention'].includes(to)) return true;
+  if (from === 'blocked') return to === 'queued';
+  if (from === 'cancel_requested' || from === 'needs_attention') return pipeline.includes(to);
+  return pipeline.indexOf(to) > pipeline.indexOf(from) || (from === 'uploading' && to === 'queued');
+}
 /** Work a GPU is doing or will do. */
 export const jobActive = (job: JobRecord) =>
   ['queued', 'starting', 'running', 'saving', 'cancelling'].includes(jobPhase(job));

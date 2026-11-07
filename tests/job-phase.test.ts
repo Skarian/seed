@@ -19,3 +19,14 @@ it('counts a picture made on a GPU but not saved here as unsaved, never as faile
   // A finished job keeps its outcome even if its acknowledgement could not be sent.
   expect(jobPhase(job('completed', { recovery_blocked: true }))).toBe('completed');
 });
+
+it('moves a job forward, or to a stop, and never changes a finished one', async () => {
+  const { jobCanMove } = await import('../shared/jobs.js');
+  expect(jobCanMove('queued', 'uploading')).toBe(true);
+  expect(jobCanMove('running', 'copying')).toBe(true);
+  expect(jobCanMove('needs_attention', 'copying')).toBe(true);
+  expect(jobCanMove('copying', 'failed')).toBe(true);
+  expect(jobCanMove('submitting', 'queued')).toBe(false);
+  expect(jobCanMove('copying', 'running')).toBe(false);
+  for (const done of ['completed', 'failed', 'cancelled']) expect(jobCanMove(done, 'queued')).toBe(false);
+});

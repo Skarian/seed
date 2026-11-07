@@ -9,7 +9,7 @@ import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { hardwareProfile } from "./hardware.js";
 import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { nextProgress } from "../shared/generation-progress.js";
-import { jobPhase, type JobRecord } from "../shared/jobs.js";
+import { jobCanMove, jobPhase, type JobRecord } from "../shared/jobs.js";
 import {
   WorkerHttpError,
   TransferIntegrityError,
@@ -317,6 +317,7 @@ export class Jobs {
   }
   save(job: Job) {
     const latest = this.get(job.id);
+    // A stale copy saved late cannot undo a quit or a cancellation: those intents are applied first.
     if (latest?.worker?.quit_now) {
       job.state = "cancelled";
       if (job.worker) job.worker.quit_now = true;
@@ -327,6 +328,8 @@ export class Jobs {
       } else if (["uploading", "submitting", "running", "needs_attention"].includes(job.state))
         job.state = "cancel_requested";
     }
+    if (latest && !jobCanMove(latest.state, job.state))
+      throw Error(`A request cannot go from ${latest.state} to ${job.state}.`);
     if (
       job.metrics &&
       terminal.includes(job.state) &&
