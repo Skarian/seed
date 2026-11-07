@@ -8,6 +8,7 @@ import type { InputReference } from '../media.js';
 import type { ChatMode, ChatWorkflow } from '../../shared/chat.js';
 import { inputLabels, promptBindings, promptReferencePattern } from '../../shared/reference-labels.js';
 import { defaultPreferences } from '../../shared/resolution.js';
+import { ToolFailure } from './tools/define.js';
 import { DEFAULT_VIDEO_DETAIL, DEFAULT_VIDEO_STEPS, VIDEO_DETAILS, VIDEO_STEPS } from '../../shared/video-settings.js';
 
 export type ReferenceMode = 'direct' | 'stable';
@@ -391,8 +392,16 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     const target = { auto: 'auto', seed_pc: 'local', cloud: 'cloud' }[String(value.runs_on)] as
       'auto' | 'local' | 'cloud' | undefined;
     if (!target) add('runs_on', 'Choose auto, seed_pc or cloud.', 'Use one of the listed values.');
-    else if (target === 'cloud' && request.engine === 'klein' && !context.cloudWorkflows?.includes('image-to-image:klein'))
-      add('runs_on', 'Cloud GPUs here cannot run FLUX 3 Image Klein.', 'Use seed_pc or auto for this edit, and say so.');
+    else if (
+      target === 'cloud' &&
+      request.engine === 'klein' &&
+      !context.cloudWorkflows?.includes('image-to-image:klein')
+    )
+      add(
+        'runs_on',
+        'Cloud GPUs here cannot run FLUX 3 Image Klein.',
+        'Use seed_pc or auto for this edit, and say so.',
+      );
     else if (target === 'auto') delete request.target;
     else request.target = target;
   }
@@ -699,6 +708,7 @@ export function requestToolResultError(error: unknown, operation: 'create' | 'ed
     ok: false,
     saved: false,
     errors: issues,
+    ...(error instanceof ToolFailure && error.internal ? { internal: true } : {}),
     next_action:
       operation === 'create'
         ? 'Correct these fields and retry create_request. No request was created.'

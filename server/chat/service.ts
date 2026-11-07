@@ -1,21 +1,24 @@
-import { videoDetail, videoSteps } from '../../shared/video-settings.js';
 import { bindChatMentions, agentMentionContext } from './mentions.js';
-
-import { loraRoute, isVideoWorkflow } from '../../shared/workflows.js';
+import { loraRoute } from '../../shared/workflows.js';
 import type { MentionBinding } from '../../shared/chat-mentions.js';
 import { createReadInputTool } from './read-input.js';
-import {
-  requestToolSchemas,
-  prepareToolRequest,
-  requestToolRules,
-  requestToolResultError,
-  toolInputLabels,
-  toolPromptBindings,
-  toolPromptReferencePattern,
-  type ToolAsset,
-} from './request-tools.js';
+import { requestToolRules, toolInputLabels, type ToolAsset } from './request-tools.js';
 import { visualContext } from './visual-context.js';
 import { recordTurnEvent, finishTurn } from './transcript.js';
+import {
+  agentRequest,
+  chatKinds,
+  latest,
+  now,
+  openGroup,
+  referenceMode,
+  settlePlan,
+  type StoredChat,
+} from './model.js';
+import { current as activeChat, defineTool, ToolFailure, type ToolHost, type ToolSession } from './tools/define.js';
+import { draftTools } from './tools/drafts.js';
+import { planTools } from './tools/plan.js';
+import { briefTool } from './tools/brief.js';
 import type Database from 'better-sqlite3';
 import { createHash, randomUUID } from 'node:crypto';
 import path from 'node:path';
@@ -27,71 +30,12 @@ import type { Job, Jobs } from '../jobs.js';
 import { createChatAgent, type ChatAccounting } from './provider.js';
 import { chatCredential } from './credentials.js';
 import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js';
-import {
-  chatReferenceLabels,
-  preserveChatLabels,
-  validateChatReferences,
-  validateCastReferences,
-  withCastLooks,
-} from './references.js';
-import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
-import { asksSavedStyle } from '../../shared/styles-asked.js';
+import { chatReferenceLabels, preserveChatLabels, validateChatReferences } from './references.js';
+import { compactConversation, settingsOnlyMessage } from './context.js';
 import { jobActive } from '../../shared/jobs.js';
-import {
-  castFromBrief,
-  castOf,
-  mergeCast,
-  briefWithCast,
-  referenceKey,
-  sameCast,
-  type CastEntry,
-} from '../../shared/cast.js';
-import { shotsFromBrief, shotPickKey, shotNameKey, shotFromTitle } from '../../shared/shots.js';
+import { castOf, mergeCast, briefWithCast, referenceKey, type CastEntry } from '../../shared/cast.js';
+import { shotsFromBrief, shotNameKey, shotFromTitle } from '../../shared/shots.js';
 
-/** Agent snapshots mirror the flat tool fields; canonical requests remain persisted unchanged. */
-function agentRequest(request: ImageRequest, assets: ToolAsset[] = []) {
-  const bindings = new Map(
-    [...toolPromptBindings(request.references ?? [])].map(([id, label]) => [label, '[[' + id + ']]']),
-  );
-  const prompt =
-    referenceMode() === 'stable'
-      ? request.prompt.replace(toolPromptReferencePattern, label => bindings.get(label) ?? label)
-      : request.prompt;
-  return {
-    prompt,
-    batch_size: request.count,
-    seed: request.seed,
-    aspect_ratio: request.output.aspect,
-    loras: request.loras ?? [],
-    ...(request.title ? { title: request.title } : {}),
-    ...(request.note ? { note: request.note } : {}),
-    ...(request.mode === 'nsfw' ? { mode: request.mode } : {}),
-    ...(isVideoWorkflow(request.workflow)
-      ? {
-          duration_seconds: request.output.duration_seconds,
-          audio_output: request.audio?.output,
-          steps: videoSteps(request),
-          detail: videoDetail(request),
-        }
-      : {}),
-    ...(request.references
-      ? {
-          inputs: request.references.map(ref => ({
-            id: ref.id,
-            asset: assets.find(a => a.asset_id === ref.asset_id)?.handle ?? ref.asset_id,
-            role: ref.role,
-            ...(ref.framing ? { framing: ref.framing } : {}),
-            ...(ref.range ?? {}),
-            ...(ref.kind === 'video' ? { include_audio: Boolean(ref.include_audio) } : {}),
-          })),
-        }
-      : {}),
-  };
-}
-/** How the agent refers to inputs in prompts. Read in one place (tests switch it per case). */
-function referenceMode(): 'stable' | 'direct' {
-  return process.env.SEED_AGENT_REFERENCE_MODE === 'direct' ? 'direct' : 'stable';
-}
 /**
  * The reply a person sees. The agent's final message (after its last tool call) is its answer, written knowing what
  * the tools actually did, so a substantial one stands alone: text written before the tools ran can describe drafts
@@ -132,46 +76,7 @@ function replyText(steps: Array<{ kind: string; text?: string }>) {
   }
   return kept.join('\n\n');
 }
-interface StoredChat extends ChatView {
-  title_manual?: boolean;
-  title_accounting?: ChatAccounting[];
-  title_error?: string;
-  summary?: ConversationSummary;
-  runs: Array<{
-    id: string;
-    workflow?: ChatWorkflow | null;
-    source_assets?: string[];
-    target_request_id?: string;
-    prompt: ReturnType<typeof chatPromptSnapshot>;
-    accounting: ChatAccounting[];
-    messages: AgentMessage[];
-    state: string;
-    summary?: ConversationSummary;
-  }>;
-}
 const terminal = ['completed', 'failed', 'cancelled'];
-const latest = (card: ChatCard) => card.revisions.at(-1)!;
-/** User-facing kinds of work and the workflow each one runs. */
-const chatKinds = {
-  image: 'text-to-image',
-  edit: 'image-to-image',
-  video: 'text-to-video',
-  animate: 'reference-to-video',
-} as const satisfies Record<string, ChatWorkflow>;
-const openGroup = (chat: ChatView) => chat.groups.find(g => !['released', 'stopped'].includes(g.state));
-/** When a turn ends (or a restart cuts it off), the open plan goes back to review, or away if it is still empty. */
-function settlePlan(chat: StoredChat) {
-  const plan = openGroup(chat);
-  if (!plan) return;
-  if (!plan.cards.length) {
-    chat.groups = chat.groups.filter(g => g.id !== plan.id);
-    return;
-  }
-  plan.state = 'reviewing';
-  for (const card of plan.cards)
-    if (card.timeline_start && card.timeline_start > latest(card).number) card.timeline_start = latest(card).number;
-}
-const now = () => new Date().toISOString();
 
 export class Chats {
   private listeners = new Map<string, Set<(value: unknown) => void>>();
@@ -610,504 +515,35 @@ export class Chats {
       after_message_id: chat.messages.at(-1)?.id ?? null,
     };
   }
-  private workflowTools(
-    id: string,
-    epoch: number,
-    workflow: ChatWorkflow,
-    runId: string,
-    assets: ToolAsset[],
-    target?: string,
-    /** Who-is-who mix-ups already refused in this turn: never refused twice, so a turn cannot loop on them. Kept by the
-     * turn, so choosing another kind mid-turn does not forget them. */
-    castWarned = new Set<string>(),
-  ): AgentTool[] {
-    const initial = this.get(id),
-      snapshots = new Map(initial.groups.flatMap(g => g.cards).map(c => [c.id, latest(c).number]));
-    const schemas = requestToolSchemas(
-      workflow,
-      initial.mode,
-      this.jobs.loras
-        .list(initial.mode)
-        .filter(l => l.source_status === 'ready')
-        .some(l =>
-          workflow === 'text-to-image'
-            ? l.route === 'image'
-            : workflow === 'text-to-video'
-              ? l.route === 'fl'
-              : l.route !== 'image',
-        ),
-    );
-    const mode = referenceMode();
-    const leaveOut: AgentTool = {
-      name: 'leave_out_request',
-      label: 'Leave out request',
-      description:
-        'Leave a draft out of the open plan (left_out true), or put it back (left_out false). Use it whenever the user narrows the plan, drops a direction or asks for fewer drafts, so the plan matches what you say. The draft stays visible to the user, unselected, and is not deleted. Copy request_id from the current review.',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: { request_id: { type: 'string' }, left_out: { type: 'boolean' } },
-        required: ['request_id', 'left_out'],
-      } as any,
-      execute: async (_call, raw) => {
-        const current = this.get(id);
-        if (current.epoch !== epoch) throw Error('This run is no longer active.');
-        const value = raw as { request_id?: unknown; left_out?: unknown },
-          group = openGroup(current),
-          card = group?.cards.find(c => c.id === String(value.request_id));
-        if (!card)
-          throw Error(
-            JSON.stringify({ ok: false, error: 'Request not found. Use a request_id listed in the current review.' }),
-          );
-        // A plan always keeps at least one selected draft: leaving out every draft would leave "Make 0 images" while the
-        // reply says the plan is ready. To drop the whole plan, the user sets it aside.
-        if (value.left_out !== false && !card.left_out && group!.cards.filter(c => !c.left_out).length <= 1)
-          throw Error(
-            JSON.stringify({
-              ok: false,
-              error:
-                'This is the last selected draft, so it stays in. To change it, edit it; if the user wants no drafts at all, tell them to set the plan aside.',
-            }),
-          );
-        if (value.left_out === false) delete card.left_out;
-        else card.left_out = true;
-        const kept = group!.cards.filter(c => !c.left_out).length;
-        this.save(current);
-        const result = {
-          ok: true,
-          request_id: card.id,
-          left_out: Boolean(card.left_out),
-          drafts_selected: kept,
-          drafts_left_out: group!.cards.length - kept,
-          next_action: 'Describe the plan by the drafts still selected.',
-        };
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
-      },
+  /** What the tools may do to a project. */
+  private host(): ToolHost {
+    return {
+      get: id => this.get(id),
+      save: chat => this.save(chat),
+      pick: (id, key, asset) => this.pick(id, key, asset),
+      revision: (chat, request, number, source) => this.revision(chat, request, number, source),
+      assertAssets: (chat, ids) => this.assertAssets(chat, ids),
+      contextAssets: chat => this.contextAssets(chat),
+      jobs: this.jobs,
     };
-    // The order of drafts in the plan is the order of the film or book: the agent can set it.
-    const orderTool: AgentTool = {
-      name: 'order_requests',
-      label: 'Order drafts',
-      description:
-        'Put the drafts of the open plan in a new order (for example story or page order). Send every request_id of the current review once, in the new order.',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: { request_ids: { type: 'array', items: { type: 'string' }, minItems: 1, maxItems: 16 } },
-        required: ['request_ids'],
-      } as any,
-      execute: async (_call, raw) => {
-        const current = this.get(id);
-        if (current.epoch !== epoch) throw Error('This run is no longer active.');
-        const group = openGroup(current);
-        const ids = ((raw as { request_ids?: unknown }).request_ids ?? []) as unknown[];
-        const cards = group?.cards ?? [];
-        if (
-          !group ||
-          ids.length !== cards.length ||
-          new Set(ids).size !== ids.length ||
-          ids.some(x => !cards.some(c => c.id === x))
-        )
-          throw Error(
-            JSON.stringify({
-              ok: false,
-              error: 'Send every request_id of the current review exactly once, in the new order.',
-            }),
-          );
-        group.cards = ids.map(x => cards.find(c => c.id === x)!);
-        this.save(current);
-        const result = {
-          ok: true,
-          order: group.cards.map(c => latest(c).request.title ?? c.id),
-          next_action: 'Say the new order in one short sentence.',
-        };
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
-      },
+  }
+  private toolSession(id: string, epoch: number, runId: string, assets: ToolAsset[], target?: string): ToolSession {
+    const chat = this.get(id);
+    return {
+      host: this.host(),
+      id,
+      epoch,
+      runId,
+      assets,
+      target,
+      snapshots: new Map(chat.groups.flatMap(g => g.cards).map(c => [c.id, latest(c).number])),
+      castWarned: new Set(),
     };
-    // The owner's choice of take for a shot, made by Seed when the owner asks in words ("use take 2 for shot 2").
-    const chooseTake: AgentTool = {
-      name: 'choose_take',
-      label: 'Choose take',
-      description:
-        'Mark a made result as the chosen take for a numbered shot, when the user asks (for example "use take 2 for shot 2"). Give the shot number and the input handle of the result (an image is the chosen keyframe, a video the chosen clip). Use it once per shot the user names.',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: { shot: { type: 'string', maxLength: 8 }, input: { type: 'string', maxLength: 20 } },
-        required: ['shot', 'input'],
-      } as any,
-      execute: async (_call, raw) => {
-        const current = this.get(id);
-        if (current.epoch !== epoch) throw Error('This run is no longer active.');
-        const value = raw as { shot?: unknown; input?: unknown };
-        const shot = String(value.shot ?? '')
-          .replace(/^shot\s*/i, '')
-          .trim();
-        const asset = assets.find(
-          a =>
-            a.handle ===
-            String(value.input ?? '')
-              .replace(/[[\]]/g, '')
-              .trim(),
-        );
-        if (!/^\d{1,3}$/.test(shot) || !asset || (asset.kind !== 'image' && asset.kind !== 'video'))
-          throw Error(
-            JSON.stringify({ ok: false, error: 'Give a shot number and the input handle of a made image or clip.' }),
-          );
-        // The choice is stored by the shot's name (from the brief's shot list, else the result's own title), so it
-        // follows the shot when shots are renumbered.
-        const named =
-          shotsFromBrief(current.brief).find(s => s.n === Number(shot))?.name ??
-          (() => {
-            const meta = this.jobs.media.get(asset.asset_id)?.metadata as { job_id?: unknown } | undefined;
-            const job = typeof meta?.job_id === 'string' ? this.jobs.get(meta.job_id) : undefined;
-            const own = job?.request.title ? shotFromTitle(job.request.title) : undefined;
-            return own && own.n === Number(shot) ? own.name : '';
-          })();
-        const view = this.pick(
-          id,
-          shotPickKey(Number(shot), named, asset.kind === 'video' ? 'clip' : 'image'),
-          asset.asset_id,
-        );
-        const result = {
-          ok: true,
-          shot,
-          chosen: asset.kind === 'video' ? 'clip' : 'keyframe',
-          picks: Object.keys(view.picks ?? {}),
-          next_action: 'Say in one short sentence which take is now chosen for the shot.',
-        };
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
-      },
-    };
-    // The owner's approval of a reference image for a character, place or prop of the brief, when they ask in words.
-    const approveReference: AgentTool = {
-      name: 'approve_reference',
-      label: 'Approve reference',
-      description:
-        'Approve a made image as the reference for a character, place or prop listed in cast_and_places, when the user asks (for example "approve take 3 as Ines\'s reference"). Give the name exactly as cast_and_places lists it and the input handle of the image. Shots that include that name are then drafted from it. Use it once per name.',
-      parameters: {
-        type: 'object',
-        additionalProperties: false,
-        properties: { name: { type: 'string', maxLength: 60 }, input: { type: 'string', maxLength: 20 } },
-        required: ['name', 'input'],
-      } as any,
-      execute: async (_call, raw) => {
-        const current = this.get(id);
-        if (current.epoch !== epoch) throw Error('This run is no longer active.');
-        const value = raw as { name?: unknown; input?: unknown };
-        const wanted = String(value.name ?? '')
-          .trim()
-          .toLowerCase();
-        const entry = castOf(current).find(e => e.name.toLowerCase() === wanted);
-        const asset = assets.find(
-          a =>
-            a.handle ===
-            String(value.input ?? '')
-              .replace(/[[\]]/g, '')
-              .trim(),
-        );
-        if (!entry)
-          throw Error(
-            JSON.stringify({
-              ok: false,
-              error: 'That name is not in cast_and_places. Add it to the brief first (update_brief), then approve.',
-              names: castOf(current).map(e => e.name),
-            }),
-          );
-        if (!asset || asset.kind !== 'image')
-          throw Error(JSON.stringify({ ok: false, error: 'Give the input handle of a made image.' }));
-        this.pick(id, referenceKey(entry.name), asset.asset_id);
-        const result = {
-          ok: true,
-          name: entry.name,
-          approved: true,
-          next_action: 'Say in one short sentence that this image is now the approved reference for the name.',
-        };
-        return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
-      },
-    };
-    return [
-      ...(['create', 'edit'] as const).map((operation): AgentTool => ({
-        name: operation + '_request',
-        label: operation === 'create' ? 'Create request' : 'Edit request',
-        description:
-          operation === 'create'
-            ? 'Prepare one new request for user review. Does not generate media.'
-            : 'Change an existing request. Copy request_id from context. Send only changed fields; all omitted fields stay unchanged.',
-        parameters: schemas[operation],
-        execute: async (_call, raw) => {
-          try {
-            const current = this.get(id);
-            if (current.epoch !== epoch) throw Error('This run is no longer active.');
-            // choose_kind earlier in this step switched the kind of work: the draft is saved as that kind (its
-            // fields are checked again for it), so the agent never reports drafts that were silently dropped.
-            const kind: ChatWorkflow = current.workflow ?? workflow;
-            // A plan can hold several kinds of work (keyframes, their edits and their animations); each draft has its own.
-            let group = openGroup(current);
-            const value = raw as Record<string, unknown>;
-            const editId = operation === 'edit' ? String(value.request_id) : target;
-            const card = editId ? group?.cards.find(c => c.id === editId) : undefined;
-            if (editId && !card)
-              throw Error(
-                'Request not found. Use a request_id listed in current review. A failed create has no request_id.',
-              );
-            if (card && snapshots.get(card.id) !== latest(card).number)
-              throw Error(
-                'Request changed after this agent started. Read the current request before editing; no changes were saved.',
-              );
-            // Editing a draft with another kind's tools changes its kind in place (a shot becomes an edit of a
-            // reference, or its animation): it starts from that kind's defaults and keeps its title and prompt.
-            const changesKind = Boolean(card && card.workflow !== kind);
-            // What is drafted must match what was asked: a new clip needs the person to have asked for motion in
-            // their recent messages, so a request for stills can never come back as "Make 2 clips".
-            if (!card && /video/.test(kind)) {
-              const recent = current.messages
-                .filter(m => m.role === 'user')
-                .slice(-2)
-                .map(m => m.text)
-                .join(' ');
-              if (
-                recent.trim() &&
-                !/\b(clips?|videos?|animat\w*|motion|moving|movie|footage|move|film it|seconds?)\b/i.test(recent)
-              )
-                throw Error(
-                  JSON.stringify({
-                    ok: false,
-                    error:
-                      'The user did not ask for a clip. Draft a picture instead (call choose_kind with image or edit), or ask whether they want a clip.',
-                  }),
-                );
-            }
-            // A draft never changes between picture and clip in place: a still plan would silently become "Make 2
-            // clips", or a clip plan would be lost. The other medium is always a new draft.
-            if (changesKind && /video/.test(card!.workflow) !== /video/.test(kind))
-              throw Error(
-                JSON.stringify({
-                  ok: false,
-                  error: /video/.test(card!.workflow)
-                    ? 'This draft is a clip. A picture is a new draft: call choose_kind for it and use create_request; leave the clip draft as it is unless the user asks to remove it.'
-                    : 'This draft is a picture. A clip (an animation of it) is a new draft: use create_request with the picture as its start frame; leave the picture draft as it is.',
-                }),
-              );
-            const prior = card ? latest(card).request : undefined;
-            const request = prepareToolRequest(
-              {
-                workflow: kind,
-                mode: current.mode,
-                assets,
-                previous: changesKind ? undefined : prior,
-                referenceMode: mode,
-                cloudWorkflows: this.jobs.pool.cloudWorkflows(),
-              },
-              changesKind
-                ? (({ request_id: _id, ...rest }) => ({ title: prior!.title, prompt: prior!.prompt, ...rest }))(value)
-                : value,
-            );
-            // Where work runs is the owner's policy: a draft Seed writes keeps the project's latest explicit choice
-            // (Seed PC only, say) unless this call names one, so a revision never widens it to a rented GPU.
-            if (!Object.hasOwn(value, 'runs_on') && request.target === undefined) {
-              const chosen =
-                prior?.target ??
-                // Groups and cards are kept in the order they were made: the last one with a choice is the latest.
-                current.groups
-                  .flatMap(g => g.cards)
-                  .map(c => latest(c).request.target)
-                  .filter(Boolean)
-                  .at(-1);
-              if (
-                chosen &&
-                !(
-                  chosen === 'cloud' &&
-                  request.engine === 'klein' &&
-                  !this.jobs.pool.cloudWorkflows().includes('image-to-image:klein')
-                )
-              )
-                request.target = chosen;
-            }
-            for (const ref of request.references ?? [])
-              if (!current.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
-            this.assertAssets(current, [...new Set((request.references ?? []).map(r => r.asset_id))]);
-            validateChatReferences(request);
-            request.prompt = validateCastReferences(request, castOf(current), current.picks ?? {}, castWarned);
-            // A saved style named in the prompt must also be selected, so the words and the controls agree.
-            if (request.workflow !== 'image-to-image') {
-              const named = this.jobs.loras
-                .list(current.mode)
-                .filter(
-                  l => l.name && l.name.length > 3 && request.prompt.toLowerCase().includes(l.name.toLowerCase()),
-                );
-              if (named.length && !(request.loras ?? []).some(x => named.some(l => l.id === x.id)))
-                throw Error(
-                  `The prompt names the saved style “${named[0]!.name}” but does not select it. Set loras to id ${named[0]!.id}, revision ${named[0]!.revision}, and take the style name out of the prompt; if it cannot be used for this kind of draft, say so.`,
-                );
-            }
-            // Each referenced character's look from the brief rides along in words, so a new frame keeps it.
-            request.prompt = withCastLooks(request, castOf(current), current.picks ?? {});
-            // Sound nobody asked for is a creative change: a new clip stays silent unless the user's recent messages
-            // ask for sound (an existing draft keeps the sound it already had).
-            const askedText = current.messages
-              .filter(m => m.role === 'user')
-              .slice(-3)
-              .map(m => m.text)
-              .join(' ');
-            const soundAsked =
-              /\b(sound|audio|music|score|soundtrack|ambien\w*|noise|voice|dialog\w*|speak\w*|sings?|hear|footsteps|waves crashing)\b/i.test(
-                askedText,
-              ) && !/\b(silent|no sound|no audio|without (?:sound|audio)|mute)\b/i.test(askedText);
-            const silenced =
-              isVideoWorkflow(request.workflow) &&
-              request.audio?.output !== 'silent' &&
-              !soundAsked &&
-              prior?.audio?.output !== request.audio?.output;
-            if (silenced) request.audio = { ...request.audio, output: 'silent' };
-            // A silent clip must not keep describing sound: its sound section reads "Silence." (the model would
-            // otherwise be told one thing by the setting and another by the words).
-            // Only when the clip becomes silent in this change (or Seed wrote new sound text): a sound section the
-            // previous version already had, including anything the owner typed there, is left as it was.
-            const priorSound = prior ? silentSoundSection(prior.prompt) === prior.prompt : true;
-            if (
-              isVideoWorkflow(request.workflow) &&
-              request.audio?.output === 'silent' &&
-              (silenced ||
-                prior?.audio?.output !== 'silent' ||
-                (priorSound && silentSoundSection(request.prompt) !== request.prompt))
-            )
-              request.prompt = silentSoundSection(request.prompt);
-            if (request.workflow !== 'image-to-image')
-              this.jobs.loras.resolve(request.loras, loraRoute(request), request.mode);
-            if (!group) {
-              group = {
-                id: randomUUID(),
-                after_message_id: [...current.messages].reverse().find(m => m.role === 'user')?.id ?? null,
-                workflow: kind,
-                state: 'assembling',
-                cards: [],
-              };
-              current.groups.push(group);
-            }
-            let saved: ChatCard;
-            const before = card ? latest(card).request : undefined;
-            if (card) {
-              card.revisions.push(this.revision(current, request, latest(card).number + 1, latest(card).source_job_id));
-              card.workflow = kind;
-              saved = card;
-            } else {
-              if (group.cards.length >= 16) throw Error('A review supports at most 16 requests.');
-              // A second draft with the same title is almost always a duplicate: point the agent at editing the first.
-              const twin = request.title
-                ? group.cards.find(
-                    c => (latest(c).request.title ?? '').trim().toLowerCase() === request.title!.trim().toLowerCase(),
-                  )
-                : undefined;
-              if (twin)
-                throw Error(
-                  `A draft titled "${request.title}" is already in this plan (request_id ${twin.id}). Change it with edit_request instead of creating another, or give the new draft a different title if it is truly separate work.`,
-                );
-              saved = { id: randomUUID(), workflow: kind, revisions: [this.revision(current, request, 1)] };
-              group.cards.push(saved);
-            }
-            latest(saved).run_id = runId;
-            snapshots.set(saved.id, latest(saved).number);
-            if (target === saved.id) target = undefined;
-            delete group.submission_error;
-            this.save(current);
-            // A verified receipt: what actually changed and which named images the draft now uses. Replies must match it.
-            const named = (refs: ImageRequest['references']) =>
-              (refs ?? []).map(r => ({
-                role: r.role,
-                image: this.contextAssets(current).find(a => a.id === r.asset_id)?.name ?? 'an input',
-              }));
-            const changed = before
-              ? (['prompt', 'title', 'count', 'output', 'audio', 'loras', 'seed', 'detail'] as const)
-                  .filter(k => JSON.stringify((before as any)[k]) !== JSON.stringify((request as any)[k]))
-                  .map(String)
-              : [];
-            const inputsBefore = named(before?.references),
-              inputsNow = named(request.references);
-            if (before && JSON.stringify(inputsBefore) !== JSON.stringify(inputsNow)) changed.push('inputs');
-            // A words-only draft made while the user attached images: say so in the result, so the reply cannot claim otherwise.
-            const attached = [...current.messages].reverse().find(m => m.role === 'user')?.assets ?? [];
-            const wordsOnly =
-              (request.workflow === 'text-to-image' || request.workflow === 'text-to-video') &&
-              attached.some(a => this.jobs.media.get(a)?.kind === 'image');
-            const result = {
-              ok: true,
-              saved: true,
-              status: 'draft saved for review; this draft has not been made yet',
-              next_action: before
-                ? 'Report only the fields listed in changed, and name the images in inputs_now. If something the user asked for is not in changed, say plainly that it was not changed.'
-                : 'Tell the user the draft is ready to review and has not been made yet. Name the images in inputs_now.',
-              ...(before ? { changed, inputs_before: inputsBefore } : {}),
-              inputs_now: inputsNow,
-              // A style the user asked for cannot ride on a picture made from references: the reply must say so.
-              ...(request.workflow === 'image-to-image' &&
-              !(request.loras ?? []).length &&
-              current.messages
-                .filter(m => m.role === 'user')
-                .slice(-3)
-                .some(m => asksSavedStyle(m.text))
-                ? {
-                    no_style:
-                      'No style is attached to this draft: styles cannot be used on pictures made from references (FLUX 3 Image Klein). Do not say it is in the style. If the user asked for a style on this draft, tell them in one sentence that the look is described in words instead, and that a picture from words (Krea 2) can use the style with less likeness; if their style was for another draft, say nothing about it here.',
-                  }
-                : {}),
-              // A style asked for on a draft that can carry one, but not attached: the reply must not claim it.
-              ...(request.workflow !== 'image-to-image' &&
-              !(request.loras ?? []).length &&
-              current.messages
-                .filter(m => m.role === 'user')
-                .slice(-1)
-                .some(m => asksSavedStyle(m.text))
-                ? {
-                    style_missing:
-                      'This draft has no style attached. If the user asked for a style on this draft, call edit_request with loras set to that style (from the styles listed for this kind) before replying; never say a draft uses a style unless its request shows it in loras.',
-                  }
-                : {}),
-              ...(silenced
-                ? {
-                    saved_silent:
-                      'Saved silent: the user did not ask for sound. Say the clip is silent and that sound can be added if they want it; do not describe any sound design.',
-                  }
-                : {}),
-              ...(wordsOnly
-                ? {
-                    words_only:
-                      'The user attached images, but this draft is made from words only and does not use them. Do not say it uses or follows the attached image. If the user wants the image to guide this shot, call choose_kind with edit (or animate) and edit_request this draft with the image as its input; otherwise tell them plainly that this draft is words only.',
-                  }
-                : {}),
-              // A changed shot whose brief line still describes the old version: the agent is shown that line, so a
-              // change of mind reaches the shot list (the Storyboard reads it) and not only the draft.
-              ...(() => {
-                if (!before || !changed.includes('prompt')) return {};
-                const own = shotFromTitle(request.title ?? '');
-                if (own.n === null) return {};
-                const line = shotsFromBrief(this.get(id).brief).find(
-                  s => shotNameKey(s.name) === shotNameKey(own.name) || s.n === own.n,
-                );
-                return line
-                  ? {
-                      brief_shot: `${line.n}. ${line.name}: ${line.action}`,
-                      brief_shot_note:
-                        'This is how the brief’s shot list still describes this shot. If the user’s change replaces any of it, call update_brief with that line rewritten (and its name, when the name no longer fits), and give the draft the same “Shot N: Name” title; otherwise leave the brief as it is.',
-                    }
-                  : {};
-              })(),
-              request_id: saved.id,
-              revision: latest(saved).number,
-              request: agentRequest(request, assets),
-              reference_labels: Object.fromEntries(toolInputLabels(request.references ?? [])),
-            };
-            return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
-          } catch (error) {
-            throw Error(JSON.stringify(requestToolResultError(error, operation)));
-          }
-        },
-      })),
-      leaveOut,
-      orderTool,
-      chooseTake,
-      approveReference,
-    ];
+  }
+  /** One kind's request tools and the plan tools, for a fresh session (tests drive them directly). */
+  private workflowTools(id: string, epoch: number, workflow: ChatWorkflow, runId: string, assets: ToolAsset[]) {
+    const session = this.toolSession(id, epoch, runId, assets);
+    return [...draftTools(session, workflow), ...planTools(session)];
   }
   send(
     id: string,
@@ -1549,9 +985,10 @@ export class Chats {
         throw Error(
           'Current requests and attachments exceed the context budget. Start another chat with fewer assets.',
         );
-      const castWarned = new Set<string>();
+      const session = this.toolSession(id, epoch, runId, toolAssets, target);
       const kindTools = (workflow: ChatWorkflow) => [
-        ...this.workflowTools(id, epoch, workflow, runId, toolAssets, target, castWarned),
+        ...draftTools(session, workflow),
+        ...planTools(session),
         ...(workflow === 'reference-to-video' && toolAssets.some(a => a.kind === 'video')
           ? [
               createReadInputTool({
@@ -1564,98 +1001,37 @@ export class Chats {
       ];
       // The agent chooses the kind of work itself; choosing loads that kind's guide and request tools for the next model request.
       let nextTurn: { systemPrompt: string; tools: AgentTool[] } | undefined;
-      // The brief is the project's lasting memory; Seed rewrites it whole when the person settles something lasting.
-      const updateBrief: AgentTool = {
-        name: 'update_brief',
-        label: 'Update brief',
-        description:
-          'Replace the project brief with an updated version. Use it when the user settles something lasting: the story, characters (exact look and wardrobe), locations, the visual look, always/never rules, the deliverables and the shot list. Send the whole brief as short Markdown, with a "## " heading for each section that applies: Story, Characters, Locations, Look, Rules, Shots. Number the shots. Keep what the user decided; do not invent details. It does not change drafts or generate anything.',
-        parameters: {
-          type: 'object',
-          additionalProperties: false,
-          properties: { brief: { type: 'string', maxLength: 8000 } },
-          required: ['brief'],
-        } as any,
-        execute: async (_call, raw) => {
-          const current = this.get(id);
-          if (current.epoch !== epoch) throw Error('This run is no longer active.');
-          // The brief is read by people: input handles ("input1", "[[input2]]") become the images' names.
-          const handleName = new Map(toolAssets.map(a => [a.handle, manifest.find(m => m.id === a.asset_id)?.name]));
-          const text = String((raw as { brief?: unknown }).brief ?? '')
-            .replace(/\[\[\s*(input\d+)\s*\]\]|\b(input\d+)\b/gi, (whole, a?: string, b?: string) => {
-              const name = handleName.get((a ?? b ?? '').toLowerCase());
-              return name ? `“${name}”` : whole;
-            })
-            .trim();
-          if (!text || text.length > 8000)
-            throw Error(JSON.stringify({ ok: false, error: 'Send the whole brief, 1-8000 characters.' }));
-          // The cast is a record: the brief adds to it and updates looks, but leaving a name out does not remove it.
-          const before = castOf(current);
-          current.cast = mergeCast(before, text);
-          const listed = castFromBrief(text).map(e => e.name.toLowerCase());
-          const added = current.cast.filter(e => !before.some(x => x.name.toLowerCase() === e.name.toLowerCase()));
-          const kept = current.cast.filter(
-            e => !listed.includes(e.name.toLowerCase()) && !castFromBrief(text).some(x => sameCast(x.name, e.name)),
-          );
-          current.brief = briefWithCast(text, current.cast);
-          current.brief_updated_by = 'seed';
-          current.brief_updated_at = now();
-          this.save(current);
-          const result = {
-            ok: true,
-            saved: true,
-            ...(added.length ? { cast_added: added.map(e => e.name) } : {}),
-            ...(kept.length
-              ? {
-                  cast_kept: kept.map(e => e.name),
-                  cast_kept_note:
-                    'These stay in the cast and were put back in the brief. If the user asked to drop one, tell them to remove it under Cast & places.',
-                }
-              : {}),
-            next_action: 'Mention briefly what you recorded in the brief. Keep every draft consistent with it.',
-          };
-          return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
-        },
-      };
-      const chooseKind: AgentTool = {
+      const updateBrief = briefTool(session, manifest);
+      const chooseKind: AgentTool = defineTool({
         name: 'choose_kind',
         label: 'Choose kind',
         description:
           'Choose what kind of media to prepare before creating requests: image (a new still from words), edit (change an existing image; needs an image input), video (a new clip from words only), animate (a clip guided by image, video or audio inputs, such as a start frame). Call it on its own, wait for its result, and only then call create_request, whenever the needed kind differs from the active kind. It does not generate media.',
-        parameters: {
-          type: 'object',
-          additionalProperties: false,
-          properties: { kind: { type: 'string', enum: Object.keys(chatKinds) } },
-          required: ['kind'],
-        } as any,
-        execute: async (_call, raw) => {
-          const kind = String((raw as { kind?: unknown }).kind) as keyof typeof chatKinds,
+        properties: { kind: { type: 'string', enum: Object.keys(chatKinds) } },
+        run: input => {
+          const kind = String(input.kind) as keyof typeof chatKinds,
             workflow = chatKinds[kind];
-          const current = this.get(id);
-          if (!workflow)
-            throw Error(JSON.stringify({ ok: false, error: 'Unknown kind.', choices: Object.keys(chatKinds) }));
-          if (current.epoch !== epoch) throw Error('This run is no longer active.');
+          if (!workflow) throw new ToolFailure('Unknown kind.', { choices: Object.keys(chatKinds) }, true);
+          const now = activeChat(session);
           // Drafts of other kinds already in the open plan stay; new drafts of this kind join the same plan.
-          if (current.workflow !== workflow) {
-            current.workflow = workflow;
-            current.version++;
-            this.save(current);
+          if (now.workflow !== workflow) {
+            now.workflow = workflow;
+            now.version++;
+            this.save(now);
           }
-          const next = chatPromptSnapshot(this.paths, current.mode, workflow);
+          const next = chatPromptSnapshot(this.paths, now.mode, workflow);
           nextTurn = {
             systemPrompt: next.system + '\n\n' + requestToolRules(referenceMode(), workflow),
             tools: [chooseKind, updateBrief, ...kindTools(workflow)],
           };
-          const result = {
-            ok: true,
+          return {
             kind,
             available_loras: loraCatalog(workflow),
             next_action:
               'Prepare the drafts now with create_request, or edit_request for an existing draft. Drafts of other kinds stay in the plan; editing one with these tools turns it into this kind and keeps its title and prompt unless you change them.',
           };
-          return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
         },
-      };
+      });
       // Talking without changing the plan: no request tools, so the open plan cannot change in this turn.
       const tools = discussOnly ? [] : [chooseKind, updateBrief, ...(chat.workflow ? kindTools(chat.workflow) : [])];
       const agent = createChatAgent({
@@ -2081,23 +1457,4 @@ export class Chats {
     for (const [id] of this.agents) this.stop(id);
     await Promise.allSettled([...this.tasks.values()]);
   }
-}
-
-/** Rewrites a prompt's sound section (overall_soundscape:, Sound:) to "Silence." unless it already says so. */
-export function silentSoundSection(prompt: string) {
-  const lines = prompt.split('\n');
-  const head = /^\s*(?:overall_soundscape|sound|audio)\s*:/i;
-  const at = lines.findIndex(l => head.test(l));
-  if (at < 0) return prompt;
-  let end = at + 1;
-  while (
-    end < lines.length &&
-    lines[end]!.trim() &&
-    !/^\s*(?:[a-z]+(?:_[a-z]+)+|[A-Z][\w ]{1,24})\s*:|^\s*\[Shot \d+\]/.test(lines[end]!)
-  )
-    end++;
-  const label = lines[at]!.match(head)![0];
-  const rest = lines.slice(at, end).join(' ').slice(label.length).trim();
-  if (/^(silence|silent|none|n\/a)\.?$/i.test(rest)) return prompt;
-  return [...lines.slice(0, at), label + ' Silence.', ...lines.slice(end)].join('\n');
 }

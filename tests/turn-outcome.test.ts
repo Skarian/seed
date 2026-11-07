@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { unfinishedSteps } from '../web/app/project/turnSteps.js';
+import { turnOutcome } from '../shared/turn.js';
 import { briefGapList } from '../web/app/project/checks.js';
 import { sameCast } from '../shared/cast.js';
 import type { TurnTranscript } from '../shared/chat.js';
@@ -28,8 +28,8 @@ it('lists failed steps that a later step did not make good', () => {
       tool('update_brief', 'succeeded', { brief: 'y' }),
     ],
   };
-  expect(unfinishedSteps(turn)).toEqual([{ label: 'Approve a reference for Amara', reason: 'No cast entry is named Amara.' }]);
-  expect(unfinishedSteps({ ...turn, state: 'running' })).toEqual([]);
+  expect(turnOutcome(turn).unfinished).toEqual([{ label: 'Approve a reference for Amara', reason: 'No cast entry is named Amara.' }]);
+  expect(turnOutcome({ ...turn, state: 'running' }).unfinished).toEqual([]);
 });
 
 it('reads titled names and leaves delivery notes out of the brief check', () => {
@@ -47,7 +47,7 @@ it('reads a plain-text tool error, not the part type', () => {
     state: 'completed',
     steps: [{ ...tool('edit_request', 'failed', { request_id: 'c1' }), result: { content: [{ type: 'text', text: 'This source belongs to multiple existing inputs.' }] } }],
   };
-  expect(unfinishedSteps(turn)).toEqual([{ label: 'Change a draft', reason: 'This source belongs to multiple existing inputs.' }]);
+  expect(turnOutcome(turn).unfinished).toEqual([{ label: 'Change a draft', reason: 'This source belongs to multiple existing inputs.' }]);
 });
 
 it('keeps a swapped-out character as a reference and repoints the prompt', async () => {
@@ -77,10 +77,9 @@ it('reads someone’s portrait as a picture, not a portrait shape', async () => 
 });
 
 it('builds a receipt from the tools that succeeded, not from the reply', async () => {
-  const { turnReceipt } = await import('../web/app/project/turnSteps.js');
-  const ok = (name: string, input: unknown, json?: unknown) => ({
+  const ok = (name: string, input: unknown, details?: unknown) => ({
     ...tool(name, 'succeeded', input),
-    result: { content: [{ type: 'text', text: JSON.stringify(json ?? { ok: true }) }] },
+    result: { content: [{ type: 'text', text: JSON.stringify(details ?? { ok: true }) }], details: details ?? { ok: true } },
   });
   const turn: TurnTranscript = {
     started_at: at,
@@ -93,7 +92,7 @@ it('builds a receipt from the tools that succeeded, not from the reply', async (
       ok('edit_request', { request_id: 'c3' }, { ok: true, request: { title: 'Shot 3: The Rope' } }),
     ],
   };
-  expect(turnReceipt(turn)).toEqual([
+  expect(turnOutcome(turn).done).toEqual([
     'Drafted Shot 1: The Arrival, Shot 2: The Mug',
     'Changed Shot 3: The Rope',
     'Saved the brief (added Teo to the cast)',
@@ -110,7 +109,7 @@ it('hides a draft failure a later try made good, and never shows raw JSON', () =
       { ...tool('create_request', 'failed', { title: 'Watercolor study' }), result: { content: [{ type: 'text', text: 'Validation failed for tool "create_request": - root: must not have additional properties' }] } },
     ],
   };
-  expect(unfinishedSteps(turn)).toEqual([{ label: 'Write a draft: Watercolor study', reason: 'Seed couldn’t finish this step. Nothing was lost; ask again to retry it.' }]);
+  expect(turnOutcome(turn).unfinished).toEqual([{ label: 'Write a draft: Watercolor study', reason: 'Seed couldn’t finish this step. Nothing was lost; ask again to retry it.' }]);
 });
 
 it('adds missing details after the whole name, without labels or unseen clothes', async () => {

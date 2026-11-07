@@ -4,7 +4,7 @@ import { useApp, useNow } from '../data.js';
 import { Markdown, Thumb, cleanReply } from '../ui.js';
 import { duration, assetName, titleOf, latest } from '../format.js';
 import { type Attachment } from './requests.js';
-import { unfinishedSteps, turnReceipt } from './turnSteps.js';
+import { turnOutcome } from '../../../shared/turn.js';
 import { buttonAction } from './timeline.js';
 
 export function Message({
@@ -103,12 +103,11 @@ export function Message({
     /\?\s*$/.test(text.trim()) ||
     /\b(please (attach|send|share|tell)|could you|which (one|of)|do you want|would you like)\b/i.test(text);
   const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan && !asking;
-  const unfinished = unfinishedSteps(turn, id => {
+  // What the tools did, filled in as Seed works, and the steps that did not work once it is done.
+  const { done: receipt, unfinished } = turnOutcome(turn, id => {
     const card = project.groups.flatMap(g => g.cards).find(c => c.id === id);
     return card ? titleOf(latest(card).request) : undefined;
   });
-  // Filled in as Seed works, so a long turn shows what has landed so far.
-  const receipt = turnReceipt(turn);
   const leaked = /<\|?tool_call|call:[a-z_.]+\{/i.test(message.text);
   const askedToMake = !madePlan && !asking && (leaked || toolFailed || (!text && turn?.state === 'completed'));
   const stage = running ? stageOf(turn!) : '';
@@ -238,13 +237,17 @@ export function Message({
         </div>
       )}
       {/* A reply that leaves part of the work for "my next reply" gets a Continue, so the rest is one tap away. */}
-      {!running && turn?.state === 'completed' && /(?:in|with) (?:my|the) next (?:reply|message|turn)|remaining (?:shots|drafts|ones)[^.]{0,40}next/i.test(text) && (
-        <div className="actions">
-          <button className="btn small primary" onClick={onContinue}>
-            Continue: draft the rest
-          </button>
-        </div>
-      )}
+      {!running &&
+        turn?.state === 'completed' &&
+        /(?:in|with) (?:my|the) next (?:reply|message|turn)|remaining (?:shots|drafts|ones)[^.]{0,40}next/i.test(
+          text,
+        ) && (
+          <div className="actions">
+            <button className="btn small primary" onClick={onContinue}>
+              Continue: draft the rest
+            </button>
+          </div>
+        )}
       {!running && turn?.state === 'completed' && askedToMake && (
         <div className="notice">
           <b>Seed couldn't prepare that.</b> Your message and attachments are kept.
@@ -289,7 +292,8 @@ export function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
   const tools = turn.steps.filter(s => s.kind === 'tool');
   const done = tools.filter(s => s.state === 'succeeded').length,
     failed = tools.filter(s => s.state === 'failed').length;
-  const tally = done || failed ? ` · ${done} ${done === 1 ? 'step' : 'steps'} done${failed ? `, ${failed} retried` : ''}` : '';
+  const tally =
+    done || failed ? ` · ${done} ${done === 1 ? 'step' : 'steps'} done${failed ? `, ${failed} retried` : ''}` : '';
   return stageNow(turn) + tally;
 }
 function stageNow(turn: NonNullable<ChatMessage['transcript']>) {

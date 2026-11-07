@@ -42,6 +42,17 @@ it('lets the agent choose the kind of work, then prepare drafts with that kind�
   expect(chat.groups).toHaveLength(1);expect(chat.groups[0]!.workflow).toBe('text-to-image');expect(chat.groups[0]!.cards).toHaveLength(1);
 }));
 
+it('marks Seed’s own slips in a tool’s answer, so a turn that drafted anyway shows only what it did',async()=>fixture(async({chats,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
+  queue.push([{operation:'leave_out',request_id:'no-such-draft',left_out:true},{operation:'create',request}]);
+  chats.send(chat.id,{version:chat.version,text:'One scene',assets:[]});chat=await idle(chats,chat.id);
+  const turn=chat.messages.at(-1)!.transcript!,slip=turn.steps.find(s=>s.name==='leave_out_request')!;
+  expect(slip.state).toBe('failed');
+  expect(JSON.parse((slip.result as any).content[0].text)).toMatchObject({ok:false,internal:true});
+  const {turnOutcome}=await import('../shared/turn.js');
+  expect(turnOutcome(turn)).toEqual({done:['Drafted a draft'],unfinished:[]});
+}));
+
 it('lets the agent narrow a plan: a left-out draft stays visible and can be put back',async()=>fixture(async({chats,queue})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request},{operation:'create',request:{...request,prompt:'A stormy sea'}}]);chats.send(chat.id,{version:chat.version,text:'Two scenes',assets:[]});chat=await idle(chats,chat.id);
