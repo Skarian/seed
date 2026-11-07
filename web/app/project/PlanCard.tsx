@@ -213,7 +213,10 @@ export function PlanCard({
           return (
             <div className="check-note plan-wide preflight">
               <div>
-                <b>{missing.length === 1 ? 'One draft leaves out' : `${missing.length} drafts leave out`} details from the brief</b>
+                <b>
+                  {missing.length === 1 ? 'One draft leaves out' : `${missing.length} drafts leave out`} details from
+                  the brief
+                </b>
                 <ul className="preflight-list">
                   {missing.map(m => (
                     <li key={m.card.id}>
@@ -321,7 +324,7 @@ export function PlanCard({
             );
           return (
             <Draft
-              key={card.id + ':' + rev.number}
+              key={card.id}
               quietSource={Boolean(oneSource)}
               label={short(card)}
               project={project}
@@ -393,7 +396,13 @@ function Draft({
   onAcknowledge: (text: string) => void;
   onEditMyself: (assets: string[]) => void;
 }) {
-  const [view, setView] = useState(card.revisions.length - 1);
+  // A new revision shows itself; the card stays mounted, so notices about the change (a swap) survive it.
+  const [view, setView] = useState(card.revisions.length - 1),
+    [seen, setSeen] = useState(card.revisions.length);
+  if (seen !== card.revisions.length) {
+    setSeen(card.revisions.length);
+    setView(card.revisions.length - 1);
+  }
   const shown = card.revisions[view] ?? latest(card),
     r = shown.request,
     current = view === card.revisions.length - 1;
@@ -592,7 +601,9 @@ function Draft({
                       className="link"
                       style={{ fontSize: '0.8125rem', marginLeft: 6 }}
                       onClick={() => setSwap(ref.id)}
-                      aria-label={'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ' of ' + titleOf(r) + ': ' + name}
+                      aria-label={
+                        'Change ' + (roleLabels[ref.role] ?? ref.role).toLowerCase() + ' of ' + titleOf(r) + ': ' + name
+                      }
                     >
                       Change
                     </button>
@@ -625,9 +636,7 @@ function Draft({
                 old && Object.entries(project.picks ?? {}).some(([k, v]) => k.startsWith('ref:') && v === old.asset_id),
               );
               const next = swapInput(r, id, { id: a.id, kind: a.kind }, keep);
-              setSwapped(
-                !next.kept && was && now && was.toLowerCase() !== now.toLowerCase() ? { was, now } : null,
-              );
+              setSwapped(!next.kept && was && now && was.toLowerCase() !== now.toLowerCase() ? { was, now } : null);
               const {
                 workflow: _w,
                 mode: _m,

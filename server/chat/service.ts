@@ -36,7 +36,15 @@ import {
 } from './references.js';
 import { compactConversation, settingsOnlyMessage, type ConversationSummary } from './context.js';
 import { asksSavedStyle } from '../../shared/styles-asked.js';
-import { castFromBrief, castOf, mergeCast, briefWithCast, referenceKey, sameCast, type CastEntry } from '../../shared/cast.js';
+import {
+  castFromBrief,
+  castOf,
+  mergeCast,
+  briefWithCast,
+  referenceKey,
+  sameCast,
+  type CastEntry,
+} from '../../shared/cast.js';
 import { shotsFromBrief, shotPickKey, shotNameKey, shotFromTitle } from '../../shared/shots.js';
 
 /** Agent snapshots mirror the flat tool fields; canonical requests remain persisted unchanged. */
@@ -150,6 +158,18 @@ const chatKinds = {
   animate: 'reference-to-video',
 } as const satisfies Record<string, ChatWorkflow>;
 const openGroup = (chat: ChatView) => chat.groups.find(g => !['released', 'stopped'].includes(g.state));
+/** When a turn ends (or a restart cuts it off), the open plan goes back to review, or away if it is still empty. */
+function settlePlan(chat: StoredChat) {
+  const plan = openGroup(chat);
+  if (!plan) return;
+  if (!plan.cards.length) {
+    chat.groups = chat.groups.filter(g => g.id !== plan.id);
+    return;
+  }
+  plan.state = 'reviewing';
+  for (const card of plan.cards)
+    if (card.timeline_start && card.timeline_start > latest(card).number) card.timeline_start = latest(card).number;
+}
 const now = () => new Date().toISOString();
 
 export class Chats {
@@ -218,6 +238,7 @@ export class Chats {
       if (chat.activity === 'thinking' || chat.activity === 'preparing') {
         if (chat.activity === 'thinking') chat.error = 'Interrupted by server restart. Send a message to continue.';
         chat.activity = 'idle';
+        settlePlan(chat);
         changed = true;
         for (const run of chat.runs) if (run.state === 'running') run.state = 'interrupted';
         for (const message of chat.messages)
@@ -436,7 +457,11 @@ export class Chats {
     const at = from ? cast.findIndex(e => e.name.toLowerCase() === from.toLowerCase()) : -1;
     if (from && at < 0) throw Error('That name is not in the cast.');
     if (entry) {
-      entry = { kind: entry.kind, name: entry.name.replace(/\s+/g, ' ').trim(), look: entry.look.replace(/\s+/g, ' ').trim() };
+      entry = {
+        kind: entry.kind,
+        name: entry.name.replace(/\s+/g, ' ').trim(),
+        look: entry.look.replace(/\s+/g, ' ').trim(),
+      };
       if (!['character', 'place', 'prop'].includes(entry.kind)) throw Error('Choose character, place or prop.');
       if (!/^\p{L}/u.test(entry.name) || entry.name.length > 60) throw Error('Give a name of up to 60 characters.');
       if (entry.look.length > 600) throw Error('Keep the look under 600 characters.');
@@ -597,6 +622,9 @@ export class Chats {
     runId: string,
     assets: ToolAsset[],
     target?: string,
+    /** Who-is-who mix-ups already refused in this turn: never refused twice, so a turn cannot loop on them. Kept by the
+     * turn, so choosing another kind mid-turn does not forget them. */
+    castWarned = new Set<string>(),
   ): AgentTool[] {
     const initial = this.get(id),
       snapshots = new Map(initial.groups.flatMap(g => g.cards).map(c => [c.id, latest(c).number]));
@@ -702,8 +730,6 @@ export class Chats {
       },
     };
     // The owner's choice of take for a shot, made by Seed when the owner asks in words ("use take 2 for shot 2").
-    // Who-is-who mix-ups already refused in this turn: never refused twice, so a turn cannot loop on them.
-    const castWarned = new Set<string>();
     const chooseTake: AgentTool = {
       name: 'choose_take',
       label: 'Choose take',
@@ -893,19 +919,21 @@ export class Chats {
                   .map(c => latest(c).request.target)
                   .filter(Boolean)
                   .at(-1);
-              if (chosen && !(chosen === 'cloud' && request.engine === 'klein' && !this.jobs.pool.cloudWorkflows().includes('image-to-image:klein')))
+              if (
+                chosen &&
+                !(
+                  chosen === 'cloud' &&
+                  request.engine === 'klein' &&
+                  !this.jobs.pool.cloudWorkflows().includes('image-to-image:klein')
+                )
+              )
                 request.target = chosen;
             }
             for (const ref of request.references ?? [])
               if (!current.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
             this.assertAssets(current, [...new Set((request.references ?? []).map(r => r.asset_id))]);
             validateChatReferences(request);
-            request.prompt = validateCastReferences(
-              request,
-              castOf(current),
-              current.picks ?? {},
-              castWarned,
-            );
+            request.prompt = validateCastReferences(request, castOf(current), current.picks ?? {}, castWarned);
             // A saved style named in the prompt must also be selected, so the words and the controls agree.
             if (request.workflow !== 'image-to-image') {
               const named = this.jobs.loras
@@ -1159,24 +1187,24 @@ export class Chats {
       .digest('hex');
     const lastUser = [...chat.messages].reverse().find(m => m.role === 'user');
     if (!(input.retry && lastUser?.text === input.text))
-    chat.messages.push({
-      id: randomUUID(),
-      role: 'user',
-      text: input.text,
-      mention_bindings: mentionBindings,
-      assets: input.assets,
-      ...(input.attach_request && target
-        ? {
-            request_attachment: {
-              card_id: target.id,
-              revision: latest(target).number,
-              request: structuredClone(latest(target).request),
-              notes: structuredClone(latest(target).notes),
-            },
-          }
-        : {}),
-      created_at: now(),
-    });
+      chat.messages.push({
+        id: randomUUID(),
+        role: 'user',
+        text: input.text,
+        mention_bindings: mentionBindings,
+        assets: input.assets,
+        ...(input.attach_request && target
+          ? {
+              request_attachment: {
+                card_id: target.id,
+                revision: latest(target).number,
+                request: structuredClone(latest(target).request),
+                notes: structuredClone(latest(target).notes),
+              },
+            }
+          : {}),
+        created_at: now(),
+      });
     const needsTitle = chat.messages.filter(m => m.role === 'user').length === 1 && !chat.title_manual;
     if (input.keep_plan && input.card_id)
       throw Error('Choose either a draft to revise or talk without changing the plan.');
@@ -1526,8 +1554,9 @@ export class Chats {
         throw Error(
           'Current requests and attachments exceed the context budget. Start another chat with fewer assets.',
         );
+      const castWarned = new Set<string>();
       const kindTools = (workflow: ChatWorkflow) => [
-        ...this.workflowTools(id, epoch, workflow, runId, toolAssets, target),
+        ...this.workflowTools(id, epoch, workflow, runId, toolAssets, target, castWarned),
         ...(workflow === 'reference-to-video' && toolAssets.some(a => a.kind === 'video')
           ? [
               createReadInputTool({
@@ -1714,15 +1743,7 @@ export class Chats {
         for (const card of current.groups.flatMap(g => g.cards))
           for (const revision of card.revisions)
             if (revision.run_id === runId) revision.after_message_id = current.messages.at(-1)?.id ?? null;
-        const pending = openGroup(current);
-        if (pending) {
-          if (pending.cards.length) {
-            pending.state = 'reviewing';
-            for (const card of pending.cards)
-              if (card.timeline_start && card.timeline_start > latest(card).number)
-                card.timeline_start = latest(card).number;
-          } else current.groups = current.groups.filter(g => g.id !== pending.id);
-        }
+        settlePlan(current);
         current.activity = 'idle';
         current.partial = '';
         current.partial_reasoning = '';
@@ -1739,13 +1760,7 @@ export class Chats {
         }
         current.error = (error as Error).message;
         current.activity = 'idle';
-        const pending = openGroup(current);
-        if (pending?.cards.length) {
-          pending.state = 'reviewing';
-          for (const card of pending.cards)
-            if (card.timeline_start && card.timeline_start > latest(card).number)
-              card.timeline_start = latest(card).number;
-        }
+        settlePlan(current);
       }
       this.save(current);
     }
@@ -1920,16 +1935,26 @@ export class Chats {
             }),
           );
         }
-        // Recheck approval after asynchronous media preparation.
-        const final = this.get(id);
-        if (final.epoch !== chat.epoch || final.version !== chat.version) throw Error('Review was stopped or changed.');
+        // Other writes (a pick, a cast edit, the title) may land during preparation: commit onto a fresh read, and only
+        // if the same revisions are still the approved ones.
         this.db.transaction(() => {
-          for (let i = 0; i < staged.length; i++)
-            latest(approved[i]!).job_ids = staged[i]!.commit().jobs.map(j => j.id);
-          group.state = 'released';
-          chat.activity = 'idle';
-          delete group.submission_error;
-          this.save(chat);
+          const final = this.get(id),
+            plan = final.groups.find(g => g.id === groupId);
+          const now = plan?.cards.filter(c => latest(c).decision === 'approved') ?? [];
+          if (
+            final.epoch !== epoch ||
+            plan?.state !== 'reviewing' ||
+            now.length !== approved.length ||
+            approved.some((c, i) => now[i]!.id !== c.id || latest(now[i]!).number !== latest(c).number)
+          )
+            throw Error('Review was stopped or changed.');
+          for (const card of now)
+            this.assertAssets(final, [...new Set((latest(card).request.references ?? []).map(r => r.asset_id))]);
+          now.forEach((card, i) => (latest(card).job_ids = staged[i]!.commit().jobs.map(j => j.id)));
+          plan.state = 'released';
+          final.activity = 'idle';
+          delete plan.submission_error;
+          this.save(final);
         })();
       });
     } catch (error) {

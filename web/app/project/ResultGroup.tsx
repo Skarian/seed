@@ -126,7 +126,9 @@ function CardResults({
   const app = useApp();
   const r = latest(card).request,
     // A take whose picture was deleted leaves no empty slot behind, and is not counted.
-    list = cardJobs(project, card).filter(j => !(j.state === 'completed' && !j.outputs.length && j.deleted_outputs?.length)),
+    list = cardJobs(project, card).filter(
+      j => !(j.state === 'completed' && !j.outputs.length && j.deleted_outputs?.length),
+    ),
     title = titleOf(r);
   const done = list.filter(j => j.state === 'completed'),
     failed = list.filter(isFailed),
@@ -291,13 +293,13 @@ function CardResults({
       ))}
       {history.length > 0 && (
         <details className="notnow-history">
-          <summary className="link">
-            Earlier versions ({history.length})
-          </summary>
+          <summary className="link">Earlier versions ({history.length})</summary>
           {history.map(c => (
             <span key={c.id}>
               <b>{titleOf(latest(c).request)}</b>
-              <span className="faint">{broughtBack(c) ? ' · brought back into the plan' : ' · redrafted since'}</span>{' '}
+              <span className="faint">
+                {broughtBack(c) ? ' · brought back into the plan' : ' · redrafted since'}
+              </span>{' '}
               {!broughtBack(c) && (
                 <button
                   className="link"
@@ -553,12 +555,16 @@ function ResultTile({
               {state.retained && (
                 <>
                   <small className="wait-reason">The picture was made but didn’t reach this PC.</small>
-                  <button className="btn small" style={{ marginTop: 8 }} onClick={() =>
+                  <button
+                    className="btn small"
+                    style={{ marginTop: 8 }}
+                    onClick={() =>
                       void jobsApi
                         .retrySave(job.id)
                         .then(() => app.refreshTasks())
                         .catch(e => app.toast((e as Error).message))
-                    }>
+                    }
+                  >
                     Try saving again
                   </button>
                 </>
@@ -574,19 +580,22 @@ function ResultTile({
             <span>
               {state.label.replace(/^Failed · /, '')}
               <br />
-              <button
-                className="btn small"
-                style={{ marginTop: 8 }}
-                onClick={() =>
-                  job.state === 'needs_attention'
-                    ? void jobsApi.recover(job.id)
-                    : rejected
-                      ? actions.onReuse(card)
-                      : actions.onRetryFailed(card)
-                }
-              >
-                {job.state === 'needs_attention' ? 'Check again' : rejected ? 'Change settings' : 'Make it again'}
-              </button>
+              {/* An uncertain job offers Check again only when Seed can safely retry it; otherwise the worker decides. */}
+              {(job.state !== 'needs_attention' || job.recovery?.action) && (
+                <button
+                  className="btn small"
+                  style={{ marginTop: 8 }}
+                  onClick={() =>
+                    job.state === 'needs_attention'
+                      ? void jobsApi.recover(job.id).catch(() => undefined)
+                      : rejected
+                        ? actions.onReuse(card)
+                        : actions.onRetryFailed(card)
+                  }
+                >
+                  {job.state === 'needs_attention' ? 'Check again' : rejected ? 'Change settings' : 'Make it again'}
+                </button>
+              )}
             </span>
           ) : state.tone === 'off' ? (
             <span>

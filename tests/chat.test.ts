@@ -262,6 +262,26 @@ it.each(['resolve','reject'])('Stop fences %s of delayed preparation without a l
   expect(JSON.parse((db.prepare('SELECT body_json FROM chats WHERE id=?').get(c.id) as any).body_json).activity).toBe('idle');
 }));
 
+it('keeps a choice made while a plan prepares, and still starts the plan',async()=>fixture(async({chats,jobs,queue})=>{
+  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
+  let entered!:()=>void,finish!:()=>void;const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{finish=resolve;});
+  const prepare=jobs.prepareSubmission.bind(jobs);jobs.prepareSubmission=async(...args)=>{const result=await prepare(...args);entered();await gate;return result;};
+  const approval=chats.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');await started;
+  chats.pick(c.id,'skip:Mara','skip');finish();const after=await approval;
+  expect(jobs.all()).toHaveLength(1);expect(after.groups[0]!.state).toBe('released');expect(after.groups[0]!.submission_error).toBeUndefined();
+  expect(after.picks?.['skip:Mara']).toBe('skip');
+}));
+
+it('lets the owner decide a plan whose revision was cut off by a restart',async()=>fixture(async({chats,jobs,queue,db,paths})=>{
+  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
+  const stored=JSON.parse((db.prepare('SELECT body_json FROM chats WHERE id=?').get(c.id) as any).body_json);
+  stored.groups[0].state='revising';stored.activity='thinking';db.prepare('UPDATE chats SET body_json=? WHERE id=?').run(JSON.stringify(stored),c.id);
+  const restarted=new Chats(db,paths,jobs);try{
+    expect(restarted.view(c.id).groups[0]!.state).toBe('reviewing');
+    await restarted.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(1);
+  }finally{await restarted.close();}
+}));
+
 it('persists the preparing handoff and recovers it without automatically admitting jobs',async()=>fixture(async({chats,jobs,queue,db,paths})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request:{...request,count:2}}]);chats.send(c.id,{version:c.version,text:'Two images',assets:[]});c=await idle(chats,c.id);
   let entered!:()=>void,finish!:()=>void;const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{finish=resolve;});
