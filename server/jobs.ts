@@ -41,6 +41,9 @@ export type Job = import("../shared/jobs.js").JobRecord & {
   prepared?: PreparedReference[];
 };
 const executionId=(job:Job)=>job.worker?.execution_id??job.id;
+const ACK_TRIES = 5;
+const media = (job: Job) => (isVideoWorkflow(job.request.workflow) ? 'clip' : 'image');
+const notSaved = (job: Job) => `The ${media(job)} was made but did not reach this PC. Try saving again, or cancel it.`;
 /** What leaves the server about a job: no ComfyUI graph, prepared paths, receipts or retired-provider records. */
 function jobView({ worker, prepared: _p, fal: _f, input_snapshot: _i, ...job }: Job): JobRecord {
   return worker ? { ...job, worker: { id: worker.id, executor: worker.executor } } : job;
@@ -52,13 +55,15 @@ function jobView({ worker, prepared: _p, fal: _f, input_snapshot: _i, ...job }: 
 function readJob(json: string): Job {
   const job = JSON.parse(json) as Job;
   if (isJobState(job.state)) return job;
-  return { ...job, state: "needs_attention", error: `Seed can't read this request's saved state (${String(job.state)}). Check its GPU before trying again.` };
+  return { ...job, state: "needs_attention", error: `Seed can't read this take's saved state (${String(job.state)}). Check its GPU before trying again.` };
 }
 export class Jobs {
   private chain: Promise<unknown> = Promise.resolve();
   private timer?: ReturnType<typeof setInterval>;
   private stopped = false;
   private inFlight = new Map<string, { task: Promise<void>; recovery: boolean }>();
+  /** Failed acknowledgements per job since start; at ACK_TRIES Seed stops asking until it restarts. */
+  private ackFailures = new Map<string, number>();
   public media: Media;
   public loras: Loras;
   /** Called after every committed save; the chat service pushes it to whoever watches the job's project. */
@@ -86,7 +91,7 @@ export class Jobs {
     )) {
       job.state = "needs_attention";
       job.error =
-        "This request belongs to the retired API provider. Its saved history has been preserved; create a new request to use a GPU worker.";
+        "This take was sent to an online service Seed no longer uses. Its history is kept; make the draft again to use a GPU.";
       this.save(job);
     }
   }
@@ -128,7 +133,7 @@ export class Jobs {
     if (previous?.recovery || isTerminal(job.state) || ['running', 'copying'].includes(job.state)) return this.publicJob(job);
     const action=this.publicJob(job).recovery?.action;
     if (this.stopped || !action)
-      throw Error('This request cannot be retried safely. View its worker for recovery options.');
+      throw Error('Seed cannot safely try this take again. Open its GPU on the GPUs page for recovery options.');
     this.track(id, async () => {
       await previous?.task;
       try { if(action==='retry_local')await this.retryLocal(id);else await this.recoverOriginal(id); }
@@ -138,10 +143,10 @@ export class Jobs {
         if (current) {
           if (current.job.worker?.receipt?.manifest?.state === 'completed') {
             current.job.recovery_blocked = actionableTransfer(error);
-            current.job.error = 'The picture was made but did not reach this PC. Try saving again, or cancel it.';
+            current.job.error = notSaved(current.job);
           } else {
             current.job.state = 'needs_attention';
-            current.job.error = action==='retry_local'?'Local retry could not proceed. The prior attempt and any output files are preserved; check the worker before retrying.':'The worker could not confirm recovery. The original request is still reserved; check its worker before trying again.';
+            current.job.error = action==='retry_local'?"Seed PC couldn't try this take again. Anything it made is kept; check Seed PC on the GPUs page before trying again.":"The GPU couldn't confirm what happened to this take. The take stays on that GPU; check it on the GPUs page before trying again.";
           }
           this.save(current.job);
         }
@@ -206,7 +211,7 @@ export class Jobs {
       return;
     }
     if (probe.state !== 'ready' || probe.active_job_id || !probe.session_id) {
-      current.job.error = 'The worker is not idle and ready. The original request is still reserved; view its worker before retrying.';
+      current.job.error = "The GPU is busy or not ready. The take stays on that GPU; check it on the GPUs page before trying again.";
       this.save(current.job);
       this.recoveryEvent(id, 'worker_not_ready');
       return;
@@ -272,7 +277,7 @@ export class Jobs {
   retrySave(id: string) {
     const job = this.get(id);
     if (!job?.recovery_blocked || !job.worker?.receipt)
-      throw Error("This output does not need saving again.");
+      throw Error("This take does not need saving again.");
     job.recovery_blocked = false;
     job.error = null;
     this.save(job);
@@ -281,7 +286,7 @@ export class Jobs {
   continueRequest(id: string) {
     const job = this.get(id);
     if (!job || job.state !== "blocked")
-      throw Error("This request is not waiting for action.");
+      throw Error("This take is not waiting for you.");
     for (const item of this.all().filter(
       (j) => j.submission_id === job.submission_id && j.state === "blocked",
     )) {
@@ -539,7 +544,7 @@ export class Jobs {
       if (job.worker) job.worker.quit_now = true;
       job.state = "cancelled";
       job.error =
-        "Cancelled when the worker was terminated. Unsaved output may be unavailable.";
+        "Cancelled when its GPU was released. Anything not yet saved here is lost.";
       this.save(job);
       this.pool.complete(job.id);
     }
@@ -547,7 +552,7 @@ export class Jobs {
   acknowledge(id: string) {
     const job = this.get(id);
     if (!job || job.state !== "needs_attention")
-      throw Error("Only a request needing attention can be acknowledged.");
+      throw Error("Only a take that needs attention can be acknowledged.");
     job.uncertainty_acknowledged = true;
     this.save(job);
     return job;
@@ -574,7 +579,7 @@ export class Jobs {
         continue;
       if (
         isTerminal(job.state) &&
-        (!job.worker.receipt || job.worker.acknowledged)
+        (!job.worker.receipt || job.worker.acknowledged || (this.ackFailures.get(job.id) ?? 0) >= ACK_TRIES)
       )
         continue;
       if (job.state === "queued") {
@@ -599,7 +604,7 @@ export class Jobs {
       if (!worker) {
         job.state = "needs_attention";
         job.error =
-          "The assigned worker record is missing. This request will not be submitted again automatically.";
+          "Seed lost track of the GPU this take was on, and won't start it again on its own.";
         this.save(job);
         continue;
       }
@@ -632,7 +637,7 @@ export class Jobs {
         }
         job.state = "failed";
         job.error =
-          "The worker rental ended before this output was saved. Submit a new request to try again.";
+          "The GPU was released before this take was saved. Make it again to try again.";
         this.save(job);
         this.pool.complete(job.id);
         continue;
@@ -651,7 +656,7 @@ export class Jobs {
             if(this.cancelled(job.id)||worker.quit_mode==='now'){
               job.state='cancelled';job.error=null;this.save(job);this.pool.complete(job.id);return;
             }
-            job.state='needs_attention';job.error='The local engine was interrupted. Saved output recovery was checked. Retry on Seed PC when you are ready; generation will not restart automatically.';this.save(job);
+            job.state='needs_attention';job.error="Seed PC stopped while making this take, and nothing was saved. Try again on Seed PC when you're ready; it won't restart on its own.";this.save(job);
             return;
           }
           if (
@@ -665,21 +670,20 @@ export class Jobs {
           this.pool.diagnostics?.error('job.execute',error,{worker_id:worker.id,job_id:job.id});
           if (this.stopped) return;
           if (job.worker?.receipt?.manifest && this.finishCancellation(job)) return;
-          // Saved here; only the worker's acknowledgement failed. The result stands, and the next pass asks again.
-          if (job.state === "completed" && job.outputs.length) return;
+          // Finished here; only the GPU's acknowledgement failed. The result stands, and the next pass asks again.
+          if (isTerminal(job.state) && job.worker?.receipt?.manifest) return;
           if (job.worker?.receipt?.manifest?.state === "completed") {
             job.recovery_blocked = actionableTransfer(error);
-            job.error =
-              "The picture was made but did not reach this PC. Try saving again, or cancel it.";
+            job.error = notSaved(job);
           } else if(localExecutor(worker)&&worker.interrupted){
-            job.state='needs_attention';job.error=error instanceof Error?error.message:'Local recovery needs attention.';
+            job.state='needs_attention';job.error=error instanceof Error?error.message:'Seed PC needs attention.';
           } else if (job.submission_pending) {
             job.state = "needs_attention";
             job.error =
-              "The worker has not confirmed this submission. Seed will check its receipt without generating it twice.";
+              "The GPU hasn't confirmed it started this take. Seed will check again without making it twice.";
           } else {
             job.error =
-              localExecutor(worker)?'Cannot reach Seed PC. Check its worker card for recovery options.':"Cannot reach the assigned worker. Reconnect it or quit the rental; no replacement worker will be rented automatically.";
+              localExecutor(worker)?"Can't reach Seed PC. Open the GPUs page for recovery options.":"Can't reach this take's GPU. Reconnect or release it on the GPUs page; Seed won't start another GPU on its own.";
           }
           this.save(job);
         }
@@ -688,14 +692,13 @@ export class Jobs {
     }
     if (!background) await Promise.allSettled([...this.inFlight.values()].map(entry => entry.task));
   }
-  /** Why a queued request has no GPU yet, in the words the GPUs page uses. */
+  /** What the owner must do before a queued take can start, in the words the GPUs page uses; nothing for ordinary queueing. */
   private waitingReason({ request, worker }: Job) {
     const local = this.pool.local, seedPc = local?.get(), cls = workerClassFor(request.workflow);
     if (request.target !== 'cloud' && seedPc?.enabled && local!.supports(request)) {
       if (seedPc.issue) return 'Seed PC needs attention. Open GPUs to see why.';
       if (seedPc.paused) return 'Resume Seed PC on the GPUs page to make this.';
-      return 'Waiting for Seed PC to finish its current output.' +
-        (worker!.loras.length ? ' Missing styles download automatically when this request starts.' : '');
+      return; // Ordinary queueing: Seed PC takes it when it is free.
     }
     if (request.target === 'local')
       return seedPc?.enabled ? 'Seed PC cannot make these settings. Check the size, shape and styles of this draft.'
@@ -707,8 +710,8 @@ export class Jobs {
         : local?.supports(request) ? 'Cloud GPUs here cannot run FLUX 3 Image Klein. Cancel and make it again with Runs on: Seed PC.'
         : 'No GPU here can run FLUX 3 Image Klein: cloud GPUs do not have it, and Seed PC needs it installed (GPUs → Seed PC → Add Klein).';
     if (request.workflow === 'image-to-image')
-      return 'Waiting for an image GPU that can edit pictures. Start a new image GPU if the running one is on an older release.';
-    return `Waiting for a ready ${cls} GPU.`;
+      return 'Waiting for an image GPU that can edit images. Start a new image GPU if the running one is on an older release.';
+    // Ordinary queueing: a ready GPU takes it.
   }
   private track(id: string, action: () => Promise<void>, recovery = false) {
     // Reserve before action's first await; an older task cannot delete its successor.
@@ -816,7 +819,7 @@ export class Jobs {
     if (!record) {
       job.state = "needs_attention";
       job.error =
-        "The worker has no receipt for this request. Retry checks the worker and safely resubmits the original request if needed.";
+        "The GPU has no record of this take. Check again asks it, and starts the take again only if it never ran.";
       this.save(job);
       return;
     }
@@ -829,14 +832,14 @@ export class Jobs {
         engineSession = (await driver.probe()).session_id;
       if (record.submission?.engine_session_id && engineSession === null && !job.worker!.interruption) {
         job.state = 'needs_attention';
-        job.error = 'The worker has a receipt, but its engine is not ready. View the worker while Seed continues checking for a result.';
+        job.error = "The GPU started this take but isn't ready now. Seed keeps checking for the result; open the GPUs page to see why.";
         this.save(job);
         return;
       }
       if (job.worker!.interruption || (engineSession && record.submission?.engine_session_id && engineSession !== record.submission.engine_session_id)) {
         job.worker!.interruption = 'engine_interrupted';
         job.state = 'needs_attention';
-        job.error = 'The worker restarted after accepting this request, before saving a result. Automatic replay is unsafe; view the worker to reconnect or quit.';
+        job.error = "The GPU restarted after starting this take, before it was saved. Seed won't start it again on its own; reconnect or release the GPU on the GPUs page.";
         this.save(job);
         return;
       }
@@ -849,7 +852,7 @@ export class Jobs {
     if(localExecutor(w)&&record.manifest.state==='cancelled'&&!this.cancelled(job.id)&&w.quit_mode!=='now'){
       job.worker!.interruption='engine_interrupted';
       job.state='needs_attention';
-      job.error='The local engine stopped without a cancellation request. The prior attempt and any output files are preserved. Retry on Seed PC after recovery.';
+      job.error="Seed PC stopped this take without being asked to. Anything it made is kept; try again on Seed PC once it has recovered.";
       this.save(job);return; // No acknowledgement: preserve the old attempt for explicit recovery.
     }
     delete job.worker!.interruption;
@@ -866,13 +869,24 @@ export class Jobs {
       }
       job.error =
         record.manifest.state === "failed"
-          ? "The worker could not generate this output. Review the request or reconnect the worker."
+          ? `The GPU couldn't make this ${media(job)}. Check the draft's settings, or reconnect the GPU on the GPUs page.`
           : null;
       this.save(job);
     }
     if (this.get(job.id)?.worker?.quit_now) return;
     this.finishCancellation(job);
-    await driver.acknowledge(executionId(job), record.manifest_digest!);
+    try {
+      await driver.acknowledge(executionId(job), record.manifest_digest!);
+    } catch (error) {
+      // Asked again on the next pass. A GPU that refuses for good, or keeps failing, is freed and flagged instead, so
+      // a rental never bills on for a take Seed already has.
+      const tries = error instanceof WorkerHttpError && error.permanent ? ACK_TRIES : (this.ackFailures.get(job.id) ?? 0) + 1;
+      this.ackFailures.set(job.id, tries);
+      if (tries < ACK_TRIES) throw error;
+      this.pool.diagnostics?.error('job.acknowledge', error, { worker_id: w.id, job_id: job.id });
+      this.pool.unconfirmed(job.id);
+      return;
+    }
     job.worker!.acknowledged = true;
     this.save(job);
     this.pool.complete(job.id);

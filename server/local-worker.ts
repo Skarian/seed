@@ -1,14 +1,14 @@
 import type Database from 'better-sqlite3';
 import {randomUUID} from 'node:crypto';
 import type {StudioPaths} from './storage.js';
-import type {WorkerClass} from '../shared/pool.js';
+import {localCanRun,type WorkerClass} from '../shared/pool.js';
 import type {LocalWorkerView} from '../shared/local-worker.js';
 import {LOCAL_MODEL_IDLE_MINUTES} from '../shared/local-worker.js';
 import {enginePhase,workerPhaseLabel} from '../shared/generation-progress.js';
 import {LocalRuntime,type StopOutcome} from './local-runtime.js';
 import {engineSpec,hardwareProfile} from './hardware.js';
 import type {ImageRequest} from './workflows.js';
-import {capabilityFor,executionProfile,loraRoute,KLEIN_CAPABILITY} from '../shared/workflows.js';
+import {executionProfile,loraRoute,KLEIN_CAPABILITY} from '../shared/workflows.js';
 import {readdirSync,readFileSync,statSync} from 'node:fs';
 import {fileURLToPath} from 'node:url';
 import path from 'node:path';
@@ -73,12 +73,8 @@ export class LocalWorker {
     return this.loras.manifestSources(route==='image'?'image':'video').filter(source=>source.route===route);
   }
   supports(request:ImageRequest){
-    if(request.loras?.length){
-      if(request.workflow==='image-to-image')return false;
-      const available=this.adapterSources(request);
-      if(request.loras.some(selected=>!available.some(source=>source.id===selected.id&&source.revision===selected.revision)))return false;
-    }
-    return Boolean(this.get()?.workflows.includes(capabilityFor(request)));
+    const record=this.get();let sources:LoraSourceManifest[]|undefined;
+    return !!record&&localCanRun(record,request,request.loras??[],l=>(sources??=this.adapterSources(request)).some(s=>s.id===l.id&&s.revision===l.revision));
   }
   async enable(enabled:boolean){
     if(this.changing)throw Error('Wait for the local worker operation to finish.');

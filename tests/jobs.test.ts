@@ -108,9 +108,20 @@ it('refuses a move the job table forbids, and a cancellation outlasts a stale sa
   f.jobs.stopJobs([job!.id]);expect(f.jobs.get(job!.id)!.state).toBe('cancel_requested');
   stale.state='running';f.jobs.save(stale);expect(f.jobs.get(job!.id)!.state).toBe('cancel_requested');
 }));
-it('says a cloud request waits for a GPU, not a worker',async()=>fixture(async f=>{
+it('gives no waiting reason for ordinary queueing, only for something the owner must do',async()=>fixture(async f=>{
   const {jobs:[job]}=await f.jobs.submit({...f.request,target:'cloud'},'waiting-words-fixture');await f.jobs.reconcile();
-  expect(f.jobs.get(job!.id)!.waiting_reason).toBe('Waiting for a ready image GPU.');
+  expect(f.jobs.get(job!.id)!.state).toBe('queued');expect(f.jobs.get(job!.id)!.waiting_reason).toBeUndefined();
+  const {jobs:[local]}=await f.jobs.submit({...f.request,target:'local'},'waiting-local-fixture');await f.jobs.reconcile();
+  expect(f.jobs.get(local!.id)!.waiting_reason).toBe('Turn on Seed PC on the GPUs page to make this here.');
+}));
+it.each([[409,1],[503,5]])('frees and flags a GPU that keeps refusing to confirm a saved take (HTTP %i, %i tries)',async(status,tries)=>fixture(async f=>{
+  await f.ready();f.worker.acknowledge.mockRejectedValue(new WorkerHttpError(status));
+  const {jobs:[job]}=await f.jobs.submit(f.request,'ack-refused-fixture-'+status);await f.settle();await f.settle();
+  const saved=f.jobs.get(job!.id)!;expect(saved.state).toBe('completed');expect(saved.outputs).toHaveLength(1);expect(saved.error).toBeNull();
+  expect(f.worker.acknowledge).toHaveBeenCalledTimes(tries);
+  const [gpu]=f.pool.snapshot().workers;
+  expect(gpu).toMatchObject({state:'ready',issue:{code:'take_unconfirmed',message:"Seed couldn't confirm a finished take with this GPU. Release it when you're done."}});
+  expect(gpu!.current_job_id).toBeUndefined();
 }));
 it('recovers a durable claim when the process stopped before the job snapshot recorded its worker',async()=>fixture(async f=>{
   await f.ready('image',2);const {jobs:[job]}=await f.jobs.submit(f.request,'claim-crash-fixture');
@@ -316,7 +327,7 @@ it.each(['recovery','reconciliation'] as const)('does not mistake an old engine 
   await f.jobs.reconcile();await f.jobs.reconcile();
   expect(f.jobs.get(job.id)).toMatchObject({state:'needs_attention',worker:{interruption:'engine_interrupted'}});expect(f.jobs.publicJob(f.jobs.get(job.id)!)).toMatchObject({state:'needs_attention',recovery:{pending:false,reason:'engine_interrupted'}});expect(Object.keys(f.jobs.publicJob(f.jobs.get(job.id)!).worker!)).toEqual(['id','executor']);
   expect(f.jobs.publicJob(f.jobs.get(job.id)!).recovery?.action).toBeUndefined();
-  expect(()=>f.jobs.recover(job.id)).toThrow('cannot be retried safely');
+  expect(()=>f.jobs.recover(job.id)).toThrow('cannot safely try this take again');
   expect(f.worker.submit).toHaveBeenCalledTimes(1);
   expect(f.pool.get(worker.id)!.current_job_id).toBe(job.id);
 }));
@@ -344,7 +355,7 @@ it.each(['saved envelope','known legacy graph','unsupported legacy graph'] as co
   }
   if(format==='unsupported legacy graph'){
     expect(f.jobs.publicJob(f.jobs.get(job.id)!).recovery).toMatchObject({reason:'submission_unavailable'});
-    expect(()=>f.jobs.recover(job.id)).toThrow('cannot be retried safely');
+    expect(()=>f.jobs.recover(job.id)).toThrow('cannot safely try this take again');
     expect(f.worker.submit).toHaveBeenCalledTimes(1);
   }else{
     f.jobs.recover(job.id);await f.jobs.reconcile();
@@ -362,7 +373,7 @@ it.each(['cancelled','released','unassigned','missing graph','closed app'] as co
   else if(condition==='missing graph'){delete job.worker!.graph;f.jobs.save(job);}
   else await f.jobs.close();
   if(condition==='released')expect(f.jobs.recover(job.id).recovery?.action).toBeUndefined();
-  else expect(()=>f.jobs.recover(job.id)).toThrow('cannot be retried safely');
+  else expect(()=>f.jobs.recover(job.id)).toThrow('cannot safely try this take again');
   expect(f.worker.probe).not.toHaveBeenCalled();
   expect(f.worker.submit).toHaveBeenCalledTimes(1);
 }));

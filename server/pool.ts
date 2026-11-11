@@ -726,7 +726,9 @@ export class WorkerPool {
                 "Worker preparation needs attention. Check the file details below and choose a recovery action.",
               retryable: true,
             }
-          : undefined;
+          : current.issue?.code === "take_unconfirmed"
+            ? current.issue
+            : undefined;
     });
   }
   /** Change an active rental's idle release and time cap. 0 turns either off. */
@@ -1028,6 +1030,15 @@ export class WorkerPool {
           current.state = current.ready ? "ready" : "reconnecting";
       });
     })();
+  }
+  /** Frees a GPU that will not confirm a finished take, and tells the owner, who decides when to release it. */
+  unconfirmed(job: string) {
+    const w = this.assigned(job);
+    if (w)
+      this.update(w.id, (current) => {
+        current.issue = { code: "take_unconfirmed", message: "Seed couldn't confirm a finished take with this GPU. Release it when you're done.", retryable: false, worker_id: w.id };
+      });
+    this.complete(job);
   }
   async beforeCredentialChange(
     field: CredentialField,

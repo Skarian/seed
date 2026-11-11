@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { canRun, gpuNeed, rentalState, type PoolSnapshot, type PoolWorker } from '../shared/pool.js';
+import { canRun, gpuNeed, localCanRun, rentalState, type PoolSnapshot, type PoolWorker } from '../shared/pool.js';
 import { readiness } from '../web/app/project/readiness.js';
 import type { ImageRequest } from '../shared/generation.js';
 
@@ -38,6 +38,42 @@ it('shows finishing from the quit mode while keeping the real state', () => {
   expect(rentalState({ state: 'generating', quit_mode: 'finish', current_job_id: 'job' })).toBe('generating');
   expect(rentalState({ state: 'needs_attention', quit_mode: 'finish' })).toBe('needs_attention');
   expect(rentalState({ state: 'ready' })).toBe('ready');
+});
+
+it('matches a Klein edit by the server rule on Seed PC and on cloud, and never offers a GPU that could not take it', () => {
+  const edit = { workflow: 'image-to-image', engine: 'klein', target: 'auto' } as unknown as ImageRequest;
+  const local = (workflows: string[], over = {}) => ({ enabled: true, paused: false, workflows, ...over });
+  const pool = (seedPc: object | null, cloud: string[]) =>
+    ({ workers: [], local: seedPc, cloud_workflows: cloud }) as unknown as PoolSnapshot;
+  const basic = ['text-to-image', 'image-to-image'],
+    klein = [...basic, 'image-to-image:klein'];
+  expect(localCanRun(local(basic), edit, [], () => true)).toBe(false);
+  expect(localCanRun(local(klein), edit, [], () => true)).toBe(true);
+  // Seed PC without Klein is not ready, and with no cloud GPU that has it, nothing is rented.
+  expect(readiness(edit, pool(local(basic), basic), [])).toMatchObject({
+    blocked: true,
+    label: expect.stringContaining('No GPU here can run FLUX 3 Image Klein'),
+  });
+  expect(readiness({ ...edit, target: 'local' }, pool(local(basic), klein), [])).toMatchObject({
+    blocked: true,
+    label: expect.stringContaining("FLUX 3 Image Klein isn't installed"),
+  });
+  expect(readiness(edit, pool(local(klein), basic), [])).toMatchObject({ where: 'local', tone: 'ok' });
+  // Cloud: blocked without the capability, offered with it.
+  expect(readiness({ ...edit, target: 'cloud' }, pool(null, basic), [])).toMatchObject({ where: 'cloud', blocked: true });
+  expect(readiness({ ...edit, target: 'cloud' }, pool(local(klein), basic), [])).toMatchObject({
+    label: expect.stringContaining('choose Runs on: Seed PC'),
+  });
+  expect(readiness({ ...edit, target: 'cloud' }, pool(null, klein), [])).toMatchObject({ where: 'cloud', needs: 'image' });
+  // A paused Seed PC, or one that needs attention, is named before anything says ready.
+  expect(readiness(edit, pool(local(klein, { paused: true }), basic), [])).toMatchObject({
+    blocked: true,
+    label: 'Seed PC is paused · resume it in GPUs',
+  });
+  expect(
+    readiness({ ...edit, target: 'local' }, pool(local(klein, { issue: { code: 'x', message: 'x' } }), klein), []),
+  ).toMatchObject({ blocked: true, label: 'Seed PC needs attention · open GPUs to see why' });
+  expect(readiness(edit, pool(local(klein, { paused: true }), klein), [])).toMatchObject({ where: 'cloud', needs: 'image' });
 });
 
 it('says where a draft runs without the caller reading its label', () => {

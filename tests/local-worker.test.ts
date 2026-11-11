@@ -103,6 +103,8 @@ it('offers images only on a GPU without a hardware profile and refreshes saved c
   for(const size of ['image-480','image-768','2mp','image-1440','0.5mp','1mp'])
     for(const aspect of ['16:9','9:16'])expect(local.supports({...request,output:{size,aspect}})).toBe(true);
   expect(local.supports({...request,workflow:'image-to-image',output:{size:'image-768',aspect:'source'},references:[{id:'source',asset_id:'asset',kind:'image',role:'source'}]})).toBe(true);
+  // A Klein edit needs Klein installed, not just image editing.
+  expect(local.supports({...request,workflow:'image-to-image',engine:'klein',output:{size:'image-768',aspect:'source'},references:[{id:'source',asset_id:'asset',kind:'image',role:'source'}]})).toBe(false);
   for(const workflow of ['text-to-video','reference-to-video'])
     expect(local.supports({...request,workflow,output:{size:'480p',aspect:'16:9',duration_seconds:5}})).toBe(false);
   expect(local.claim(job(),request)?.profile).toBe('krea-turbo-int8-v1');
@@ -152,13 +154,12 @@ it('fails only the job whose style cannot download, and frees Seed PC for other 
   const {jobs:[next]}=await f.jobs.submit({...f.request,target:'local'},'after-failed-style');await f.settle();
   expect(f.jobs.get(next.id).state).toBe('completed');
 }));
-it.each(['auto','local'])('explains local LoRA preparation for queued %s requests',target=>jobsFixture(async f=>{
+it.each(['auto','local'])('gives a queued %s draft with styles no reason while Seed PC is busy, and asks to resume it once paused',target=>jobsFixture(async f=>{
   const loras=catalog(f.paths,['a']);
   f.worker.submit.mockImplementation(async(_worker:any,body:any)=>{f.receipts.set(body.prompt_id,{submission:{engine_session_id:'engine'}});});
   await f.jobs.submit({...f.request,target:'local',loras},'local-lora-occupies-worker');await f.settle();
   const {jobs:[queued]}=await f.jobs.submit({...f.request,target,loras},'local-lora-waits');await f.jobs.reconcile();
-  expect(f.jobs.get(queued.id)).toMatchObject({state:'queued',waiting_reason:expect.stringContaining('Missing styles download automatically')});
-  expect(f.jobs.get(queued.id).waiting_reason).not.toContain('Start a new GPU');
+  expect(f.jobs.get(queued.id).state).toBe('queued');expect(f.jobs.get(queued.id).waiting_reason).toBeUndefined();
   await f.local.pause();await f.jobs.reconcile();
   expect(f.jobs.get(queued.id).waiting_reason).toBe('Resume Seed PC on the GPUs page to make this.');
 }));

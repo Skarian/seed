@@ -233,6 +233,18 @@ export function canRun(w: Candidate, need: GpuNeed, mode: "claim" | "wait") {
   );
 }
 /**
+ * Whether Seed PC can make these settings once it is free: it has the job's capability (a Klein edit needs Klein
+ * installed), and every style has a source. Edits take no styles.
+ */
+export const localCanRun = (
+  local: { workflows: string[] },
+  request: { workflow: string; engine?: string },
+  loras: GpuNeed["loras"],
+  hasSource: (lora: { id: string; revision: string }) => boolean,
+) =>
+  local.workflows.includes(capabilityFor(request)) &&
+  (!loras.length || (request.workflow !== "image-to-image" && loras.every(hasSource)));
+/**
  * The state a rental shows. A GPU asked to finish reads as finishing while it has no output in hand; the stored state
  * keeps what it is actually doing.
  */
