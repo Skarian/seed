@@ -311,6 +311,14 @@ export class Jobs {
         .all() as { snapshot_json: string }[]
     ).map((r) => JSON.parse(r.snapshot_json));
   }
+  /** Several jobs in one read, in the order asked; ids with no job are left out. */
+  many(ids: string[]): Job[] {
+    const rows = this.db
+      .prepare("SELECT id, snapshot_json FROM jobs WHERE id IN (SELECT value FROM json_each(?))")
+      .all(JSON.stringify(ids)) as { id: string; snapshot_json: string }[];
+    const byId = new Map(rows.map((r) => [r.id, r.snapshot_json]));
+    return ids.flatMap((id) => (byId.has(id) ? [JSON.parse(byId.get(id)!) as Job] : []));
+  }
   get(id: string): Job | null {
     const row = this.db
       .prepare("SELECT snapshot_json FROM jobs WHERE id = ?")

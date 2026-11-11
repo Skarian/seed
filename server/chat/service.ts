@@ -213,14 +213,21 @@ export class Chats {
     return [...new Set(chat.groups.flatMap(g => g.cards.flatMap(c => c.revisions.flatMap(r => r.job_ids))))];
   }
   private chatJobs(chat: ChatView) {
-    return this.jobIds(chat)
-      .map(id => this.jobs.get(id))
-      .filter((job): job is Job => Boolean(job));
+    return this.jobs.many(this.jobIds(chat));
   }
   private generating(chat: ChatView, jobs = this.chatJobs(chat)) {
-    return jobs.some(
-      job => jobActive(job) && !this.db.prepare('SELECT id FROM job_cancel_intents WHERE id=?').get(job.id),
-    );
+    const active = jobs.filter(jobActive).map(job => job.id);
+    if (!active.length) return false;
+    const cancelled = this.db
+      .prepare('SELECT COUNT(*) AS n FROM job_cancel_intents WHERE id IN (SELECT value FROM json_each(?))')
+      .get(JSON.stringify(active)) as { n: number };
+    return cancelled.n < active.length;
+  }
+  /** What the project is doing now: Seed replying, preparing a plan, a GPU making its work, or nothing. */
+  private activityOf(chat: ChatView, jobs: Job[]): ChatView['activity'] {
+    if (this.tasks.has(chat.id)) return 'thinking';
+    if (this.preparing.has(chat.id)) return 'preparing';
+    return this.generating(chat, jobs) ? 'generating' : 'idle';
   }
   private busy(chat: ChatView) {
     return this.agentBusy(chat) || this.generating(chat);
@@ -236,13 +243,7 @@ export class Chats {
     const chat = this.get(id);
     const { runs, ...view } = chat,
       jobs = this.chatJobs(chat);
-    view.activity = this.tasks.has(id)
-      ? 'thinking'
-      : this.preparing.has(id)
-        ? 'preparing'
-        : this.generating(chat, jobs)
-          ? 'generating'
-          : 'idle';
+    view.activity = this.activityOf(chat, jobs);
     for (const job of jobs) for (const asset of job.outputs) if (!chat.assets.includes(asset)) chat.assets.push(asset);
     return {
       ...view,
@@ -256,20 +257,23 @@ export class Chats {
   list(mode: ChatMode) {
     return (this.db.prepare('SELECT id FROM chats WHERE mode=?').all(mode) as { id: string }[])
       .map(row => {
-        const c = this.view(row.id);
+        // A summary only: the list never builds a project's assets, notes or accounting.
+        const c = this.get(row.id),
+          jobs = this.chatJobs(c),
+          activity = this.activityOf(c, jobs);
         return {
           id: c.id,
           title: c.title,
           last_reply_id: c.messages.filter(m => m.role === 'assistant').at(-1)?.id ?? '',
-          activity: c.activity,
-          ready_to_review: c.activity === 'idle' && c.groups.some(g => g.state === 'reviewing' && g.cards.length > 0),
+          activity,
+          ready_to_review: activity === 'idle' && c.groups.some(g => g.state === 'reviewing' && g.cards.length > 0),
           error:
             c.error ??
             c.groups.find(g => g.state === 'reviewing' && g.submission_error)?.submission_error ??
-            c.jobs.find(j => j?.state === 'failed')?.error,
-          status: c.jobs.some(j => j?.state === 'failed')
+            jobs.find(j => j.state === 'failed')?.error,
+          status: jobs.some(j => j.state === 'failed')
             ? 'Failed'
-            : c.jobs.length && c.jobs.every(j => j && terminal.includes(j.state))
+            : jobs.length && jobs.every(j => terminal.includes(j.state))
               ? 'Completed'
               : '',
           updated_at: c.updated_at,
