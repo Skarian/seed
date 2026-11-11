@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { cropShapes, cropKey } from '../project/checks.js';
+import { cropShapes } from '../project/checks.js';
 import { assets as assetsApi, media } from '../api.js';
 import { Dialog } from '../ui.js';
-import { useApp } from '../data.js';
+import { chooseFrame, currentProject, useApp } from '../data.js';
 
 const shapes = cropShapes;
 const known = (s: string | null | undefined) => (s && shapes.some(([k]) => k === s) ? s : undefined);
@@ -30,7 +30,7 @@ export function CropDialog({
     [error, setError] = useState(''),
     [busy, setBusy] = useState('');
   const [shape, setShape] = useState<string>(
-    () => known(initial) ?? known(project ? localStorage.getItem(cropKey(project)) : null) ?? '16:9',
+    () => known(initial) ?? known(project ? currentProject(project)?.frame : null) ?? '16:9',
   );
   const [pos, setPos] = useState({ x: 0.5, y: 0.5 });
   const drag = useRef<{ x: number; y: number; px: number; py: number } | null>(null);
@@ -78,7 +78,7 @@ export function CropDialog({
         height: Math.min(box.H - y, Math.round(box.h)),
         shape,
       });
-      if (project) localStorage.setItem(cropKey(project), shape);
+      if (project) void chooseFrame(project, shape).catch(() => {});
       app.toast(`Saved a ${shape} copy to the Library, linked to “${title}”`);
       onClose();
     } catch (e) {

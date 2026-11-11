@@ -13,7 +13,7 @@ import {
   type JobRecord,
   type AssetCollection,
 } from '../api.js';
-import { useApp, useStoredState, type ViewerItem } from '../data.js';
+import { collectionsChanged, noteSaved, putProject, useApp, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
 import { Media, MenuButton, Thumb, Confirm, Dialog, Overlay, downloadAsset } from '../ui.js';
 import { titleOf, settingChips, duration, targetLabel, promptChanges } from '../format.js';
@@ -318,7 +318,7 @@ export function AssetPanel({
                   asset: shot.chosen ? null : item.asset,
                 })
                 .then(p => {
-                  dispatchEvent(new CustomEvent('seed:project', { detail: p }));
+                  putProject(p);
                   setShot({ ...shot, chosen: !shot.chosen });
                   app.toast(shot.chosen ? 'Choice cleared' : `Chosen for Shot ${shot.n}`);
                 })
@@ -599,7 +599,7 @@ export function AssetPanel({
               detail={detail}
               onChanged={() => {
                 refresh();
-                dispatchEvent(new Event('seed:collections'));
+                collectionsChanged.send();
               }}
             />
           )}
@@ -626,7 +626,7 @@ export function AssetPanel({
                 if (item.project)
                   void projectsApi
                     .get(item.project)
-                    .then(p => dispatchEvent(new CustomEvent('seed:project', { detail: p })))
+                    .then(p => putProject(p))
                     .catch(() => {});
                 app.refreshTasks();
                 onClosed?.();
@@ -667,14 +667,12 @@ function NoteField({
     if (!typing.current) setValue(note?.note ?? '');
   }, [note?.revision, asset]);
   // Another open editor of this note saved: take its text and revision.
-  useEffect(() => {
-    const other = (e: Event) => {
-      const d = (e as CustomEvent<{ asset: string; note: { note: string; revision: number } }>).detail;
+  noteSaved.useHear(
+    d => {
       if (d.asset === asset && d.note.revision !== note?.revision) onSaved(d.note);
-    };
-    addEventListener('seed:note', other);
-    return () => removeEventListener('seed:note', other);
-  }, [asset, note?.revision]);
+    },
+    [asset, note?.revision],
+  );
   if (!note) return <span className="faint">…</span>;
   // Notes save when you leave the box; the line under it says so, so closing the panel never feels risky.
   return (
@@ -697,7 +695,7 @@ function NoteField({
               typing.current = false;
               onSaved(n);
               setSaved('Saved');
-              dispatchEvent(new CustomEvent('seed:note', { detail: { asset, note: n } }));
+              noteSaved.send({ asset, note: n });
             };
             void assetsApi
               .saveNote(asset, value, note.revision)
@@ -1128,7 +1126,7 @@ export function Compare({ a, b, onClose }: { a: ViewerItem; b: ViewerItem; onClo
         asset: x.asset,
       });
       setChosenId(x.asset);
-      dispatchEvent(new CustomEvent('seed:project', { detail: p }));
+      putProject(p);
       app.toast(`Chosen for Shot ${sameShot}`);
     } catch (e) {
       app.toast((e as Error).message);

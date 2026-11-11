@@ -30,13 +30,6 @@ export type Fix = {
   cropTo?: string;
 };
 
-/** The crop shape a project plans to deliver, remembered on this device once a crop-later fix is accepted or a crop is saved. */
-export const cropKey = (projectId: string) => 'seed.cropTo.' + projectId;
-/** The owner chose to deliver at this shape: remember it here and ask the project page to save it with the project. */
-export function chooseFrame(projectId: string, frame: string) {
-  localStorage.setItem(cropKey(projectId), frame);
-  dispatchEvent(new CustomEvent('seed:frame', { detail: { projectId, frame } }));
-}
 /** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
 /** What a check is about, so the app can act on it without reading its wording. */
 export type CheckCode =
@@ -283,10 +276,7 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
     const settled =
       croppable &&
       closest === aspect &&
-      (project.frame === asked.other ||
-        (typeof localStorage !== 'undefined' &&
-          project.id !== undefined &&
-          localStorage.getItem(cropKey(project.id)) === asked.other));
+      project.frame === asked.other;
     if (!settled)
       out.push({
         code: 'shape',

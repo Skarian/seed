@@ -55,7 +55,7 @@ export function ResultsView({
     source: 'made',
     ...(filter === 'fav' ? { favorites: true } : {}),
     ...(filter === 'image' || filter === 'video' ? { kind: filter } : {}),
-  });
+  }, project.jobs.map(j => j.state).join());
   const jobsById = useMemo(() => new Map(project.jobs.map(j => [j.id, j])), [project.jobs]);
   const shotsNow = useMemo(() => shotsFromBrief(project.brief), [project.brief]);
   const items: ViewerItem[] = list.items.map(a => {

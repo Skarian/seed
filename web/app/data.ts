@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState, createContext, useContext } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore, createContext, useContext } from 'react';
 import {
   projects,
   pool as poolApi,
@@ -11,7 +11,6 @@ import {
   type LibraryAsset,
   type AssetQuery,
 } from './api.js';
-import { jobActive, jobPhase } from '../../shared/jobs.js';
 
 /* ---------- Routing ---------- */
 export type Route =
@@ -155,101 +154,110 @@ export function useTasks(mode: Mode) {
   return { jobs: result.value ?? [], loaded: result.value !== undefined, refresh: result.refresh };
 }
 
-/* ---------- One project, live ---------- */
-type Live = { partial?: string; partial_reasoning?: string; activity?: Project['activity']; error?: string | null };
+/* ---------- Projects: one shared copy of each, kept live ---------- */
+type Held = { project: Project | null; error: string };
+const held = new Map<string, Held>(),
+  watchers = new Set<() => void>(),
+  none: Held = { project: null, error: '' };
+const hold = (id: string, next: Held) => {
+  held.set(id, next);
+  watchers.forEach(w => w());
+};
+const watch = (w: () => void) => (watchers.add(w), () => void watchers.delete(w));
+/** The newest copy of a project, for actions that must send against it. */
+export const currentProject = (id: string) => held.get(id)?.project ?? null;
+/** Takes a project from any response. Responses can arrive out of order, so an older copy never replaces a newer one. */
+export function putProject(value: Project) {
+  const now = currentProject(value.id);
+  if (
+    now &&
+    (value.version < now.version ||
+      (value.version === now.version && Date.parse(value.updated_at) < Date.parse(now.updated_at)))
+  )
+    return;
+  hold(value.id, { project: value, error: '' });
+}
+export async function reloadProject(id: string) {
+  try {
+    putProject(await projects.get(id));
+  } catch (e) {
+    hold(id, { ...(held.get(id) ?? none), error: (e as Error).message });
+  }
+}
+/** The project's chat stream reports replies as they are written, saves, and job progress (as `{ jobs: true }`). */
 export function useProject(id: string | null) {
-  const [project, setProject] = useState<Project | null>(null);
-  const [error, setError] = useState('');
-  const [live, setLive] = useState<Live>({});
-  const version = useRef(-1),
-    seen = useRef(0),
-    current = useRef(id),
-    pending = useRef<ReturnType<typeof setTimeout>>(undefined),
-    lastActivity = useRef<string | undefined>(undefined);
-  current.current = id;
-  const accept = useCallback((value: Project) => {
-    if (value.id !== current.current) return;
-    // Responses can arrive out of order (a background read started before a send). Never go back in time.
-    const at = Date.parse(value.updated_at) || 0;
-    if (value.version < version.current || (value.version === version.current && at < seen.current)) return;
-    version.current = value.version;
-    seen.current = at;
-    setProject(value);
-    setError('');
-  }, []);
-  const reload = useCallback(async () => {
-    const target = current.current;
-    if (!target) return;
-    try {
-      const value = await projects.get(target);
-      if (target === current.current) accept(value);
-    } catch (e) {
-      if (target === current.current) setError((e as Error).message);
-    }
-  }, [accept]);
+  const value = useSyncExternalStore(watch, () => (id && held.get(id)) || none);
   useEffect(() => {
-    setProject(null);
-    setLive({});
-    setError('');
-    version.current = -1;
-    seen.current = 0;
     if (!id) return;
-    let closed = false;
-    void reload();
+    let pending: ReturnType<typeof setTimeout> | undefined, activity: string | undefined;
+    const later = () => {
+      clearTimeout(pending);
+      pending = setTimeout(() => void reloadProject(id), 120);
+    };
     const stream = new EventSource('/api/v1/chats/' + id + '/events');
     stream.onmessage = event => {
-      if (closed) return;
-      const value = JSON.parse(event.data);
-      setLive({
-        partial: value.partial,
-        partial_reasoning: value.partial_reasoning,
-        activity: value.activity,
-        error: value.error,
-      });
-      if (value.stream_message)
-        setProject(p =>
-          p && p.id === id
-            ? {
-                ...p,
-                activity: value.activity ?? p.activity,
-                messages: p.messages.some(m => m.id === value.stream_message.id)
-                  ? p.messages.map(m => (m.id === value.stream_message.id ? value.stream_message : m))
-                  : [...p.messages, value.stream_message],
-              }
-            : p,
-        );
+      const value = JSON.parse(event.data),
+        p = currentProject(id);
+      if (value.jobs) return later();
+      const message = value.stream_message;
+      if (message && p)
+        hold(id, {
+          project: {
+            ...p,
+            activity: value.activity ?? p.activity,
+            messages: p.messages.some(m => m.id === message.id)
+              ? p.messages.map(m => (m.id === message.id ? message : m))
+              : [...p.messages, message],
+          },
+          error: '',
+        });
       // Saves during a turn keep the same version, so a change of activity also means "read the whole project again".
-      const changed =
-        (typeof value.version === 'number' && value.version !== version.current) ||
-        value.activity !== lastActivity.current ||
-        (value.stream_message?.transcript?.state && value.stream_message.transcript.state !== 'running');
-      lastActivity.current = value.activity;
-      if (changed) {
-        clearTimeout(pending.current);
-        pending.current = setTimeout(() => void reload(), 120);
-      }
+      if (
+        (typeof value.version === 'number' && value.version !== p?.version) ||
+        value.activity !== activity ||
+        (message?.transcript?.state && message.transcript.state !== 'running')
+      )
+        later();
+      activity = value.activity;
     };
-    stream.onopen = () => void reload();
-    // Job progress is not part of the chat stream, so refresh while anything renders.
-    const timer = setInterval(() => {
-      setProject(p => {
-        // A take made but not yet saved is still open work: keep reading until it is saved or cancelled.
-        if (p && (p.jobs.some(j => jobActive(j) || jobPhase(j) === 'unsaved') || p.activity !== 'idle')) void reload();
-        return p;
-      });
-    }, 1500);
+    stream.onopen = () => void reloadProject(id);
     return () => {
-      closed = true;
       stream.close();
-      clearInterval(timer);
-      clearTimeout(pending.current);
+      clearTimeout(pending);
     };
-  }, [id, reload]);
-  return { project, setProject: accept, reload, live, error };
+  }, [id]);
+  return value;
+}
+/** The owner plans to deliver this project at this shape: results show its guides and Crop starts there. */
+export async function chooseFrame(id: string, frame: string) {
+  const p = currentProject(id) ?? (await projects.get(id));
+  if (p.frame !== frame) putProject(await projects.setFrame(p, frame));
 }
 
+/** A change made in one part of the app that another part, with no shared parent, must see. */
+function signal<T = void>() {
+  const watchers = new Set<(value: T) => void>();
+  return {
+    send: (value: T) => watchers.forEach(w => w(value)),
+    useHear(hear: (value: T) => void, deps: unknown[]) {
+      useEffect(() => {
+        watchers.add(hear);
+        return () => void watchers.delete(hear);
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+      }, deps);
+    },
+  };
+}
+/** A result's collections changed (in its Details). */
+export const collectionsChanged = signal();
+/** One open editor saved an asset's note; the others take its text and revision. */
+export const noteSaved = signal<{ asset: string; note: { note: string; revision: number } }>();
+/** The list of styles may have changed (Settings, or another tab). */
+export const stylesChanged = signal();
+
 /* ---------- Library ---------- */
-export function useAssets(query: AssetQuery | null) {
+/** `live`: a value that changes whenever the list may have; given one, the list re-reads then instead of polling. */
+export function useAssets(query: AssetQuery | null, live?: unknown) {
   const key = JSON.stringify(query);
   const [state, setState] = useState<{
     items: LibraryAsset[];
@@ -285,7 +293,7 @@ export function useAssets(query: AssetQuery | null) {
       } catch (e) {
         if (!controller.signal.aborted) setState(s => ({ ...s, loaded: true, error: (e as Error).message }));
       }
-      if (!controller.signal.aborted) timer = setTimeout(read, document.hidden ? 15000 : 4000);
+      if (!controller.signal.aborted && live === undefined) timer = setTimeout(read, document.hidden ? 15000 : 4000);
     };
     void read();
     return () => {
@@ -293,7 +301,7 @@ export function useAssets(query: AssetQuery | null) {
       clearTimeout(timer);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [key, tick]);
+  }, [key, tick, live]);
   const more = useCallback(async () => {
     if (!query || !state.cursor || state.loading) return;
     setState(s => ({ ...s, loading: true }));

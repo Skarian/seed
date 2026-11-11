@@ -402,7 +402,16 @@ it('publishes incremental assistant text before the completed chat snapshot',asy
  const c=chats.create('sfw');const updates:any[]=[];const off=chats.subscribe(c.id,value=>updates.push(value));
  chats.send(c.id,{version:c.version,text:'Hello',assets:[]});await idle(chats,c.id);off();
  expect(updates.some(v=>v.activity==='thinking'&&v.stream_message?.text==='Ready for review.')).toBe(true);
- expect(updates.at(-1)).toMatchObject({activity:'idle',partial:''});
+ expect(updates.at(-1)).toMatchObject({activity:'idle'});
+}));
+
+it('tells a project’s watchers once when its jobs save in a burst, and nobody else',async()=>fixture(async({chats,jobs})=>{
+ const a=chats.create('sfw'),b=chats.create('sfw'),heard:unknown[]=[],other:unknown[]=[];
+ const offA=chats.subscribe(a.id,v=>heard.push(v)),offB=chats.subscribe(b.id,v=>other.push(v));
+ for(let i=0;i<5;i++)jobs.onSaved({source:{chat_id:a.id}} as any);
+ jobs.onSaved({source:undefined} as any);
+ await new Promise(r=>setTimeout(r,450));offA();offB();
+ expect(heard).toEqual([{jobs:true}]);expect(other).toEqual([]);
 }));
 
 it('filters Library media type before pagination',async()=>fixture(async({db})=>{

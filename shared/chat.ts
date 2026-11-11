@@ -21,7 +21,6 @@ export interface ChatView {
   choices?:import('./choices.js').ProjectChoices;
   /** The shape the owner will deliver ("2.39:1"), when it differs from what the models make; results show its guides and Crop starts there. */
   frame?:string;
-  partial?:string;partial_reasoning?:string;
   activity:'idle'|'thinking'|'preparing'|'generating';error:string|null;
   created_at:string;updated_at:string;
 }

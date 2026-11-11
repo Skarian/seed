@@ -5,11 +5,11 @@ import type { ChatCard, ChatGroup, Project, PoolSnapshot } from '../api.js';
 import { kindOf, kindLabels, isVideoKind } from '../api.js';
 import { Icon } from '../icons.js';
 import { MenuButton, Thumb, Dialog } from '../ui.js';
-import { useApp } from '../data.js';
+import { chooseFrame, stylesChanged, useApp } from '../data.js';
 import { latest, titleOf, settingChips, changesBetween, outputNoun, assetName } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
-import { askedFor, checkDraft, readablePrompt, editablePrompt, chooseFrame, type Check } from './checks.js';
+import { askedFor, checkDraft, readablePrompt, editablePrompt, type Check } from './checks.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 import { swapInput } from './swap.js';
 import { RequestFields } from './RequestFields.js';
@@ -153,7 +153,7 @@ export function PlanCard({
                     : 'No delivery crop (keep the shape made)',
                 hint: frame ? 'Results show its guides' : undefined,
                 checked: (project.frame ?? '') === frame,
-                onSelect: () => chooseFrame(project.id, frame),
+                onSelect: () => void chooseFrame(project.id, frame),
                 disabled: busy || working,
               })),
               'divider' as const,
@@ -186,7 +186,7 @@ export function PlanCard({
                 className="btn small"
                 disabled={busy || working}
                 onClick={() => {
-                  if (f.cropTo) chooseFrame(project.id, f.cropTo);
+                  if (f.cropTo) void chooseFrame(project.id, f.cropTo);
                   void (async () => {
                     for (const card of cards) {
                       const patch = f.patch(latest(card).request);
@@ -742,7 +742,7 @@ function Draft({
                           onEditMyself(f.assets ?? []);
                           return;
                         }
-                        if (f.cropTo) chooseFrame(project.id, f.cropTo);
+                        if (f.cropTo) void chooseFrame(project.id, f.cropTo);
                         const patch = f.patch(r);
                         if (Object.keys(patch).length) void onRevise(patch);
                         else onAcknowledge(c.text);
@@ -807,12 +807,10 @@ function DraftEditor({
   const available = useMemo(() => styles.filter(s => s.route === route), [styles, route]);
   const style = f.loras[0];
   // A style added since this page loaded (in Settings or another tab) shows as soon as the editor opens.
-  useEffect(() => {
-    dispatchEvent(new Event('seed:styles-changed'));
-  }, []);
+  useEffect(() => stylesChanged.send(), []);
   // A style added in another tab is not in this tab's list yet: ask for the current list once.
   useEffect(() => {
-    if (style && !available.some(s => s.id === style.id)) dispatchEvent(new Event('seed:styles-changed'));
+    if (style && !available.some(s => s.id === style.id)) stylesChanged.send();
   }, [style?.id]);
   const form = React.useRef<HTMLFormElement>(null);
   useEffect(() => {

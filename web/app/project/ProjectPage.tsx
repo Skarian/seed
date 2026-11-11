@@ -10,7 +10,7 @@ import {
   type Project,
   type Kind,
 } from '../api.js';
-import { useApp, useProject, useStoredState } from '../data.js';
+import { currentProject, putProject, useApp, useProject, useStoredState } from '../data.js';
 import { Confirm, Dialog, cleanReply, LocalBoundary } from '../ui.js';
 import {
   latest,
@@ -48,7 +48,7 @@ import {
 
 export function ProjectPage({ id, view, focus }: { id: string; view: 'conversation' | 'results'; focus?: string }) {
   const app = useApp();
-  const { project, setProject, reload, error } = useProject(id);
+  const { project, error } = useProject(id);
   // Screen readers hear when Seed finishes a reply and when results arrive, once each (not every streamed word).
   const [announce, setAnnounce] = useState('');
   const finished = project?.messages
@@ -91,37 +91,6 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
   }, []);
-  const projectRef = useRef<Project | null>(null);
-  projectRef.current = project;
-  // A take chosen elsewhere (Compare) updates this project at once.
-  useEffect(() => {
-    const changed = (e: Event) => {
-      const p = (e as CustomEvent<Project>).detail;
-      if (p?.id === id) {
-        projectRef.current = p;
-        setProject(p);
-      }
-    };
-    addEventListener('seed:project', changed);
-    return () => removeEventListener('seed:project', changed);
-  }, [id]);
-  // Choosing "crop to 2.39:1 after" makes 2.39:1 the project's delivery frame, saved with the project.
-  useEffect(() => {
-    const chosen = (e: Event) => {
-      const { projectId, frame } = (e as CustomEvent<{ projectId: string; frame: string }>).detail;
-      const p = projectRef.current;
-      if (projectId !== id || !p || p.frame === frame) return;
-      void projectsApi
-        .setFrame(p, frame)
-        .then(next => {
-          projectRef.current = next;
-          setProject(next);
-        })
-        .catch(() => {});
-    };
-    addEventListener('seed:frame', chosen);
-    return () => removeEventListener('seed:frame', chosen);
-  }, [id]);
   const styles = useStyles(app.mode);
   const plan = project?.groups.find(isOpenPlan);
   const replying = project ? ['thinking', 'preparing'].includes(project.activity) : false;
@@ -272,7 +241,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         if (el) el.scrollTop = el.scrollHeight;
       });
       void run('', () =>
-        projectsApi.send(projectRef.current ?? project, {
+        projectsApi.send((currentProject(id) ?? project), {
           text: (() => {
             // The shot's own record (framing, who is in it, where) is the yardstick, so the check is about this shot.
             const shot = use.item.job?.request.shot;
@@ -318,8 +287,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     try {
       const value = await fn();
       if (value) {
-        projectRef.current = value;
-        setProject(value);
+        putProject(value);
       }
       app.refreshTasks();
       app.refreshProjects();
@@ -387,7 +355,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       follow.current = true;
       const ok = await run('', async () => {
         // Always send against the newest version (a plan may have just been set aside).
-        let current = projectRef.current ?? project;
+        let current = (currentProject(id) ?? project);
         if (kind && !addToPlan && current.workflow !== kind) {
           try {
             current = await projectsApi.setKind(current, kind);
@@ -639,8 +607,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       void projectsApi
         .choose(id, { reference: name, asset })
         .then(p => {
-          projectRef.current = p;
-          setProject(p);
+          putProject(p);
           app.toast(asset ? `Approved as ${name}’s reference` : `${name} has no approved reference now`);
         })
         .catch(e => app.toast((e as Error).message)),
@@ -882,12 +849,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
             project={project}
             onAsk={text => {
               app.go({ name: 'project', id: project.id, view: 'conversation' });
-              void run('', () => projectsApi.send(projectRef.current ?? project, { text, assets: [] }));
+              void run('', () => projectsApi.send((currentProject(id) ?? project), { text, assets: [] }));
             }}
-            onChanged={p => {
-              projectRef.current = p;
-              setProject(p);
-            }}
+            onChanged={putProject}
           />
         ) : (
           <div className={split ? 'split' : 'single'}>
@@ -896,14 +860,11 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                 <BriefBar
                   project={project}
                   busy={replying || Boolean(busy)}
-                  onSaved={p => {
-                    projectRef.current = p;
-                    setProject(p);
-                  }}
+                  onSaved={putProject}
                   openDrafts={plan?.cards.length ?? 0}
                   onUpdateDrafts={() =>
                     void run('', () =>
-                      projectsApi.send(projectRef.current ?? project, {
+                      projectsApi.send((currentProject(id) ?? project), {
                         text: 'I changed the brief. Update every open draft so it matches the brief now, change nothing else, and tell me exactly what changed in each one. Do not run anything.',
                         assets: [],
                       }),
@@ -981,7 +942,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                               }}
                               onContinue={() =>
                                 void run('', () =>
-                                  projectsApi.send(projectRef.current ?? project, {
+                                  projectsApi.send((currentProject(id) ?? project), {
                                     text: 'Continue where you stopped and finish the rest of my last request. Tell me what you finished.',
                                     assets: [],
                                   }),
@@ -1214,12 +1175,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                 project={project}
                 embedded
                 onAsk={text =>
-                  void run('', () => projectsApi.send(projectRef.current ?? project, { text, assets: [] }))
+                  void run('', () => projectsApi.send((currentProject(id) ?? project), { text, assets: [] }))
                 }
-                onChanged={p => {
-                  projectRef.current = p;
-                  setProject(p);
-                }}
+                onChanged={putProject}
               />
             )}
           </div>
@@ -1284,7 +1242,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           project={project}
           onClose={() => setRenaming(false)}
           onSaved={p => {
-            setProject(p);
+            putProject(p);
             app.refreshProjects();
             setRenaming(false);
           }}

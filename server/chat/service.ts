@@ -113,6 +113,7 @@ export class Chats {
     private jobs: Jobs,
     private transport?: typeof fetch,
   ) {
+    jobs.onSaved = job => this.jobSaved(job.source?.chat_id);
     for (const row of db.prepare('SELECT body_json FROM chats').all() as { body_json: string }[]) {
       const chat = JSON.parse(row.body_json) as StoredChat;
       let changed = false;
@@ -175,8 +176,6 @@ export class Chats {
       try {
         listener({
           version: chat.version,
-          partial: chat.partial ?? '',
-          partial_reasoning: chat.partial_reasoning ?? '',
           activity: chat.activity,
           error: chat.error,
           stream_message: [...chat.messages].reverse().find(m => m.transcript),
@@ -185,6 +184,24 @@ export class Chats {
         this.listeners.get(chat.id)?.delete(listener); /* A disconnected observer cannot undo a committed save. */
       }
     }
+  }
+  /** Job progress reaches a project's watchers at most every 400 ms, as a hint to read the project again. */
+  private jobTimers = new Map<string, ReturnType<typeof setTimeout>>();
+  private jobSaved(chatId: string | undefined) {
+    if (!chatId || !this.listeners.has(chatId) || this.jobTimers.has(chatId)) return;
+    this.jobTimers.set(
+      chatId,
+      setTimeout(() => {
+        this.jobTimers.delete(chatId);
+        for (const listener of this.listeners.get(chatId) ?? []) {
+          try {
+            listener({ jobs: true });
+          } catch {
+            this.listeners.get(chatId)?.delete(listener);
+          }
+        }
+      }, 400),
+    );
   }
   private get(id: string): StoredChat {
     const row = this.db.prepare('SELECT body_json FROM chats WHERE id=?').get(id) as { body_json: string } | undefined;
@@ -630,8 +647,6 @@ export class Chats {
     if (group && !input.keep_plan) movePlan(group, 'revising');
     chat.activity = 'thinking';
     chat.error = null;
-    chat.partial = '';
-    chat.partial_reasoning = '';
     chat.version++;
     const run = {
       id: randomUUID(),
@@ -1091,8 +1106,6 @@ export class Chats {
             if (revision.run_id === runId) revision.after_message_id = current.messages.at(-1)?.id ?? null;
         settlePlan(current);
         current.activity = 'idle';
-        current.partial = '';
-        current.partial_reasoning = '';
       }
       this.save(current);
     } catch (error) {

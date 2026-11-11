@@ -6,7 +6,7 @@ import {
   type AssetCollection,
   type LibraryAsset,
 } from '../api.js';
-import { useApp, useAssets, useStoredState, type ViewerItem } from '../data.js';
+import { collectionsChanged, useApp, useAssets, useStoredState, type ViewerItem } from '../data.js';
 import { Icon } from '../icons.js';
 import { Media, MenuButton, Confirm, Dialog, downloadAsset } from '../ui.js';
 import { dayLabel } from '../format.js';
@@ -73,16 +73,12 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
       .catch(() => {});
   }, [app.mode, toCollection]);
   // Membership changed elsewhere (a result's Details): refresh counts here too.
-  useEffect(() => {
-    const again = () => {
-      void collectionsApi
-        .list(app.mode)
-        .then(setCols)
-        .catch(() => {});
-      list.refresh();
-    };
-    addEventListener('seed:collections', again);
-    return () => removeEventListener('seed:collections', again);
+  collectionsChanged.useHear(() => {
+    void collectionsApi
+      .list(app.mode)
+      .then(setCols)
+      .catch(() => {});
+    list.refresh();
   }, [app.mode]);
   // Picking items to put into a collection: browse everything, then add the selection in one step.
   const [filling, setFilling] = useState<AssetCollection | null>(null);

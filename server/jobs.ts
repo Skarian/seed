@@ -53,6 +53,8 @@ export class Jobs {
   private inFlight = new Map<string, { task: Promise<void>; recovery: boolean }>();
   public media: Media;
   public loras: Loras;
+  /** Called after every committed save; the chat service pushes it to whoever watches the job's project. */
+  onSaved: (job: Job) => void = () => {};
   constructor(
     private db: Database.Database,
     private paths: StudioPaths,
@@ -361,6 +363,7 @@ export class Jobs {
         "UPDATE jobs SET state=?, snapshot_json=?, updated_at=? WHERE id=?",
       )
       .run(job.state, JSON.stringify(job), job.updated_at, job.id);
+    this.onSaved(job);
   }
   async submit(raw: unknown, key: string) {
     const prepared = await this.prepareSubmission(raw, key);
