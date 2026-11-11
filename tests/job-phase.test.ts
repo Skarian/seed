@@ -30,16 +30,30 @@ it('moves a job forward, or to a stop, and never changes a finished one', async 
   for (const done of ['completed', 'failed', 'cancelled'] as const) expect(jobCanMove(done, 'queued')).toBe(false);
 });
 
-it('checks every pair of states: finished jobs never move, open jobs can always stop, unknown states never move', () => {
-  const finished = ['completed', 'failed', 'cancelled'];
+it('allows exactly these moves between different states, and no others', () => {
+  // Written out by hand, independently of the table in shared/jobs.ts. Staying in a state is always allowed.
+  const stop = 'failed cancelled cancel_requested needs_attention';
+  const allowed: Record<string, string> = {
+    blocked: 'queued ' + stop,
+    queued: 'uploading submitting running copying completed ' + stop,
+    uploading: 'queued submitting running copying completed ' + stop,
+    submitting: 'running copying completed ' + stop,
+    running: 'copying completed ' + stop,
+    copying: 'completed ' + stop,
+    cancel_requested: 'queued uploading submitting running copying completed ' + stop,
+    needs_attention: 'queued uploading submitting running copying completed ' + stop,
+    completed: '',
+    failed: '',
+    cancelled: '',
+  };
+  expect(Object.keys(allowed).sort()).toEqual([...jobStates].sort());
   for (const from of jobStates)
-    for (const to of jobStates) {
-      const allowed = jobCanMove(from, to);
-      if (from === to) expect(allowed).toBe(true);
-      else if (finished.includes(from)) expect(allowed, from + ' → ' + to).toBe(false);
-      else if (['failed', 'cancelled', 'cancel_requested', 'needs_attention'].includes(to)) expect(allowed).toBe(true);
-    }
-  expect(jobCanMove('typo' as never, 'queued')).toBe(false);
-  expect(jobCanMove('queued', 'typo' as never)).toBe(false);
-  expect(jobPhase({ state: 'typo' as never })).toBe('uncertain');
+    for (const to of jobStates)
+      expect(jobCanMove(from, to), from + ' → ' + to).toBe(from === to || allowed[from]!.split(' ').includes(to));
+  // Unknown names, including ones every object inherits, are never states.
+  for (const name of ['typo', 'toString', 'constructor']) {
+    expect(jobCanMove(name as never, 'queued')).toBe(false);
+    expect(jobCanMove('queued', name as never)).toBe(false);
+    expect(jobPhase({ state: name as never })).toBe('uncertain');
+  }
 });

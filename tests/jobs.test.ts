@@ -49,6 +49,12 @@ it('keeps a saved result when only the worker acknowledgement fails, and acknowl
   const saved=f.jobs.get(job!.id)!;expect(saved.state).toBe('completed');expect(saved.outputs).toHaveLength(1);expect(saved.recovery_blocked).toBeFalsy();expect(saved.error).toBeNull();
   await f.jobs.reconcile();expect(f.worker.acknowledge).toHaveBeenCalledTimes(2);expect(f.jobs.get(job!.id)!.worker!.acknowledged).toBe(true);
 }));
+it('reads a stored job whose state this release does not know as needing attention, never as work to resume',async()=>fixture(async f=>{
+  await f.ready();const {jobs:[job]}=await f.jobs.submit(f.request,'unknown-state-fixture');await f.settle();
+  const stored=f.jobs.get(job!.id)!;f.db.prepare('UPDATE jobs SET snapshot_json=? WHERE id=?').run(JSON.stringify({...stored,state:'toString'}),stored.id);
+  const read=f.jobs.get(job!.id)!;expect(read.state).toBe('needs_attention');expect(read.error).toContain('toString');
+  expect(f.jobs.many([job!.id])[0]!.state).toBe('needs_attention');
+}));
 it('acknowledges a saved take that an older release left marked as unsaved',async()=>fixture(async f=>{
   await f.ready();f.worker.acknowledge.mockRejectedValueOnce(Error('worker gone'));const {jobs:[job]}=await f.jobs.submit(f.request,'legacy-blocked-fixture');await f.settle();
   // The record as the old catch left it: completed, saved, unacknowledged and blocked.

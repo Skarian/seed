@@ -9,7 +9,7 @@ import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { hardwareProfile } from "./hardware.js";
 import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { nextProgress } from "../shared/generation-progress.js";
-import { isTerminal, jobCanMove, jobPhase, type JobRecord } from "../shared/jobs.js";
+import { isJobState, isTerminal, jobCanMove, jobPhase, type JobRecord } from "../shared/jobs.js";
 import {
   WorkerHttpError,
   TransferIntegrityError,
@@ -44,6 +44,15 @@ const executionId=(job:Job)=>job.worker?.execution_id??job.id;
 /** What leaves the server about a job: no ComfyUI graph, prepared paths, receipts or retired-provider records. */
 function jobView({ worker, prepared: _p, fal: _f, input_snapshot: _i, ...job }: Job): JobRecord {
   return worker ? { ...job, worker: { id: worker.id, executor: worker.executor } } : job;
+}
+/**
+ * A stored job, read once at the boundary. A state this release does not know (a newer or damaged record) is never
+ * resumed or resubmitted automatically: it reads as needing attention, naming the state it had.
+ */
+function readJob(json: string): Job {
+  const job = JSON.parse(json) as Job;
+  if (isJobState(job.state)) return job;
+  return { ...job, state: "needs_attention", error: `Seed can't read this request's saved state (${String(job.state)}). Check its GPU before trying again.` };
 }
 export class Jobs {
   private chain: Promise<unknown> = Promise.resolve();
@@ -291,7 +300,7 @@ export class Jobs {
           "SELECT snapshot_json FROM jobs WHERE (? = '' OR (created_at,id) < (SELECT created_at,id FROM jobs WHERE id=?)) ORDER BY created_at DESC,id DESC LIMIT ?",
         )
         .all(cursor, cursor, limit) as { snapshot_json: string }[]
-    ).map((r) => JSON.parse(r.snapshot_json));
+    ).map((r) => readJob(r.snapshot_json));
   }
   all(): Job[] {
     return (
@@ -300,7 +309,7 @@ export class Jobs {
           "SELECT snapshot_json FROM jobs ORDER BY created_at, submission_index",
         )
         .all() as { snapshot_json: string }[]
-    ).map((r) => JSON.parse(r.snapshot_json));
+    ).map((r) => readJob(r.snapshot_json));
   }
   /** Several jobs in one read, in the order asked; ids with no job are left out. */
   many(ids: string[]): Job[] {
@@ -308,13 +317,13 @@ export class Jobs {
       .prepare("SELECT id, snapshot_json FROM jobs WHERE id IN (SELECT value FROM json_each(?))")
       .all(JSON.stringify(ids)) as { id: string; snapshot_json: string }[];
     const byId = new Map(rows.map((r) => [r.id, r.snapshot_json]));
-    return ids.flatMap((id) => (byId.has(id) ? [JSON.parse(byId.get(id)!) as Job] : []));
+    return ids.flatMap((id) => (byId.has(id) ? [readJob(byId.get(id)!)] : []));
   }
   get(id: string): Job | null {
     const row = this.db
       .prepare("SELECT snapshot_json FROM jobs WHERE id = ?")
       .get(id) as { snapshot_json: string } | undefined;
-    return row ? JSON.parse(row.snapshot_json) : null;
+    return row ? readJob(row.snapshot_json) : null;
   }
   save(job: Job) {
     const latest = this.get(job.id);
