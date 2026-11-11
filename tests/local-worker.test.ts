@@ -157,8 +157,8 @@ it.each(['auto','local'])('explains local LoRA preparation for queued %s request
   f.worker.submit.mockImplementation(async(_worker:any,body:any)=>{f.receipts.set(body.prompt_id,{submission:{engine_session_id:'engine'}});});
   await f.jobs.submit({...f.request,target:'local',loras},'local-lora-occupies-worker');await f.settle();
   const {jobs:[queued]}=await f.jobs.submit({...f.request,target,loras},'local-lora-waits');await f.jobs.reconcile();
-  expect(f.jobs.get(queued.id)).toMatchObject({state:'queued',waiting_reason:expect.stringContaining('Missing LoRAs download automatically')});
-  expect(f.jobs.get(queued.id).waiting_reason).not.toContain('Start a new worker');
+  expect(f.jobs.get(queued.id)).toMatchObject({state:'queued',waiting_reason:expect.stringContaining('Missing styles download automatically')});
+  expect(f.jobs.get(queued.id).waiting_reason).not.toContain('Start a new GPU');
   await f.local.pause();await f.jobs.reconcile();
   expect(f.jobs.get(queued.id).waiting_reason).toBe('Resume Seed PC on the GPUs page to make this.');
 }));

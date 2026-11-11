@@ -1,6 +1,7 @@
 import type { ImageRequest, PoolSnapshot, WorkerClass } from '../api.js';
 import { kindOf, isVideoKind } from '../api.js';
-import { loraRoute, capabilityFor } from '../../../shared/workflows.js';
+import { loraRoute } from '../../../shared/workflows.js';
+import { canRun, gpuNeed } from '../../../shared/pool.js';
 
 export type StyleEntry = {
   id: string;
@@ -15,6 +16,8 @@ export type StyleEntry = {
 export type Readiness = {
   tone: 'ok' | 'warn' | 'bad';
   label: string;
+  /** Where the draft would run: Seed PC, a cloud GPU, or whichever of the two is free first. */
+  where: 'local' | 'cloud' | 'either';
   needs?: WorkerClass;
   blocked?: boolean;
   billing?: boolean;
@@ -22,7 +25,7 @@ export type Readiness = {
 
 export const classOf = (r: ImageRequest): WorkerClass => (isVideoKind(kindOf[r.workflow]) ? 'video' : 'image');
 
-/** Where a draft would run right now, and what it still needs. Mirrors the server's routing rules. */
+/** Where a draft would run right now, and what it still needs. Uses the server's own matching rule. */
 export function readiness(r: ImageRequest, snapshot: PoolSnapshot | null, styles: StyleEntry[]): Readiness {
   const cls = classOf(r),
     target = r.target ?? 'auto',
@@ -34,63 +37,61 @@ export function readiness(r: ImageRequest, snapshot: PoolSnapshot | null, styles
     !local.paused &&
     local.workflows.includes(r.workflow) &&
     (!loras.length || r.workflow !== 'image-to-image');
-  const cloudCls = classOf(r);
-  // Running cloud GPUs that could take this draft (a Klein edit needs Klein, which cloud GPUs do not have yet).
-  const cloudReady = (snapshot?.workers ?? []).filter(
-    w =>
-      w.worker_class === cloudCls &&
-      !w.quit_mode &&
-      ['ready', 'generating', 'saving'].includes(w.state) &&
-      (r.workflow !== 'image-to-image' || !w.workflows || w.workflows.includes(capabilityFor(r))),
+  const running = (w: { state: string }) => ['ready', 'generating', 'saving'].includes(w.state);
+  // Cloud GPUs that could take this draft once free, leaving styles aside; then those that have its styles too.
+  const fit = (snapshot?.workers ?? []).filter(
+    w => (running(w) || ['starting', 'preparing'].includes(w.state)) && canRun(w, gpuNeed(r), 'wait'),
   );
-  if (target !== 'cloud' && localOk)
-    return target === 'auto' && cloudReady.length
+  const withStyles = fit.filter(w => canRun(w, gpuNeed(r, loras), 'wait'));
+  if (target !== 'cloud' && localOk) {
+    const cloud = target === 'auto' ? withStyles.find(running) : undefined;
+    return cloud
       ? {
           tone: 'ok',
-          label: `Seed PC or the running ${cloudCls} GPU (${'$' + cloudReady[0]!.hourly.toFixed(2)}/h), whichever is free first`,
+          where: 'either',
+          label: `Seed PC or the running ${cls} GPU (${'$' + cloud.hourly.toFixed(2)}/h), whichever is free first`,
           billing: true,
         }
-      : { tone: 'ok', label: 'Ready on Seed PC · no rental fee' };
+      : { tone: 'ok', where: 'local', label: 'Ready on Seed PC · no rental fee' };
+  }
   if (target === 'local') {
     if (local?.enabled && !local.workflows.includes(r.workflow))
       return {
         tone: 'bad',
+        where: 'local',
         label: `Can't run on Seed PC: ${cls === 'video' ? 'video needs a cloud GPU' : 'this kind needs a cloud GPU'}`,
         blocked: true,
       };
-    return { tone: 'bad', label: 'Seed PC is off · turn it on in GPUs, or run on Cloud', blocked: true };
+    return {
+      tone: 'bad',
+      where: 'local',
+      label: 'Seed PC is off · turn it on in GPUs, or run on Cloud',
+      blocked: true,
+    };
   }
   if (missingSource)
     return {
       tone: 'bad',
+      where: 'cloud',
       label: `Style “${missingSource.name}” needs its source before cloud use · Settings › Styles`,
       blocked: true,
     };
-  const workers = (snapshot?.workers ?? []).filter(
-    w =>
-      w.worker_class === cls &&
-      !w.quit_mode &&
-      ['ready', 'generating', 'saving', 'starting', 'preparing'].includes(w.state) &&
-      (r.workflow !== 'image-to-image' || !w.workflows || w.workflows.includes(capabilityFor(r))),
-  );
-  const withStyles = workers.filter(
-    w =>
-      ['starting', 'preparing'].includes(w.state) ||
-      loras.every(l => w.installed_loras.some(i => i.id === l.id && i.revision === l.revision)),
-  );
   const noun = cls === 'video' ? 'video GPU' : 'image GPU';
   if (withStyles.length)
     return {
       tone: 'ok',
-      label:
-        withStyles[0]!.state === 'ready' || withStyles[0]!.state === 'generating' || withStyles[0]!.state === 'saving'
-          ? `${noun[0]!.toUpperCase() + noun.slice(1)} ready`
-          : `${noun[0]!.toUpperCase() + noun.slice(1)} starting`,
+      where: 'cloud',
+      label: `${noun[0]!.toUpperCase() + noun.slice(1)} ${running(withStyles[0]!) ? 'ready' : 'starting'}`,
       billing: true,
     };
-  if (workers.length)
-    return { tone: 'warn', label: `Needs a new ${noun}: the running one doesn't have this style`, needs: cls };
-  return { tone: 'warn', label: `Needs ${cls === 'video' ? 'a video' : 'an image'} GPU`, needs: cls };
+  if (fit.length)
+    return {
+      tone: 'warn',
+      where: 'cloud',
+      label: `Needs a new ${noun}: the running one doesn't have this style`,
+      needs: cls,
+    };
+  return { tone: 'warn', where: 'cloud', label: `Needs ${cls === 'video' ? 'a video' : 'an image'} GPU`, needs: cls };
 }
 
 export function styleName(styles: StyleEntry[], id: string) {

@@ -1,7 +1,7 @@
 import {localExecutor,type ExecutionWorker} from './executors.js';
 import { Media, type PreparedReference, probe } from "./media.js";
-import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, supportsWorkflow, capabilityFor, usesKlein, QWEN_PROFILE, QWEN_SETTINGS, KLEIN_PROFILE, KLEIN_SETTINGS } from "../shared/workflows.js";
-import { workerClassFor } from "../shared/pool.js";
+import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, usesKlein, KLEIN_CAPABILITY, QWEN_PROFILE, QWEN_SETTINGS, KLEIN_PROFILE, KLEIN_SETTINGS } from "../shared/workflows.js";
+import { canRun, gpuNeed, workerClassFor } from "../shared/pool.js";
 import { Loras, digest, sourceReady, type LoraSelection } from "./loras.js";
 import { WorkerPool } from "./pool.js";
 import type { WorkerReceipt } from "./pool-contracts.js";
@@ -9,7 +9,7 @@ import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { hardwareProfile } from "./hardware.js";
 import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { nextProgress } from "../shared/generation-progress.js";
-import { jobCanMove, jobPhase, type JobRecord } from "../shared/jobs.js";
+import { isTerminal, jobCanMove, jobPhase, type JobRecord } from "../shared/jobs.js";
 import {
   WorkerHttpError,
   TransferIntegrityError,
@@ -45,7 +45,6 @@ const executionId=(job:Job)=>job.worker?.execution_id??job.id;
 function jobView({ worker, prepared: _p, fal: _f, input_snapshot: _i, ...job }: Job): JobRecord {
   return worker ? { ...job, worker: { id: worker.id, executor: worker.executor } } : job;
 }
-const terminal = ["completed", "failed", "cancelled"];
 export class Jobs {
   private chain: Promise<unknown> = Promise.resolve();
   private timer?: ReturnType<typeof setInterval>;
@@ -66,23 +65,15 @@ export class Jobs {
       pending: (w) =>
         this.all().some(
           (j) =>
-            j.state === "queued" && j.request.target!=='local' &&
-            j.worker &&
-            workerClassFor(j.request.workflow) === w.worker_class &&
-            (supportsWorkflow(w,capabilityFor(j.request)) || (!w.ready_at && !w.workflows)) &&
-            (!w.finish_before || j.created_at <= w.finish_before) &&
-            j.worker.loras.every((l) =>
-              (w.adapters_frozen ? w.installed_loras : w.requested_loras).some(
-                (i) => i.id === l.id && i.revision === l.revision,
-              ),
-            ),
+            j.state === "queued" && j.request.target !== 'local' && !!j.worker &&
+            canRun(w, gpuNeed(j.request, j.worker.loras, j.created_at), 'wait'),
         ),
       cancel: (id) => this.quitJobs(id),
       assigned: (id) => ({ unknown: this.get(id)?.state === 'needs_attention', recovering: this.inFlight.get(id)?.recovery ?? false }),
     });
     // Historical fal receipts remain readable; never submit them to a new executor.
     for (const job of this.all().filter(
-      (j) => !j.worker && !terminal.includes(j.state),
+      (j) => !j.worker && !isTerminal(j.state),
     )) {
       job.state = "needs_attention";
       job.error =
@@ -125,7 +116,7 @@ export class Jobs {
     const job = this.get(id);
     if (!job) throw Error('Job not found.');
     const previous = this.inFlight.get(id);
-    if (previous?.recovery || terminal.includes(job.state) || ['running', 'copying'].includes(job.state)) return this.publicJob(job);
+    if (previous?.recovery || isTerminal(job.state) || ['running', 'copying'].includes(job.state)) return this.publicJob(job);
     const action=this.publicJob(job).recovery?.action;
     if (this.stopped || !action)
       throw Error('This request cannot be retried safely. View its worker for recovery options.');
@@ -177,7 +168,7 @@ export class Jobs {
   }
   private recoveryWorker(id: string) {
     const job = this.get(id), worker = job?.worker?.id ? this.pool.executor(job.worker.id) : null;
-    if (this.stopped || !job?.worker || !worker || terminal.includes(job.state) ||
+    if (this.stopped || !job?.worker || !worker || isTerminal(job.state) ||
       this.cancelled(id) || job.worker.quit_now || worker.quit_mode === 'now' ||
       localExecutor(worker)&&(Boolean(worker.issue)||worker.interrupted) ||
       ['released', 'releasing', 'reconnecting', 'starting', 'preparing'].includes(worker.state) || worker.current_job_id !== id) return null;
@@ -253,7 +244,7 @@ export class Jobs {
     return { prompt_id: executionId(job), prompt: job.worker.graph, ...metadata };
   }
   usesAsset(id: string) {
-    return this.all().some(job => (!terminal.includes(job.state) || this.isInFlight(job.id)) &&
+    return this.all().some(job => (!isTerminal(job.state) || this.isInFlight(job.id)) &&
       [...(job.request.references ?? []), ...(job.prepared ?? [])].some(ref => ref.asset_id === id));
   }
   start() {
@@ -342,7 +333,7 @@ export class Jobs {
       throw Error(`A request cannot go from ${latest.state} to ${job.state}.`);
     if (
       job.metrics &&
-      terminal.includes(job.state) &&
+      isTerminal(job.state) &&
       !job.metrics.terminal_at
     ) {
       job.metrics.terminal_at = new Date().toISOString();
@@ -512,7 +503,7 @@ export class Jobs {
     this.db.transaction(() => {
       for (const id of ids) {
         const job = this.get(id);
-        if (!job || terminal.includes(job.state)) continue;
+        if (!job || isTerminal(job.state)) continue;
         this.db
           .prepare("INSERT OR IGNORE INTO job_cancel_intents VALUES (?)")
           .run(id);
@@ -533,7 +524,7 @@ export class Jobs {
   private quitJobs(workerId?: string) {
     for (const job of this.all().filter(
       (j) =>
-        !terminal.includes(j.state) && (workerId ? j.worker?.id===workerId :
+        !isTerminal(j.state) && (workerId ? j.worker?.id===workerId :
           j.request.target!=='local'&&(!j.worker?.id||this.pool.local?.get()?.id!==j.worker.id)),
     )) {
       if (job.worker) job.worker.quit_now = true;
@@ -566,7 +557,7 @@ export class Jobs {
       )
         continue;
       if (
-        terminal.includes(job.state) &&
+        isTerminal(job.state) &&
         (!job.worker.receipt || job.worker.acknowledged)
       )
         continue;
@@ -575,17 +566,7 @@ export class Jobs {
           this.pool.assignedExecutor(job.id) ??
           this.pool.claimExecutor(job.id,job.request,job.worker.loras,job.created_at);
         if (!w) {
-          const local=this.pool.local, localWorker=local?.get();
-          const localSupported=job.request.target!=='cloud'&&localWorker?.enabled&&local?.supports(job.request);
-          job.waiting_reason = localSupported
-            ? localWorker.issue?'Seed PC needs attention. Open GPUs to see why.':localWorker.paused?'Resume Seed PC on the GPUs page to make this.':job.worker.loras.length?'Waiting for Seed PC to finish its current output. Missing LoRAs download automatically when this request starts.':'Waiting for Seed PC to finish its current output.'
-            : job.request.target==='local'
-            ? !localWorker?.enabled?'Turn on Seed PC on the GPUs page to make this here.':'Seed PC cannot make these settings. Check the size, shape and styles of this draft.'
-            : job.worker.loras.length
-            ? "Waiting for a ready worker with the selected LoRAs. Start a new worker to include recently added adapters."
-            : usesKlein(job.request) && !this.pool.cloudWorkflows().includes('image-to-image:klein') ? (this.pool.local?.supports(job.request) ? 'Cloud GPUs here cannot run FLUX 3 Image Klein. Cancel and make it again with Runs on: Seed PC.' : 'No GPU here can run FLUX 3 Image Klein: cloud GPUs do not have it, and Seed PC needs it installed (GPUs → Seed PC → Add Klein).')
-            : usesKlein(job.request) ? 'Waiting for a ready image GPU that has FLUX 3 Image Klein. Start an image GPU to make this.'
-            : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
+          job.waiting_reason = this.waitingReason(job);
           this.save(job);
           continue;
         }
@@ -629,7 +610,7 @@ export class Jobs {
         job.state='uploading';job.error=null;delete job.worker.local_preparation_blocked;this.save(job);
       }
       if (worker.state === "released") {
-        if (terminal.includes(job.state)) {
+        if (isTerminal(job.state)) {
           this.pool.complete(job.id);
           continue;
         }
@@ -690,6 +671,28 @@ export class Jobs {
       if (!background) await task;
     }
     if (!background) await Promise.allSettled([...this.inFlight.values()].map(entry => entry.task));
+  }
+  /** Why a queued request has no GPU yet, in the words the GPUs page uses. */
+  private waitingReason({ request, worker }: Job) {
+    const local = this.pool.local, seedPc = local?.get(), cls = workerClassFor(request.workflow);
+    if (request.target !== 'cloud' && seedPc?.enabled && local!.supports(request)) {
+      if (seedPc.issue) return 'Seed PC needs attention. Open GPUs to see why.';
+      if (seedPc.paused) return 'Resume Seed PC on the GPUs page to make this.';
+      return 'Waiting for Seed PC to finish its current output.' +
+        (worker!.loras.length ? ' Missing styles download automatically when this request starts.' : '');
+    }
+    if (request.target === 'local')
+      return seedPc?.enabled ? 'Seed PC cannot make these settings. Check the size, shape and styles of this draft.'
+        : 'Turn on Seed PC on the GPUs page to make this here.';
+    if (worker!.loras.length)
+      return `Waiting for ${cls === 'image' ? 'an image' : 'a video'} GPU with this draft's styles. Start a new GPU if you added them after the running one started.`;
+    if (usesKlein(request))
+      return this.pool.cloudWorkflows().includes(KLEIN_CAPABILITY) ? 'Waiting for a ready image GPU that has FLUX 3 Image Klein. Start an image GPU to make this.'
+        : local?.supports(request) ? 'Cloud GPUs here cannot run FLUX 3 Image Klein. Cancel and make it again with Runs on: Seed PC.'
+        : 'No GPU here can run FLUX 3 Image Klein: cloud GPUs do not have it, and Seed PC needs it installed (GPUs → Seed PC → Add Klein).';
+    if (request.workflow === 'image-to-image')
+      return 'Waiting for an image GPU that can edit pictures. Start a new image GPU if the running one is on an older release.';
+    return `Waiting for a ready ${cls} GPU.`;
   }
   private track(id: string, action: () => Promise<void>, recovery = false) {
     // Reserve before action's first await; an older task cannot delete its successor.
@@ -791,7 +794,7 @@ export class Jobs {
   private async advance(job: Job, w: ExecutionWorker, found?: WorkerReceipt, engineSession?: string | null) {
     const driver = this.pool.executionDriver(w);
     if (job.worker?.quit_now || this.get(job.id)?.worker?.quit_now) return;
-    if (this.cancelled(job.id) && !terminal.includes(job.state))
+    if (this.cancelled(job.id) && !isTerminal(job.state))
       await driver.cancel(executionId(job));
     const record = found ?? job.worker!.receipt ?? (await driver.receipt(executionId(job)));
     if (!record) {

@@ -1,4 +1,3 @@
-import { capabilityFor } from '../shared/workflows.js';
 import type Database from "better-sqlite3";
 import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
@@ -16,6 +15,7 @@ import type {
   WorkerClass,
   Provider,
 } from "../shared/pool.js";
+import { canRun, gpuNeed, rentalState, type GpuNeed } from "../shared/pool.js";
 import type {
   PoolDependencies,
   RentalRecord,
@@ -49,8 +49,7 @@ export class WorkerPool {
   }
   claimExecutor(job:string,request:ImageRequest,loras:LoraSelection[],created_at:string):ExecutionWorker|null {
     if(request.target!=='local'){
-      const video=request.workflow.endsWith('video');
-      const rented=this.claim(job,video?'video':'image',loras,created_at,capabilityFor(request));
+      const rented=this.claim(job,gpuNeed(request,loras,created_at));
       if(rented)return rented;
     }
     return request.target==='cloud'?null:this.local?.claim(job,request)??null;
@@ -216,7 +215,7 @@ export class WorkerPool {
       gpu: w.gpu,
       vram_gb: w.vram_gb,
       region: w.region,
-      state: w.state,
+      state: rentalState(w),
       hourly: w.hourly,
       compute_hourly: w.compute_hourly,
       storage_hourly: w.storage_hourly,
@@ -543,7 +542,7 @@ export class WorkerPool {
     // A rental time cap: finish current work, then release, so a forgotten GPU cannot bill indefinitely.
     if (w.max_minutes && w.allocated_at && this.now() - Date.parse(w.allocated_at) >= w.max_minutes * 60_000) {
       this.diagnostics?.event({ category: "worker", operation: "worker.limit_release", worker_id: id, provider: w.provider, data: { max_minutes: w.max_minutes } });
-      this.update(id, (current) => { current.quit_mode = "finish"; current.finish_before ??= this.date(); current.state = "finishing"; current.released_reason = "limit"; });
+      this.update(id, (current) => { current.quit_mode = "finish"; current.finish_before ??= this.date(); current.released_reason = "limit"; });
       return false;
     }
     const idle = w.state === "ready" && !w.current_job_id;
@@ -558,7 +557,6 @@ export class WorkerPool {
     this.update(id, (current) => {
       current.quit_mode = "finish";
       current.finish_before ??= this.date();
-      current.state = "finishing";
       current.released_reason = "idle";
     });
     return false;
@@ -648,7 +646,7 @@ export class WorkerPool {
     }
     if (!resource.ssh) {
       this.update(id, (current) => {
-        current.state = current.quit_mode === 'finish' ? 'finishing' : 'starting';
+        current.state = 'starting';
       });
       return;
     }
@@ -710,11 +708,9 @@ export class WorkerPool {
             ? current.state === "saving"
               ? "saving"
               : "generating"
-            : current.quit_mode === "finish"
-              ? "finishing"
-              : current.ready
-                ? "ready"
-                : "preparing";
+            : current.ready
+              ? "ready"
+              : "preparing";
       current.issue = foreignBusy
         ? {
             code: "worker_busy",
@@ -765,7 +761,6 @@ export class WorkerPool {
         if (current.quit_mode !== "now") {
           current.quit_mode = "finish";
           current.finish_before ??= this.date();
-          current.state = "finishing";
         }
       });
       void this.tick();
@@ -890,7 +885,6 @@ export class WorkerPool {
             if (current.quit_mode !== "now") {
               current.quit_mode = "finish";
               current.finish_before ??= cutoff;
-              current.state = "finishing";
             }
           });
       })();
@@ -982,36 +976,9 @@ export class WorkerPool {
     if (worker)
       void this.dependencies.worker.disconnect(worker).catch(error => this.diagnostics?.error('worker.disconnect',error,{worker_id:worker.id,provider:worker.provider}));
   }
-  compatible(
-    w: RentalRecord,
-    role: WorkerClass,
-    loras: LoraSelection[],
-    created_at: string,
-  ) {
-    return (
-      w.worker_class === role &&
-      w.ready &&
-      ["ready", "finishing", "generating", "saving"].includes(w.state) &&
-      w.quit_mode !== "now" &&
-      (!w.finish_before || created_at <= w.finish_before) &&
-      loras.every((l) =>
-        w.installed_loras.some(
-          (i) => i.id === l.id && i.revision === l.revision,
-        ),
-      )
-    );
-  }
-  claim(
-    job: string,
-    role: WorkerClass,
-    loras: LoraSelection[],
-    created_at: string,
-    workflow?: string,
-  ) {
+  claim(job: string, need: GpuNeed) {
     return this.db.transaction(() => {
-      const w = this.all().find(
-        (w) => !w.current_job_id && this.compatible(w, role, loras, created_at) && (!workflow?.startsWith('image-to-image')||w.workflows?.includes(workflow)),
-      );
+      const w = this.all().find((w) => canRun(w, need, "claim"));
       if (!w) return null;
       const id = randomUUID();
       this.db
@@ -1058,12 +1025,7 @@ export class WorkerPool {
       this.update(w.id, (current) => {
         delete current.current_job_id;
         if (!stopped(current) && current.quit_mode !== "now")
-          current.state =
-            current.quit_mode === "finish"
-              ? "finishing"
-              : current.ready
-                ? "ready"
-                : "reconnecting";
+          current.state = current.ready ? "ready" : "reconnecting";
       });
     })();
   }

@@ -8,6 +8,7 @@ import { fakePool } from "./fake-pool.js";
 import { PoolError, WorkerStarting } from "../server/pool-errors.js";
 import { WorkerPool } from "../server/pool.js";
 import { Diagnostics } from '../server/diagnostics.js';
+import { canRun, gpuNeed } from "../shared/pool.js";
 async function fixture(
   run: (
     f: ReturnType<typeof fakePool> & {
@@ -311,7 +312,9 @@ it("Finish jobs drains already-approved work while excluding requests created af
     f.pool.bindJobs({ pending: () => pending, cancel: () => {} });
     await f.pool.action(w.id, "finish");
     await f.pool.tick();
-    expect(f.pool.get(w.id)!.state).toBe("finishing");
+    // Finishing is what it shows; what it stores is still its real state.
+    expect(f.pool.snapshot().workers[0]!.state).toBe("finishing");
+    expect(f.pool.get(w.id)!.state).toBe("ready");
     expect(f.providers.vast.destroy).not.toHaveBeenCalled();
     const cutoff = f.pool.get(w.id)!.finish_before!;
     f.db
@@ -329,23 +332,21 @@ it("Finish jobs drains already-approved work while excluding requests created af
     expect(
       f.pool.claim(
         "new-job",
-        "image",
-        [],
-        new Date(Date.parse(cutoff) + 1).toISOString(),
+        gpuNeed({ workflow: "text-to-image" }, [], new Date(Date.parse(cutoff) + 1).toISOString()),
       ),
     ).toBeNull();
     expect(
       f.pool.claim(
         "existing-job",
-        "image",
-        [],
-        new Date(Date.parse(cutoff) - 1).toISOString(),
+        gpuNeed({ workflow: "text-to-image" }, [], new Date(Date.parse(cutoff) - 1).toISOString()),
       )?.id,
     ).toBe(w.id);
+    expect(f.pool.snapshot().workers[0]!.state).toBe("generating");
     pending = false;
     await f.pool.tick();
     expect(f.providers.vast.destroy).not.toHaveBeenCalled();
     f.pool.complete("existing-job");
+    expect(f.pool.snapshot().workers[0]!.state).toBe("finishing");
     await f.pool.tick();
     await eventually(() => f.pool.get(w.id)!.state === "released");
   }));
@@ -481,8 +482,8 @@ it("stops assigning work after engine readiness is lost while keeping adapter in
     expect(worker.ready).toBe(false);
     expect(worker.adapters_frozen).toBe(true);
     expect(
-      f.pool.compatible(worker, "image", [], worker.created_at),
-    ).toBeFalsy();
+      canRun(worker, gpuNeed({ workflow: "text-to-image" }, [], worker.created_at), "claim"),
+    ).toBe(false);
     await expect(f.pool.action(id, "retry_preparation")).rejects.toThrow(
       "frozen",
     );
@@ -504,8 +505,8 @@ it("does not advertise a worker as available while a foreign execution is runnin
       issue: { code: "worker_busy" },
     });
     expect(
-      f.pool.compatible(worker, "image", [], worker.created_at),
-    ).toBeFalsy();
+      canRun(worker, gpuNeed({ workflow: "text-to-image" }, [], worker.created_at), "claim"),
+    ).toBe(false);
   }));
 it("offers base-model fallback only before readiness and can quit while that transfer is in flight", async () =>
   fixture(async (f) => {

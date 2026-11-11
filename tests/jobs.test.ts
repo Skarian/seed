@@ -6,6 +6,7 @@ import {openDatabase} from '../server/db.js';
 import {resolvePaths,prepareStorage} from '../server/storage.js';
 import {fakePool} from './fake-pool.js';
 import {WorkerHttpError} from '../server/worker-transfer.js';
+import {gpuNeed} from '../shared/pool.js';
 type JobsFixture=ReturnType<typeof fakePool>&{jobs:Jobs;db:ReturnType<typeof openDatabase>;paths:ReturnType<typeof resolvePaths>;request:any;settle:()=>Promise<void>};
 async function fixture(run:(f:JobsFixture)=>Promise<void>){
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/pool-jobs-')),paths=resolvePaths(root);prepareStorage(paths);
@@ -83,9 +84,23 @@ it('executes image and video work concurrently in separate worker classes',async
 
 async function eventually(check:()=>boolean){for(let i=0;i<200;i++){if(check())return;await new Promise(resolve=>setTimeout(resolve,2));}throw Error('Fixture operation did not settle.');}
 function gate(){let release!:()=>void;const promise=new Promise<void>(resolve=>release=resolve);return {promise,release};}
+it('refuses a move the job table forbids, and a cancellation outlasts a stale save',async()=>fixture(async f=>{
+  await f.ready();const {jobs:[done]}=await f.jobs.submit(f.request,'save-refuses-done-fixture');await f.settle();
+  expect(f.jobs.get(done!.id)!.state).toBe('completed');
+  expect(()=>f.jobs.save({...f.jobs.get(done!.id)!,state:'running'})).toThrow('cannot go from completed to running');
+  expect(f.jobs.get(done!.id)!.state).toBe('completed');
+  const {jobs:[job]}=await f.jobs.submit({...f.request,prompt:'Another'},'save-cancel-fence-fixture');
+  const stale=f.jobs.get(job!.id)!;stale.state='running';f.jobs.save(stale);
+  f.jobs.stopJobs([job!.id]);expect(f.jobs.get(job!.id)!.state).toBe('cancel_requested');
+  stale.state='running';f.jobs.save(stale);expect(f.jobs.get(job!.id)!.state).toBe('cancel_requested');
+}));
+it('says a cloud request waits for a GPU, not a worker',async()=>fixture(async f=>{
+  const {jobs:[job]}=await f.jobs.submit({...f.request,target:'cloud'},'waiting-words-fixture');await f.jobs.reconcile();
+  expect(f.jobs.get(job!.id)!.waiting_reason).toBe('Waiting for a ready image GPU.');
+}));
 it('recovers a durable claim when the process stopped before the job snapshot recorded its worker',async()=>fixture(async f=>{
   await f.ready('image',2);const {jobs:[job]}=await f.jobs.submit(f.request,'claim-crash-fixture');
-  const claimed=f.pool.claim(job!.id,'image',[],job!.created_at)!;expect(f.jobs.get(job!.id)!.worker!.id).toBeUndefined();
+  const claimed=f.pool.claim(job!.id,gpuNeed(job!.request,[],job!.created_at))!;expect(f.jobs.get(job!.id)!.worker!.id).toBeUndefined();
   await f.settle();expect(f.jobs.get(job!.id)!.state).toBe('completed');expect(f.worker.submit).toHaveBeenCalledTimes(1);expect(f.worker.submit.mock.calls[0]![0].id).toBe(claimed.id);
   expect((f.db.prepare('SELECT COUNT(*) AS n FROM job_attempts WHERE job_id=?').get(job!.id) as {n:number}).n).toBe(1);
 }));

@@ -93,6 +93,8 @@ export type JobState = keyof typeof phases;
 export const jobStates = Object.keys(phases) as JobState[];
 export const isJobState = (value: unknown): value is JobState => typeof value === 'string' && value in phases;
 const finished: JobPhase[] = ['completed', 'failed', 'cancelled'];
+/** A stored state no job leaves. */
+export const isTerminal = (state: string) => (finished as string[]).includes(state);
 export function jobPhase(job: Pick<JobRecord, 'state' | 'recovery_blocked'>): JobPhase {
   // A state this release does not know (an older or newer record) reads as uncertain, never as progress.
   const phase: JobPhase = isJobState(job.state) ? phases[job.state] : 'uncertain';
@@ -108,7 +110,7 @@ const pipeline: JobState[] = ['queued', 'uploading', 'submitting', 'running', 'c
 export function jobCanMove(from: JobState, to: JobState) {
   if (!isJobState(from) || !isJobState(to)) return false;
   if (from === to) return true;
-  if (finished.includes(phases[from])) return false;
+  if (isTerminal(from)) return false;
   if (['failed', 'cancelled', 'cancel_requested', 'needs_attention'].includes(to)) return true;
   if (from === 'blocked') return to === 'queued';
   if (from === 'cancel_requested' || from === 'needs_attention') return pipeline.includes(to);
