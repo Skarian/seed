@@ -1,5 +1,6 @@
 import { type ChatGroup, type ChatMessage, type Project } from '../api.js';
 import { latest, titleOf } from '../format.js';
+import type { ViewerItem } from '../data.js';
 import { planOpen } from '../../../shared/plan.js';
 
 export const isOpenPlan = (g: ChatGroup) => planOpen(g) && !g.direct;
@@ -129,6 +130,16 @@ export function titleFromPrompt(text: string) {
     words.pop();
   const title = words.join(' ').replace(/^./, c => c.toUpperCase());
   return title.length > 60 ? title.slice(0, 58) + '…' : title;
+}
+
+/** Ask Seed to check a take: Seed looks at the picture and compares it with the brief, the shot and its references. */
+export function checkRequest(item: ViewerItem) {
+  // The shot's own record (framing, who is in it, where) is the yardstick, so the check is about this shot.
+  const shot = item.job?.request.shot;
+  const spec = shot
+    ? ` This shot is ${[shot.framing, shot.cast?.length ? 'with ' + shot.cast.join(' and ') : '', shot.place ? 'at ' + shot.place : ''].filter(Boolean).join(', ')}.`
+    : '';
+  return `Give me a second opinion on ${item.title}.${spec} Look at the picture and compare it with the shot's framing and action and with the approved references of everyone and everything in it (face, hair, wardrobe, props, the place). Say only what you can clearly see; for anything small or unclear, say you are not sure. List what matches and what may not, briefly. Don't draft anything unless I ask.`;
 }
 
 /** A request written by one of Seed's own buttons, named as the action it was ("Check · Shot 2 · 1 of 3"). */

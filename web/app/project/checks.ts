@@ -4,6 +4,7 @@ import { castOf, sameCast, lookParts, isVisibleDetail } from '../../../shared/ca
 import { approvedReference } from '../../../shared/choices.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
+import { revisable } from './plan.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
 import { sizeChoices, resolveDimensions } from '../../../shared/resolution.js';
 import { silencedPrompt, type ShotFields } from '../../../shared/generation.js';
@@ -129,11 +130,7 @@ const names: Record<string, string> = {
   '1:1': 'square',
   '4:5': 'portrait 4:5',
 };
-const withAspect = (aspect: Aspect) => (r: ImageRequest) => ({ ...strip(r), output: { ...r.output, aspect } });
-function strip(r: ImageRequest) {
-  const { workflow: _w, mode: _m, resolved_seeds: _s, ...rest } = r as ImageRequest & { resolved_seeds?: unknown };
-  return rest as Record<string, unknown> & { output: ImageRequest['output'] };
-}
+const withAspect = (aspect: Aspect) => (r: ImageRequest) => ({ ...revisable(r), output: { ...r.output, aspect } });
 
 /** Checks are computed when read and kept per project copy: a new copy (any save) computes them again. */
 const memo = new WeakMap<Project, Map<string, Check[]>>();
@@ -175,7 +172,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
         {
           label: `Use ${entry.name}’s approved reference`,
           patch: x => ({
-            ...strip(x),
+            ...revisable(x),
             references: (x.references ?? []).map(y => (y.id === ref.id ? { ...y, asset_id: approved } : y)),
           }),
         },
@@ -284,10 +281,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       ...(croppable ? { cropTo: asked.other } : {}),
     });
     // Once the owner chose "crop to X after" for this project, every draft at the closest shape is already settled.
-    const settled =
-      croppable &&
-      closest === aspect &&
-      project.frame === asked.other;
+    const settled = croppable && closest === aspect && project.frame === asked.other;
     if (!settled)
       out.push({
         code: 'shape',
@@ -317,7 +311,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
         fixes: [
           {
             label: `Use ${best.d.width} × ${best.d.height}`,
-            patch: x => ({ ...strip(x), output: { ...x.output, size: best.id } }),
+            patch: x => ({ ...revisable(x), output: { ...x.output, size: best.id } }),
           },
         ],
       });
@@ -335,7 +329,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       fixes: [
         {
           label: `Make it ${asked.seconds} s`,
-          patch: x => ({ ...strip(x), output: { ...x.output, duration_seconds: asked.seconds } }),
+          patch: x => ({ ...revisable(x), output: { ...x.output, duration_seconds: asked.seconds } }),
         },
       ],
     });
@@ -349,7 +343,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
         {
           label: asked.silent ? 'Make it silent' : 'Add sound',
           patch: x => ({
-            ...strip(x),
+            ...revisable(x),
             audio: { output: asked.silent ? 'silent' : 'generated' },
             ...(asked.silent ? { prompt: silencedPrompt(x.prompt) } : {}),
           }),
@@ -370,7 +364,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       fixes: [
         {
           label: 'Make it silent',
-          patch: x => ({ ...strip(x), audio: { output: 'silent' }, prompt: silencedPrompt(x.prompt) }),
+          patch: x => ({ ...revisable(x), audio: { output: 'silent' }, prompt: silencedPrompt(x.prompt) }),
         },
         { label: 'Keep the sound', patch: () => ({}) },
       ],
@@ -429,7 +423,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
               : gaps.length === 1
                 ? 'Add this detail to the prompt'
                 : 'Add these details to the prompt',
-          patch: x => ({ ...strip(x), prompt: addBriefDetails(x.prompt, gaps) }),
+          patch: x => ({ ...revisable(x), prompt: addBriefDetails(x.prompt, gaps) }),
         },
         { label: 'Not visible in this shot', patch: () => ({}) },
       ],

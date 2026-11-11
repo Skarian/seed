@@ -9,6 +9,7 @@ import {
 } from '../../../shared/resolution.js';
 import { DEFAULT_VIDEO_STEPS, DEFAULT_VIDEO_DETAIL } from '../../../shared/video-settings.js';
 import { workflowOf, isVideoKind, type Kind } from '../api.js';
+import { revisable } from './plan.js';
 
 /** Settings for a direct make, remembered per kind. */
 export type MakeSettings = {
@@ -193,7 +194,7 @@ export function editableFields(r: ImageRequest) {
 export type EditableFields = ReturnType<typeof editableFields>;
 /** The revise payload: the full request with the user's edits, minus server-owned fields. */
 export function revisedRequest(r: ImageRequest, f: EditableFields): Record<string, unknown> {
-  const { workflow: _w, mode: _m, resolved_seeds: _s, ...rest } = r as ImageRequest & { resolved_seeds?: unknown };
+  const rest = revisable(r);
   const video = r.workflow === 'text-to-video' || r.workflow === 'reference-to-video';
   return {
     ...rest,
