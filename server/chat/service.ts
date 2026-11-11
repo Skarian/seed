@@ -157,7 +157,6 @@ export class Chats {
         chat.activity = 'idle';
         settlePlan(chat);
         changed = true;
-        for (const run of chat.runs) if (run.state === 'running') run.state = 'interrupted';
         for (const message of chat.messages)
           if (message.transcript?.state === 'running') {
             finishTurn(message.transcript, 'failed');
@@ -241,7 +240,7 @@ export class Chats {
   }
   view(id: string) {
     const chat = this.get(id);
-    const { runs, ...view } = chat,
+    const { accounting, ...view } = chat,
       jobs = this.chatJobs(chat);
     view.activity = this.activityOf(chat, jobs);
     for (const job of jobs) for (const asset of job.outputs) if (!chat.assets.includes(asset)) chat.assets.push(asset);
@@ -251,7 +250,7 @@ export class Chats {
       cast: castOf(chat),
       asset_manifest: this.contextAssets(chat),
       jobs: jobs.map(job => this.jobs.publicJob(job)),
-      accounting: [...runs.flatMap(run => run.accounting), ...(chat.title_accounting ?? [])],
+      accounting: [...accounting, ...(chat.title_accounting ?? [])],
     };
   }
   list(mode: ChatMode) {
@@ -294,7 +293,7 @@ export class Chats {
       messages: [],
       groups: [],
       assets: [],
-      runs: [],
+      accounting: [],
       activity: 'idle',
       error: null,
       created_at: now(),
@@ -424,7 +423,6 @@ export class Chats {
     chat.epoch++;
     chat.version++;
     chat.activity = 'idle';
-    for (const run of chat.runs) if (run.state === 'running') run.state = 'stopped';
     for (const message of chat.messages)
       if (message.transcript?.state === 'running') finishTurn(message.transcript, 'stopped');
     for (const group of chat.groups)
@@ -651,22 +649,19 @@ export class Chats {
     chat.activity = 'thinking';
     chat.error = null;
     chat.version++;
-    const run = {
-      id: randomUUID(),
-      workflow: chat.workflow,
-      source_assets: [...input.assets],
-      target_request_id: target?.id,
-      accounting: [] as ChatAccounting[],
-      state: 'running',
-    };
-    chat.runs.push(run);
+    const run = { id: randomUUID() };
     chat.messages.push({
       id: run.id,
       role: 'assistant',
       text: '',
       assets: [],
       created_at: now(),
-      transcript: { started_at: now(), state: 'running', steps: [] },
+      transcript: {
+        started_at: now(),
+        state: 'running',
+        steps: [],
+        scope: { workflow: chat.workflow, source_assets: [...input.assets], target_request_id: target?.id },
+      },
     });
     this.save(chat);
     const task = this.run(
@@ -826,11 +821,10 @@ export class Chats {
       }));
 
       const account = (value: ChatAccounting) => {
-        const c = this.get(id),
-          r = c.runs.find(r => r.id === runId)!;
-        const prior = value.id ? r.accounting.findIndex(v => v.id === value.id) : -1;
-        if (prior < 0) r.accounting.push(value);
-        else r.accounting[prior] = value;
+        const c = this.get(id);
+        const prior = value.id ? c.accounting.findIndex(v => v.id === value.id) : -1;
+        if (prior < 0) c.accounting.push(value);
+        else c.accounting[prior] = value;
         this.save(c);
       };
       const history = chat.messages
@@ -874,15 +868,18 @@ export class Chats {
       if (afterSummary.epoch !== epoch) return;
       afterSummary.summary = compact.summary;
       this.save(afterSummary);
-      const currentRun = chat.runs.find(r => r.id === runId)!;
+      // The last draft attempt of earlier turns on the same work (same kind, same draft, no new inputs since).
+      const scope = chat.messages.find(m => m.id === runId)?.transcript?.scope ?? {};
       let previousAttempt;
-      if (!currentRun.source_assets?.length) {
-        for (const priorRun of [...chat.runs].reverse().filter(r => r.id !== runId)) {
-          if (priorRun.workflow !== chat.workflow || priorRun.target_request_id !== currentRun.target_request_id) break;
-          previousAttempt = [...(chat.messages.find(m => m.id === priorRun.id)?.transcript?.steps ?? [])]
+      if (!scope.source_assets?.length) {
+        for (const prior of [...chat.messages].reverse()) {
+          const was = prior.transcript?.scope;
+          if (!was || prior.id === runId) continue;
+          if (was.workflow !== chat.workflow || was.target_request_id !== scope.target_request_id) break;
+          previousAttempt = [...prior.transcript!.steps]
             .reverse()
             .find(s => s.kind === 'tool' && ['create_request', 'edit_request'].includes(s.name ?? ''));
-          if (previousAttempt || priorRun.source_assets?.length) break;
+          if (previousAttempt || was.source_assets?.length) break;
         }
       }
       let previousResult: unknown = previousAttempt?.result;
@@ -1079,9 +1076,7 @@ export class Chats {
         lastUpdate = Date.now();
       });
       await agent.prompt('Conversation and application context (data):\n' + context, images);
-      const current = this.get(id),
-        run = current.runs.find(r => r.id === runId)!;
-      run.state = current.epoch !== epoch ? 'stopped' : 'completed';
+      const current = this.get(id);
       if (current.epoch === epoch) {
         const final = agent.state.messages.at(-1);
         if (final?.role === 'assistant' && ['error', 'aborted', 'length'].includes(final.stopReason)) {
@@ -1113,7 +1108,6 @@ export class Chats {
       this.save(current);
     } catch (error) {
       const current = this.get(id);
-      current.runs.find(r => r.id === runId)!.state = 'failed';
       if (current.epoch === epoch) {
         const message = current.messages.find(m => m.id === runId);
         if (message?.transcript) {

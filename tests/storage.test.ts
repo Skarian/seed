@@ -27,7 +27,7 @@ describe('persistent local storage', () => {
       expect(readFileSync(file, 'utf8')).toBe('unique original');
       expect(listAssets(reopened)).toEqual([{ id: 'asset-1', kind: 'image', mode: 'sfw', name: 'My original', created_at: '2026-09-09T00:00:00Z', favorite:false }]);
       expect(reopened.prepare("SELECT name FROM sqlite_master WHERE name='dispatcher_state'").get()).toBeUndefined();
-      expect(reopened.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 5 });
+      expect(reopened.prepare('SELECT COUNT(*) AS count FROM schema_migrations').get()).toEqual({ count: 6 });
       expect(reopened.pragma('synchronous', { simple: true })).toBe(2);
     } finally { reopened.close(); }
   });
@@ -57,6 +57,6 @@ it('migrates the old pause state without submitting held work or removing saved 
     expect(JSON.parse((migrated.prepare('SELECT snapshot_json FROM jobs').get() as any).snapshot_json)).toMatchObject({state:'blocked',request:job.request});
     expect(listAssets(migrated)).toHaveLength(1);
     expect(migrated.prepare("SELECT name FROM sqlite_master WHERE name='dispatcher_state'").get()).toBeUndefined();
-    expect(migrated.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({version:11});
+    expect(migrated.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({version:12});
   }finally{migrated.close();}
 });

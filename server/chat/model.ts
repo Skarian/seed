@@ -13,14 +13,8 @@ export interface StoredChat extends ChatView {
   title_accounting?: ChatAccounting[];
   title_error?: string;
   summary?: ConversationSummary;
-  runs: Array<{
-    id: string;
-    workflow?: ChatWorkflow | null;
-    source_assets?: string[];
-    target_request_id?: string;
-    accounting: ChatAccounting[];
-    state: string;
-  }>;
+  /** Model usage of every turn (each turn's own scope and state live on its transcript). */
+  accounting: ChatAccounting[];
 }
 
 export const latest = (card: ChatCard) => card.revisions.at(-1)!;

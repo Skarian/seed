@@ -28,4 +28,6 @@ export interface ChatView {
 }
 
 export interface TurnStep {id:string;kind:'reasoning'|'text'|'tool';text?:string;name?:string;input?:unknown;result?:unknown;state?:'running'|'succeeded'|'failed'|'stopped';started_at:string;ended_at?:string}
-export interface TurnTranscript {started_at:string;ended_at?:string;state:'running'|'completed'|'failed'|'stopped';steps:TurnStep[];error?:string}
+export interface TurnTranscript {started_at:string;ended_at?:string;state:'running'|'completed'|'failed'|'stopped';steps:TurnStep[];error?:string;
+  /** What the turn was asked to work on: the kind of work then, the attached inputs, and the draft it revised. */
+  scope?:{workflow?:ChatWorkflow|null;source_assets?:string[];target_request_id?:string}}

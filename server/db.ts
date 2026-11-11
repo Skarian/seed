@@ -14,7 +14,7 @@ export function openDatabase(dataDirectory: string) {
     db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
     db.transaction(() => {
       const latest = db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {version:number|null};
-      if (latest.version !== null && latest.version >= 7 && latest.version <= 11) return;
+      if (latest.version !== null && latest.version >= 7 && latest.version <= 12) return;
       if (latest.version === 6) {
         // Preserve old held requests instead of unexpectedly submitting them during migration.
         const state=db.prepare('SELECT paused FROM dispatcher_state WHERE id=1').get() as {paused:number};
@@ -93,14 +93,15 @@ export function openDatabase(dataDirectory: string) {
 }
 
 /**
- * Version 11: a project keeps the owner's choices as a typed record (not "ref:Name" and "shot:<key>:image" keys), and
- * an agent run keeps only what is read again (its accounting and what it worked on), not the whole model history.
+ * Version 11: a project keeps the owner's choices as a typed record (not "ref:Name" and "shot:<key>:image" keys).
+ * Version 12: a turn is stored once, as its assistant message: what it worked on moves onto its transcript, model
+ * usage onto the project, and the separate run records (with their unread copies of history) go.
  */
 function migrateChats(db: Database.Database, dataDirectory: string) {
   const version = (db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version;
-  if (version !== 10) return;
+  if (version !== 10 && version !== 11) return;
   const rows = db.prepare('SELECT id, body_json FROM chats').all() as Array<{ id: string; body_json: string }>;
-  const backup = path.join(dataDirectory, 'studio-before-chat-v11.sqlite');
+  const backup = path.join(dataDirectory, 'studio-before-chat-v' + (version + 1) + '.sqlite');
   if (rows.length && !existsSync(backup)) db.prepare('VACUUM INTO ?').run(backup);
   db.transaction(() => {
     const update = db.prepare('UPDATE chats SET body_json=? WHERE id=?');
@@ -108,14 +109,22 @@ function migrateChats(db: Database.Database, dataDirectory: string) {
       const chat = JSON.parse(row.body_json);
       if (chat.picks) chat.choices = choicesFromPicks(chat.picks);
       delete chat.picks;
-      for (const run of chat.runs ?? []) {
-        delete run.messages;
-        delete run.prompt;
-        delete run.summary;
+      const runs: Array<Record<string, any>> = chat.runs ?? [];
+      for (const run of runs) {
+        const transcript = chat.messages?.find((m: { id: string }) => m.id === run.id)?.transcript;
+        if (transcript)
+          transcript.scope = {
+            workflow: run.workflow ?? null,
+            source_assets: run.source_assets ?? [],
+            ...(run.target_request_id ? { target_request_id: run.target_request_id } : {}),
+          };
       }
+      chat.accounting = [...(chat.accounting ?? []), ...runs.flatMap(run => run.accounting ?? [])];
+      delete chat.runs;
       update.run(JSON.stringify(chat), row.id);
     }
-    db.prepare('INSERT INTO schema_migrations VALUES (11,?)').run(new Date().toISOString());
+    if (version === 10) db.prepare('INSERT INTO schema_migrations VALUES (11,?)').run(new Date().toISOString());
+    db.prepare('INSERT INTO schema_migrations VALUES (12,?)').run(new Date().toISOString());
   })();
 }
 
