@@ -27,7 +27,15 @@ export interface ChatView {
   created_at:string;updated_at:string;
 }
 
-export interface TurnStep {id:string;kind:'reasoning'|'text'|'tool';text?:string;name?:string;input?:unknown;result?:unknown;state?:'running'|'succeeded'|'failed'|'stopped';started_at:string;ended_at?:string}
+/**
+ * Why a tool step failed, read once when it ended. `internal` is Seed's own slip (a stale id, a malformed call), which
+ * the owner need not see when the turn otherwise got its work done; `fields` lists a draft's field problems.
+ */
+export interface StepFailure {error:string;internal:boolean;fields?:Array<{field:string;message:string}>}
+export interface TurnStep {id:string;kind:'reasoning'|'text'|'tool';text?:string;name?:string;input?:unknown;result?:unknown;state?:'running'|'succeeded'|'failed'|'stopped';
+  /** Set on a failed tool step. Turns saved before it existed are read from their result text. */
+  failure?:StepFailure;
+  started_at:string;ended_at?:string}
 export interface TurnTranscript {started_at:string;ended_at?:string;state:'running'|'completed'|'failed'|'stopped';steps:TurnStep[];error?:string;
   /** What the turn was asked to work on: the kind of work then, the attached inputs, and the draft it revised. */
   scope?:{workflow?:ChatWorkflow|null;source_assets?:string[];target_request_id?:string}}

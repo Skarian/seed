@@ -4,7 +4,7 @@ import { useApp, useNow } from '../data.js';
 import { Markdown, Thumb, cleanReply } from '../ui.js';
 import { duration, assetName, titleOf, latest } from '../format.js';
 
-import { turnOutcome } from '../../../shared/turn.js';
+import { toolLabel, turnOutcome } from '../../../shared/turn.js';
 import { buttonAction } from './timeline.js';
 
 export function Message({
@@ -298,21 +298,7 @@ export function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
 }
 function stageNow(turn: NonNullable<ChatMessage['transcript']>) {
   const last = [...turn.steps].reverse().find(s => s.kind === 'tool');
-  if (last?.state === 'running')
-    return (
-      {
-        choose_kind: 'Choosing what to make',
-        read_input: 'Looking at your input',
-        update_brief: 'Updating the brief',
-        leave_out_request: 'Narrowing the plan',
-        edit_request: 'Changing a draft',
-        create_request: 'Writing a draft',
-        cast_and_places: 'Reading the cast',
-        approve_reference: 'Approving a reference',
-        choose_take: 'Choosing a take',
-        order_requests: 'Ordering the plan',
-      }[last.name ?? ''] ?? 'Working'
-    );
+  if (last?.state === 'running') return toolLabel(last.name)?.doing ?? 'Working';
   const drafts = turn.steps.filter(
     s => s.kind === 'tool' && s.name === 'create_request' && s.state === 'succeeded',
   ).length;

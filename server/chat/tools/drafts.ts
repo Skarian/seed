@@ -9,33 +9,15 @@ import { agentRequest, latest, openGroup, referenceMode } from '../model.js';
 import { validateChatReferences, validateCastReferences, withCastLooks } from '../references.js';
 import { requestToolSchemas, prepareToolRequest, requestToolResultError, toolInputLabels } from '../request-tools.js';
 import { current, defineTool, ToolFailure, type ToolSession } from './define.js';
+import { stylesFor } from './kind.js';
 import { silencedPrompt } from '../../../shared/generation.js';
-
-/** The user's last few messages, as one text: what this turn was asked for. */
-const asked = (chat: { messages: Array<{ role: string; text: string }> }, count: number) =>
-  chat.messages
-    .filter(m => m.role === 'user')
-    .slice(-count)
-    .map(m => m.text);
+import { asked, asksForMotion, asksForSound } from '../../../shared/asked.js';
 
 /** create_request and edit_request for one kind of work: a draft saved for review, never made. */
 export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
   const { host } = session;
-  const initial = host.get(session.id);
-  const schemas = requestToolSchemas(
-    workflow,
-    initial.mode,
-    host.jobs.loras
-      .list(initial.mode)
-      .filter(l => l.source_status === 'ready')
-      .some(l =>
-        workflow === 'text-to-image'
-          ? l.route === 'image'
-          : workflow === 'text-to-video'
-            ? l.route === 'fl'
-            : l.route !== 'image',
-      ),
-  );
+  const { mode: chatMode } = host.get(session.id);
+  const schemas = requestToolSchemas(workflow, chatMode, stylesFor(host.jobs, chatMode, workflow).length > 0);
   const mode = referenceMode();
   return (['create', 'edit'] as const).map(operation =>
     defineTool({
@@ -74,11 +56,8 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
         // What is drafted must match what was asked: a new clip needs the person to have asked for motion in their
         // recent messages, so a request for stills can never come back as "Make 2 clips".
         if (!card && /video/.test(kind)) {
-          const recent = asked(chat, 2).join(' ');
-          if (
-            recent.trim() &&
-            !/\b(clips?|videos?|animat\w*|motion|moving|movie|footage|move|film it|seconds?)\b/i.test(recent)
-          )
+          const recent = asked(chat.messages, 2).join(' ');
+          if (recent.trim() && !asksForMotion(recent))
             throw new ToolFailure(
               'The user did not ask for a clip. Draft a picture instead (call choose_kind with image or edit), or ask whether they want a clip.',
             );
@@ -145,15 +124,10 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
         request.prompt = withCastLooks(request, castOf(chat), chat.choices);
         // Sound nobody asked for is a creative change: a new clip stays silent unless the user's recent messages ask
         // for sound (an existing draft keeps the sound it already had).
-        const askedText = asked(chat, 3).join(' ');
-        const soundAsked =
-          /\b(sound|audio|music|score|soundtrack|ambien\w*|noise|voice|dialog\w*|speak\w*|sings?|hear|footsteps|waves crashing)\b/i.test(
-            askedText,
-          ) && !/\b(silent|no sound|no audio|without (?:sound|audio)|mute)\b/i.test(askedText);
         const silenced =
           isVideoWorkflow(request.workflow) &&
           request.audio?.output !== 'silent' &&
-          !soundAsked &&
+          !asksForSound(asked(chat.messages, 3).join(' ')) &&
           prior?.audio?.output !== request.audio?.output;
         if (silenced) request.audio = { ...request.audio, output: 'silent' };
         // A silent clip must not keep describing sound: its sound section reads "Silence." Only when the clip becomes
@@ -222,11 +196,9 @@ function receipt(
   silenced: boolean,
 ) {
   const { host } = session;
+  const manifest = host.contextAssets(chat);
   const named = (refs: ImageRequest['references']) =>
-    (refs ?? []).map(r => ({
-      role: r.role,
-      image: host.contextAssets(chat).find(a => a.id === r.asset_id)?.name ?? 'an input',
-    }));
+    (refs ?? []).map(r => ({ role: r.role, image: manifest.find(a => a.id === r.asset_id)?.name ?? 'an input' }));
   const changed = before
     ? (['prompt', 'title', 'count', 'output', 'audio', 'loras', 'seed', 'detail'] as const)
         .filter(k => JSON.stringify(before[k]) !== JSON.stringify(request[k]))
@@ -259,14 +231,14 @@ function receipt(
     ...(before ? { changed, inputs_before: inputsBefore } : {}),
     inputs_now: inputsNow,
     // A style the user asked for cannot ride on a picture made from references: the reply must say so.
-    ...(request.workflow === 'image-to-image' && noStyle && asked(chat, 3).some(asksSavedStyle)
+    ...(request.workflow === 'image-to-image' && noStyle && asked(chat.messages, 3).some(asksSavedStyle)
       ? {
           no_style:
             'No style is attached to this draft: styles cannot be used on pictures made from references (FLUX 3 Image Klein). Do not say it is in the style. If the user asked for a style on this draft, tell them in one sentence that the look is described in words instead, and that a picture from words (Krea 2) can use the style with less likeness; if their style was for another draft, say nothing about it here.',
         }
       : {}),
     // A style asked for on a draft that can carry one, but not attached: the reply must not claim it.
-    ...(request.workflow !== 'image-to-image' && noStyle && asked(chat, 1).some(asksSavedStyle)
+    ...(request.workflow !== 'image-to-image' && noStyle && asked(chat.messages, 1).some(asksSavedStyle)
       ? {
           style_missing:
             'This draft has no style attached. If the user asked for a style on this draft, call edit_request with loras set to that style (from the styles listed for this kind) before replying; never say a draft uses a style unless its request shows it in loras.',

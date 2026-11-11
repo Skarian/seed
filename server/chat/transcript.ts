@@ -1,5 +1,6 @@
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
 import type { TurnTranscript } from '../../shared/chat.js';
+import { toolFailure } from '../../shared/turn.js';
 // Keep display data structured; never persist binary media from tool output here.
 export function displayResult(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(displayResult);
@@ -51,6 +52,11 @@ export function recordTurnEvent(
       if (event.type === 'tool_execution_end') {
         step.state = event.isError ? 'failed' : 'succeeded';
         step.ended_at = at;
+        // The agent library carries a failure as the text of a thrown error: it is read here, once.
+        if (event.isError) {
+          const content = (event.result as { content?: Array<{ type: string; text?: string }> } | undefined)?.content;
+          step.failure = toolFailure(content?.find(p => p.type === 'text')?.text?.trim() ?? '');
+        }
       }
     }
   }

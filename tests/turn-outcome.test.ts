@@ -32,6 +32,27 @@ it('lists failed steps that a later step did not make good', () => {
   expect(turnOutcome({ ...turn, state: 'running' }).unfinished).toEqual([]);
 });
 
+it('reads a step’s stored failure, and names every tool, ordering included', () => {
+  const failed = (name: string, input: unknown, failure: { error: string; internal: boolean }) => ({
+    ...tool(name, 'failed', input),
+    result: { content: [] },
+    failure,
+  });
+  const turn: TurnTranscript = {
+    started_at: at,
+    state: 'completed',
+    steps: [
+      failed('order_requests', { order: ['a'] }, { error: 'List every draft once.', internal: false }),
+      // A stored failure is believed as it is: no wording turns it into Seed's own slip.
+      failed('create_request', { title: 'Shot 1' }, { error: 'request_id is stale', internal: false }),
+    ],
+  };
+  expect(turnOutcome(turn).unfinished).toEqual([
+    { label: 'Order the plan', reason: 'List every draft once.' },
+    { label: 'Write a draft: Shot 1', reason: 'request_id is stale' },
+  ]);
+});
+
 it('reads titled names and leaves delivery notes out of the brief check', () => {
   const brief =
     '## Characters\n- Dr. Amara Okafor-Lind: 52, silver-rimmed glasses, cheeky\n## Rules\n- Delivery: 2.39:1 widescreen (via Crop)';

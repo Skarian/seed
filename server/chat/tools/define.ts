@@ -1,5 +1,5 @@
 import type { AgentTool } from '@earendil-works/pi-agent-core';
-import type { ChatRevision, ChatView } from '../../../shared/chat.js';
+import type { ChatRevision, ChatView, StepFailure } from '../../../shared/chat.js';
 import type { Choice } from '../../../shared/choices.js';
 import type { ImageRequest } from '../../workflows.js';
 import type { Jobs } from '../../jobs.js';
@@ -19,8 +19,14 @@ export class ToolFailure extends Error {
     super(message);
   }
 }
-/** What a failed call returns to the agent, and what the turn's outcome reads back. */
-export type ToolFailureResult = { ok: false; error: string; internal?: true } & Record<string, unknown>;
+/**
+ * What a failed call returns to the agent: a StepFailure (read back by the transcript) and whatever the agent needs
+ * to try again.
+ */
+export type ToolFailureResult = { ok: false; error: string; internal?: true; fields?: StepFailure['fields'] } & Record<
+  string,
+  unknown
+>;
 
 /** What the tools may do to a project; the chat service provides it. */
 export interface ToolHost {
@@ -77,7 +83,7 @@ export function defineTool(spec: {
   parameters?: unknown;
   run: (input: Record<string, unknown>) => Record<string, unknown> | Promise<Record<string, unknown>>;
   /** Shapes every failure instead (the draft tools list field problems). */
-  failure?: (error: unknown) => Record<string, unknown>;
+  failure?: (error: unknown) => ToolFailureResult;
 }): AgentTool {
   return {
     name: spec.name,
@@ -94,11 +100,12 @@ export function defineTool(spec: {
         const result = { ok: true, ...(await spec.run((raw ?? {}) as Record<string, unknown>)) };
         return { content: [{ type: 'text' as const, text: JSON.stringify(result) }], details: result };
       } catch (error) {
-        const failed: Record<string, unknown> = spec.failure
+        const failed: ToolFailureResult = spec.failure
           ? spec.failure(error)
           : error instanceof ToolFailure
-            ? { ok: false, error: error.message, ...error.extra, ...(error.internal ? { internal: true } : {}) }
+            ? { ...error.extra, ok: false, error: error.message, ...(error.internal ? { internal: true } : {}) }
             : { ok: false, error: error instanceof Error ? error.message : String(error) };
+        // The agent library marks a call failed only when it throws: the failure travels as the error's text.
         throw Error(JSON.stringify(failed));
       }
     },

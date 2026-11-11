@@ -220,15 +220,6 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
     perform(r => chats.decideAll(id(r), r.params.group, r.body.decisions)),
   );
   app.post(
-    '/api/v1/chats/:id/cards/:card/decision',
-    {
-      schema: {
-        body: object({ revision: version, decision: { enum: ['approved', 'denied'] } }, ['revision', 'decision']),
-      },
-    },
-    perform(r => chats.decide(id(r), r.params.card, r.body.revision, r.body.decision)),
-  );
-  app.post(
     '/api/v1/chats/:id/cards/:card/revise',
     { bodyLimit: 64 * 1024, schema: { body: object({ revision: version, request: { type: 'object' } }) } },
     perform(r => chats.revise(id(r), r.params.card, r.body.revision, r.body.request)),
@@ -248,19 +239,7 @@ export function registerChats(app: FastifyInstance, chats: Chats, configured: ()
   );
   app.post(
     '/api/v1/chats/:id/cards/:card/repeat',
-    {
-      schema: {
-        body: object(
-          {
-            revision: version,
-            fresh: { type: 'boolean' },
-            failed_only: { type: 'boolean' },
-            job_id: { type: 'string' },
-          },
-          ['revision', 'fresh'],
-        ),
-      },
-    },
-    perform(r => chats.repeat(id(r), r.params.card, r.body.revision, r.body.fresh, r.body.failed_only, r.body.job_id)),
+    { schema: { body: object({ revision: version, fresh: { type: 'boolean' } }, ['revision', 'fresh']) } },
+    perform(r => chats.repeat(id(r), r.params.card, r.body.revision, r.body.fresh)),
   );
 }

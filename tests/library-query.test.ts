@@ -48,3 +48,7 @@ it('says what a picture is used as and can list only approved references',()=>fi
   expect(all.find(a=>a.id==='a-ridge')!.used_as).toEqual(['Chosen for The Knock']);
   expect(listAssets(db,'',50,'sfw',undefined,{approved:true}).map(a=>a.id)).toEqual(['a-lake']);
 }));
+it('names a chosen take by the brief’s own shot name, apostrophe and all',()=>fixture(db=>{
+  db.prepare("INSERT INTO chats (id, mode, body_json) VALUES (?, 'sfw', ?)").run('chat-a',JSON.stringify({brief:'## Shots\n1. The Knock: a fist on the door\n2. Noor’s Walk: she crosses the pier',choices:{references:{},takes:{'noor s walk':{image:'a-ridge'}}}}));
+  expect(listAssets(db,'',50,'sfw').find(a=>a.id==='a-ridge')!.used_as).toEqual(['Chosen for Shot 2: Noor’s Walk']);
+}));

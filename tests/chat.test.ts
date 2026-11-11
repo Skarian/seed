@@ -30,6 +30,8 @@ async function fixture(run:(f:{chats:Chats;jobs:Jobs;db:ReturnType<typeof openDa
   try{await run({chats,jobs,db,paths,queue,requests,titleRequests});}finally{await chats.close();db.close();rmSync(root,{recursive:true,force:true});}
 }
 async function idle(chats:Chats,id:string){for(let i=0;i<200;i++){const value=chats.view(id);if(value.activity==='idle')return value;await new Promise(r=>setTimeout(r,5));}throw Error('Agent did not settle.');}
+/** Decides the first plan as the owner does, in one go: every draft approved at its latest revision unless listed as denied, or at `revision`. */
+function decide(chats:Chats,id:string,denied:string[]=[],revision?:number){const plan=chats.view(id).groups[0]!;return chats.decideAll(id,plan.id,plan.cards.map(c=>({card:c.id,revision:revision??c.revisions.at(-1)!.number,decision:denied.includes(c.id)?'denied' as const:'approved' as const})));}
 
 it('lets the agent choose the kind of work, then prepare drafts with that kind’s tools in the same turn',async()=>fixture(async({chats,queue,requests})=>{
   let chat=chats.create('sfw');expect(chat.workflow).toBeNull();
@@ -49,6 +51,7 @@ it('marks Seed’s own slips in a tool’s answer, so a turn that drafted anyway
   const turn=chat.messages.at(-1)!.transcript!,slip=turn.steps.find(s=>s.name==='leave_out_request')!;
   expect(slip.state).toBe('failed');
   expect(JSON.parse((slip.result as any).content[0].text)).toMatchObject({ok:false,internal:true});
+  expect(slip.failure).toMatchObject({internal:true});
   const {turnOutcome}=await import('../shared/turn.js');
   expect(turnOutcome(turn)).toEqual({done:['Drafted a draft'],unfinished:[]});
 }));
@@ -152,7 +155,7 @@ it('switches kind with a plan open and keeps the drafts already in it',async()=>
 it('keeps the conversation open while approved results render, and a reply-only stop keeps the jobs',async()=>fixture(async({chats,jobs,queue})=>{
   let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
   queue.push([{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'A landscape',assets:[]});chat=await idle(chats,chat.id);
-  chat=await chats.decide(chat.id,chat.groups[0]!.cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(1);
+  chat=await decide(chats,chat.id);expect(jobs.all()).toHaveLength(1);
   chats.send(chat.id,{version:chat.version,text:'While that renders, what else could we try?',assets:[]});
   chat=chats.stop(chat.id,'reply');expect(jobs.all()[0]!.state).not.toBe('cancelled');
 }));
@@ -203,9 +206,8 @@ it('holds a whole group until all decisions and submits approved requests once',
   chats.send(chat.id,{version:chat.version,text:'Two ideas',assets:[]});chat=await idle(chats,chat.id);
   expect(chat.error).toBeNull();expect(requests.every(r=>r.tools.map((t:any)=>t.function.name).join()==='choose_kind,update_brief,create_request,edit_request,leave_out_request,order_requests,choose_take,approve_reference')).toBe(true);
   expect(chat.groups[0]!.after_message_id).toBe(chat.messages.filter(m=>m.role==='user').at(-1)!.id);expect(chat.messages.filter(m=>m.role==='assistant').at(-1)?.reasoning_text).toContain('I will prepare the requested scene.');const cards=chat.groups[0]!.cards;expect(cards).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
-  await chats.decide(chat.id,cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(0);
-  await chats.decide(chat.id,cards[1]!.id,1,'denied');expect(jobs.all()).toHaveLength(1);
-  await expect(chats.decide(chat.id,cards[0]!.id,1,'approved')).rejects.toThrow();expect(jobs.all()).toHaveLength(1);
+  await decide(chats,chat.id,[cards[1]!.id]);expect(jobs.all()).toHaveLength(1);
+  await decide(chats,chat.id,[cards[1]!.id]);expect(jobs.all()).toHaveLength(1);
   chats.stop(chat.id);expect(jobs.all()[0]!.state).toBe('cancelled');
 }));
 
@@ -213,8 +215,8 @@ it('freezes batch seeds at approval and edits a running request without cancelli
  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-image'});
  queue.push([{operation:'create',request:{...request,count:2}},{operation:'create',request}]);chats.send(chat.id,{version:chat.version,text:'Two requests',assets:[]});chat=await idle(chats,chat.id);
  const [first,second]=chat.groups[0]!.cards;
- chat=await chats.decide(chat.id,first!.id,1,'approved');const saved=chat.groups[0]!.cards[0]!.revisions[0]!.request.resolved_seeds!;expect(saved).toHaveLength(2);expect(jobs.all()).toHaveLength(0);
- chat=await chats.decide(chat.id,second!.id,1,'denied');expect(jobs.all().map(j=>j.seed)).toEqual(saved);
+ chat=await decide(chats,chat.id,[second!.id]);const saved=chat.groups[0]!.cards[0]!.revisions[0]!.request.resolved_seeds!;expect(saved).toHaveLength(2);
+ expect(jobs.all().map(j=>j.seed)).toEqual(saved);
  const job=jobs.all()[0]!;job.state='running';jobs.save(job);
  chat=chats.restore(chat.id,first!.id,1,{...request,prompt:'Changed scene',count:2,note:'My note'});expect(chat.groups.at(-1)!.cards[0]!.revisions.at(-1)!.request.note).toBe('My note');expect(jobs.get(job.id)!.state).toBe('running');
  chats.stop(chat.id);
@@ -223,7 +225,7 @@ it('freezes batch seeds at approval and edits a running request without cancelli
 it('feedback on a draft uses that draft’s kind, rejects stale versions, and preserves workflow after Stop',async()=>fixture(async({chats,queue})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
   const card=c.groups[0]!.cards[0]!;const oldVersion=c.version;c=chats.settings(c.id,c.version,{workflow:'text-to-video'});
-  expect(()=>chats.send(c.id,{version:oldVersion,text:'Hello',assets:[]})).toThrow('another tab');
+  expect(()=>chats.send(c.id,{version:oldVersion,text:'Hello',assets:[]})).toThrow('This project changed in another tab.');
   queue.push([],{say:'Noted.'});chats.send(c.id,{version:c.version,text:'Change it',assets:[],card_id:card.id,revision:1});c=await idle(chats,c.id);
   expect(c.workflow).toBe('text-to-image');
   c=chats.settings(c.id,c.version,{workflow:'text-to-video'});
@@ -239,35 +241,34 @@ it('the owner can turn a draft into another kind in place, keeping its place and
   expect(after.revisions.at(-1)!.request.title).toBe('Shot 1: Causeway');expect(c.groups[0]!.cards).toHaveLength(1);
 }));
 
-it('creates new revisions, retains sibling approvals and rejects stale edits',async()=>fixture(async({chats,queue})=>{
+it('creates new revisions and rejects stale edits',async()=>fixture(async({chats,queue})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request},{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Two',assets:[]});c=await idle(chats,c.id);
-  const [a,b]=c.groups[0]!.cards;await chats.decide(c.id,a!.id,1,'approved');chats.revise(c.id,b!.id,1,{...request,prompt:'Changed'});
-  c=chats.view(c.id);expect(c.groups[0]!.cards[0]!.revisions[0]!.decision).toBe('approved');expect(c.groups[0]!.cards[1]!.revisions.at(-1)!.decision).toBe('undecided');
+  const [,b]=c.groups[0]!.cards;chats.revise(c.id,b!.id,1,{...request,prompt:'Changed'});
+  c=chats.view(c.id);expect(c.groups[0]!.cards[1]!.revisions.at(-1)!.decision).toBe('undecided');
   expect(()=>chats.revise(c.id,b!.id,1,request)).toThrow('changed');
   expect(()=>chats.revise(c.id,b!.id,2,{...request,mode:'nsfw'})).toThrow('mode field');
 }));
 
 it('failed later preparation admits zero jobs',async()=>fixture(async({chats,jobs,queue})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request},{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Two',assets:[]});c=await idle(chats,c.id);
-  const [a,b]=c.groups[0]!.cards;await chats.decide(c.id,a!.id,1,'approved');
   const prepare=jobs.prepareSubmission.bind(jobs);let attempts=0;jobs.prepareSubmission=async(...args)=>{if(++attempts===2)throw Error('Preparation failed');return prepare(...args);};
-  await chats.decide(c.id,b!.id,1,'approved');expect(jobs.all()).toHaveLength(0);
+  await decide(chats,c.id);expect(jobs.all()).toHaveLength(0);
   const failed=chats.view(c.id),savedSeeds=failed.groups[0]!.cards.flatMap(card=>card.revisions.at(-1)!.request.resolved_seeds!);
   expect(failed.groups[0]!.submission_error).toBe('Preparation failed');expect(failed.error).toBeNull();expect(failed.activity).toBe('idle');
   expect(chats.list('sfw')[0]!.error).toBe('Preparation failed');
-  const retried=await chats.decide(c.id,b!.id,1,'approved');
+  const retried=await decide(chats,c.id);
   expect(retried.groups[0]!.submission_error).toBeUndefined();expect(retried.groups[0]!.state).toBe('released');
   expect(jobs.all().map(job=>job.seed)).toEqual(savedSeeds);
-  await expect(chats.decide(c.id,b!.id,1,'approved')).rejects.toThrow();expect(jobs.all()).toHaveLength(2);
+  await decide(chats,c.id);expect(jobs.all()).toHaveLength(2);
 }));
 
 it.each(['resolve','reject'])('Stop fences %s of delayed preparation without a late error',async outcome=>fixture(async({chats,jobs,queue,db})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
   let entered!:()=>void,finish!:()=>void;const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{finish=resolve;});
   const prepare=jobs.prepareSubmission.bind(jobs);jobs.prepareSubmission=async(...args)=>{const result=await prepare(...args);entered();await gate;if(outcome==='reject')throw Error('Late preparation failure');return result;};
-  const approval=chats.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');await started;
+  const approval=decide(chats,c.id);await started;
   const stopped=chats.stop(c.id);expect(stopped.groups[0]!.state).toBe('stopped');
-  await expect(chats.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved')).rejects.toThrow();
+  await decide(chats,c.id);
   finish();await approval;
   const after=chats.view(c.id);expect(jobs.all()).toHaveLength(0);expect(after.groups[0]!.state).toBe('stopped');expect(after.groups[0]!.submission_error).toBeUndefined();expect(after.error).toBeNull();expect(after.activity).toBe('idle');
   expect(JSON.parse((db.prepare('SELECT body_json FROM chats WHERE id=?').get(c.id) as any).body_json).activity).toBe('idle');
@@ -277,7 +278,7 @@ it('keeps a choice made while a plan prepares, and still starts the plan',async(
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
   let entered!:()=>void,finish!:()=>void;const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{finish=resolve;});
   const prepare=jobs.prepareSubmission.bind(jobs);jobs.prepareSubmission=async(...args)=>{const result=await prepare(...args);entered();await gate;return result;};
-  const approval=chats.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');await started;
+  const approval=decide(chats,c.id);await started;
   chats.choose(c.id,{reference:'Mara',asset:'skip'});finish();const after=await approval;
   expect(jobs.all()).toHaveLength(1);expect(after.groups[0]!.state).toBe('released');expect(after.groups[0]!.submission_error).toBeUndefined();
   expect(after.choices?.references.Mara).toBe('skip');
@@ -289,7 +290,7 @@ it('lets the owner decide a plan whose revision was cut off by a restart',async(
   stored.groups[0].state='revising';stored.activity='thinking';db.prepare('UPDATE chats SET body_json=? WHERE id=?').run(JSON.stringify(stored),c.id);
   const restarted=new Chats(db,paths,jobs);try{
     expect(restarted.view(c.id).groups[0]!.state).toBe('reviewing');
-    await restarted.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');expect(jobs.all()).toHaveLength(1);
+    await decide(restarted,c.id);expect(jobs.all()).toHaveLength(1);
   }finally{await restarted.close();}
 }));
 
@@ -297,18 +298,18 @@ it('persists the preparing handoff and recovers it without automatically admitti
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request:{...request,count:2}}]);chats.send(c.id,{version:c.version,text:'Two images',assets:[]});c=await idle(chats,c.id);
   let entered!:()=>void,finish!:()=>void;const started=new Promise<void>(resolve=>{entered=resolve;}),gate=new Promise<void>(resolve=>{finish=resolve;});
   const prepare=jobs.prepareSubmission.bind(jobs);jobs.prepareSubmission=async(...args)=>{entered();await gate;return prepare(...args);};
-  const card=c.groups[0]!.cards[0]!,approval=chats.decide(c.id,card.id,1,'approved');await started;
+  const approval=decide(chats,c.id);await started;
   const snapshot=(db.prepare('SELECT body_json FROM chats WHERE id=?').get(c.id) as {body_json:string}).body_json,stored=JSON.parse(snapshot);
   expect(stored.activity).toBe('preparing');expect(stored.groups[0].cards[0].revisions[0].decision).toBe('approved');expect(chats.view(c.id).activity).toBe('preparing');expect(jobs.all()).toHaveLength(0);
-  await expect(chats.decide(c.id,card.id,1,'approved')).rejects.toThrow('Wait');
+  await expect(decide(chats,c.id)).rejects.toThrow('Wait');
   // Drain the old instance, then restore the exact pre-commit bytes a new process would read.
   chats.stop(c.id);finish();await approval;jobs.prepareSubmission=prepare;
   db.prepare('UPDATE chats SET body_json=? WHERE id=?').run(snapshot,c.id);
   const restarted=new Chats(db,paths,jobs);
   try{
-    const recovered=restarted.view(c.id);expect(recovered.activity).toBe('idle');expect(recovered.groups[0]!.submission_error).toContain('interrupted by server restart');expect(jobs.all()).toHaveLength(0);
-    await restarted.decide(c.id,card.id,1,'approved');expect(jobs.all().map(job=>job.seed)).toEqual(stored.groups[0].cards[0].revisions[0].request.resolved_seeds);
-    const afterCommit=new Chats(db,paths,jobs);try{expect(afterCommit.view(c.id).groups[0]!.cards[0]!.revisions[0]!.job_ids).toEqual(jobs.all().map(job=>job.id));await expect(afterCommit.decide(c.id,card.id,1,'approved')).rejects.toThrow();expect(jobs.all()).toHaveLength(2);}finally{await afterCommit.close();}
+    const recovered=restarted.view(c.id);expect(recovered.activity).toBe('idle');expect(recovered.groups[0]!.submission_error).toContain('Seed restarted while this plan was getting ready');expect(jobs.all()).toHaveLength(0);
+    await decide(restarted,c.id);expect(jobs.all().map(job=>job.seed)).toEqual(stored.groups[0].cards[0].revisions[0].request.resolved_seeds);
+    const afterCommit=new Chats(db,paths,jobs);try{expect(afterCommit.view(c.id).groups[0]!.cards[0]!.revisions[0]!.job_ids).toEqual(jobs.all().map(job=>job.id));await decide(afterCommit,c.id);expect(jobs.all()).toHaveLength(2);}finally{await afterCommit.close();}
   }finally{await restarted.close();}
 }));
 
@@ -320,7 +321,7 @@ it.each(['legacy','failed','all-denied','undecided'])('recovers %s review record
   stored.error='An earlier agent error';db.prepare('UPDATE chats SET body_json=? WHERE id=?').run(JSON.stringify(stored),c.id);
   const restarted=new Chats(db,paths,jobs);try{
     const recovered=restarted.view(c.id),saved=recovered.groups[0]!;expect(jobs.all()).toHaveLength(0);expect(recovered.error).toBe('An earlier agent error');
-    if(state==='legacy'){expect(saved.submission_error).toBe('These approved requests did not start. Retry to continue.');expect(saved.submission_error).not.toContain('restart');}
+    if(state==='legacy'){expect(saved.submission_error).toBe('These drafts were approved but did not start. Choose Make to try again.');expect(saved.submission_error).not.toContain('restart');}
     else if(state==='failed')expect(saved.submission_error).toBe(group.submission_error);
     else expect(saved.submission_error).toBeUndefined();
     expect(saved.state).toBe(state==='all-denied'?'released':'reviewing');
@@ -330,11 +331,11 @@ it.each(['legacy','failed','all-denied','undecided'])('recovers %s review record
 it('clears preparation errors on new revisions and closes all-denied reviews without preparation',async()=>fixture(async({chats,jobs,queue})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
   let attempts=0;jobs.prepareSubmission=async()=>{attempts++;throw Error('Input preparation failed');};
-  const card=c.groups[0]!.cards[0]!;await chats.decide(c.id,card.id,1,'approved');expect(chats.view(c.id).groups[0]!.submission_error).toBeTruthy();
+  const card=c.groups[0]!.cards[0]!;await decide(chats,c.id);expect(chats.view(c.id).groups[0]!.submission_error).toBeTruthy();
   c=chats.revise(c.id,card.id,1,{...request,prompt:'Changed landscape'});expect(c.groups[0]!.submission_error).toBeUndefined();
-  await expect(chats.decide(c.id,card.id,1,'approved')).rejects.toThrow();expect(attempts).toBe(1);
-  await chats.decide(c.id,card.id,2,'approved');expect(chats.view(c.id).groups[0]!.submission_error).toBeTruthy();
-  c=await chats.decide(c.id,card.id,2,'denied');expect(c.groups[0]!.state).toBe('released');expect(c.groups[0]!.submission_error).toBeUndefined();expect(c.activity).toBe('idle');expect(attempts).toBe(2);expect(jobs.all()).toHaveLength(0);
+  await expect(decide(chats,c.id,[],1)).rejects.toThrow('changed');expect(attempts).toBe(1);
+  await decide(chats,c.id);expect(chats.view(c.id).groups[0]!.submission_error).toBeTruthy();
+  c=await decide(chats,c.id,[card.id]);expect(c.groups[0]!.state).toBe('released');expect(c.groups[0]!.submission_error).toBeUndefined();expect(c.activity).toBe('idle');expect(attempts).toBe(2);expect(jobs.all()).toHaveLength(0);
 }));
 
 it('shipped prompt copies are editable, preserved and loaded next run',async()=>fixture(async({paths})=>{
@@ -372,10 +373,10 @@ it('reference reordering preserves meaning and removal needs prompt correction',
 
 it('Stop allows discussion while remote cancellation remains pending',async()=>fixture(async({chats,jobs,queue})=>{
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
-  await chats.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');const job=jobs.all()[0]!;job.state='running';jobs.save(job);
+  await decide(chats,c.id);const job=jobs.all()[0]!;job.state='running';jobs.save(job);
   c=chats.stop(c.id);expect(c.activity).toBe('idle');expect(jobs.get(job.id)!.state).toBe('cancel_requested');
   chats.send(c.id,{version:c.version,text:'Let us discuss the next shot',assets:[]});c=await idle(chats,c.id);expect(c.error).toBeNull();
-  expect(()=>chats.delete(c.id)).toThrow('cancellation');
+  expect(()=>chats.delete(c.id)).toThrow('A GPU is still stopping or saving this project’s takes.');
 }));
 
 it('compacts older dialogue while retaining recent turns and the original history',async()=>{
@@ -436,30 +437,18 @@ it('a delayed title never overwrites a manual rename',async()=>fixture(async({db
  try{let chat=service.create('sfw');service.send(chat.id,{version:chat.version,text:'First message',assets:[]});chat=await idle(service,chat.id);chat=service.settings(chat.id,chat.version,{title:'Keep this name'});release();await new Promise(resolve=>setTimeout(resolve,30));expect(service.view(chat.id).title).toBe('Keep this name');}finally{release();await service.close();}
 }));
 
-it('retries only the selected output as an unsubmitted chat review',async()=>fixture(async({chats,jobs,queue})=>{
+it('puts a made draft back up for review with the same seeds, or fresh ones',async()=>fixture(async({chats,jobs,queue})=>{
  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
  queue.push([{operation:'create',request:{...request,count:2}}]);chats.send(c.id,{version:c.version,text:'Two images',assets:[]});c=await idle(chats,c.id);
- const card=c.groups[0]!.cards[0]!;await chats.decide(c.id,card.id,1,'approved');
- const original=jobs.all()[1]!;original.state='failed';jobs.save(original);
- c=chats.repeat(c.id,card.id,1,false,false,original.id);
+ const card=c.groups[0]!.cards[0]!;await decide(chats,c.id);
+ c=chats.repeat(c.id,card.id,1,false);
  const revision=c.groups.at(-1)!.cards[0]!.revisions[0]!;
- expect(revision.request.count).toBe(1);expect(revision.request.seed).toBe(original.seed);
- expect(revision.request.resolved_seeds).toEqual([original.seed]);expect(revision.decision).toBe('undecided');expect(revision.job_ids).toEqual([]);expect(jobs.all()).toHaveLength(2);
- expect(()=>chats.repeat(c.id,card.id,1,true,false,original.id)).toThrow('Resolve or stop');
- c=chats.stop(c.id);c=chats.repeat(c.id,card.id,1,true,false,original.id);
+ expect(revision.request.count).toBe(2);expect(revision.request.resolved_seeds).toEqual(jobs.all().map(j=>j.seed));
+ expect(revision.decision).toBe('undecided');expect(revision.job_ids).toEqual([]);expect(jobs.all()).toHaveLength(2);
+ expect(()=>chats.repeat(c.id,card.id,1,true)).toThrow('Make or stop the open plan first.');
+ c=chats.stop(c.id);c=chats.repeat(c.id,card.id,1,true);
  expect(c.groups.at(-1)!.cards[0]!.revisions[0]!.request.seed).toBe('random');
  expect(jobs.all()).toHaveLength(2);
-}));
-
-it('branches Generate into a new chat and Chat back into its original conversation',async()=>fixture(async({chats,jobs,queue})=>{
- const submitted=await jobs.submit({...request,workflow:'text-to-image',mode:'sfw',},'branch-generated-123');
- const job=submitted.jobs[0]!;const created=chats.branch([job.id],false);
- expect(created.groups[0]!.cards[0]!.revisions[0]).toMatchObject({decision:'undecided',job_ids:[],request:{count:1,seed:job.seed}});
- expect(created.workflow).toBe('text-to-image');expect(jobs.all()).toHaveLength(1);
- let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'An image',assets:[]});c=await idle(chats,c.id);
- await chats.decide(c.id,c.groups[0]!.cards[0]!.id,1,'approved');const fromChat=jobs.all().find(j=>j.source?.chat_id===c.id)!;
- const branched=chats.branch([fromChat.id],true);expect(branched.id).toBe(c.id);expect(branched.groups.at(-1)!.cards[0]!.revisions[0]!.request.seed).toBe('random');
- expect(()=>chats.branch([fromChat.id],true)).toThrow('Resolve or stop');expect(jobs.all()).toHaveLength(2);
 }));
 
 it('anchors replacements below replies and keeps only the latest revision approvable',async()=>fixture(async({chats,queue,jobs})=>{
@@ -468,19 +457,17 @@ it('anchors replacements below replies and keeps only the latest revision approv
  chats.send(c.id,{version:c.version,text:'Two scenes',assets:[]});c=await idle(chats,c.id);
  const [a,b]=c.groups[0]!.cards;const originalAnchor=a!.revisions[0]!.after_message_id;
  expect(originalAnchor).toBe(c.messages.at(-1)!.id);
- await chats.decide(c.id,b!.id,1,'approved');c=chats.view(c.id);
  queue.push([{operation:'create',request:{...request,prompt:'Updated scene'}}]);
  chats.send(c.id,{version:c.version,text:'Change this scene',assets:[],card_id:a!.id,revision:1});c=await idle(chats,c.id);
  expect(c.groups[0]!.cards).toHaveLength(2);
  const revised=c.groups[0]!.cards[0]!;expect(revised.revisions).toHaveLength(2);
  expect(revised.revisions[0]!.after_message_id).toBe(originalAnchor);
  expect(revised.revisions[1]!.after_message_id).toBe(c.messages.at(-1)!.id);
- expect(c.groups[0]!.cards[1]!.revisions[0]!.decision).toBe('approved');
- await expect(chats.decide(c.id,a!.id,1,'approved')).rejects.toThrow();
+ await expect(decide(chats,c.id,[],1)).rejects.toThrow('changed');
  expect(jobs.all()).toHaveLength(0);
  c=chats.revise(c.id,a!.id,2,{...request,prompt:'Manual change'});
  expect(c.groups[0]!.cards[0]!.revisions[2]!.after_message_id).toBe(c.messages.at(-1)!.id);
- await chats.decide(c.id,a!.id,3,'approved');expect(jobs.all()).toHaveLength(2);chats.stop(c.id);
+ await decide(chats,c.id);expect(jobs.all()).toHaveLength(2);chats.stop(c.id);
 }));
 
 it('only skips images for unambiguous settings changes',()=>{
@@ -528,7 +515,7 @@ it('persists the sent request snapshot independently of later revisions',async()
  queue.push([{operation:'revise',request_id:card.id,expected_revision:1,changes:{prompt:'A misty landscape'}}]);chats.send(c.id,{version:c.version,text:'Add mist',assets:[],card_id:card.id,revision:1,attach_request:true});c=await idle(chats,c.id);
  const message=c.messages.filter(m=>m.role==='user').at(-1)!;expect(message.request_attachment).toMatchObject({card_id:card.id,revision:1,request:{prompt:request.prompt}});expect(c.groups[0]!.cards[0]!.revisions.at(-1)!.request.prompt).toBe('A misty landscape');
  c=chats.revise(c.id,card.id,2,{...request,prompt:'Another edit'});expect(c.messages.find(m=>m.id===message.id)!.request_attachment!.request.prompt).toBe(request.prompt);
- expect(()=>chats.send(c.id,{version:c.version,text:'Missing target',assets:[],attach_request:true})).toThrow('Choose the request');
+ expect(()=>chats.send(c.id,{version:c.version,text:'Missing target',assets:[],attach_request:true})).toThrow('Choose the draft to attach.');
 }));
 
 it('records rejected and successful attempts separately with exact arguments and timings',async()=>fixture(async({chats,queue,db})=>{
@@ -550,7 +537,7 @@ it('Chat supplies owner LoRA guidance and approves without a pricing service',as
   const context=JSON.stringify(requests[0]);expect(context).toContain('Soft landscapes. Use 0.8');expect(context).toContain('default_scale');expect(context).not.toContain('Private adapter');
   expect(chat.error).toBeNull();const card=chat.groups[0]!.cards[0]!,proposal=card.revisions[0]!.request;expect(proposal.loras).toEqual([{id:'watercolor',revision:'v1',scale:.8}]);
   expect(jobs.all()).toHaveLength(0);
-  await chats.decide(chat.id,card.id,1,'approved');
+  await decide(chats,chat.id);
   expect(jobs.all()[0]).toMatchObject({request:{loras:proposal.loras}});expect(jobs.all()[0]).not.toHaveProperty('estimate');
 }));
 
@@ -576,6 +563,15 @@ it('saves a new clip silent when nobody asked for sound, and tells the agent',as
   chats.send(chat.id,{version:chat.version,text:'A five-second clip of fog drifting over the pier',assets:[]});chat=await idle(chats,chat.id);
   const card=chat.groups[0]!.cards[0]!;expect(card.revisions.at(-1)!.request.audio?.output).toBe('silent');
   expect(JSON.stringify(requests.at(-1).messages)).toContain('Saved silent');
+}));
+
+it('keeps sound the owner asked for in words, and the plan does not call it added',async()=>fixture(async({chats,queue})=>{
+  let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow:'text-to-video'});
+  queue.push([{operation:'create',request:{prompt:'Noor walks the pier at dusk, footsteps on the boards',seed:'random',count:1,output:{aspect:'16:9',duration_seconds:5},audio:{output:'generated'}}}]);
+  chats.send(chat.id,{version:chat.version,text:'Animate shot 2, we hear footsteps on the pier',assets:[]});chat=await idle(chats,chat.id);
+  const card=chat.groups[0]!.cards[0]!;expect(card.revisions.at(-1)!.request.audio?.output).toBe('generated');
+  const {checkDraft}=await import('../web/app/project/checks.js');
+  expect(checkDraft(card as any,chat as any).map(c=>c.code)).not.toContain('added-sound');
 }));
 
 it('keeps the last selected draft in the plan and lets the agent reorder drafts',async()=>fixture(async({chats,queue,requests})=>{
@@ -635,7 +631,7 @@ it('bringing back several drafts joins them into one plan',async()=>fixture(asyn
   let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});queue.push([{operation:'create',request}]);chats.send(c.id,{version:c.version,text:'Image',assets:[]});c=await idle(chats,c.id);
   const card=c.groups[0]!.cards[0]!;chats.stop(c.id);
   c=chats.restore(c.id,card.id,1,request);const groups=c.groups.length;
-  expect(()=>chats.restore(c.id,card.id,1,request)).toThrow(/Resolve or stop/);
+  expect(()=>chats.restore(c.id,card.id,1,request)).toThrow('Make or stop the open plan first.');
   c=chats.restore(c.id,card.id,1,{...request,prompt:'Another'},true);
   expect(c.groups).toHaveLength(groups);expect(c.groups.at(-1)!.cards).toHaveLength(2);
 }));

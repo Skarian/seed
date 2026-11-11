@@ -1,24 +1,16 @@
-import { bindChatMentions, agentMentionContext } from './mentions.js';
+import { bindChatMentions } from './mentions.js';
 import { loraRoute } from '../../shared/workflows.js';
 import type { MentionBinding } from '../../shared/chat-mentions.js';
 import { createReadInputTool } from './read-input.js';
-import { requestToolRules, toolInputLabels, type ToolAsset } from './request-tools.js';
+import { requestToolRules, type ToolAsset } from './request-tools.js';
 import { visualContext } from './visual-context.js';
 import { recordTurnEvent, finishTurn } from './transcript.js';
-import {
-  agentRequest,
-  chatKinds,
-  latest,
-  now,
-  openGroup,
-  referenceMode,
-  settlePlan,
-  type StoredChat,
-} from './model.js';
-import { current as activeChat, defineTool, ToolFailure, type ToolHost, type ToolSession } from './tools/define.js';
+import { latest, now, openGroup, referenceMode, settlePlan, type StoredChat } from './model.js';
+import { type ToolHost, type ToolSession } from './tools/define.js';
 import { draftTools } from './tools/drafts.js';
 import { planTools } from './tools/plan.js';
 import { briefTool } from './tools/brief.js';
+import { kindTool, styleCatalog } from './tools/kind.js';
 import type Database from 'better-sqlite3';
 import { createHash, randomUUID } from 'node:crypto';
 
@@ -26,24 +18,25 @@ import type { Agent, AgentTool } from '@earendil-works/pi-agent-core';
 import type { ChatView, ChatMode, ChatWorkflow, ChatGroup, ChatCard, ChatRevision } from '../../shared/chat.js';
 import type { StudioPaths } from '../storage.js';
 import { imageRequest, seeds, type ImageRequest } from '../workflows.js';
-import type { Job, Jobs } from '../jobs.js';
+import type { Jobs } from '../jobs.js';
 import { createChatAgent, type ChatAccounting } from './provider.js';
 import { chatCredential } from './credentials.js';
 import { chatPromptSnapshot, chatWorkflows, chatTitlePrompt } from './prompts.js';
-import { chatReferenceLabels, preserveChatLabels, validateChatReferences } from './references.js';
-import { compactConversation, settingsOnlyMessage } from './context.js';
-import { jobActive } from '../../shared/jobs.js';
+import { preserveChatLabels, validateChatReferences } from './references.js';
+import {
+  agentContext,
+  agentHistory,
+  compactConversation,
+  inputRanges,
+  nameInputs,
+  settingsOnlyMessage,
+  toolAssetsOf,
+  type ContextAsset,
+} from './context.js';
+import { isTerminal, jobActive } from '../../shared/jobs.js';
 import { movePlan, planOpen } from '../../shared/plan.js';
 import { castOf, mergeCast, briefWithCast, type CastEntry } from '../../shared/cast.js';
-import {
-  applyChoice,
-  approvedReference,
-  chosenAs,
-  noChoices,
-  referenceSkipped,
-  renameReference,
-  type Choice,
-} from '../../shared/choices.js';
+import { applyChoice, chosenAs, noChoices, renameReference, shotLabel, type Choice } from '../../shared/choices.js';
 import { shotsFromBrief, shotNameKey, shotFromTitle } from '../../shared/shots.js';
 
 /**
@@ -86,7 +79,6 @@ function replyText(steps: Array<{ kind: string; text?: string }>) {
   }
   return kept.join('\n\n');
 }
-const terminal = ['completed', 'failed', 'cancelled'];
 
 export class Chats {
   private listeners = new Map<string, Set<(value: unknown) => void>>();
@@ -142,8 +134,8 @@ export class Chats {
           if (!group.submission_error) {
             group.submission_error =
               chat.activity === 'preparing'
-                ? 'Preparation was interrupted by server restart. Retry to continue.'
-                : 'These approved requests did not start. Retry to continue.';
+                ? 'Seed restarted while this plan was getting ready. Choose Make to try again.'
+                : 'These drafts were approved but did not start. Choose Make to try again.';
             changed = true;
           }
         } else {
@@ -153,14 +145,14 @@ export class Chats {
         }
       }
       if (chat.activity === 'thinking' || chat.activity === 'preparing') {
-        if (chat.activity === 'thinking') chat.error = 'Interrupted by server restart. Send a message to continue.';
+        if (chat.activity === 'thinking') chat.error = 'Seed restarted while replying. Send a message to continue.';
         chat.activity = 'idle';
         settlePlan(chat);
         changed = true;
         for (const message of chat.messages)
           if (message.transcript?.state === 'running') {
             finishTurn(message.transcript, 'failed');
-            message.transcript.error = 'Interrupted by server restart.';
+            message.transcript.error = 'Seed restarted while replying.';
           }
       }
       if (changed) this.save(chat);
@@ -205,7 +197,7 @@ export class Chats {
   }
   private get(id: string): StoredChat {
     const row = this.db.prepare('SELECT body_json FROM chats WHERE id=?').get(id) as { body_json: string } | undefined;
-    if (!row) throw Error('Chat not found.');
+    if (!row) throw Error('Project not found.');
     return JSON.parse(row.body_json);
   }
   private jobIds(chat: ChatView) {
@@ -238,7 +230,7 @@ export class Chats {
     return this.tasks.has(chat.id) || this.preparing.has(chat.id);
   }
   private checkVersion(chat: ChatView, version: number) {
-    if (chat.version !== version) throw Error('Chat changed in another tab. Refresh and send again.');
+    if (chat.version !== version) throw Error('This project changed in another tab. Refresh and try again.');
   }
   view(id: string) {
     const chat = this.get(id);
@@ -272,11 +264,7 @@ export class Chats {
             c.error ??
             c.groups.find(g => g.state === 'reviewing' && g.submission_error)?.submission_error ??
             jobs.find(j => j.state === 'failed')?.error,
-          status: jobs.some(j => j.state === 'failed')
-            ? 'Failed'
-            : jobs.length && jobs.every(j => terminal.includes(j.state))
-              ? 'Completed'
-              : '',
+          ...(jobs.some(j => j.state === 'failed') ? { status: 'Failed' as const } : {}),
           updated_at: c.updated_at,
         };
       })
@@ -310,14 +298,15 @@ export class Chats {
   ) {
     const chat = this.get(id);
     this.checkVersion(chat, version);
-    if (this.agentBusy(chat)) throw Error('Wait for Seed to finish before changing chat settings.');
+    if (this.agentBusy(chat)) throw Error('Wait for Seed to finish before changing project settings.');
     if (values.title !== undefined) {
       if (!values.title.trim() || values.title.length > 120) throw Error('Choose a title of 1–120 characters.');
       chat.title = values.title.trim();
       chat.title_manual = true;
     }
     if (values.workflow !== undefined) {
-      if (values.workflow !== null && !Object.hasOwn(chatWorkflows, values.workflow)) throw Error('Unknown workflow.');
+      if (values.workflow !== null && !Object.hasOwn(chatWorkflows, values.workflow))
+        throw Error('Choose image, edit, video or animate.');
       chat.workflow = values.workflow;
     }
     if (values.reasoning !== undefined) chat.reasoning = values.reasoning;
@@ -410,11 +399,9 @@ export class Chats {
   }
   delete(id: string) {
     const chat = this.get(id);
-    if (this.busy(chat)) throw Error('Stop generation before deleting this chat, then try again.');
-    if (this.chatJobs(chat).some(job => !terminal.includes(job.state)))
-      throw Error(
-        'Remote cancellation or output saving is still pending. Check the worker status and try deletion after it settles.',
-      );
+    if (this.busy(chat)) throw Error('Stop Seed and the takes being made before deleting this project.');
+    if (this.chatJobs(chat).some(job => !isTerminal(job.state)))
+      throw Error('A GPU is still stopping or saving this project’s takes. Delete it again once that finishes.');
     this.titles.get(id)?.agent.abort();
     this.db.prepare('DELETE FROM chats WHERE id=?').run(id);
   }
@@ -437,48 +424,63 @@ export class Chats {
     return this.view(id);
   }
   private assertAssets(chat: StoredChat, ids: string[], allowExisting = true) {
-    if (ids.length > 24 || new Set(ids).size !== ids.length) throw Error('Choose up to 24 distinct assets.');
+    if (ids.length > 24 || new Set(ids).size !== ids.length) throw Error('Choose up to 24 different inputs.');
     for (const id of ids) {
       const asset = this.jobs.media.get(id);
       if (!asset || (asset.metadata.state ?? 'ready') !== 'ready')
-        throw Error('An attached asset is missing or still uploading.');
+        throw Error('An attached input is missing or still uploading.');
       const row = this.db
         .prepare(
           `SELECT COALESCE(json_extract(metadata_json,'$.mode'),(SELECT json_extract(snapshot_json,'$.request.mode') FROM jobs WHERE jobs.id=json_extract(assets.metadata_json,'$.job_id')),'sfw') mode FROM assets WHERE id=?`,
         )
         .get(id) as { mode: string };
       if (!(allowExisting && chat.assets.includes(id)) && row.mode !== chat.mode)
-        throw Error('Choose assets available in this chat.');
+        throw Error('Choose inputs available in this project.');
     }
   }
-  private contextAssets(chat: StoredChat) {
+  /** The project's assets as Seed reads them, from one read of the assets and their notes and one of their jobs. */
+  private contextAssets(chat: StoredChat): ContextAsset[] {
+    const rows = this.db
+      .prepare(
+        `SELECT a.id, a.name, a.kind, a.metadata_json, n.note,
+          (SELECT s.note FROM sequence_frames f JOIN asset_notes s ON s.id=f.sequence_id WHERE f.asset_id=a.id) inherited
+        FROM assets a LEFT JOIN asset_notes n ON n.id=a.id WHERE a.id IN (SELECT value FROM json_each(?))`,
+      )
+      .all(JSON.stringify(chat.assets)) as Array<{
+      id: string;
+      name: string;
+      kind: string;
+      metadata_json: string;
+      note: string | null;
+      inherited: string | null;
+    }>;
+    const assets = new Map(
+      rows.map(r => [r.id, { ...r, metadata: JSON.parse(r.metadata_json) as Record<string, any> }]),
+    );
+    const jobs = new Map(
+      this.jobs
+        .many([...assets.values()].map(a => a.metadata.job_id).filter(j => typeof j === 'string'))
+        .map(j => [j.id, j]),
+    );
+    const shots = shotsFromBrief(chat.brief);
+    // A shot renumbered in the brief is named by its current number ("Shot 6: First Light", not "Shot 5: …").
+    const renumbered = (t: string) => {
+      const own = shotFromTitle(t);
+      if (own.n === null) return t;
+      const listed = shots.find(s => shotNameKey(s.name) === shotNameKey(own.name));
+      return listed && listed.n !== own.n ? t.replace(/^shot\s*\d+/i, 'Shot ' + listed.n) : t;
+    };
     return chat.assets.map(id => {
-      const asset = this.jobs.media.get(id);
-      const own = this.db.prepare('SELECT note FROM asset_notes WHERE id=?').get(id) as { note: string } | undefined;
-      const inherited = this.db
-        .prepare('SELECT n.note FROM sequence_frames f JOIN asset_notes n ON n.id=f.sequence_id WHERE f.asset_id=?')
-        .get(id) as { note: string } | undefined;
+      const asset = assets.get(id);
       // A generated result is named by the draft that made it and its take, so Seed can tell "Shot 2 · take 1" from "Shot 1".
-      const job = typeof asset?.metadata?.job_id === 'string' ? this.jobs.get(asset.metadata.job_id) : undefined;
-      // A shot renumbered in the brief is named by its current number ("Shot 6: First Light", not "Shot 5: …").
-      const renumbered = (t: string) => {
-        const own = shotFromTitle(t);
-        if (own.n === null) return t;
-        const listed = shotsFromBrief(chat.brief).find(s => shotNameKey(s.name) === shotNameKey(own.name));
-        return listed && listed.n !== own.n ? t.replace(/^shot\s*\d+/i, 'Shot ' + listed.n) : t;
-      };
+      const job = jobs.get(asset?.metadata.job_id);
       const title = job?.request.title
         ? `${renumbered(job.request.title)}${(job.request.count ?? 1) > 1 ? ` · take ${(job.submission_index ?? 0) + 1} of ${job.request.count}` : ''}`
         : undefined;
-      const shotLabel = (key: string) => {
-        if (key.startsWith('#')) return 'Shot ' + key.slice(1);
-        const listed = shotsFromBrief(chat.brief).find(s => shotNameKey(s.name) === key);
-        return listed ? `Shot ${listed.n}: ${listed.name}` : `the shot “${key}”`;
-      };
       const chosen = chosenAs(chat.choices, id).map(c =>
         'reference' in c
           ? `approved reference for ${c.reference}`
-          : `chosen ${c.kind === 'clip' ? 'clip' : 'keyframe'} for ${shotLabel(c.shot)}`,
+          : `chosen ${c.kind === 'clip' ? 'clip' : 'keyframe'} for ${shotLabel(shots, c.shot)}`,
       );
       return {
         id,
@@ -486,14 +488,15 @@ export class Chats {
         ...(chosen.length ? { chosen_for: chosen.join(', ') } : {}),
         kind: asset?.kind,
         metadata: asset?.metadata,
-        note: own?.note || inherited?.note || '',
+        note: asset?.note || asset?.inherited || '',
       };
     });
   }
   private request(chat: StoredChat, workflow: ChatWorkflow, raw: unknown, previous?: ImageRequest): ImageRequest {
     const value = raw as Record<string, unknown>;
-    if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Provide request settings.');
-    if (chat.mode === 'sfw' && Object.hasOwn(value, 'mode')) throw Error('This request cannot supply a mode field.');
+    if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Provide the draft’s settings.');
+    if (chat.mode === 'sfw' && Object.hasOwn(value, 'mode'))
+      throw Error('A draft in this project cannot set a mode field.');
     let request: ImageRequest;
     request = imageRequest({ ...value, workflow, mode: chat.mode === 'sfw' ? 'sfw' : (value.mode ?? 'nsfw') });
     if (previous) {
@@ -503,7 +506,7 @@ export class Chats {
     validateChatReferences(request);
     if (request.workflow !== 'image-to-image') this.jobs.loras.resolve(request.loras, loraRoute(request), request.mode);
     for (const ref of request.references ?? [])
-      if (!chat.assets.includes(ref.asset_id)) throw Error('Reference must be provided in this conversation.');
+      if (!chat.assets.includes(ref.asset_id)) throw Error('Add this input to the project first.');
     this.assertAssets(chat, [...new Set((request.references ?? []).map(r => r.asset_id))]);
     return request;
   }
@@ -583,11 +586,11 @@ export class Chats {
     if (input.card_id) {
       target = group?.cards.find(c => c.id === input.card_id);
       if (!target || latest(target).number !== input.revision)
-        throw Error('This card changed or already started. Refresh it.');
+        throw Error('This draft changed or already started. Refresh it.');
       // Feedback on one draft uses that draft's kind of tools, whatever kind Seed worked in last.
       if (target.workflow !== chat.workflow) chat.workflow = target.workflow;
     }
-    if (input.attach_request && !target) throw Error('Choose the request to attach.');
+    if (input.attach_request && !target) throw Error('Choose the draft to attach.');
     const contextCards = target
       ? [target]
       : ((group ?? [...chat.groups].reverse().find(g => g.workflow === chat.workflow))?.cards ?? []);
@@ -769,59 +772,15 @@ export class Chats {
   ) {
     try {
       const chat = this.get(id);
-      const ranges = new Map<string, Array<{ start_seconds: number; duration_seconds: number; input_id: string }>>();
-      for (const ref of chat.groups
-        .flatMap(g => g.cards)
-        .filter(c => contextCardIds.includes(c.id))
-        .flatMap(c => latest(c).request.references ?? [])) {
-        if (ref.range)
-          ranges.set(ref.asset_id, [...(ranges.get(ref.asset_id) ?? []), { ...ref.range, input_id: ref.id }]);
-      }
       const visual = await visualContext(
         this.paths.data,
         selected.map(assetId => this.jobs.media.get(assetId)).filter(Boolean),
-        ranges,
+        inputRanges(chat, contextCardIds),
       );
-      const images = visual.images,
-        imageIds = visual.evidence.filter(e => e.type === 'image').map(e => e.asset_id),
-        unavailableImages = visual.unavailable;
       if (this.get(id).epoch !== epoch) return;
       const manifest = this.contextAssets(chat),
-        group = openGroup(chat);
-      const toolAssets = manifest
-        .map((a, index) => ({
-          handle: 'input' + (index + 1),
-          asset_id: a.id,
-          kind: a.kind as 'image' | 'video' | 'audio',
-          duration_seconds: Number(a.metadata?.duration) || undefined,
-        }))
-        .filter(a => a.kind);
-      // A reply names pictures, never Seed's handles: [[input21]] reads as the picture's own name.
-      const named = (text: string) =>
-        text.replace(/\[\[\s*(input\d+)\s*\]\]/gi, (_whole, handle: string) => {
-          const a = toolAssets.find(x => x.handle === handle.toLowerCase());
-          const name = a && manifest.find(m => m.id === a.asset_id)?.name;
-          return name ? '“' + name + '”' : 'the picture';
-        });
-      const defaultLabels = toolInputLabels(
-        toolAssets.map(a => ({ id: a.handle, asset_id: a.asset_id, kind: a.kind, role: 'reference' as const })),
-      );
-      const availableInputs = toolAssets.map(a => ({
-        ...a,
-        ...(referenceMode() === 'direct' ? { prompt_label: defaultLabels.get(a.handle) } : {}),
-        ...(a.kind === 'video'
-          ? {
-              soundtrack_token: '[[' + a.handle + ':audio]]',
-              soundtrack_usage: 'Set include_audio true to use this soundtrack.',
-            }
-          : {}),
-        prompt_token: '[[' + a.handle + ']]',
-        name: manifest.find(m => m.id === a.asset_id)?.name,
-        ...(manifest.find(m => m.id === a.asset_id)?.chosen_for
-          ? { chosen_for: manifest.find(m => m.id === a.asset_id)!.chosen_for }
-          : {}),
-      }));
-
+        toolAssets = toolAssetsOf(manifest),
+        named = (text: string) => nameInputs(text, toolAssets, manifest);
       const account = (value: ChatAccounting) => {
         const c = this.get(id);
         const prior = value.id ? c.accounting.findIndex(v => v.id === value.id) : -1;
@@ -829,24 +788,7 @@ export class Chats {
         else c.accounting[prior] = value;
         this.save(c);
       };
-      const history = chat.messages
-        .filter(m => m.role !== 'event' && m.id !== runId)
-        .map(m => ({
-          role: m.role === 'assistant' ? 'assistant' : 'user',
-          ...agentMentionContext(
-            m.text,
-            m.mention_bindings,
-            toolAssets,
-            chat.groups
-              .flatMap(g => g.cards)
-              .filter(c => contextCardIds.includes(c.id))
-              .map(c => ({
-                card_id: c.id,
-                revision: latest(c).number,
-                references: latest(c).request.references ?? [],
-              })),
-          ),
-        }));
+      const history = agentHistory(chat, runId, toolAssets, contextCardIds);
       const compact = await compactConversation(history, chat.summary, async input => {
         const summarizer = createChatAgent({
           apiKey: key,
@@ -860,7 +802,7 @@ export class Chats {
         if (this.get(id).epoch !== epoch) throw Error('Stopped.');
         const final = summarizer.state.messages.at(-1);
         if (final?.role !== 'assistant' || final.stopReason !== 'stop')
-          throw Error('Conversation summarization did not complete.');
+          throw Error('Seed couldn’t summarise the earlier conversation. Send your message again.');
         return final.content
           .filter(p => p.type === 'text')
           .map(p => p.text)
@@ -870,122 +812,20 @@ export class Chats {
       if (afterSummary.epoch !== epoch) return;
       afterSummary.summary = compact.summary;
       this.save(afterSummary);
-      // The last draft attempt of earlier turns on the same work (same kind, same draft, no new inputs since).
-      const scope = chat.messages.find(m => m.id === runId)?.transcript?.scope ?? {};
-      let previousAttempt;
-      if (!scope.source_assets?.length) {
-        for (const prior of [...chat.messages].reverse()) {
-          const was = prior.transcript?.scope;
-          if (!was || prior.id === runId) continue;
-          if (was.workflow !== chat.workflow || was.target_request_id !== scope.target_request_id) break;
-          previousAttempt = [...prior.transcript!.steps]
-            .reverse()
-            .find(s => s.kind === 'tool' && ['create_request', 'edit_request'].includes(s.name ?? ''));
-          if (previousAttempt || was.source_assets?.length) break;
-        }
-      }
-      let previousResult: unknown = previousAttempt?.result;
-      const previousText = (previousAttempt?.result as any)?.content
-        ?.filter((p: any) => p.type === 'text')
-        .map((p: any) => p.text)
-        .join('\n');
-      if (previousText) {
-        try {
-          previousResult = JSON.parse(previousText);
-        } catch {
-          previousResult = { message: previousText.slice(0, 3000), truncated: previousText.length > 3000 };
-        }
-      }
-      const last_attempt =
-        previousAttempt && previousAttempt.state !== 'succeeded'
-          ? { tool: previousAttempt.name, input: previousAttempt.input, saved: false, result: previousResult }
-          : undefined;
-      const loraCatalog = (workflow: ChatWorkflow | null) =>
-        this.jobs.loras
-          .list(chat.mode)
-          .filter(l => l.source_status === 'ready')
-          .filter(l =>
-            workflow === 'text-to-image'
-              ? l.route === 'image'
-              : workflow === 'text-to-video'
-                ? l.route === 'fl'
-                : workflow === 'reference-to-video'
-                  ? l.route !== 'image'
-                  : false,
-          )
-          .map(l => ({
-            id: l.id,
-            revision: l.revision,
-            name: l.name,
-            version: l.version,
-            description: l.description ?? '',
-            trigger_words: l.trigger_words ?? [],
-            source_status: l.source_status,
-            default_scale: l.default_scale,
-            min_scale: l.min_scale,
-            max_scale: l.max_scale,
-            compatible_with:
-              l.route === 'image'
-                ? 'Krea images'
-                : l.route === 'fl'
-                  ? 'Text to video and first/last-frame guides'
-                  : 'General image/video/audio references',
-          }));
-      const available_loras = loraCatalog(chat.workflow);
-      const context = JSON.stringify({
-        project_brief: chat.brief || null,
-        // Each character and place in the brief, and whether the owner has approved a reference image for it.
-        cast_and_places: castOf(chat).map(e => ({
-          name: e.name,
-          kind: e.kind,
-          // The exact token of the approved picture, so the model never guesses which handle is whose.
-          reference: approvedReference(chat.choices, e.name)
-            ? (() => {
-                const handle = toolAssets.find(t => t.asset_id === approvedReference(chat.choices, e.name))?.handle;
-                return handle
-                  ? `approved: [[${handle}]] is ${e.name}; write ${e.name}’s name beside [[${handle}]]`
-                  : `approved: the input whose chosen_for is “approved reference for ${e.name}”`;
-              })()
-            : referenceSkipped(chat.choices, e.name)
-              ? 'not needed (the owner said so)'
-              : 'none yet',
-        })),
-        delivery_frame: chat.frame
-          ? `The owner delivers this project at ${chat.frame}; drafts are made at the closest supported shape and cropped to it afterwards, so keep important action inside a ${chat.frame} frame.`
-          : null,
-        active_kind: Object.entries(chatKinds).find(([, w]) => w === chat.workflow)?.[0] ?? null,
-        available_loras,
-        worker_policy:
-          'Approved requests queue for a compatible worker. Workers are rented and quit by the owner in the GPU panel; no chat tool acquires compute. Enabled local image workers download selected text-to-image LoRAs on first use and reuse cached files; adding LoRAs does not require local setup or an engine restart. Cloud workers install LoRAs when launched, so their installed inventory must match. Do not invent prices or per-image costs; when asked about cost or time, say that the rental screen shows the hourly rate and the stop time before anything starts; a time estimate appears in the plan bar only once Seed has measured that kind of work, so never promise one. Explain the billing facts. Count drafts and takes separately (four drafts with two takes each make eight images). Billing facts: cloud GPUs are rented by the hour from the moment they start, including the first model download and any idle time, until they are released (by the owner, the idle release or the time limit). There are no credits and no per-image charges; never describe costs in credits. The rental screen shows the hourly rate and limits, and its cost figures are estimates, not a cap. The Seed PC costs nothing per hour.',
-        last_attempt,
-        earlier_conversation_summary: compact.summary?.text,
-        conversation: compact.recent,
-        assets: manifest,
-        available_inputs: availableInputs,
-        images_in_order: imageIds,
-        visual_evidence_in_order: visual.evidence,
-        video_evidence_note:
-          'Video images are sampled frames, not a full video. Audio has not been supplied. Do not claim to hear audio.',
-        unavailable_images: unavailableImages,
-        unavailable_inputs: visual.unavailable_inputs,
-        request_context: chat.groups.flatMap(g =>
-          g.cards
-            .filter(c => contextCardIds.includes(c.id))
-            .map(c => ({
-              id: c.id,
-              state: g.state,
-              ...(c.left_out ? { left_out: true } : {}),
-              ...latest(c),
-              request: agentRequest(latest(c).request, toolAssets),
-              reference_labels: Object.fromEntries(chatReferenceLabels(latest(c).request)),
-            })),
-        ),
-        review: group?.cards.map(c => ({ id: c.id, revision: latest(c).number, decision: latest(c).decision })),
-        feedback_card: target,
+      const context = agentContext({
+        chat,
+        runId,
+        target,
+        cardIds: contextCardIds,
+        manifest,
+        toolAssets,
+        styles: styleCatalog(this.jobs, chat.mode, chat.workflow),
+        compact,
+        visual,
       });
       if (context.length > 400000)
         throw Error(
-          'Current requests and attachments exceed the context budget. Start another chat with fewer assets.',
+          'This project’s drafts and inputs are too much for Seed to read at once. Start another project with fewer inputs.',
         );
       const session = this.toolSession(id, epoch, runId, toolAssets, target);
       const kindTools = (workflow: ChatWorkflow) => [
@@ -1001,41 +841,23 @@ export class Chats {
             ]
           : []),
       ];
-      // The agent chooses the kind of work itself; choosing loads that kind's guide and request tools for the next model request.
+      // Choosing a kind loads that kind's guide and draft tools for the agent's next model request.
       let nextTurn: { systemPrompt: string; tools: AgentTool[] } | undefined;
       const updateBrief = briefTool(session, manifest);
-      const chooseKind: AgentTool = defineTool({
-        name: 'choose_kind',
-        label: 'Choose kind',
-        description:
-          'Choose what kind of media to prepare before creating requests: image (a new still from words), edit (change an existing image; needs an image input), video (a new clip from words only), animate (a clip guided by image, video or audio inputs, such as a start frame). Call it on its own, wait for its result, and only then call create_request, whenever the needed kind differs from the active kind. It does not generate media.',
-        properties: { kind: { type: 'string', enum: Object.keys(chatKinds) } },
-        run: input => {
-          const kind = String(input.kind) as keyof typeof chatKinds,
-            workflow = chatKinds[kind];
-          if (!workflow) throw new ToolFailure('Unknown kind.', { choices: Object.keys(chatKinds) }, true);
-          const now = activeChat(session);
-          // Drafts of other kinds already in the open plan stay; new drafts of this kind join the same plan.
-          if (now.workflow !== workflow) {
-            now.workflow = workflow;
-            now.version++;
-            this.save(now);
-          }
-          const next = chatPromptSnapshot(this.paths, now.mode, workflow);
-          nextTurn = {
-            systemPrompt: next.system + '\n\n' + requestToolRules(referenceMode(), workflow),
-            tools: [chooseKind, updateBrief, ...kindTools(workflow)],
-          };
-          return {
-            kind,
-            available_loras: loraCatalog(workflow),
-            next_action:
-              'Prepare the drafts now with create_request, or edit_request for an existing draft. Drafts of other kinds stay in the plan; editing one with these tools turns it into this kind and keeps its title and prompt unless you change them.',
-          };
-        },
+      const chooseKind = kindTool(session, workflow => {
+        const next = chatPromptSnapshot(this.paths, chat.mode, workflow);
+        nextTurn = {
+          systemPrompt: next.system + '\n\n' + requestToolRules(referenceMode(), workflow),
+          tools: turnTools(workflow),
+        };
       });
+      const turnTools = (workflow: ChatWorkflow | null) => [
+        chooseKind,
+        updateBrief,
+        ...(workflow ? kindTools(workflow) : []),
+      ];
       // Talking without changing the plan: no request tools, so the open plan cannot change in this turn.
-      const tools = discussOnly ? [] : [chooseKind, updateBrief, ...(chat.workflow ? kindTools(chat.workflow) : [])];
+      const tools = discussOnly ? [] : turnTools(chat.workflow);
       const agent = createChatAgent({
         apiKey: key,
         systemPrompt: discussOnly
@@ -1077,7 +899,7 @@ export class Chats {
         this.save(c);
         lastUpdate = Date.now();
       });
-      await agent.prompt('Conversation and application context (data):\n' + context, images);
+      await agent.prompt('Conversation and application context (data):\n' + context, visual.images);
       const current = this.get(id);
       if (current.epoch === epoch) {
         const final = agent.state.messages.at(-1);
@@ -1085,10 +907,11 @@ export class Chats {
           this.save(current);
           throw Error(
             final.stopReason === 'length'
-              ? 'Agent output limit reached. Send feedback to continue.'
+              ? 'Seed’s reply reached its length limit. Send a message to let it continue.'
               : final.errorMessage?.includes('timed out')
-                ? 'The model response timed out after 10 minutes. Saved request changes are preserved; send a follow-up to continue.'
-                : final.errorMessage || 'The model response was interrupted. Send a follow-up to continue.',
+                ? 'Seed’s reply timed out after 10 minutes. Drafts it saved are kept; send a message to continue.'
+                : final.errorMessage ||
+                  'Seed’s reply was cut off. Drafts it saved are kept; send a message to continue.',
           );
         }
         const toolResults = agent.state.messages.filter(m => m.role === 'toolResult');
@@ -1127,10 +950,11 @@ export class Chats {
     const chat = this.get(id);
     for (const job of this.jobIds(chat).map(j => this.jobs.get(j)))
       for (const asset of job?.outputs ?? []) if (!chat.assets.includes(asset)) chat.assets.push(asset);
-    if (this.tasks.has(id) || this.preparing.has(id)) throw Error('Wait for the request to finish preparing.');
+    if (this.agentBusy(chat)) throw Error('Wait for Seed to finish, then edit this draft.');
     const group = openGroup(chat),
       card = group?.cards.find(c => c.id === cardId);
-    if (!group || !card || latest(card).number !== number) throw Error('Request changed or already started.');
+    if (!group || !card || latest(card).number !== number)
+      throw Error('This draft changed or already started. Refresh it.');
     // The owner can change a draft's kind in place (for example, turn a words-only shot into an edit of a reference);
     // the draft keeps its place, title and history in the plan.
     const asked = (raw as { workflow?: unknown } | null)?.workflow;
@@ -1143,41 +967,6 @@ export class Chats {
     delete group.submission_error;
     chat.version++;
     this.save(chat);
-    return this.view(id);
-  }
-  async decide(id: string, cardId: string, number: number, decision: 'approved' | 'denied') {
-    const chat = this.get(id);
-    if (this.tasks.has(id) || this.preparing.has(id)) throw Error('Wait for this chat to finish.');
-    const group = openGroup(chat),
-      card = group?.cards.find(c => c.id === cardId);
-    if (!group || group.state !== 'reviewing' || !card || latest(card).number !== number)
-      throw Error('Review the current completed proposal.');
-    if (decision === 'approved' && !latest(card).approved_snapshot) {
-      const current = this.get(id);
-      if (
-        current.version !== chat.version ||
-        current.epoch !== chat.epoch ||
-        this.tasks.has(id) ||
-        this.preparing.has(id)
-      )
-        throw Error('Chat changed during approval. Review again.');
-      latest(card).notes = this.revision(chat, latest(card).request, number).notes;
-      latest(card).request.resolved_seeds = seeds(latest(card).request);
-      latest(card).approved_snapshot = true;
-    }
-    if (latest(card).decision !== decision) delete group.submission_error;
-    latest(card).decision = decision;
-    const settled = group.cards.every(c => latest(c).decision !== 'undecided'),
-      prepare = settled && group.cards.some(c => latest(c).decision === 'approved');
-    if (settled) {
-      delete group.submission_error;
-      chat.activity = prepare ? 'preparing' : 'idle';
-      if (!prepare) movePlan(group, 'released');
-    }
-    // Persist the handoff together with the final decision, before any async work.
-    chat.version++;
-    this.save(chat);
-    if (prepare) await this.release(id, group.id, chat.epoch);
     return this.view(id);
   }
   /**
@@ -1305,7 +1094,7 @@ export class Chats {
             now.length !== approved.length ||
             approved.some((c, i) => now[i]!.id !== c.id || latest(now[i]!).number !== latest(c).number)
           )
-            throw Error('Review was stopped or changed.');
+            throw Error('The plan was stopped or changed while it was getting ready. Review it, then choose Make.');
           for (const card of now)
             this.assertAssets(final, [...new Set((latest(card).request.references ?? []).map(r => r.asset_id))]);
           now.forEach((card, i) => (latest(card).job_ids = staged[i]!.commit().jobs.map(j => j.id)));
@@ -1328,83 +1117,27 @@ export class Chats {
       this.preparing.delete(id);
     }
   }
-  branch(jobIds: string[], fresh: boolean, draft = false) {
-    if (!jobIds.length || jobIds.length > 16 || new Set(jobIds).size !== jobIds.length)
-      throw Error('Choose one request to branch.');
-    const originals = jobIds.map(id => {
-      const job = this.jobs.get(id);
-      if (!job) throw Error('Job no longer available.');
-      return job;
-    });
-    const original = originals[0]!;
-    if (originals.some(j => j.submission_id !== original.submission_id))
-      throw Error('Choose outputs from one request.');
-    return this.db.transaction(() => {
-      const chat = original.source?.chat_id
-        ? this.get(original.source.chat_id)
-        : this.get(this.create(original.request.mode).id);
-      if (this.tasks.has(chat.id) || this.preparing.has(chat.id) || openGroup(chat))
-        throw Error('Resolve or stop current proposals in the original chat first.');
-      const request = {
-        ...original.request,
-        count: originals.length,
-        seed: fresh ? 'random' : original.seed,
-        resolved_seeds: fresh ? undefined : originals.map(j => j.seed),
-      };
-      chat.assets = [...new Set([...chat.assets, ...(request.references ?? []).map(r => r.asset_id)])];
-      const workflow = request.workflow as ChatWorkflow;
-      chat.workflow = workflow;
-      chat.groups.push({
-        id: randomUUID(),
-        after_message_id: chat.messages.at(-1)?.id ?? null,
-        workflow,
-        state: 'reviewing',
-        cards: [
-          {
-            id: randomUUID(),
-            workflow,
-            ...(draft ? { timeline_start: 2 } : {}),
-            revisions: [{ ...this.revision(chat, request, 1), source_job_id: original.id }],
-          },
-        ],
-      });
-      chat.version++;
-      this.save(chat);
-      return this.view(chat.id);
-    })();
-  }
-  repeat(id: string, cardId: string, number: number, fresh: boolean, failedOnly = false, jobId?: string) {
+  /** Puts a made draft back up for review as a new plan (Try again): with `fresh`, new seeds; else the same ones. */
+  repeat(id: string, cardId: string, number: number, fresh: boolean) {
     const chat = this.get(id);
-    if (this.tasks.has(id) || this.preparing.has(id) || openGroup(chat))
-      throw Error('Resolve or stop current proposals first.');
+    if (this.agentBusy(chat) || openGroup(chat)) throw Error('Make or stop the open plan first.');
     const card = chat.groups.flatMap(g => g.cards).find(c => c.id === cardId),
       revision = card?.revisions.find(r => r.number === number);
-    if (!card || !revision) throw Error('Revision not found.');
-    const originals = revision.job_ids
-      .map(id => this.jobs.get(id))
-      .filter(j => j && (!failedOnly || j.state === 'failed') && (!jobId || j.id === jobId));
-    if (jobId && !originals.length) throw Error('Output not found in this request.');
-    if (failedOnly && !originals.length) throw Error('No definitively failed jobs to retry.');
-    const requests = [
-      {
-        ...revision.request,
-        count: originals.length || revision.request.count,
-        seed: fresh ? 'random' : jobId ? originals[0]!.seed : revision.request.seed,
-        resolved_seeds: !fresh && originals.length ? originals.map(j => j!.seed) : undefined,
-      },
-    ];
-    const group: ChatGroup = {
+    if (!card || !revision) throw Error('That version of the draft no longer exists.');
+    const originals = this.jobs.many(revision.job_ids);
+    const request = {
+      ...revision.request,
+      count: originals.length || revision.request.count,
+      seed: fresh ? 'random' : revision.request.seed,
+      resolved_seeds: !fresh && originals.length ? originals.map(j => j.seed) : undefined,
+    };
+    chat.groups.push({
       id: randomUUID(),
       after_message_id: chat.messages.at(-1)?.id ?? null,
       workflow: card.workflow,
       state: 'reviewing',
-      cards: requests.map(request => ({
-        id: randomUUID(),
-        workflow: card.workflow,
-        revisions: [this.revision(chat, request, 1)],
-      })),
-    };
-    chat.groups.push(group);
+      cards: [{ id: randomUUID(), workflow: card.workflow, revisions: [this.revision(chat, request, 1)] }],
+    });
     chat.version++;
     this.save(chat);
     return this.view(id);
@@ -1413,11 +1146,11 @@ export class Chats {
   restore(id: string, cardId: string, number: number, raw: unknown, join = false) {
     const chat = this.get(id);
     const open = openGroup(chat);
-    if (this.tasks.has(id) || this.preparing.has(id) || (open && !(join && open.state === 'reviewing')))
-      throw Error('Resolve or stop current proposals first.');
+    if (this.agentBusy(chat) || (open && !(join && open.state === 'reviewing')))
+      throw Error('Make or stop the open plan first.');
     const source = chat.groups.flatMap(g => g.cards).find(c => c.id === cardId),
       prior = source?.revisions.find(r => r.number === number);
-    if (!source || !prior) throw Error('Revision not found.');
+    if (!source || !prior) throw Error('That version of the draft no longer exists.');
     const request = this.request(chat, source.workflow, raw, prior.request);
     const card: ChatCard = {
       timeline_start: latest(source).number + 1,

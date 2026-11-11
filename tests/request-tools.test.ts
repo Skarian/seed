@@ -53,7 +53,7 @@ describe('simple request adapter',()=>{
   });
   it('reports independent role,clip,and quality problems together without irrelevant revise advice',()=>{
     try{prepareToolRequest(context,{prompt:'Scene.',size:'720p',inputs:[{asset:'video1',role:'first_frame',duration_seconds:1}]});throw Error('expected rejection');}
-    catch(error){const result=requestToolResultError(error,'create');expect(result.saved).toBe(false);expect(result.errors.map(e=>e.field)).toEqual(expect.arrayContaining(['inputs[0].role','inputs[0].start_seconds','inputs[0].duration_seconds','size']));expect(result.next_action).toContain('No request was created');expect(JSON.stringify(result)).not.toContain('operation revise');}
+    catch(error){const result=requestToolResultError(error,'create');expect(result.saved).toBe(false);expect(result.error).toBe(result.fields![0]!.message);expect(result.fields!.map(e=>e.field)).toEqual(expect.arrayContaining(['inputs[0].role','inputs[0].start_seconds','inputs[0].duration_seconds','size']));expect(result.next_action).toContain('No request was created');expect(JSON.stringify(result)).not.toContain('operation revise');}
   });
   it('rejects unknown inputs, invented ids, numeric strings and clips exceeding source',()=>{
     for(const input of [{asset:'Picture 1'},{asset:'video1',id:'invented',start_seconds:0,duration_seconds:3},{asset:'video1',start_seconds:'0',duration_seconds:3},{asset:'video1',start_seconds:9,duration_seconds:3}])expect(()=>prepareToolRequest(context,{prompt:'Scene.',inputs:[input]})).toThrow();

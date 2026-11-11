@@ -35,10 +35,11 @@ export type Project = ChatView & {
 export type ProjectSummary = {
   id: string;
   title: string;
-  activity: string;
+  activity: ChatView['activity'];
   ready_to_review?: boolean;
   error: string | null;
-  status?: string;
+  /** Set when the project has a failed result. */
+  status?: 'Failed';
   last_reply_id?: string;
   updated_at: string;
 };
@@ -140,12 +141,8 @@ export const projects = {
     pj('chats/' + id + '/cards/' + card + '/revise', { body: { revision, request } }),
   restore: (id: string, card: string, revision: number, request: Record<string, unknown>, join = false) =>
     pj('chats/' + id + '/cards/' + card + '/restore', { body: { revision, request, ...(join ? { join } : {}) } }),
-  repeat: (
-    id: string,
-    card: string,
-    revision: number,
-    opts: { fresh: boolean; failed_only?: boolean; job_id?: string },
-  ) => pj('chats/' + id + '/cards/' + card + '/repeat', { body: { revision, ...opts } }),
+  repeat: (id: string, card: string, revision: number, opts: { fresh: boolean }) =>
+    pj('chats/' + id + '/cards/' + card + '/repeat', { body: { revision, ...opts } }),
   makeDirect: (id: string, request: Record<string, unknown>, clientRequestId: string) =>
     pj('chats/' + id + '/requests', { body: { request, client_request_id: clientRequestId } }),
   config: () => api<{ configured: boolean }>('chat-config'),

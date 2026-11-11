@@ -1,5 +1,6 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
 import { asksSavedStyle } from '../../../shared/styles-asked.js';
+import { asked as askedIn, asksForSilence, asksForSound } from '../../../shared/asked.js';
 import { castOf, sameCast, lookParts, isVisibleDetail } from '../../../shared/cast.js';
 import { approvedReference } from '../../../shared/choices.js';
 import { kindOf, isVideoKind } from '../api.js';
@@ -117,7 +118,7 @@ export function askedFor(messages: ChatMessage[]) {
       if (s) said.seconds = Number(s[1]);
     }
     if (said.silent === undefined) {
-      if (/\b(silent|no sound|no audio|without (?:sound|audio)|mute)\b/.test(t)) said.silent = true;
+      if (asksForSilence(t)) said.silent = true;
       else if (/\b(with sound|with audio|sound of|soundtrack)\b/.test(t)) said.silent = false;
     }
   }
@@ -154,7 +155,9 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
   // The message that asked for this draft: a manual edit keeps the request it revised, so its checks still apply.
   const origin = [...card.revisions].reverse().find(v => v.run_id)?.run_id;
   const at = project.messages.findIndex(m => m.id === origin);
-  const trigger = at > 0 ? [...project.messages.slice(0, at)].reverse().find(m => m.role === 'user') : undefined;
+  // What Seed read when it drafted: the messages before its reply.
+  const before = at > 0 ? project.messages.slice(0, at) : [];
+  const trigger = [...before].reverse().find(m => m.role === 'user');
   const forAll = siblings <= 1 || /\b(all|every|each|both|them)\b/i.test(trigger?.text ?? '');
   const asked: ReturnType<typeof askedFor> = trigger && forAll ? askedFor([trigger]) : {};
   // An input that is an older reference of a cast member (approved since, or replaced) is swapped for the approved one.
@@ -198,10 +201,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     r.workflow === 'image-to-image' &&
     !(r.loras ?? []).length &&
     // The style may have been asked a message or two before the one that drafted this ("Draft 3 keyframes").
-    (at > 0 ? project.messages.slice(0, at) : [])
-      .filter(m => m.role === 'user')
-      .slice(-3)
-      .some(m => asksSavedStyle(m.text))
+    askedIn(before, 3).some(asksSavedStyle)
   )
     out.push({
       code: 'no-style',
@@ -350,12 +350,13 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
         },
       ],
     });
-  // Sound the person never mentioned is a creative choice: say so, and make silence one tap.
+  // Sound the person never mentioned is a creative choice: say so, and make silence one tap. The same messages Seed
+  // read decide it, so a sound Seed kept because it was asked for ("we hear footsteps") is not called added.
   if (
     video &&
     asked.silent === undefined &&
     trigger &&
-    !/\b(sound|audio|music|ambien\w*|noise|voice|dialog\w*|speak\w*|sings?|score)\b/i.test(trigger.text) &&
+    !asksForSound(askedIn(before, 3).join(' ')) &&
     r.audio?.output !== 'silent'
   )
     out.push({

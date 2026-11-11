@@ -2,7 +2,8 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import type { LibraryAsset } from '../shared/studio.js';
-import { choicesFromPicks, type ProjectChoices } from '../shared/choices.js';
+import { choicesFromPicks, shotLabel, type ProjectChoices } from '../shared/choices.js';
+import { shotsFromBrief } from '../shared/shots.js';
 
 export function openDatabase(dataDirectory: string) {
   const db = new Database(path.join(dataDirectory, 'studio.sqlite'));
@@ -134,12 +135,14 @@ function usedAs(db: Database.Database) {
   const map = new Map<string, string[]>(), refs = new Set<string>();
   const add = (asset: string, label: string) => map.set(asset, [...(map.get(asset) ?? []), label]);
   for (const row of db.prepare('SELECT body_json FROM chats').all() as Array<{ body_json: string }>) {
-    let choices: ProjectChoices | undefined;
-    try { choices = JSON.parse(row.body_json).choices; } catch { continue; }
+    let chat: { choices?: ProjectChoices; brief?: string };
+    try { chat = JSON.parse(row.body_json); } catch { continue; }
+    const { choices } = chat;
     if (!choices) continue;
     for (const [name, asset] of Object.entries(choices.references)) if (asset !== 'skip') { refs.add(asset); add(asset, name + '’s reference'); }
+    const shots = shotsFromBrief(chat.brief);
     for (const [shot, take] of Object.entries(choices.takes)) {
-      const label = shot.startsWith('#') ? 'Chosen for Shot ' + shot.slice(1) : 'Chosen for ' + shot.replace(/\b\w/g, c => c.toUpperCase());
+      const label = 'Chosen for ' + shotLabel(shots, shot);
       for (const asset of [take.image, take.clip]) if (asset) add(asset, label);
     }
   }

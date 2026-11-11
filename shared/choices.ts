@@ -1,4 +1,4 @@
-import { shotNameKey } from './shots.js';
+import { shotNameKey, type BriefShot } from './shots.js';
 
 /**
  * The owner's choices in a project: the approved reference picture of each cast member, place or prop (or `'skip'`
@@ -16,6 +16,16 @@ export type Choice =
 
 export const noChoices = (): ProjectChoices => ({ references: {}, takes: {} });
 export const shotKey = (n: number | null, name: string) => shotNameKey(name) || '#' + n;
+/**
+ * A shot key in words: "Shot 3: Noor's Walk", by the brief's current number and own spelling (read the brief once with
+ * shotsFromBrief). A shot the brief no longer lists keeps its key, capitalised ("The Knock"); one without a name is
+ * "Shot 3".
+ */
+export function shotLabel(shots: readonly BriefShot[], key: string) {
+  if (key.startsWith('#')) return 'Shot ' + key.slice(1);
+  const listed = shots.find(s => shotNameKey(s.name) === key);
+  return listed ? `Shot ${listed.n}: ${listed.name}` : key.replace(/(^|\s)\p{L}/gu, c => c.toUpperCase());
+}
 
 /** The approved reference picture of a name, if any. */
 export const approvedReference = (choices: ProjectChoices | undefined, name: string) => {

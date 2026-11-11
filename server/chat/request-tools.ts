@@ -8,7 +8,7 @@ import type { InputReference } from '../media.js';
 import type { ChatMode, ChatWorkflow } from '../../shared/chat.js';
 import { inputLabels, promptBindings, promptReferencePattern } from '../../shared/reference-labels.js';
 import { defaultPreferences } from '../../shared/resolution.js';
-import { ToolFailure } from './tools/define.js';
+import { ToolFailure, type ToolFailureResult } from './tools/define.js';
 import { DEFAULT_VIDEO_DETAIL, DEFAULT_VIDEO_STEPS, VIDEO_DETAILS, VIDEO_STEPS } from '../../shared/video-settings.js';
 
 export type ReferenceMode = 'direct' | 'stable';
@@ -699,16 +699,15 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
   if (issues.length) throw new ToolRequestError(issues);
   return validated!;
 }
-export function requestToolResultError(error: unknown, operation: 'create' | 'edit') {
-  const issues =
-    error instanceof ToolRequestError || error instanceof VideoRequestError
-      ? error.issues
-      : [{ field: 'request', message: error instanceof Error ? error.message : String(error) }];
+/** A draft that was not saved: the first problem as its error, and each field's problem when there are several. */
+export function requestToolResultError(error: unknown, operation: 'create' | 'edit'): ToolFailureResult {
+  const fields = error instanceof ToolRequestError || error instanceof VideoRequestError ? error.issues : undefined;
   return {
     ok: false,
     saved: false,
-    errors: issues,
-    ...(error instanceof ToolFailure && error.internal ? { internal: true } : {}),
+    error: fields?.[0]?.message ?? (error instanceof Error ? error.message : String(error)),
+    ...(fields ? { fields } : {}),
+    ...(error instanceof ToolFailure && error.internal ? { internal: true as const } : {}),
     next_action:
       operation === 'create'
         ? 'Correct these fields and retry create_request. No request was created.'

@@ -1,4 +1,4 @@
-import type { TurnStep, TurnTranscript } from './chat.js';
+import type { StepFailure, TurnStep, TurnTranscript } from './chat.js';
 
 /** What a turn's tools actually did, read from their results (never from the reply's wording). */
 export interface TurnOutcome {
@@ -8,40 +8,61 @@ export interface TurnOutcome {
   unfinished: Array<{ label: string; reason: string }>;
 }
 
-/** What each of Seed's tools does, in words for a step that did not work. */
-const labels: Record<string, string> = {
-  approve_reference: 'Approve a reference',
-  update_brief: 'Save the brief',
-  create_request: 'Write a draft',
-  edit_request: 'Change a draft',
-  leave_out_request: 'Leave a draft out',
-  choose_take: 'Choose a take',
-  read_input: 'Look at an input',
-  choose_kind: 'Choose what to make',
-};
-/** The tools that save work the owner sees. */
-const saves = new Set(['create_request', 'edit_request', 'update_brief', 'approve_reference', 'choose_take']);
+/**
+ * Each of Seed's tools in words: what the owner watches while it runs, and the step for one that did not work.
+ * `saves` marks the tools that save work the owner sees.
+ */
+export const toolLabels = {
+  choose_kind: { doing: 'Choosing what to make', failed: 'Choose what to make' },
+  read_input: { doing: 'Looking at your input', failed: 'Look at an input' },
+  update_brief: { doing: 'Updating the brief', failed: 'Save the brief', saves: true },
+  create_request: { doing: 'Writing a draft', failed: 'Write a draft', saves: true },
+  edit_request: { doing: 'Changing a draft', failed: 'Change a draft', saves: true },
+  leave_out_request: { doing: 'Narrowing the plan', failed: 'Leave a draft out' },
+  order_requests: { doing: 'Ordering the plan', failed: 'Order the plan' },
+  approve_reference: { doing: 'Approving a reference', failed: 'Approve a reference', saves: true },
+  choose_take: { doing: 'Choosing a take', failed: 'Choose a take', saves: true },
+} satisfies Record<string, { doing: string; failed: string; saves?: true }>;
+export type ToolName = keyof typeof toolLabels;
+/** The words for a tool by the name a step recorded, if it is one of Seed's tools. */
+export const toolLabel = (name: string | undefined): { doing: string; failed: string; saves?: true } | undefined =>
+  name && Object.hasOwn(toolLabels, name) ? toolLabels[name as ToolName] : undefined;
 const internalReason = 'Seed couldn’t finish this step. Nothing was lost; ask again to retry it.';
 
 /**
- * A tool step's result: what it returned on success, or its failure. `internal` is Seed's own slip (a stale id, a
- * malformed call), which the owner need not see when the turn otherwise got its work done.
+ * A failed tool's text result as one failure. Seed's tools send JSON ({error, internal?, fields?}); plain text is a
+ * call the agent library refused (malformed input, an unknown tool), which is Seed's own slip, or a tool's own words.
  */
-function read(step: TurnStep): { details: Record<string, unknown>; error: string; internal: boolean } {
-  const result = step.result as { details?: unknown; content?: Array<{ type?: string; text?: string }> } | undefined;
-  const text = result?.content?.find(p => p.type === 'text')?.text?.trim() ?? '';
-  const details = (result?.details ?? {}) as Record<string, unknown>;
-  if (step.state !== 'failed') return { details, error: '', internal: false };
+export function toolFailure(text: string): StepFailure {
   try {
-    const failed = JSON.parse(text) as { error?: string; errors?: Array<{ message?: string }>; internal?: boolean };
-    const error = failed.error ?? failed.errors?.find(e => e.message)?.message ?? '';
-    // Turns saved before the tools marked their own slips name them in words.
-    return { details, error, internal: failed.internal ?? /request_id|no longer active|Unknown kind/.test(error) };
+    const sent = JSON.parse(text) as Partial<StepFailure> | null;
+    if (typeof sent?.error === 'string')
+      return { error: sent.error, internal: sent.internal === true, ...(sent.fields ? { fields: sent.fields } : {}) };
   } catch {
-    // Plain text: a call the agent library refused (malformed input, an unknown tool), or a tool's own message.
-    return { details, error: text, internal: /^Validation failed for tool|^Tool \S+ not found|^\s*[{[]/.test(text) };
+    /* Plain text. */
+  }
+  return { error: text, internal: /^Validation failed for tool|^Tool \S+ not found|^\s*[{[]/.test(text) };
+}
+const resultText = (step: TurnStep) =>
+  (step.result as { content?: Array<{ type?: string; text?: string }> } | undefined)?.content
+    ?.find(p => p.type === 'text')
+    ?.text?.trim() ?? '';
+/**
+ * A failed step of a turn saved before failures were stored on the step: field problems came as `errors`, and Seed's
+ * own slips were named only in words.
+ */
+function legacyFailure(step: TurnStep): StepFailure {
+  const text = resultText(step);
+  try {
+    const old = JSON.parse(text) as { error?: string; errors?: Array<{ message?: string }>; internal?: boolean };
+    const error = old.error ?? old.errors?.find(e => e.message)?.message ?? '';
+    return { error, internal: old.internal ?? /request_id|no longer active|Unknown kind/.test(error) };
+  } catch {
+    return toolFailure(text);
   }
 }
+const details = (step: TurnStep) =>
+  ((step.result as { details?: unknown } | undefined)?.details ?? {}) as Record<string, unknown>;
 
 export function turnOutcome(
   turn: TurnTranscript | undefined,
@@ -53,7 +74,7 @@ export function turnOutcome(
   const target = (s: TurnStep) =>
     String(input(s).name ?? input(s).request_id ?? input(s).shot ?? input(s).title ?? '').toLowerCase();
   // Did the turn save anything? Then Seed's own slips along the way stay quiet.
-  const progressed = tools.some(t => t.state === 'succeeded' && saves.has(t.name ?? ''));
+  const progressed = tools.some(t => t.state === 'succeeded' && toolLabel(t.name)?.saves);
   const unfinished: TurnOutcome['unfinished'] = [];
   if (turn && turn.state !== 'running')
     tools.forEach((s, i) => {
@@ -72,7 +93,7 @@ export function turnOutcome(
               (name === 'create_request' && !target(s))),
         );
       if (madeGood) return;
-      const { error, internal } = read(s);
+      const { error, internal } = s.failure ?? legacyFailure(s);
       // Made good by the same draft saved anywhere in the turn. A slip that named no draft that exists (a stale id) is
       // made good by any later success of the same tool; a slip on a real draft only by that draft's own save.
       const id = String(input(s).request_id ?? ''),
@@ -80,8 +101,8 @@ export function turnOutcome(
       const retried = tools.some(
         (t, j) => worked(t) && ((Boolean(target(s)) && target(t) === target(s)) || (j > i && stale)),
       );
-      if (internal && progressed && (!saves.has(name) || retried)) return;
-      const label = labels[name] ?? 'A step',
+      if (internal && progressed && (!toolLabel(name)?.saves || retried)) return;
+      const label = toolLabel(name)?.failed ?? 'A step',
         draft = String(input(s).request_id ?? ''),
         named = draft ? draftTitle(draft) : String(input(s).title ?? '') || undefined;
       const step = {
@@ -105,15 +126,15 @@ function done(tools: TurnStep[]) {
   for (const s of tools) {
     if (s.state !== 'succeeded') continue;
     const input = (s.input ?? {}) as Record<string, unknown>,
-      { details } = read(s);
-    const request = details.request as { title?: string; duration_seconds?: number } | undefined;
+      result = details(s);
+    const request = result.request as { title?: string; duration_seconds?: number } | undefined;
     // A clip says so, so a plan of pictures can never quietly become clips.
     const title =
       String(request?.title ?? input.title ?? '').trim() + (request?.duration_seconds !== undefined ? ' (clip)' : '');
     if (s.name === 'create_request') drafted.push(title || 'a draft');
     else if (s.name === 'edit_request') changed.push(title || 'a draft');
     else if (s.name === 'update_brief') {
-      const added = (details.cast_added as string[] | undefined) ?? [];
+      const added = (result.cast_added as string[] | undefined) ?? [];
       out.push(added.length ? `Saved the brief (added ${added.join(', ')} to the cast)` : 'Saved the brief');
     } else if (s.name === 'approve_reference') out.push(`Approved ${String(input.name ?? 'a')}’s reference`);
     else if (s.name === 'choose_take') out.push('Chose a take' + (input.shot ? ' for shot ' + String(input.shot) : ''));

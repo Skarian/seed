@@ -267,9 +267,6 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
     try { return reply.code(202).send(jobs.recover((request.params as {id:string}).id)); }
     catch(error) { return fail(reply,409,'recovery_failed',(error as Error).message,request.id); }
   });
-  app.post('/api/v1/jobs/:id/branch-chat', {schema:{body:{type:'object',additionalProperties:false,required:['fresh'],properties:{draft:{type:'boolean'},fresh:{type:'boolean'},job_ids:{type:'array',minItems:1,maxItems:16,items:{type:'string'}}}}}}, async(request,reply)=>{
-    try{const id=(request.params as {id:string}).id,body=request.body as {fresh:boolean;draft?:boolean;job_ids?:string[]};if(body.job_ids&&!body.job_ids.includes(id))throw Error('Source output must be included.');return chats.branch(body.job_ids??[id],body.fresh,body.draft);}catch(e){return fail(reply,409,'branch_failed',(e as Error).message,request.id);}
-  });
   app.post('/api/v1/jobs/:id/repeat', async(request,reply)=>{
     try{return await jobs.serialize(async()=>{
       const original=jobs.get((request.params as {id:string}).id);if(!original)throw Error('Job not found.');
