@@ -146,7 +146,7 @@ export function PlanCard({
         </span>
       </div>
       {planWide.map(({ check: c, each }) => (
-        <div className="check-note plan-wide" key={c.text}>
+        <div className="check-note plan-wide" key={c.id}>
           <span>
             ⚠ All drafts:{' '}
             {c.text.replace(
@@ -155,10 +155,10 @@ export function PlanCard({
             )}
           </span>
           {c.fixes
-            .filter(f => !f.action)
+            .filter(f => f.id !== 'edit-myself')
             .map(f => (
               <button
-                key={f.label}
+                key={f.id}
                 className="btn small"
                 disabled={busy || working}
                 onClick={() => {
@@ -168,7 +168,7 @@ export function PlanCard({
                   void reviseEach(
                     cards,
                     (card, i) => {
-                      const own = each[i]!.fixes.find(x => x.label === f.label);
+                      const own = each[i]!.fixes.find(x => x.id === f.id);
                       const patch = own ? own.patch(latest(card).request) : {};
                       if (Object.keys(patch).length) return patch;
                       onAcknowledge(ackKey(card, c));
@@ -268,7 +268,7 @@ export function PlanCard({
                     <span className="name">{short(card)}</span>
                     {own.length > 0 && <span className="faint">{own.map(([, v]) => v).join(' · ')}</span>}
                     {warnings[i]!.filter(c => !c.soft).map(c => (
-                      <span className="warn-line" key={c.text}>
+                      <span className="warn-line" key={c.id}>
                         ⚠ {c.text}
                       </span>
                     ))}

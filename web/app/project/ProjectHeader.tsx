@@ -46,7 +46,7 @@ export function Header({
           }
         >
           <Icon.Compare width={14} height={14} />
-          {split ? 'Close side board' : `${board} beside chat`}
+          {split ? 'Close side board' : `${board} beside conversation`}
         </button>
       )}
       {project && !split && (

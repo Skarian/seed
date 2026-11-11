@@ -427,25 +427,31 @@ export function useNow(interval = 1000, active = true) {
   }, [interval, active]);
   return now;
 }
+/** A JSON value kept on this device, read again when its key changes; without storage it stays in memory only. */
 export function useStoredState<T>(key: string, initial: T) {
-  const [value, set] = useState<T>(() => {
+  const read = (): T => {
     try {
-      const raw = localStorage.getItem(key);
-      return raw === null ? initial : JSON.parse(raw);
+      return JSON.parse(localStorage.getItem(key) ?? 'null') ?? initial;
     } catch {
       return initial;
     }
-  });
+  };
+  const [held, setHeld] = useState(() => ({ key, value: read() }));
+  // A new key during render: React renders again at once with that key's value.
+  if (held.key !== key) setHeld({ key, value: read() });
   const update = useCallback(
-    (next: T) => {
-      set(next);
-      try {
-        localStorage.setItem(key, JSON.stringify(next));
-      } catch {
-        /* memory only */
-      }
-    },
+    (next: T | ((now: T) => T)) =>
+      setHeld(h => {
+        const value = typeof next === 'function' ? (next as (now: T) => T)(h.value) : next;
+        if (value === h.value) return h;
+        try {
+          localStorage.setItem(key, JSON.stringify(value));
+        } catch {
+          /* memory only */
+        }
+        return { key, value };
+      }),
     [key],
   );
-  return [value, update] as const;
+  return [held.value, update] as const;
 }

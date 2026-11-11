@@ -55,11 +55,11 @@ export function revisionSummary(cards: ChatCard[]) {
 }
 
 /**
- * A warning every draft shares (same code and text) is said once, for the whole plan; each draft keeps only its own.
+ * A warning every draft shares (same code and id) is said once, for the whole plan; each draft keeps only its own.
  * `each` holds every draft's own copy of a plan-wide warning: its fixes close over that draft's inputs.
  */
 export function splitWarnings(raw: Check[][]) {
-  const same = (a: Check) => (b: Check) => a.code === b.code && a.text === b.text;
+  const same = (a: Check) => (b: Check) => a.code === b.code && a.id === b.id;
   const planWide =
     raw.length > 1
       ? (raw[0] ?? [])

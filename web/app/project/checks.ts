@@ -24,9 +24,11 @@ export const cropShapes = [
 ] as const;
 type Aspect = '16:9' | '9:16' | '1:1' | '4:5';
 export type Fix = {
+  /** What the fix does, whatever its label says: the same fix on several drafts has the same id. 'edit-myself' opens
+   * Edit on the attached `assets` instead of patching the draft. */
+  id: string;
   label: string;
   patch: (r: ImageRequest) => Record<string, unknown>;
-  action?: 'edit-myself';
   assets?: string[];
   /** Accepting this fix means the owner plans to crop the result to this shape; Crop then starts there. */
   cropTo?: string;
@@ -36,7 +38,8 @@ export type Fix = {
 /** What a check is about, so the app can act on it without reading its wording. */
 export type CheckCode =
   'shape' | 'size' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input' | 'old-reference' | 'no-style';
-export type Check = { code: CheckCode; text: string; fixes: Fix[]; soft?: boolean };
+/** `id` is what the check found, apart from its wording: its code, subject, and the values asked for and drafted. */
+export type Check = { id: string; code: CheckCode; text: string; fixes: Fix[]; soft?: boolean };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
 export function askedFor(messages: ChatMessage[]) {
@@ -143,8 +146,8 @@ export function checkDraft(card: ChatCard, project: Project, siblings = 1): Chec
   if (!held.has(key)) held.set(key, draftChecks(card, project, siblings));
   return held.get(key)!;
 }
-/** The owner's "keep it as drafted" on one check of one draft. A changed problem has new text, so it asks again. */
-export const ackKey = (card: ChatCard, check: Check) => card.id + ':' + check.text;
+/** The owner's "keep it as drafted" on one check of one draft. A changed problem has a new id, so it asks again. */
+export const ackKey = (card: ChatCard, check: Check) => card.id + ':' + check.id;
 function draftChecks(card: ChatCard, project: Project, siblings: number): Check[] {
   const r = latest(card).request,
     kind = kindOf[r.workflow],
@@ -168,11 +171,14 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     const entry = who ? cast.find(e => sameCast(e.name, who)) : undefined;
     const approved = entry ? approvedReference(project.choices, entry.name) : undefined;
     if (!entry || !approved || approved === ref.asset_id) continue;
+    // Drafts holding different inputs share the check; approving another picture makes it a new one.
     out.push({
+      id: `old-reference|${entry.name}|${approved}`,
       code: 'old-reference',
       text: `This draft uses an older picture of ${entry.name}, not the approved reference.`,
       fixes: [
         {
+          id: 'use-approved',
           label: `Use ${entry.name}’s approved reference`,
           patch: x => ({
             ...revisable(x),
@@ -204,6 +210,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     askedIn(before, 3).some(asksSavedStyle)
   )
     out.push({
+      id: 'no-style|references',
       code: 'no-style',
       soft: true,
       text: 'You asked for a style. Styles can’t be used on pictures made from references (FLUX 3 Image Klein), so this draft has none and its look comes from the prompt and the references. A picture from words (Krea 2) can use the style.',
@@ -225,6 +232,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       )
   )
     out.push({
+      id: 'no-style|missing',
       code: 'no-style',
       text: 'You asked for a style on this draft, but it has none. Choose it in Edit, under Style.',
       fixes: [],
@@ -245,18 +253,20 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
         asked.aspect === 'portrait' ? (video ? '9:16' : '4:5') : asked.aspect === 'landscape' ? '16:9' : asked.aspect;
       if (video && (want === '1:1' || want === '4:5'))
         out.push({
+          id: `shape|${want}|${aspect}|video`,
           code: 'shape',
           text: `You asked for ${names[want]}, which video can't make, and Seed can't crop a video afterwards. This draft is ${names[aspect]}.`,
           fixes: (['16:9', '9:16'] as const)
             .filter(a => a !== aspect)
-            .map((a): Fix => ({ label: 'Use ' + names[a], patch: withAspect(a) }))
-            .concat([{ label: 'Keep ' + names[aspect], patch: () => ({}) }]),
+            .map((a): Fix => ({ id: 'aspect:' + a, label: 'Use ' + names[a], patch: withAspect(a) }))
+            .concat([{ id: 'keep', label: 'Keep ' + names[aspect], patch: () => ({}) }]),
         });
       else
         out.push({
+          id: `shape|${want}|${aspect}`,
           code: 'shape',
           text: `You asked for ${names[want]}; this draft is ${names[aspect]}.`,
-          fixes: [{ label: 'Make it ' + names[want], patch: withAspect(want as Aspect) }],
+          fixes: [{ id: 'aspect:' + want, label: 'Make it ' + names[want], patch: withAspect(want as Aspect) }],
         });
     }
   }
@@ -272,10 +282,14 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     const closest = [...supported].sort(
       (a, b) => Math.abs(Math.log(value(a) / want)) - Math.abs(Math.log(value(b) / want)),
     )[0]!;
-    const fixes: Fix[] = closest !== aspect ? [{ label: 'Use ' + names[closest], patch: withAspect(closest) }] : [];
+    const fixes: Fix[] =
+      closest !== aspect
+        ? [{ id: 'aspect:' + closest, label: 'Use ' + names[closest], patch: withAspect(closest) }]
+        : [];
     // Promise a crop only to a shape Crop actually offers.
     const croppable = !video && cropShapes.some(([s]) => s === asked.other);
     fixes.push({
+      id: 'keep',
       label: croppable ? `Keep ${names[aspect]}, crop to ${asked.other} after` : 'Keep ' + names[aspect],
       patch: () => ({}),
       ...(croppable ? { cropTo: asked.other } : {}),
@@ -284,6 +298,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     const settled = croppable && closest === aspect && project.frame === asked.other;
     if (!settled)
       out.push({
+        id: `shape|${asked.other}|${aspect}${croppable ? '|crop' : ''}`,
         code: 'shape',
         text: `You asked for ${asked.other}, which Seed can't make directly. This draft is ${names[aspect]}.${croppable ? ` After it's made, Crop turns it into ${asked.other} on this device, no GPU.` : ''}`,
         fixes,
@@ -306,10 +321,12 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       .sort((a, b) => Math.abs(a.d.width * a.d.height - w * h) - Math.abs(b.d.width * b.d.height - w * h))[0];
     if (now && best && best.id !== r.output.size && (now.width !== w || now.height !== h))
       out.push({
+        id: `size|${w}x${h}|${now.width}x${now.height}|${best.d.width}x${best.d.height}`,
         code: 'size',
         text: `You asked for ${w} × ${h}; this draft is ${now.width} × ${now.height}. The closest size Seed makes is ${best.d.width} × ${best.d.height}.`,
         fixes: [
           {
+            id: 'size',
             label: `Use ${best.d.width} × ${best.d.height}`,
             patch: x => ({ ...revisable(x), output: { ...x.output, size: best.id } }),
           },
@@ -324,10 +341,12 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     r.output.duration_seconds !== asked.seconds
   )
     out.push({
+      id: `length|${asked.seconds}|${r.output.duration_seconds ?? 5}`,
       code: 'length',
       text: `You asked for ${asked.seconds} seconds; this draft is ${r.output.duration_seconds ?? 5}.`,
       fixes: [
         {
+          id: 'length',
           label: `Make it ${asked.seconds} s`,
           patch: x => ({ ...revisable(x), output: { ...x.output, duration_seconds: asked.seconds } }),
         },
@@ -335,12 +354,14 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     });
   if (video && asked.silent !== undefined && (r.audio?.output === 'silent') !== asked.silent)
     out.push({
+      id: 'sound|' + (asked.silent ? 'silent' : 'sound'),
       code: 'sound',
       text: asked.silent
         ? 'You asked for silence; this draft has sound.'
         : 'You asked for sound; this draft is silent.',
       fixes: [
         {
+          id: asked.silent ? 'silent' : 'sound',
           label: asked.silent ? 'Make it silent' : 'Add sound',
           patch: x => ({
             ...revisable(x),
@@ -360,14 +381,16 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     r.audio?.output !== 'silent'
   )
     out.push({
+      id: 'added-sound',
       code: 'added-sound',
       text: 'Seed added sound to this clip, which you didn’t ask for.',
       fixes: [
         {
+          id: 'silent',
           label: 'Make it silent',
           patch: x => ({ ...revisable(x), audio: { output: 'silent' }, prompt: silencedPrompt(x.prompt) }),
         },
-        { label: 'Keep the sound', patch: () => ({}) },
+        { id: 'keep', label: 'Keep the sound', patch: () => ({}) },
       ],
     });
   // Brief details that apply to this draft but are missing from its prompt. Words only: this checks the request, not the picture.
@@ -413,11 +436,13 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       ...gaps.filter(g => !g.who).map(g => `“${g.text}”`),
     ];
     out.push({
+      id: 'continuity|' + gaps.map(g => `${g.who ?? ''}:${g.text}`).join(';'),
       code: 'continuity',
       soft: true,
       text: `Missing from this prompt: ${parts.join('; ')}.`,
       fixes: [
         {
+          id: 'add-details',
           label:
             whose.length === 1
               ? `Add the missing ${nameCase(whose[0]!)} details to this prompt`
@@ -426,7 +451,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
                 : 'Add these details to the prompt',
           patch: x => ({ ...revisable(x), prompt: addBriefDetails(x.prompt, gaps) }),
         },
-        { label: 'Not visible in this shot', patch: () => ({}) },
+        { id: 'keep', label: 'Not visible in this shot', patch: () => ({}) },
       ],
     });
   }
@@ -444,10 +469,11 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
   const unused = [...new Set([...(asking?.assets ?? []), ...attached])].filter(a => !used.has(a));
   if (unused.length && !(r.references ?? []).length)
     out.push({
+      id: 'unused-input|' + unused.join(','),
       code: 'unused-input',
       text: `Your attached ${unused.length === 1 ? 'image is' : 'files are'} not used by this draft; it is made from words only.`,
       fixes: [
-        { label: 'Make it as an edit of the attached image', patch: () => ({}), action: 'edit-myself', assets: unused },
+        { id: 'edit-myself', label: 'Make it as an edit of the attached image', patch: () => ({}), assets: unused },
       ],
     });
   return out;

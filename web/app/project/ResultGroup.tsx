@@ -62,7 +62,7 @@ export function ResultGroup({
       <section className="notice error" id={'group-' + group.id}>
         <b>Couldn't start “{titleOf(latest(group.cards[0]!).request)}”.</b>{' '}
         {group.submission_error ??
-          'This request did not start. A cloud GPU you started keeps billing until you release it.'}
+          'Nothing was made. If you started a cloud GPU for it, it bills until you release it.'}
         <div className="actions">
           <button className="btn small" onClick={() => actions.onMakeAgain(group.cards[0]!)}>
             Try again
@@ -74,7 +74,13 @@ export function ResultGroup({
     return (
       <section className="card" id={'group-' + group.id}>
         <div className="notnow">
-          <span>{group.state === 'stopped' ? 'Stopped, not made' : 'Not made yet'}:</span>
+          <span>
+            {/* A plan set aside (every draft kept for later) is not a stop. */}
+            {group.state === 'stopped' && !group.cards.every(c => latest(c).decision === 'denied')
+              ? 'Stopped, not made'
+              : 'Not made yet'}
+            :
+          </span>
           {group.cards.map(c => (
             <span key={c.id}>
               <b>{titleOf(latest(c).request)}</b>{' '}
@@ -564,12 +570,10 @@ function ResultTile({
                   </button>
                 </>
               )}
-              {/* A specific blocker (not ordinary queueing) is shown where the waiting job is. */}
-              {jobPhase(job) === 'queued' &&
-                job.waiting_reason &&
-                /cannot|can't|needs|Enable|Resume|unavailable|No GPU/.test(job.waiting_reason) && (
-                  <small className="wait-reason">{job.waiting_reason}</small>
-                )}
+              {/* The server gives a reason only when the owner must act. */}
+              {jobPhase(job) === 'queued' && job.waiting_reason && (
+                <small className="wait-reason">{job.waiting_reason}</small>
+              )}
             </span>
           ) : state.tone === 'bad' ? (
             <span>

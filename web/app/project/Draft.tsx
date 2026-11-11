@@ -315,18 +315,18 @@ export function Draft({
           checks
             .filter(c => !c.soft || showSoft)
             .map(c => (
-              <div className={'check-note' + (c.soft ? ' soft' : '')} key={c.text}>
+              <div className={'check-note' + (c.soft ? ' soft' : '')} key={c.id}>
                 <span>
                   {c.soft ? '' : '⚠ '}
                   {c.text}
                 </span>
                 {c.fixes.map(f => (
                   <button
-                    key={f.label}
+                    key={f.id}
                     className="btn small"
                     disabled={busy}
                     onClick={() => {
-                      if (f.action === 'edit-myself') return onEditMyself(f.assets ?? []);
+                      if (f.id === 'edit-myself') return onEditMyself(f.assets ?? []);
                       if (f.cropTo) void chooseFrame(project.id, f.cropTo);
                       const patch = f.patch(r);
                       if (Object.keys(patch).length) void onRevise(patch);
