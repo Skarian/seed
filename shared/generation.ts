@@ -106,19 +106,6 @@ export type GenerationRequest = GenerationFields & (
 /** Compatibility name for existing callers and persisted jobs. */
 export type ImageRequest = GenerationRequest;
 
-/** Form edits stay in their workflow; workflow changes create/restore a separate draft. */
-export function patchGeneration(request:GenerationRequest, patch:Partial<GenerationRequest>):GenerationRequest {
-  const fields={...request,...patch};
-  if(request.workflow==='image-to-image'){
-    const klein=(fields as {engine?:string}).engine==='klein';
-    const aspect=klein?((patch.output?.aspect??request.output.aspect) as ImageAspect|'source'):'source';
-    return {...fields,workflow:'image-to-image',output:{aspect,size:(patch.output?.size??request.output.size) as ImageSize},loras:undefined,audio:undefined,steps:undefined,detail:undefined};
-  }
-  if(request.workflow==='text-to-image'){delete fields.steps;delete fields.detail;}
-  const output=patch.output??request.output;
-  return {...fields,workflow:request.workflow,output:{...output,aspect:output.aspect==='source'?request.output.aspect:output.aspect}} as GenerationRequest;
-}
-
 /** A silent clip should not keep describing sound: rewrite the prompt's Sound section (if any) to "Silence.".
  * A section that already says it is silent is left as written, so `silencedPrompt(p) === p` means "already silent". */
 export function silencedPrompt(prompt: string) {
