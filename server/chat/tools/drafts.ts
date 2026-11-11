@@ -9,25 +9,7 @@ import { agentRequest, latest, openGroup, referenceMode } from '../model.js';
 import { validateChatReferences, validateCastReferences, withCastLooks } from '../references.js';
 import { requestToolSchemas, prepareToolRequest, requestToolResultError, toolInputLabels } from '../request-tools.js';
 import { current, defineTool, ToolFailure, type ToolSession } from './define.js';
-
-/** Rewrites a prompt's sound section (overall_soundscape:, Sound:) to "Silence." unless it already says so. */
-export function silentSoundSection(prompt: string) {
-  const lines = prompt.split('\n');
-  const head = /^\s*(?:overall_soundscape|sound|audio)\s*:/i;
-  const at = lines.findIndex(l => head.test(l));
-  if (at < 0) return prompt;
-  let end = at + 1;
-  while (
-    end < lines.length &&
-    lines[end]!.trim() &&
-    !/^\s*(?:[a-z]+(?:_[a-z]+)+|[A-Z][\w ]{1,24})\s*:|^\s*\[Shot \d+\]/.test(lines[end]!)
-  )
-    end++;
-  const label = lines[at]!.match(head)![0];
-  const rest = lines.slice(at, end).join(' ').slice(label.length).trim();
-  if (/^(silence|silent|none|n\/a)\.?$/i.test(rest)) return prompt;
-  return [...lines.slice(0, at), label + ' Silence.', ...lines.slice(end)].join('\n');
-}
+import { silencedPrompt } from '../../../shared/generation.js';
 
 /** The user's last few messages, as one text: what this turn was asked for. */
 const asked = (chat: { messages: Array<{ role: string; text: string }> }, count: number) =>
@@ -177,15 +159,15 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
         // A silent clip must not keep describing sound: its sound section reads "Silence." Only when the clip becomes
         // silent in this change (or Seed wrote new sound text): a sound section the previous version already had,
         // including anything the owner typed there, is left as it was.
-        const priorSound = prior ? silentSoundSection(prior.prompt) === prior.prompt : true;
+        const priorSound = prior ? silencedPrompt(prior.prompt) === prior.prompt : true;
         if (
           isVideoWorkflow(request.workflow) &&
           request.audio?.output === 'silent' &&
           (silenced ||
             prior?.audio?.output !== 'silent' ||
-            (priorSound && silentSoundSection(request.prompt) !== request.prompt))
+            (priorSound && silencedPrompt(request.prompt) !== request.prompt))
         )
-          request.prompt = silentSoundSection(request.prompt);
+          request.prompt = silencedPrompt(request.prompt);
         if (request.workflow !== 'image-to-image')
           host.jobs.loras.resolve(request.loras, loraRoute(request), request.mode);
         if (!group) {

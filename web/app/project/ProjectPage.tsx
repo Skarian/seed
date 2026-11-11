@@ -32,7 +32,7 @@ import { approvedReferences } from '../../../shared/choices.js';
 import { readiness } from './readiness.js';
 import { buildRequest, defaultMake, defaultRoles, type Attachment, type MakeSettings } from './requests.js';
 import { useStyles } from './styles.js';
-import { checkDraft, readablePrompt } from './checks.js';
+import { ackKey, checkDraft, readablePrompt } from './checks.js';
 import { BriefBar } from './Brief.js';
 import { Header, RenameDialog, EmptyProject } from './ProjectHeader.js';
 import { Message } from './Message.js';
@@ -727,7 +727,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const openChecks = plan
     ? selectedCards.flatMap(c =>
         checkDraft(c, project!, plan.cards.length).filter(
-          x => x.fixes.length && !x.soft && !acknowledged.has(c.id + ':' + x.text),
+          x => x.fixes.length && !x.soft && !acknowledged.has(ackKey(c, x)),
         ),
       )
     : [];

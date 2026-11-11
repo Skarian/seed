@@ -9,7 +9,7 @@ import { chooseFrame, stylesChanged, useApp } from '../data.js';
 import { latest, titleOf, settingChips, changesBetween, outputNoun, assetName } from '../format.js';
 import { readiness, styleName, routeOf, type StyleEntry } from './readiness.js';
 import { editableFields, revisedRequest, sizeOptions, roleLabels, type EditableFields } from './requests.js';
-import { askedFor, checkDraft, readablePrompt, editablePrompt, type Check } from './checks.js';
+import { ackKey, askedFor, checkDraft, readablePrompt, editablePrompt, type Check } from './checks.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
 import { swapInput } from './swap.js';
 import { RequestFields } from './RequestFields.js';
@@ -83,7 +83,7 @@ export function PlanCard({
   const sources = cards.map(c => latest(c).request.references?.[0]?.asset_id ?? '');
   const oneSource = cards.length > 1 && sources[0] && sources.every(x => x === sources[0]) ? sources[0] : '';
   const rawWarnings = cards.map(card =>
-    checkDraft(card, project, cards.length).filter(x => !acknowledged.has(card.id + ':' + x.text)),
+    checkDraft(card, project, cards.length).filter(x => !acknowledged.has(ackKey(card, x))),
   );
   // A warning every draft shares is said once, for the whole plan, and its fix applies to all of them.
   const planWide =
@@ -192,7 +192,7 @@ export function PlanCard({
                       const patch = f.patch(latest(card).request);
                       if (Object.keys(patch).length) {
                         if (!(await onRevise(card, patch))) return;
-                      } else onAcknowledge(card.id + ':' + c.text);
+                      } else onAcknowledge(ackKey(card, c));
                     }
                   })();
                 }}
@@ -345,7 +345,7 @@ export function PlanCard({
               onCollapse={compact ? () => setOpen(null) : undefined}
               kindLabel={kindLabels[kindOf[card.workflow]]}
               checks={warnings[i]!}
-              onAcknowledge={text => onAcknowledge(card.id + ':' + text)}
+              onAcknowledge={check => onAcknowledge(ackKey(card, check))}
               onEditMyself={assets => onEditMyself(card, assets)}
             />
           );
@@ -395,7 +395,7 @@ function Draft({
   onCollapse?: () => void;
   kindLabel: string;
   checks: Check[];
-  onAcknowledge: (text: string) => void;
+  onAcknowledge: (check: Check) => void;
   onEditMyself: (assets: string[]) => void;
 }) {
   // A new revision shows itself; the card stays mounted, so notices about the change (a swap) survive it.
@@ -745,7 +745,7 @@ function Draft({
                         if (f.cropTo) void chooseFrame(project.id, f.cropTo);
                         const patch = f.patch(r);
                         if (Object.keys(patch).length) void onRevise(patch);
-                        else onAcknowledge(c.text);
+                        else onAcknowledge(c);
                       }}
                     >
                       {f.label}

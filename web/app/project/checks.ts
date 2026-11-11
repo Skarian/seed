@@ -6,7 +6,7 @@ import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';
 import { inputLabels } from '../../../shared/reference-labels.js';
 import { sizeChoices, resolveDimensions } from '../../../shared/resolution.js';
-import type { ShotFields } from '../../../shared/generation.js';
+import { silencedPrompt, type ShotFields } from '../../../shared/generation.js';
 
 /** The shapes Crop offers, including film ratios; checks promise a crop only to one of these. */
 export const cropShapes = [
@@ -135,8 +135,19 @@ function strip(r: ImageRequest) {
   return rest as Record<string, unknown> & { output: ImageRequest['output'] };
 }
 
+/** Checks are computed when read and kept per project copy: a new copy (any save) computes them again. */
+const memo = new WeakMap<Project, Map<string, Check[]>>();
 /** Where a draft differs from what was asked, with one-tap fixes. Unsupported asks get the supported choices. */
 export function checkDraft(card: ChatCard, project: Project, siblings = 1): Check[] {
+  let held = memo.get(project);
+  if (!held) memo.set(project, (held = new Map()));
+  const key = card.id + ':' + latest(card).number + ':' + siblings;
+  if (!held.has(key)) held.set(key, draftChecks(card, project, siblings));
+  return held.get(key)!;
+}
+/** The owner's "keep it as drafted" on one check of one draft. A changed problem has new text, so it asks again. */
+export const ackKey = (card: ChatCard, check: Check) => card.id + ':' + check.text;
+function draftChecks(card: ChatCard, project: Project, siblings: number): Check[] {
   const r = latest(card).request,
     kind = kindOf[r.workflow],
     video = isVideoKind(kind),
@@ -802,25 +813,6 @@ export function editablePrompt(r: ImageRequest, project: Project, everywhere: Jo
     return hidden.length ? out.replace(/\s+$/, '') + '\n' + hidden.join('\n') : out;
   };
   return text === r.prompt ? null : { text, back };
-}
-
-/** A silent clip should not keep describing sound: rewrite the prompt's Sound section (if any) to silence. */
-export function silencedPrompt(prompt: string) {
-  const lines = prompt.split('\n');
-  // "Sound:" as people write it, or the video format's own overall_soundscape field.
-  const head = /^\s*(?:#+\s*)?(?:sound|audio|overall_soundscape)\s*:/i;
-  const at = lines.findIndex(l => head.test(l));
-  if (at < 0) return prompt;
-  // The section runs until the next "Label:" line, [Shot N] part or blank line.
-  let end = at + 1;
-  while (
-    end < lines.length &&
-    lines[end]!.trim() &&
-    !/^\s*(?:#+\s*)?(?:[A-Z][\w ]{1,24}|[a-z]+(?:_[a-z]+)+)\s*:|^\s*\[Shot \d+\]/.test(lines[end]!)
-  )
-    end++;
-  const label = lines[at]!.match(head)![0];
-  return [...lines.slice(0, at), label + ' Silence.', ...lines.slice(end)].join('\n');
 }
 
 /** "MARA" or "mara" from a brief, written as a name ("Mara"). */

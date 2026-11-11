@@ -118,3 +118,24 @@ export function patchGeneration(request:GenerationRequest, patch:Partial<Generat
   const output=patch.output??request.output;
   return {...fields,workflow:request.workflow,output:{...output,aspect:output.aspect==='source'?request.output.aspect:output.aspect}} as GenerationRequest;
 }
+
+/** A silent clip should not keep describing sound: rewrite the prompt's Sound section (if any) to "Silence.".
+ * A section that already says it is silent is left as written, so `silencedPrompt(p) === p` means "already silent". */
+export function silencedPrompt(prompt: string) {
+  const lines = prompt.split('\n');
+  // "Sound:" as people write it, or the video format's own overall_soundscape field.
+  const head = /^\s*(?:#+\s*)?(?:sound|audio|overall_soundscape)\s*:/i;
+  const at = lines.findIndex(l => head.test(l));
+  if (at < 0) return prompt;
+  // The section runs until the next "Label:" line, [Shot N] part or blank line.
+  let end = at + 1;
+  while (
+    end < lines.length &&
+    lines[end]!.trim() &&
+    !/^\s*(?:#+\s*)?(?:[A-Z][\w ]{1,24}|[a-z]+(?:_[a-z]+)+)\s*:|^\s*\[Shot \d+\]/.test(lines[end]!)
+  )
+    end++;
+  const label = lines[at]!.match(head)![0];
+  if (/^(silence|silent|none|n\/a)\.?$/i.test(lines.slice(at, end).join(' ').slice(label.length).trim())) return prompt;
+  return [...lines.slice(0, at), label + ' Silence.', ...lines.slice(end)].join('\n');
+}

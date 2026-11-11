@@ -1,5 +1,6 @@
 import { it, expect } from 'vitest';
-import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, silencedPrompt, briefGapList, addBriefDetails } from '../web/app/project/checks.js';
+import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, briefGapList, addBriefDetails } from '../web/app/project/checks.js';
+import { silencedPrompt } from '../shared/generation.js';
 
 // Synthetic fixtures only.
 const message = (role: 'user' | 'assistant', text: string, id = Math.random().toString(36), assets: string[] = []) => ({ id, role, text, assets, created_at: '2026-11-04T00:00:00Z' });
@@ -144,6 +145,9 @@ it('keeps the video engine scaffold out of the editor and puts it back at the st
 it('making a clip silent also rewrites its Sound section', () => {
   const request = { workflow: 'text-to-video', prompt: 'Scene: steam rising.\noverall_soundscape: kettle hiss and rain\nCamera: static', output: { aspect: '16:9', size: '768p', duration_seconds: 5 }, count: 1, seed: 'random', mode: 'sfw', audio: { output: 'generated' } };
   expect(silencedPrompt('Scene: steam.\nSound: kettle hiss,\nrain on glass\nCamera: static')).toBe('Scene: steam.\nSound: Silence.\nCamera: static');
+  // Already silent stays as written, so the server can tell a silent prompt by equality; Markdown headings count too.
+  expect(silencedPrompt('Scene: steam.\nSound: none')).toBe('Scene: steam.\nSound: none');
+  expect(silencedPrompt('## Sound: kettle hiss\nCamera: static')).toBe('## Sound: Silence.\nCamera: static');
   expect(silencedPrompt('No sound section here')).toBe('No sound section here');
   const fix = checkDraft(card(request) as any, project([message('user', 'A 5-second clip of steam rising'), message('assistant', 'Prepared', 'run')])).find(c => c.text.includes('added sound'))!.fixes[0]!;
   expect(fix.patch(request as any)).toMatchObject({ audio: { output: 'silent' } });
