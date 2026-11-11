@@ -293,7 +293,7 @@ export function stageOf(turn: NonNullable<ChatMessage['transcript']>) {
   const done = tools.filter(s => s.state === 'succeeded').length,
     failed = tools.filter(s => s.state === 'failed').length;
   const tally =
-    done || failed ? ` · ${done} ${done === 1 ? 'step' : 'steps'} done${failed ? `, ${failed} retried` : ''}` : '';
+    done || failed ? ` · ${done} ${done === 1 ? 'step' : 'steps'} done${failed ? `, ${failed} didn’t work` : ''}` : '';
   return stageNow(turn) + tally;
 }
 function stageNow(turn: NonNullable<ChatMessage['transcript']>) {
