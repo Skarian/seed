@@ -100,3 +100,17 @@ export function planStatus(
   const need = selectedCards.map(ready).find(r => r.needs || r.billing);
   return { selectedCards, images, clips, makeNoun, unresolved, anyway, planStale, question, need };
 }
+
+/** Seed revised, closed or reshaped the plan since these decisions were taken (for example while a GPU question was
+ * open): making them now would run drafts the owner has not seen. */
+export function planMoved(now: ChatGroup | undefined, decisions: Array<{ card: string; revision: number }>) {
+  return (
+    !now ||
+    now.state !== 'reviewing' ||
+    now.cards.length !== decisions.length ||
+    decisions.some(d => {
+      const card = now.cards.find(c => c.id === d.card);
+      return !card || latest(card).number !== d.revision;
+    })
+  );
+}

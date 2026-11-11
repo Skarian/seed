@@ -26,7 +26,7 @@ import { Header, RenameDialog, EmptyProject } from './ProjectHeader.js';
 import { Message } from './Message.js';
 import { isOpenPlan, buildTimeline, lastUserMessage, titleFromPrompt, checkRequest } from './timeline.js';
 import { revisable } from './plan.js';
-import { planSeconds, planStatus } from './planStatus.js';
+import { planMoved, planSeconds, planStatus } from './planStatus.js';
 import { useComposerState } from './useComposerState.js';
 import { useConversationScroll } from './useConversationScroll.js';
 import * as drafts from './drafts.js';
@@ -280,6 +280,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       decision: chosen.includes(c) ? ('approved' as const) : ('denied' as const),
     }));
     const go = async () => {
+      // Seed may have revised the plan while the GPU question was open: make only the drafts the owner saw.
+      if (planMoved(currentProject(id)?.groups.find(g => g.id === plan.id), decisions)) {
+        setProblem('Seed changed the plan while you were deciding. Check the drafts, then choose Make again.');
+        setFlash(plan.id);
+        return;
+      }
       const ok = await run('Making', () => projectsApi.decide(id, plan.id, decisions));
       if (ok) setFlash(plan.id);
     };
