@@ -1,5 +1,5 @@
 import { it, expect } from 'vitest';
-import { splitWarnings, ticked, type Selection } from '../web/app/project/plan.js';
+import { pruneTicks, splitWarnings, ticked, type Selection } from '../web/app/project/plan.js';
 import type { Check } from '../web/app/project/checks.js';
 
 // Synthetic fixtures only.
@@ -45,4 +45,19 @@ it('lets Seed decide again once it changes what it left out', () => {
   expect(ticked({}, card(false))).toBe(true);
   // A tick saved by an older release is a plain boolean: Seed's choice decides.
   expect(ticked({ a: false } as unknown as Selection, card(false))).toBe(true);
+});
+
+it('retires a tick for good once Seed changes what it overrode, even if Seed changes it back', () => {
+  const card = (left_out: boolean) => ({ id: 'a', left_out }) as any;
+  let selection: Selection = { a: { on: false, was: false } };
+  selection = pruneTicks(selection, [card(false)]);
+  expect(ticked(selection, card(false))).toBe(false);
+  selection = pruneTicks(selection, [card(true)]);
+  selection = pruneTicks(selection, [card(false)]);
+  expect(selection).toEqual({});
+  expect(ticked(selection, card(false))).toBe(true);
+  // The inverse: an override of a left-out draft goes once Seed puts the draft back.
+  expect(pruneTicks({ a: { on: true, was: true } }, [card(false)])).toEqual({});
+  // A tick for a draft no longer in the plan goes too.
+  expect(pruneTicks({ b: { on: true, was: false } }, [card(false)])).toEqual({});
 });

@@ -158,8 +158,21 @@ export class Chats {
       if (changed) this.save(chat);
     }
   }
+  /**
+   * Each project's view revision. Every save of the project or of one of its jobs takes a new, larger number
+   * (microseconds since the epoch, so a restart never goes back), and every copy sent carries it.
+   */
+  private revisions = new Map<string, number>();
+  private lastRevision = 0;
+  private advance(id: string) {
+    this.lastRevision = Math.max(Date.now() * 1000, this.lastRevision + 1);
+    this.revisions.set(id, this.lastRevision);
+    return this.lastRevision;
+  }
+  private viewRevision = (id: string) => this.revisions.get(id) ?? this.advance(id);
   private save(chat: StoredChat) {
     chat.updated_at = now();
+    const revision = this.advance(chat.id);
     this.db
       .prepare('INSERT INTO chats VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body_json=excluded.body_json')
       .run(chat.id, chat.mode, JSON.stringify(chat));
@@ -167,7 +180,7 @@ export class Chats {
       try {
         listener({
           version: chat.version,
-          as_of: chat.updated_at,
+          revision,
           activity: this.activityOf(chat),
           error: chat.error,
           stream_message: [...chat.messages].reverse().find(m => m.transcript),
@@ -180,6 +193,7 @@ export class Chats {
   /** Job progress reaches a project's watchers at most every 400 ms, as a hint to read the project again. */
   private jobTimers = new Map<string, ReturnType<typeof setTimeout>>();
   private jobSaved(chatId: string | undefined) {
+    if (chatId) this.advance(chatId);
     if (!chatId || !this.listeners.has(chatId) || this.jobTimers.has(chatId)) return;
     this.jobTimers.set(
       chatId,
@@ -240,7 +254,7 @@ export class Chats {
     for (const job of jobs) for (const asset of job.outputs) if (!chat.assets.includes(asset)) chat.assets.push(asset);
     return {
       ...view,
-      as_of: jobs.reduce((at, job) => (job.updated_at > at ? job.updated_at : at), chat.updated_at),
+      revision: this.viewRevision(id),
       cast: castOf(chat),
       asset_manifest: this.contextAssets(chat),
       jobs: jobs.map(job => this.jobs.publicJob(job)),

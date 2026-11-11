@@ -120,6 +120,18 @@ it('builds a receipt from the tools that succeeded, not from the reply', async (
   ]);
 });
 
+it('keeps a later failed change listed when the same draft was changed earlier in the turn', () => {
+  const slip = { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Stale revision.', internal: true }) }] };
+  const turn: TurnTranscript = {
+    started_at: at,
+    state: 'completed',
+    steps: [tool('edit_request', 'succeeded', { request_id: 'a' }), { ...tool('edit_request', 'failed', { request_id: 'a' }), result: slip }],
+  };
+  expect(turnOutcome(turn, id => (id === 'a' ? 'Shot 1' : undefined)).unfinished.map(u => u.label)).toEqual([
+    'Change a draft: Shot 1',
+  ]);
+});
+
 it('hides a draft failure a later try made good, and never shows raw JSON', () => {
   const turn: TurnTranscript = {
     started_at: at,

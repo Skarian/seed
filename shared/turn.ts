@@ -94,12 +94,12 @@ export function turnOutcome(
         );
       if (madeGood) return;
       const { error, internal } = s.failure ?? legacyFailure(s);
-      // Made good by the same draft saved anywhere in the turn. A slip that named no draft that exists (a stale id) is
-      // made good by any later success of the same tool; a slip on a real draft only by that draft's own save.
+      // Made good only by a later save: of the same draft, or, for a slip that named no draft that exists (a stale id),
+      // by any later success of the same tool. An earlier save of the draft never hides a later failure.
       const id = String(input(s).request_id ?? ''),
         stale = !target(s) || (id !== '' && !draftTitle(id));
       const retried = tools.some(
-        (t, j) => worked(t) && ((Boolean(target(s)) && target(t) === target(s)) || (j > i && stale)),
+        (t, j) => j > i && worked(t) && (stale || target(t) === target(s)),
       );
       if (internal && progressed && (!toolLabel(name)?.saves || retried)) return;
       const label = toolLabel(name)?.failed ?? 'A step',

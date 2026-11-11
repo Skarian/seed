@@ -11,8 +11,8 @@ export interface ChatGroup {id:string;after_message_id?:string|null;workflow:Cha
   client_request_id?:string}
 export interface ChatMessage {id:string;role:'user'|'assistant'|'event';text:string;mention_bindings?:MentionBinding[];reasoning_text?:string;transcript?:TurnTranscript;request_attachment?:{card_id:string;revision:number;request:ImageRequest;notes:Record<string,string>};assets:string[];created_at:string}
 export interface ChatView {
-  /** The newest change this copy includes, of the chat or any of its jobs: orders copies that arrive out of order. */
-  as_of?:string;
+  /** Which change of the project (or of one of its jobs) this copy shows: a larger number is a newer copy. */
+  revision?:number;
   id:string;title:string;mode:ChatMode;workflow:ChatWorkflow|null;version:number;epoch:number;
   reasoning:boolean;messages:ChatMessage[];groups:ChatGroup[];assets:string[];
   /** The project's lasting brief (Markdown): story, characters, locations, look, rules, shots. Kept by Seed and the owner. */

@@ -78,6 +78,14 @@ export function ticked(selection: Selection, card: ChatCard) {
   const tick = selection[card.id];
   return tick?.was === Boolean(card.left_out) ? tick.on : !card.left_out;
 }
+/** Seed changed a draft's `left_out` since the owner's tick: that tick is retired for good, even if Seed changes it back. */
+export function pruneTicks(selection: Selection, cards: ChatCard[]): Selection {
+  const kept = Object.entries(selection).filter(([id, tick]) => {
+    const card = cards.find(c => c.id === id);
+    return card && tick.was === Boolean(card.left_out);
+  });
+  return kept.length === Object.keys(selection).length ? selection : Object.fromEntries(kept);
+}
 
 /** Continuity preflight: drafts going into the make that leave out brief details, listed once for the whole plan. */
 export function preflight(cards: ChatCard[], warnings: Check[][], selection: Selection) {

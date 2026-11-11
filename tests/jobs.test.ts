@@ -49,6 +49,14 @@ it('keeps a saved result when only the worker acknowledgement fails, and acknowl
   const saved=f.jobs.get(job!.id)!;expect(saved.state).toBe('completed');expect(saved.outputs).toHaveLength(1);expect(saved.recovery_blocked).toBeFalsy();expect(saved.error).toBeNull();
   await f.jobs.reconcile();expect(f.worker.acknowledge).toHaveBeenCalledTimes(2);expect(f.jobs.get(job!.id)!.worker!.acknowledged).toBe(true);
 }));
+it('acknowledges a saved take that an older release left marked as unsaved',async()=>fixture(async f=>{
+  await f.ready();f.worker.acknowledge.mockRejectedValueOnce(Error('worker gone'));const {jobs:[job]}=await f.jobs.submit(f.request,'legacy-blocked-fixture');await f.settle();
+  // The record as the old catch left it: completed, saved, unacknowledged and blocked.
+  const stored=f.jobs.get(job!.id)!;stored.recovery_blocked=true;stored.error='The picture was made but did not reach this PC.';
+  f.db.prepare('UPDATE jobs SET snapshot_json=? WHERE id=?').run(JSON.stringify(stored),stored.id);
+  await f.jobs.reconcile();
+  const fixed=f.jobs.get(job!.id)!;expect(fixed.recovery_blocked).toBe(false);expect(fixed.error).toBeNull();expect(fixed.state).toBe('completed');expect(fixed.worker!.acknowledged).toBe(true);
+}));
 it('cancels unsent work without contacting the worker or changing other requests',async()=>fixture(async f=>{
   const first=await f.jobs.submit(f.request,'cancel-first-fixture'),second=await f.jobs.submit(f.request,'cancel-second-fixture');
   f.jobs.stopJobs([first.jobs[0]!.id]);expect(f.jobs.get(first.jobs[0]!.id)!.state).toBe('cancelled');expect(f.jobs.get(second.jobs[0]!.id)!.state).toBe('queued');expect(f.worker.cancel).not.toHaveBeenCalled();

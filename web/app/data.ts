@@ -170,7 +170,7 @@ export const currentProject = (id: string) => held.get(id)?.project ?? null;
 /** Takes a project from any response. Responses can arrive out of order, so an older copy never replaces a newer one. */
 export function putProject(value: Project) {
   const now = currentProject(value.id);
-  if (now?.as_of && value.as_of && value.as_of < now.as_of) return;
+  if (now && (value.version < now.version || (value.revision ?? 0) < (now.revision ?? 0))) return;
   hold(value.id, { project: value, error: '' });
 }
 /** One read of a project at a time; asks made meanwhile become one more read after it. */
@@ -212,7 +212,7 @@ export function useProject(id: string | null) {
         hold(id, {
           project: {
             ...p,
-            as_of: value.as_of > (p.as_of ?? '') ? value.as_of : p.as_of,
+            revision: Math.max(value.revision ?? 0, p.revision ?? 0),
             activity: value.activity ?? p.activity,
             messages: p.messages.some(m => m.id === message.id)
               ? p.messages.map(m => (m.id === message.id ? message : m))
@@ -230,9 +230,14 @@ export function useProject(id: string | null) {
       activity = value.activity;
     };
     stream.onopen = () => void reloadProject(id);
+    // A read that failed (the network, a restart) is tried again while the page watches, with no save needed to prompt it.
+    const retry = setInterval(() => {
+      if (held.get(id)?.error) void reloadProject(id);
+    }, 5000);
     return () => {
       stream.close();
       clearTimeout(pending);
+      clearInterval(retry);
     };
   }, [id]);
   return value;
@@ -277,11 +282,25 @@ export function useAssets(query: AssetQuery | null, live?: unknown) {
     error?: string;
   }>({ items: [], cursor: null, loaded: false, loading: false });
   const [tick, setTick] = useState(0);
-  const expanded = useRef(false);
+  // `generation` counts fresh starts (a new query, or any asset change): pages loaded before one are dropped, so a
+  // deleted or no-longer-matching asset never lingers past the first page, and a late Load more is ignored.
+  const expanded = useRef(false),
+    generation = useRef(0);
   const refresh = useCallback(() => setTick(t => t + 1), []);
-  useEffect(() => onAssetsChanged(refresh), [refresh]);
-  useEffect(() => {
+  const restart = () => {
     expanded.current = false;
+    generation.current++;
+  };
+  useEffect(
+    () =>
+      onAssetsChanged(() => {
+        restart();
+        refresh();
+      }),
+    [refresh],
+  );
+  useEffect(() => {
+    restart();
     setState({ items: [], cursor: null, loaded: false, loading: false });
   }, [key]);
   useEffect(() => {
@@ -316,8 +335,10 @@ export function useAssets(query: AssetQuery | null, live?: unknown) {
   const more = useCallback(async () => {
     if (!query || !state.cursor || state.loading) return;
     setState(s => ({ ...s, loading: true }));
+    const started = generation.current;
     try {
       const page = await assetsApi.list({ ...query, cursor: state.cursor });
+      if (started !== generation.current) return setState(s => ({ ...s, loading: false }));
       expanded.current = true;
       setState(s => ({
         ...s,

@@ -406,6 +406,13 @@ it('publishes incremental assistant text before the completed chat snapshot',asy
  expect(updates.at(-1)).toMatchObject({activity:'idle'});
 }));
 
+it('gives every copy of a project a larger revision after any save of the project or of one of its jobs',async()=>fixture(async({chats,jobs})=>{
+ const c=chats.create('sfw'),first=chats.view(c.id).revision!;
+ expect(chats.view(c.id).revision).toBe(first);
+ jobs.onSaved({source:{chat_id:c.id}} as any);const afterJob=chats.view(c.id).revision!;expect(afterJob).toBeGreaterThan(first);
+ chats.stop(c.id,'reply');expect(chats.view(c.id).revision!).toBeGreaterThan(afterJob);
+}));
+
 it('tells a project’s watchers once when its jobs save in a burst, and nobody else',async()=>fixture(async({chats,jobs})=>{
  const a=chats.create('sfw'),b=chats.create('sfw'),heard:unknown[]=[],other:unknown[]=[];
  const offA=chats.subscribe(a.id,v=>heard.push(v)),offB=chats.subscribe(b.id,v=>other.push(v));

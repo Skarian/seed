@@ -4,7 +4,7 @@ import { useEffect, useState } from 'react';
 import type { ChatGroup } from '../api.js';
 import { useStoredState } from '../data.js';
 import type { ComposerContext } from './Composer.js';
-import type { Selection } from './plan.js';
+import { pruneTicks, type Selection } from './plan.js';
 import { defaultMake, type Attachment, type MakeSettings } from './requests.js';
 
 /** Reads a stored JSON value; anything missing or unreadable gives the fallback. */
@@ -72,6 +72,10 @@ export function useComposerState(id: string, plan: ChatGroup | undefined) {
     setSelection(load('seed.plan.sel.' + plan.id, {}));
     setAcknowledged(new Set(load<string[]>('seed.plan.ack.' + plan.id, [])));
   }, [plan?.id]);
+  const leftOut = plan?.cards.map(c => Boolean(c.left_out)).join();
+  useEffect(() => {
+    if (plan) setSelection(s => pruneTicks(s, plan.cards));
+  }, [leftOut]);
   useEffect(() => {
     if (!plan) return;
     save('seed.plan.sel.' + plan.id, selection);

@@ -91,7 +91,7 @@ const phases = {
 } as const satisfies Record<string, JobPhase>;
 export type JobState = keyof typeof phases;
 export const jobStates = Object.keys(phases) as JobState[];
-export const isJobState = (value: unknown): value is JobState => typeof value === 'string' && value in phases;
+export const isJobState = (value: unknown): value is JobState => typeof value === 'string' && Object.hasOwn(phases, value);
 const finished: JobPhase[] = ['completed', 'failed', 'cancelled'];
 /** A stored state no job leaves. */
 export const isTerminal = (state: string) => (finished as string[]).includes(state);

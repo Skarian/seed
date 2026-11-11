@@ -549,6 +549,13 @@ export class Jobs {
   }
   async reconcile(background = false) {
     for (const job of this.all()) {
+      // Saved before an older release marked a failed acknowledgement as a failed save: the take is here, so clear that
+      // and let the acknowledgement be sent again below.
+      if (job.recovery_blocked && job.state === "completed" && job.outputs.length) {
+        job.recovery_blocked = false;
+        job.error = null;
+        this.save(job);
+      }
       if (
         !job.worker ||
         this.inFlight.has(job.id) ||
