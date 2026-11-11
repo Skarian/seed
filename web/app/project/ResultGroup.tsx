@@ -37,30 +37,28 @@ type Actions = {
   onApproveReference?: (name: string, asset: string | null) => void;
 };
 
-/** What a plan becomes after Make: each made draft with its results, plus drafts that were set aside. */
-export function ResultGroup({
-  project,
-  group,
-  styles,
-  collapsed,
-  onExpand,
-  actions,
-  flash,
-}: {
+type Shared = {
   project: Project;
   group: ChatGroup;
   styles: StyleEntry[];
   collapsed: boolean;
   onExpand: () => void;
   actions: Actions;
-  flash?: string;
-}) {
+};
+
+const cardTitle = (c: ChatCard) => titleOf(latest(c).request);
+/** Whether a job ran, or was sent to run, on Seed PC: cancelling it leaves no rented GPU behind. */
+const ranLocally = (j: JobRecord) => j.worker?.executor === 'local' || j.request.target === 'local';
+
+/** What a plan becomes after Make: each made draft with its results, plus drafts that were set aside. */
+export function ResultGroup({ flash, ...shared }: Shared & { flash?: string }) {
+  const { group, actions } = shared;
   const made = group.cards.filter(c => latest(c).decision === 'approved');
   const notNow = group.cards.filter(c => latest(c).decision !== 'approved');
   if (group.state === 'stopped' && group.direct)
     return (
       <section className="notice error" id={'group-' + group.id}>
-        <b>Couldn't start “{titleOf(latest(group.cards[0]!).request)}”.</b>{' '}
+        <b>Couldn't start “{cardTitle(group.cards[0]!)}”.</b>{' '}
         {group.submission_error ??
           'Nothing was made. If you started a cloud GPU for it, it bills until you release it.'}
         <div className="actions">
@@ -83,7 +81,7 @@ export function ResultGroup({
           </span>
           {group.cards.map(c => (
             <span key={c.id}>
-              <b>{titleOf(latest(c).request)}</b>{' '}
+              <b>{cardTitle(c)}</b>{' '}
               <button className="link" onClick={() => actions.onBringBack(c)}>
                 Bring back
               </button>
@@ -97,13 +95,8 @@ export function ResultGroup({
       {made.map((card, i) => (
         <CardResults
           key={card.id}
-          project={project}
-          group={group}
+          {...shared}
           card={card}
-          styles={styles}
-          collapsed={collapsed}
-          onExpand={onExpand}
-          actions={actions}
           flash={flash === card.id || flash === group.id}
           notNow={i === made.length - 1 ? notNow : []}
         />
@@ -122,36 +115,23 @@ function CardResults({
   actions,
   flash,
   notNow,
-}: {
-  project: Project;
-  group: ChatGroup;
-  card: ChatCard;
-  styles: StyleEntry[];
-  collapsed: boolean;
-  onExpand: () => void;
-  actions: Actions;
-  flash: boolean;
-  notNow: ChatCard[];
-}) {
+}: Shared & { card: ChatCard; flash: boolean; notNow: ChatCard[] }) {
   const app = useApp();
   const r = latest(card).request,
     // A take whose picture was deleted leaves no empty slot behind, and is not counted.
     list = cardJobs(project, card).filter(
       j => !(jobPhase(j) === 'completed' && !j.outputs.length && j.deleted_outputs?.length),
     ),
-    title = titleOf(r);
+    title = titleOf(r),
+    role = isVideoKind(kindOf[r.workflow]) ? ('video' as const) : ('image' as const);
   const done = list.filter(j => jobPhase(j) === 'completed'),
     failed = list.filter(isFailed),
     running = list.filter(jobActive);
   const [how, setHow] = useState(false);
+  const takeTitle = (n: number) => `${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`,
+    tall = r.output.aspect === '9:16' && list.length > 2;
   const items: ViewerItem[] = done.flatMap((j, n) =>
-    j.outputs.map(asset => ({
-      asset,
-      kind: isVideoKind(kindOf[r.workflow]) ? ('video' as const) : ('image' as const),
-      title: `${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`,
-      job: j,
-      project: project.id,
-    })),
+    j.outputs.map(asset => ({ asset, kind: role, title: takeTitle(n), job: j, project: project.id })),
   );
   const cancelled = list.filter(j => jobPhase(j) === 'cancelled');
   // Cancelled takes that were made again since (a later job with the same title) need no "Make again".
@@ -178,7 +158,7 @@ function CardResults({
             onClick={() => {
               void Promise.all(running.map(j => jobsApi.cancel(j.id))).then(() => app.refreshTasks());
               app.toast(
-                `Cancelling ${running.length} · finished results are kept${running.every(j => j.worker?.executor === 'local' || j.request.target === 'local') ? ' (Seed PC)' : '; a rented GPU keeps running until you release it'}`,
+                `Cancelling ${running.length} · finished results are kept${running.every(ranLocally) ? ' (Seed PC)' : '; a rented GPU keeps running until you release it'}`,
               );
             }}
           >
@@ -191,7 +171,7 @@ function CardResults({
             onClick={() => {
               app.go({ name: 'project', id: project.id, view: 'results' });
               // Land on this shot's takes, not the top of the storyboard.
-              const shot = shotFromTitle(titleOf(latest(card).request)).n;
+              const shot = shotFromTitle(title).n;
               if (shot === null) return;
               let tries = 0;
               const find = () => {
@@ -265,19 +245,13 @@ function CardResults({
   const madeLater = (c: ChatCard) =>
     project.groups
       .slice(project.groups.indexOf(group) + 1)
-      .some(g =>
-        g.cards.some(
-          x => latest(x).decision === 'approved' && titleOf(latest(x).request) === titleOf(latest(c).request),
-        ),
-      );
+      .some(g => g.cards.some(x => latest(x).decision === 'approved' && cardTitle(x) === cardTitle(c)));
   // A draft already brought back into the open plan needs no second Bring back here.
   const broughtBack = (c: ChatCard) =>
-    project.groups.some(
-      g => g !== group && planOpen(g) && g.cards.some(x => titleOf(latest(x).request) === titleOf(latest(c).request)),
-    );
+    project.groups.some(g => g !== group && planOpen(g) && g.cards.some(x => cardTitle(x) === cardTitle(c)));
   // Drafts still waiting lead; versions since redrafted or already brought back fold into a short history.
-  const waiting = notNow.filter(c => !broughtBack(c) && !madeLater(c)),
-    history = notNow.filter(c => broughtBack(c) || madeLater(c));
+  const history = notNow.filter(c => broughtBack(c) || madeLater(c)),
+    waiting = notNow.filter(c => !history.includes(c));
   const notNowRow = notNow.length > 0 && (
     <div className="notnow">
       {waiting.length > 0 && <span>Not run · kept as drafts:</span>}
@@ -288,12 +262,8 @@ function CardResults({
       )}
       {waiting.map(c => (
         <span key={c.id}>
-          <b>{titleOf(latest(c).request)}</b>{' '}
-          <button
-            className="link"
-            onClick={() => actions.onBringBack(c)}
-            aria-label={'Bring back: ' + titleOf(latest(c).request)}
-          >
+          <b>{cardTitle(c)}</b>{' '}
+          <button className="link" onClick={() => actions.onBringBack(c)} aria-label={'Bring back: ' + cardTitle(c)}>
             Bring back
           </button>
         </span>
@@ -303,7 +273,7 @@ function CardResults({
           <summary className="link">Earlier versions ({history.length})</summary>
           {history.map(c => (
             <span key={c.id}>
-              <b>{titleOf(latest(c).request)}</b>
+              <b>{cardTitle(c)}</b>
               <span className="faint">
                 {broughtBack(c) ? ' · brought back into the plan' : ' · redrafted since'}
               </span>{' '}
@@ -311,7 +281,7 @@ function CardResults({
                 <button
                   className="link"
                   onClick={() => actions.onBringBack(c)}
-                  aria-label={'Make this earlier version of ' + titleOf(latest(c).request)}
+                  aria-label={'Make this earlier version of ' + cardTitle(c)}
                 >
                   Make this version instead
                 </button>
@@ -338,7 +308,7 @@ function CardResults({
           )}
         </div>
         {notNowRow}
-        <IdleAfterCancel role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'} show jobs={list} />
+        <IdleAfterCancel role={role} show jobs={list} />
       </section>
     );
   if (collapsed)
@@ -370,16 +340,8 @@ function CardResults({
       {head}
       {how && <HowItWasMade project={project} card={card} styles={styles} />}
       <div
-        className={
-          'results' +
-          (list.length === 1 ? ' one' : list.length === 2 ? ' two' : '') +
-          (r.output.aspect === '9:16' && list.length > 2 ? ' tall' : '')
-        }
-        style={
-          r.output.aspect === '9:16' && list.length > 2
-            ? { ['--cols' as string]: String(Math.min(list.length, 4)) }
-            : undefined
-        }
+        className={'results' + (list.length === 1 ? ' one' : list.length === 2 ? ' two' : '') + (tall ? ' tall' : '')}
+        style={tall ? { ['--cols' as string]: String(Math.min(list.length, 4)) } : undefined}
       >
         {list
           .filter(j => jobPhase(j) !== 'cancelled' || running.length)
@@ -388,7 +350,7 @@ function CardResults({
               key={job.id}
               job={job}
               project={project}
-              title={`${title}${list.length > 1 ? `, ${n + 1} of ${list.length}` : ''}`}
+              title={takeTitle(n)}
               siblings={items}
               card={card}
               actions={actions}
@@ -406,11 +368,7 @@ function CardResults({
         </div>
       )}
       {notNowRow}
-      <IdleAfterCancel
-        role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'}
-        show={!running.length && cancelled.length > 0}
-        jobs={list}
-      />
+      <IdleAfterCancel role={role} show={!running.length && cancelled.length > 0} jobs={list} />
     </section>
   );
 }
@@ -622,7 +580,7 @@ function ResultTile({
                     app.toast(
                       jobPhase(after) === 'completed'
                         ? 'It had already finished, so it was kept'
-                        : job.worker?.executor === 'local' || job.request.target === 'local'
+                        : ranLocally(job)
                           ? 'Cancelled · nothing else was affected'
                           : 'Cancelled · the rented GPU keeps running until you release it',
                     );
@@ -658,6 +616,16 @@ function ResultTile({
             };
           });
   const approveItems = approve.length ? ['divider' as const, ...approve] : [];
+  const useAsInput = { label: 'Use as input', onSelect: () => app.useResult(item, 'input') };
+  const check = video
+    ? []
+    : [
+        {
+          label: 'Check against the brief',
+          hint: 'Against the brief and references',
+          onSelect: () => app.useResult(item, 'check'),
+        },
+      ];
   return (
     <div className={`tile ${shape}`}>
       <Media id={asset} kind={item.kind} alt={title} />
@@ -688,16 +656,8 @@ function ResultTile({
           ...(!video
             ? [{ label: 'Animate', hint: 'Use it as a start frame', onSelect: () => app.useResult(item, 'animate') }]
             : []),
-          { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },
-          ...(!video
-            ? [
-                {
-                  label: 'Check against the brief',
-                  hint: 'Against the brief and references',
-                  onSelect: () => app.useResult(item, 'check'),
-                },
-              ]
-            : []),
+          useAsInput,
+          ...check,
           { label: 'Open full screen', onSelect: () => app.view(item, siblings) },
           ...approveItems,
         ]}
@@ -727,16 +687,8 @@ function ResultTile({
           className="pill"
           placement="above"
           items={[
-            { label: 'Use as input', onSelect: () => app.useResult(item, 'input') },
-            ...(!video
-              ? [
-                  {
-                    label: 'Check against the brief',
-                    hint: 'Against the brief and references',
-                    onSelect: () => app.useResult(item, 'check'),
-                  },
-                ]
-              : []),
+            useAsInput,
+            ...check,
             { label: 'Reuse settings', onSelect: () => actions.onReuse(card) },
             { label: 'Open full screen', onSelect: () => app.view(item, siblings) },
             { label: 'Download', onSelect: () => void downloadAsset(asset, title.replace(/, (\d+) of \d+$/, ' $1')) },

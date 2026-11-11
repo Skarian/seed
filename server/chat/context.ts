@@ -179,25 +179,21 @@ export function agentContext(turn: {
   });
 }
 
-export interface ConversationLine {
-  role: string;
-  text: string;
-}
 export interface ConversationSummary {
   through: number;
   text: string;
 }
 
 export async function compactConversation(
-  history: ConversationLine[],
+  history: Array<{ role: string; text: string }>,
   previous: ConversationSummary | undefined,
   summarize: (input: string) => Promise<string>,
 ) {
   const start = previous?.through ?? 0;
   if (start > history.length) throw new TurnStopped('summary');
-  if (JSON.stringify(history.slice(start)).length <= 60000) return { summary: previous, recent: history.slice(start) };
   const through = Math.max(start, history.length - 8);
-  if (through === start) return { summary: previous, recent: history.slice(start) };
+  if (through === start || JSON.stringify(history.slice(start)).length <= 60000)
+    return { summary: previous, recent: history.slice(start) };
   const input = JSON.stringify({
     previous_summary: previous?.text ?? '',
     earlier_messages: history.slice(start, through),

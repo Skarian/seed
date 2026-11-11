@@ -80,6 +80,16 @@ function replyText(steps: Array<{ kind: string; text?: string }>) {
   return kept.join('\n\n');
 }
 
+/** The text of an agent's last message, or undefined when its reply did not finish normally. */
+function finishedText(agent: Agent, separator: string) {
+  const final = agent.state.messages.at(-1);
+  if (final?.role !== 'assistant' || final.stopReason !== 'stop') return undefined;
+  return final.content
+    .filter(p => p.type === 'text')
+    .map(p => p.text)
+    .join(separator);
+}
+
 export class Chats {
   private listeners = new Map<string, Set<(value: unknown) => void>>();
   subscribe(id: string, listener: (value: unknown) => void) {
@@ -180,17 +190,21 @@ export class Chats {
     this.db
       .prepare('INSERT INTO chats VALUES (?,?,?) ON CONFLICT(id) DO UPDATE SET body_json=excluded.body_json')
       .run(chat.id, chat.mode, JSON.stringify(chat));
-    for (const listener of this.listeners.get(chat.id) ?? []) {
+    this.notify(chat.id, () => ({
+      version: chat.version,
+      revision,
+      activity: this.activityOf(chat),
+      error: chat.error,
+      stream_message: [...chat.messages].reverse().find(m => m.transcript),
+    }));
+  }
+  /** Sends each watcher its own copy of the value; a disconnected one is dropped and cannot undo a committed save. */
+  private notify(id: string, value: () => unknown) {
+    for (const listener of this.listeners.get(id) ?? []) {
       try {
-        listener({
-          version: chat.version,
-          revision,
-          activity: this.activityOf(chat),
-          error: chat.error,
-          stream_message: [...chat.messages].reverse().find(m => m.transcript),
-        });
+        listener(value());
       } catch {
-        this.listeners.get(chat.id)?.delete(listener); /* A disconnected observer cannot undo a committed save. */
+        this.listeners.get(id)?.delete(listener);
       }
     }
   }
@@ -203,13 +217,7 @@ export class Chats {
       chatId,
       setTimeout(() => {
         this.jobTimers.delete(chatId);
-        for (const listener of this.listeners.get(chatId) ?? []) {
-          try {
-            listener({ jobs: true });
-          } catch {
-            this.listeners.get(chatId)?.delete(listener);
-          }
-        }
+        this.notify(chatId, () => ({ jobs: true }));
       }, 400),
     );
   }
@@ -244,9 +252,6 @@ export class Chats {
   private activityOf(chat: ChatView, jobs = this.chatJobs(chat)): ChatView['activity'] {
     if (chat.activity === 'thinking' || chat.activity === 'preparing') return chat.activity;
     return this.generating(chat, jobs) ? 'generating' : 'idle';
-  }
-  private busy(chat: ChatView) {
-    return this.agentBusy(chat) || this.generating(chat);
   }
   /** Rendering results never blocks the conversation; only an agent turn or plan preparation does. */
   private agentBusy(chat: ChatView) {
@@ -417,7 +422,8 @@ export class Chats {
   }
   delete(id: string) {
     const chat = this.get(id);
-    if (this.busy(chat)) throw Error('Stop Seed and the takes being made before deleting this project.');
+    if (this.agentBusy(chat) || this.generating(chat))
+      throw Error('Stop Seed and the takes being made before deleting this project.');
     if (this.chatJobs(chat).some(job => !isTerminal(job.state)))
       throw Error('A GPU is still stopping or saving this project’s takes. Delete it again once that finishes.');
     this.titles.get(id)?.agent.abort();
@@ -515,8 +521,7 @@ export class Chats {
     if (!value || typeof value !== 'object' || Array.isArray(value)) throw Error('Provide the draft’s settings.');
     if (chat.mode === 'sfw' && Object.hasOwn(value, 'mode'))
       throw Error('A draft in this project cannot set a mode field.');
-    let request: ImageRequest;
-    request = imageRequest({ ...value, workflow, mode: chat.mode === 'sfw' ? 'sfw' : (value.mode ?? 'nsfw') });
+    let request = imageRequest({ ...value, workflow, mode: chat.mode === 'sfw' ? 'sfw' : (value.mode ?? 'nsfw') });
     if (previous) {
       request = preserveChatLabels(previous, request);
       if (value.note === undefined && previous.note) request.note = previous.note;
@@ -569,10 +574,20 @@ export class Chats {
       castWarned: new Set(),
     };
   }
-  /** One kind's request tools and the plan tools, for a fresh session (tests drive them directly). */
+  /** One kind's request tools, the plan tools, and for references to video with a clip attached, read_input. */
+  private kindTools(session: ToolSession, workflow: ChatWorkflow) {
+    const { assets } = session;
+    return [
+      ...draftTools(session, workflow),
+      ...planTools(session),
+      ...(workflow === 'reference-to-video' && assets.some(a => a.kind === 'video')
+        ? [createReadInputTool({ data: this.paths.data, assets, getAsset: id => this.jobs.media.get(id) })]
+        : []),
+    ];
+  }
+  /** A kind's tools for a fresh session (tests drive them directly). */
   private workflowTools(id: string, epoch: number, workflow: ChatWorkflow, runId: string, assets: ToolAsset[]) {
-    const session = this.toolSession(id, epoch, runId, assets);
-    return [...draftTools(session, workflow), ...planTools(session)];
+    return this.kindTools(this.toolSession(id, epoch, runId, assets), workflow);
   }
   send(
     id: string,
@@ -707,12 +722,20 @@ export class Chats {
       try {
         this.generateTitle(id, input.text, key);
       } catch (error) {
-        const current = this.get(id);
-        current.title_error = (error as Error).message;
-        this.save(current);
+        this.updateIfPresent(id, chat => (chat.title_error = (error as Error).message));
       }
     }
     return this.view(id);
+  }
+  /** Changes a project that may have been deleted meanwhile, as a late title or its accounting can find it. */
+  private updateIfPresent(id: string, change: (chat: StoredChat) => void) {
+    try {
+      const chat = this.get(id);
+      change(chat);
+      this.save(chat);
+    } catch {
+      /* The project was deleted. */
+    }
   }
   /** Project names stay distinguishable: a repeated name gets a number ("The Last Lamp 2"). */
   private uniqueTitle(chat: StoredChat, title: string) {
@@ -732,26 +755,14 @@ export class Chats {
       reasoning: false,
       maxTokens: 128,
       fetch: this.transport,
-      onAccounting: value => {
-        try {
-          const chat = this.get(id);
-          chat.title_accounting = [value];
-          this.save(chat);
-        } catch {
-          /* Chat may have been deleted. */
-        }
-      },
+      onAccounting: value => this.updateIfPresent(id, chat => (chat.title_accounting = [value])),
     });
     const task = (async () => {
       try {
         await agent.prompt(firstMessage);
-        const final = agent.state.messages.at(-1);
-        if (final?.role !== 'assistant' || final.stopReason !== 'stop')
-          throw Error('Title generation did not complete.');
-        const title = final.content
-          .filter(p => p.type === 'text')
-          .map(p => p.text)
-          .join('')
+        const text = finishedText(agent, '');
+        if (text === undefined) throw Error('Title generation did not complete.');
+        const title = text
           .trim()
           .replace(/^['"“”]+|['"“”]+$/g, '')
           .replace(/\s+/g, ' ')
@@ -763,13 +774,7 @@ export class Chats {
           this.save(chat);
         }
       } catch (error) {
-        try {
-          const chat = this.get(id);
-          chat.title_error = (error as Error).message;
-          this.save(chat);
-        } catch {
-          /* Chat was deleted. */
-        }
+        this.updateIfPresent(id, chat => (chat.title_error = (error as Error).message));
       } finally {
         this.titles.delete(id);
       }
@@ -817,12 +822,9 @@ export class Chats {
         this.agents.set(id, summarizer);
         await summarizer.prompt(input);
         if (this.get(id).epoch !== epoch) throw Error('Stopped.');
-        const final = summarizer.state.messages.at(-1);
-        if (final?.role !== 'assistant' || final.stopReason !== 'stop') throw new TurnStopped('summary');
-        return final.content
-          .filter(p => p.type === 'text')
-          .map(p => p.text)
-          .join('\n');
+        const text = finishedText(summarizer, '\n');
+        if (text === undefined) throw new TurnStopped('summary');
+        return text;
       });
       const afterSummary = this.get(id);
       if (afterSummary.epoch !== epoch) return;
@@ -841,19 +843,6 @@ export class Chats {
       });
       if (context.length > 400000) throw new TurnStopped('too_large');
       const session = this.toolSession(id, epoch, runId, toolAssets, target);
-      const kindTools = (workflow: ChatWorkflow) => [
-        ...draftTools(session, workflow),
-        ...planTools(session),
-        ...(workflow === 'reference-to-video' && toolAssets.some(a => a.kind === 'video')
-          ? [
-              createReadInputTool({
-                data: this.paths.data,
-                assets: toolAssets,
-                getAsset: assetId => this.jobs.media.get(assetId),
-              }),
-            ]
-          : []),
-      ];
       // Choosing a kind loads that kind's guide and draft tools for the agent's next model request.
       let nextTurn: { systemPrompt: string; tools: AgentTool[] } | undefined;
       const updateBrief = briefTool(session, manifest);
@@ -867,7 +856,7 @@ export class Chats {
       const turnTools = (workflow: ChatWorkflow | null) => [
         chooseKind,
         updateBrief,
-        ...(workflow ? kindTools(workflow) : []),
+        ...(workflow ? this.kindTools(session, workflow) : []),
       ];
       // Talking without changing the plan: no request tools, so the open plan cannot change in this turn.
       const tools = discussOnly ? [] : turnTools(chat.workflow);
@@ -892,16 +881,8 @@ export class Chats {
         messageIndex = -1;
       agent.subscribe(event => {
         if (event.type === 'message_start' && event.message.role === 'assistant') messageIndex++;
-        if (
-          ![
-            'message_update',
-            'message_end',
-            'tool_execution_start',
-            'tool_execution_update',
-            'tool_execution_end',
-          ].includes(event.type)
-        )
-          return;
+        // Message updates and ends and every tool event change the transcript; updates at most every 100 ms.
+        if (!/^(message_(update|end)|tool_execution_)/.test(event.type)) return;
         if (event.type === 'message_update' && Date.now() - lastUpdate < 100) return;
         const c = this.get(id);
         if (c.epoch !== epoch) return;
@@ -1016,7 +997,7 @@ export class Chats {
       if (applied) return this.view(id);
       throw Error('This plan has already been decided.');
     }
-    if (this.tasks.has(id) || this.preparing.has(id)) throw Error('Wait for Seed to finish this plan.');
+    if (this.agentBusy(chat)) throw Error('Wait for Seed to finish this plan.');
     for (const card of group.cards) {
       const decision = listed.get(card.id)!.decision,
         revision = latest(card);

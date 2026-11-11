@@ -78,10 +78,8 @@ export function requestToolSchemas(workflow: ChatWorkflow, mode: ChatMode, hasLo
         ),
       ),
       ...(!editingImage
-        ? { framing: Type.Optional(enumOf(['fit', 'fill'], 'Images only: fit keeps the whole image.')) }
-        : {}),
-      ...(!editingImage
         ? {
+            framing: Type.Optional(enumOf(['fit', 'fill'], 'Images only: fit keeps the whole image.')),
             start_seconds: Type.Optional(Type.Number({ minimum: 0 })),
             duration_seconds: Type.Optional(Type.Number({ minimum: 2, maximum: 15 })),
             include_audio: Type.Optional(
@@ -254,20 +252,16 @@ export function requestToolSchemas(workflow: ChatWorkflow, mode: ChatMode, hasLo
   };
 }
 export function requestToolRules(mode: ReferenceMode = 'direct', workflow?: string) {
-  return (
-    `Resolution is controlled in the request editor. Never send size in a tool call. New Chat requests use fixed image size ${defaultPreferences.image} or video size ${defaultPreferences.video}, independently of remembered Generate selections. Editing a request preserves its manual resolution. If asked to change resolution, direct the user to the request editor. ` +
-    referenceToolRules(mode, workflow)
-  );
-}
-function referenceToolRules(mode: ReferenceMode, workflow?: string) {
+  const resolution = `Resolution is controlled in the request editor. Never send size in a tool call. New Chat requests use fixed image size ${defaultPreferences.image} or video size ${defaultPreferences.video}, independently of remembered Generate selections. Editing a request preserves its manual resolution. If asked to change resolution, direct the user to the request editor. `;
   if (workflow === 'image-to-image')
-    return `Create an editing review card with create_request; modify one with edit_request and its request_id. Tools do not generate images. Use a complete editing instruction. Exactly one supplied image must have role source, the rest role reference (up to 10 images total). New inputs use asset handles; existing inputs use id. Replace a source using its id and replace_asset. A supplied inputs array replaces the list: include all inputs to keep. Use stable [[input_handle]] tokens in the instruction. Omitted fields remain unchanged during edits. Defaults: batch_size 1, seed random, aspect_ratio source, size ${defaultPreferences.image}. No LoRA, video, audio, framing or strength settings. A failed save creates no card or revision; fix the reported fields and retry.`;
-  return `Use create_request for a new review card. Use edit_request with the supplied request_id to change a card. Neither tool generates media. Send only changed settings when editing; omitted settings and inputs stay unchanged. Use a complete prompt, not a text replacement operation. For a new input, use asset, not id. Example when the supplied asset handle is input1: {"asset":"input1","role":"first_frame"}. For an existing input, copy its current id: {"id":"input1"}. Reorder by listing ids in the new order. To replace an input source deliberately, use {"id":"input1","replace_asset":"input2"}; do not use asset with a different existing id. To use one source twice, give each new input a distinct instance name, e.g. clipA and clipB; its prompt token uses that instance name. A supplied inputs array replaces the list: include each input to keep, using its existing id. A failed save creates no card or revision. Defaults for a new request: batch_size 1, seed random, aspect_ratio 16:9; video size 768p, duration_seconds 5, generated audio, video output. For a silent result, set audio_output to silent explicitly. audio_output accepts only generated or silent; it is not the output file format. Do not omit a setting to bypass a rejection if the user asked for it. Video/audio inputs use role reference and need start_seconds plus duration_seconds (2–15). Only images can be first_frame or last_frame. General references may be combined with first/last image guides. Keep their roles explicit. Keep image framing fit unless the user asks to crop. If asked to use a video soundtrack, set include_audio true even when final audio_output is silent. A standalone audio input is already audio: omit include_audio. Its token is [[input1]], not [[input1:audio]]; :audio is for a video soundtrack. To exclude standalone audio, remove that input from the list. ${mode === 'stable' ? 'Use input tokens in the prompt, for example [[input1]] or [[clipA]]. Use [[clipA]] and [[clipB]] for their specific clips. If both clips come from input2, [[input2]] means the source video shared by both selected clips; it never selects one clip or adds the whole video. Shared source tokens are general context only; timed actions must name the specific clip tokens. For a soundtrack, use a specific clip token, never a shared source token. A video soundtrack uses [[clipA:audio]]. Frame guides use the same token form; the app translates it to the correct label or guide description. Do not write numbered Picture/Video/Audio labels.' : 'In the prompt, copy labels from the current input mapping. Do not use a prompt label as an input id.'}`;
+    return `${resolution}Create an editing review card with create_request; modify one with edit_request and its request_id. Tools do not generate images. Use a complete editing instruction. Exactly one supplied image must have role source, the rest role reference (up to 10 images total). New inputs use asset handles; existing inputs use id. Replace a source using its id and replace_asset. A supplied inputs array replaces the list: include all inputs to keep. Use stable [[input_handle]] tokens in the instruction. Omitted fields remain unchanged during edits. Defaults: batch_size 1, seed random, aspect_ratio source, size ${defaultPreferences.image}. No LoRA, video, audio, framing or strength settings. A failed save creates no card or revision; fix the reported fields and retry.`;
+  return `${resolution}Use create_request for a new review card. Use edit_request with the supplied request_id to change a card. Neither tool generates media. Send only changed settings when editing; omitted settings and inputs stay unchanged. Use a complete prompt, not a text replacement operation. For a new input, use asset, not id. Example when the supplied asset handle is input1: {"asset":"input1","role":"first_frame"}. For an existing input, copy its current id: {"id":"input1"}. Reorder by listing ids in the new order. To replace an input source deliberately, use {"id":"input1","replace_asset":"input2"}; do not use asset with a different existing id. To use one source twice, give each new input a distinct instance name, e.g. clipA and clipB; its prompt token uses that instance name. A supplied inputs array replaces the list: include each input to keep, using its existing id. A failed save creates no card or revision. Defaults for a new request: batch_size 1, seed random, aspect_ratio 16:9; video size 768p, duration_seconds 5, generated audio, video output. For a silent result, set audio_output to silent explicitly. audio_output accepts only generated or silent; it is not the output file format. Do not omit a setting to bypass a rejection if the user asked for it. Video/audio inputs use role reference and need start_seconds plus duration_seconds (2–15). Only images can be first_frame or last_frame. General references may be combined with first/last image guides. Keep their roles explicit. Keep image framing fit unless the user asks to crop. If asked to use a video soundtrack, set include_audio true even when final audio_output is silent. A standalone audio input is already audio: omit include_audio. Its token is [[input1]], not [[input1:audio]]; :audio is for a video soundtrack. To exclude standalone audio, remove that input from the list. ${mode === 'stable' ? 'Use input tokens in the prompt, for example [[input1]] or [[clipA]]. Use [[clipA]] and [[clipB]] for their specific clips. If both clips come from input2, [[input2]] means the source video shared by both selected clips; it never selects one clip or adds the whole video. Shared source tokens are general context only; timed actions must name the specific clip tokens. For a soundtrack, use a specific clip token, never a shared source token. A video soundtrack uses [[clipA:audio]]. Frame guides use the same token form; the app translates it to the correct label or guide description. Do not write numbered Picture/Video/Audio labels.' : 'In the prompt, copy labels from the current input mapping. Do not use a prompt label as an input id.'}`;
 }
 /** Resolver keyed by input instance, including distinct soundtrack channels. */
-export function toolInputLabels(refs: InputReference[]): Map<string, string> {
-  return inputLabels(refs);
-}
+export const toolInputLabels = inputLabels;
+/** A FLUX 3 Image Klein edit that the cloud GPUs available now cannot make. */
+export const kleinOffCloud = (request: { engine?: string }, cloudWorkflows: string[] = []) =>
+  request.engine === 'klein' && !cloudWorkflows.includes('image-to-image:klein');
 /** Every app-compiled reference, including frame guides without numbered labels. */
 export const toolPromptBindings = promptBindings;
 export const toolPromptReferencePattern = promptReferencePattern;
@@ -315,9 +309,8 @@ export function compileStablePrompt(prompt: string, refs: InputReference[], asse
     }
     return label ?? _all;
   });
-  if (compiled.includes('[[') || compiled.includes(']]'))
-    if (!issues.length)
-      issues.push({ field: 'prompt', message: 'An input token is incomplete. Use [[input_handle]].' });
+  if (!issues.length && (compiled.includes('[[') || compiled.includes(']]')))
+    issues.push({ field: 'prompt', message: 'An input token is incomplete. Use [[input_handle]].' });
   if (issues.length) throw new ToolRequestError(issues);
   return compiled;
 }
@@ -371,11 +364,7 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     const target = { auto: 'auto', seed_pc: 'local', cloud: 'cloud' }[String(value.runs_on)] as
       'auto' | 'local' | 'cloud' | undefined;
     if (!target) add('runs_on', 'Choose auto, seed_pc or cloud.', 'Use one of the listed values.');
-    else if (
-      target === 'cloud' &&
-      request.engine === 'klein' &&
-      !context.cloudWorkflows?.includes('image-to-image:klein')
-    )
+    else if (target === 'cloud' && kleinOffCloud(request, context.cloudWorkflows))
       add(
         'runs_on',
         'Cloud GPUs here cannot run FLUX 3 Image Klein.',
@@ -384,23 +373,11 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     else if (target === 'auto') delete request.target;
     else request.target = target;
   }
-  if (Object.hasOwn(value, 'steps')) request.steps = value.steps;
-  if (Object.hasOwn(value, 'detail')) request.detail = value.detail;
-  for (const [from, to] of [
-    ['loras', 'loras'],
-    ['prompt', 'prompt'],
-    ['seed', 'seed'],
-    ['batch_size', 'count'],
-    ['note', 'note'],
-    ['title', 'title'],
-    ['mode', 'mode'],
-  ])
-    if (Object.hasOwn(value, from!)) request[to!] = value[from!];
-  for (const [from, to] of [
-    ['aspect_ratio', 'aspect'],
-    ['duration_seconds', 'duration_seconds'],
-  ])
-    if (Object.hasOwn(value, from!)) request.output[to!] = value[from!];
+  // Tool fields keep the request's names except batch_size (count) and aspect_ratio (output.aspect).
+  for (const field of ['steps', 'detail', 'loras', 'prompt', 'seed', 'batch_size', 'note', 'title', 'mode'])
+    if (Object.hasOwn(value, field)) request[field === 'batch_size' ? 'count' : field] = value[field];
+  for (const field of ['aspect_ratio', 'duration_seconds'])
+    if (Object.hasOwn(value, field)) request.output[field === 'aspect_ratio' ? 'aspect' : field] = value[field];
   if (Object.hasOwn(value, 'audio_output')) request.audio = { ...(request.audio ?? {}), output: value.audio_output };
   // Shot details merge field by field, so an edit that names only the lens keeps the cast and number.
   if (Object.hasOwn(value, 'shot')) {
@@ -605,7 +582,7 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
           after = toolPromptBindings(refs),
           byLabel = new Map([...before].map(([id, label]) => [label, after.get(id)]));
         request.prompt = request.prompt.replace(toolPromptReferencePattern, (label: string) => {
-          if (!byLabel.has(label) || !byLabel.get(label))
+          if (!byLabel.get(label))
             throw new ToolRequestError([
               {
                 field: 'prompt',

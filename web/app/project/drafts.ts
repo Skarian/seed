@@ -45,11 +45,8 @@ export function outgoingMessage(context: ComposerContext, text: string, attachme
   return { body: lead + body, assets, extra, kind };
 }
 
-/** The inputs of a direct make: a Refine or Animate target first, in the role its intent implies, then attachments. */
-export function directInputs(kind: Kind, attachments: Attachment[], context: ComposerContext) {
-  const inputs = defaultRoles(kind, attachments);
-  if (context.type !== 'using') return inputs;
-  const { item, intent } = context;
+/** A Refine or Animate target as an input, in the role its intent implies. */
+export function usingInput({ item, intent }: Extract<ComposerContext, { type: 'using' }>): Attachment {
   const role =
     intent === 'animate'
       ? 'first_frame'
@@ -58,10 +55,13 @@ export function directInputs(kind: Kind, attachments: Attachment[], context: Com
           ? 'reference'
           : 'source'
         : undefined;
-  return defaultRoles(kind, [
-    { key: item.asset, asset_id: item.asset, name: item.title, kind: item.kind, role },
-    ...inputs,
-  ]);
+  return { key: item.asset, asset_id: item.asset, name: item.title, kind: item.kind, role };
+}
+
+/** The inputs of a direct make: a Refine or Animate target first, then attachments. */
+export function directInputs(kind: Kind, attachments: Attachment[], context: ComposerContext) {
+  const inputs = defaultRoles(kind, attachments);
+  return context.type === 'using' ? defaultRoles(kind, [usingInput(context), ...inputs]) : inputs;
 }
 
 /** Switching to Make with a Refine/Animate target, or an image attached to words-only Image or Video, picks the
@@ -78,11 +78,11 @@ export function settingsForMake(context: ComposerContext, settings: MakeSettings
 export function remakeRequest(project: Project, card: ChatCard, how: 'more' | 'retry' | 'cancelled' | 'again') {
   const r = latest(card).request;
   // Retry and redo-cancelled replace only the takes that did not finish, with their own seeds.
+  const redo = how === 'retry' || how === 'cancelled';
   const failed = cardJobs(project, card).filter(j => (how === 'cancelled' ? jobPhase(j) === 'cancelled' : isFailed(j)));
   const { mode: _m, resolved_seeds, ...rest } = r;
-  const count = how === 'retry' || how === 'cancelled' ? Math.max(1, failed.length) : r.count;
-  const seedsFor =
-    how === 'retry' || how === 'cancelled' ? failed.map(j => j.seed) : how === 'again' ? resolved_seeds : undefined;
+  const count = redo ? Math.max(1, failed.length) : r.count;
+  const seedsFor = redo ? failed.map(j => j.seed) : how === 'again' ? resolved_seeds : undefined;
   return {
     ...rest,
     count,

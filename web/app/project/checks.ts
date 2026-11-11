@@ -34,11 +34,11 @@ export type Fix = {
   cropTo?: string;
 };
 
-/** A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
 /** What a check is about, so the app can act on it without reading its wording. */
 export type CheckCode =
   'shape' | 'size' | 'length' | 'sound' | 'added-sound' | 'continuity' | 'unused-input' | 'old-reference' | 'no-style';
-/** `id` is what the check found, apart from its wording: its code, subject, and the values asked for and drafted. */
+/** `id` is what the check found, apart from its wording: its code, subject, and the values asked for and drafted.
+ * A soft check is advice (it never turns Make into "Make anyway"); the others are mismatches with what was asked. */
 export type Check = { id: string; code: CheckCode; text: string; fixes: Fix[]; soft?: boolean };
 
 /** What the user explicitly asked for in their latest messages: shape, length and sound. Newest wins. */
@@ -69,7 +69,7 @@ export function askedFor(messages: ChatMessage[]) {
       if (
         ratio &&
         !clock &&
-        !['4:5', '1:1', '16:9', '9:16'].includes(ratio[0]) &&
+        !(ratio[0] in names) &&
         Number(ratio[1]) > 0 &&
         Number(ratio[2]) > 0 &&
         Number(ratio[1]) <= 32 &&
@@ -134,7 +134,10 @@ const names: Record<string, string> = {
   '1:1': 'square',
   '4:5': 'portrait 4:5',
 };
-const withAspect = (aspect: Aspect) => (r: ImageRequest) => ({ ...revisable(r), output: { ...r.output, aspect } });
+const withOutput = (output: Record<string, unknown>) => (r: ImageRequest) => ({
+  ...revisable(r),
+  output: { ...r.output, ...output },
+});
 
 /** Checks are computed when read and kept per project copy: a new copy (any save) computes them again. */
 const memo = new WeakMap<Project, Map<string, Check[]>>();
@@ -198,8 +201,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       .find(Boolean);
     // A draft's own delivery shape (the poster at 2:3, lobby cards at 16:9) wins over the project's or a message's.
     const own = r.shot?.delivery;
-    const supported = ['16:9', '9:16', '4:5', '1:1'];
-    const other = own ? (supported.includes(own) ? undefined : own) : (project.frame ?? latestOther);
+    const other = own ? (own in names ? undefined : own) : (project.frame ?? latestOther);
     if (other) asked.other = other;
   }
   // A style the user asked for cannot ride on a picture made from references: say so on the draft, not only in grey.
@@ -258,7 +260,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
           text: `You asked for ${names[want]}, which video can't make, and Seed can't crop a video afterwards. This draft is ${names[aspect]}.`,
           fixes: (['16:9', '9:16'] as const)
             .filter(a => a !== aspect)
-            .map((a): Fix => ({ id: 'aspect:' + a, label: 'Use ' + names[a], patch: withAspect(a) }))
+            .map((a): Fix => ({ id: 'aspect:' + a, label: 'Use ' + names[a], patch: withOutput({ aspect: a }) }))
             .concat([{ id: 'keep', label: 'Keep ' + names[aspect], patch: () => ({}) }]),
         });
       else
@@ -266,7 +268,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
           id: `shape|${want}|${aspect}`,
           code: 'shape',
           text: `You asked for ${names[want]}; this draft is ${names[aspect]}.`,
-          fixes: [{ id: 'aspect:' + want, label: 'Make it ' + names[want], patch: withAspect(want as Aspect) }],
+          fixes: [{ id: 'aspect:' + want, label: 'Make it ' + names[want], patch: withOutput({ aspect: want }) }],
         });
     }
   }
@@ -274,17 +276,14 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     const [w, h] = asked.other.split(':').map(Number) as [number, number],
       want = w / h;
     const supported: Aspect[] = video ? ['16:9', '9:16'] : ['16:9', '1:1', '4:5', '9:16'];
-    const value = (a: Aspect) => {
-      const [x, y] = a.split(':').map(Number) as [number, number];
-      return x / y;
-    };
+    const value = (a: Aspect) => cropShapes.find(([s]) => s === a)![1];
     // The closest supported shape that still contains the asked one, so a crop loses as little as possible.
     const closest = [...supported].sort(
       (a, b) => Math.abs(Math.log(value(a) / want)) - Math.abs(Math.log(value(b) / want)),
     )[0]!;
     const fixes: Fix[] =
       closest !== aspect
-        ? [{ id: 'aspect:' + closest, label: 'Use ' + names[closest], patch: withAspect(closest) }]
+        ? [{ id: 'aspect:' + closest, label: 'Use ' + names[closest], patch: withOutput({ aspect: closest }) }]
         : [];
     // Promise a crop only to a shape Crop actually offers.
     const croppable = !video && cropShapes.some(([s]) => s === asked.other);
@@ -324,13 +323,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
         id: `size|${w}x${h}|${now.width}x${now.height}|${best.d.width}x${best.d.height}`,
         code: 'size',
         text: `You asked for ${w} × ${h}; this draft is ${now.width} × ${now.height}. The closest size Seed makes is ${best.d.width} × ${best.d.height}.`,
-        fixes: [
-          {
-            id: 'size',
-            label: `Use ${best.d.width} × ${best.d.height}`,
-            patch: x => ({ ...revisable(x), output: { ...x.output, size: best.id } }),
-          },
-        ],
+        fixes: [{ id: 'size', label: `Use ${best.d.width} × ${best.d.height}`, patch: withOutput({ size: best.id }) }],
       });
   }
   if (
@@ -345,11 +338,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       code: 'length',
       text: `You asked for ${asked.seconds} seconds; this draft is ${r.output.duration_seconds ?? 5}.`,
       fixes: [
-        {
-          id: 'length',
-          label: `Make it ${asked.seconds} s`,
-          patch: x => ({ ...revisable(x), output: { ...x.output, duration_seconds: asked.seconds } }),
-        },
+        { id: 'length', label: `Make it ${asked.seconds} s`, patch: withOutput({ duration_seconds: asked.seconds }) },
       ],
     });
   if (video && asked.silent !== undefined && (r.audio?.output === 'silent') !== asked.silent)
@@ -394,7 +383,6 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
       ],
     });
   // Brief details that apply to this draft but are missing from its prompt. Words only: this checks the request, not the picture.
-  // A clip that starts from a keyframe takes the characters' look from that image; their words need no check.
   // A clip that animates a keyframe (its start frame or a picture reference) takes the look from that picture.
   const fromFrame = r.workflow === 'reference-to-video' && (r.references ?? []).some(x => x.kind === 'image');
   // A character, place or prop whose approved reference image is an input of this draft is carried by that image.
@@ -402,15 +390,9 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     const id = approvedReference(project.choices, name);
     return Boolean(id && (r.references ?? []).some(x => x.asset_id === id));
   };
-  const shown = new Set(
-    castOf(project)
-      .filter(e => carried(e.name))
-      .map(e => e.name.split(' ')[0]!.toLowerCase()),
-  );
+  const shown = new Set(cast.filter(e => carried(e.name)).map(e => e.name.split(' ')[0]!.toLowerCase()));
   const shownPlaces = new Set(
-    castOf(project)
-      .filter(e => e.kind !== 'character' && carried(e.name))
-      .map(e => e.name.toLowerCase().replace(/^the /, '')),
+    cast.filter(e => e.kind !== 'character' && carried(e.name)).map(e => e.name.toLowerCase().replace(/^the /, '')),
   );
   const subject = (r.title ?? '').match(/^reference(?: sheet)?:\s*(.+)$/i)?.[1]?.toLowerCase();
   const gaps = (fromFrame ? [] : briefGapList(r.prompt, project.brief ?? '', r.shot))
@@ -421,18 +403,14 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
   if (gaps.length) {
     const whose = [...new Set(gaps.map(g => g.who).filter(Boolean))];
     const parts = [
-      ...whose.map(w =>
-        // "Maren's green rubber boots", or for an action, "Maren carries a tin lantern".
-        (() => {
-          const details = gaps
-            .filter(g => g.who === w)
-            .map(g => g.text)
-            .join(', ');
-          return /^(?:carries|carry|wears|wear|has|have|holds|hold|is|are|keeps|walks|rides|uses)\b/i.test(details)
-            ? `${nameCase(w!)} ${details}`
-            : `${nameCase(w!)}’s ${details}`;
-        })(),
-      ),
+      // "Maren's green rubber boots", or for an action, "Maren carries a tin lantern".
+      ...whose.map(w => {
+        const details = gaps
+          .filter(g => g.who === w)
+          .map(g => g.text)
+          .join(', ');
+        return actionVerb.test(details) ? `${nameCase(w!)} ${details}` : `${nameCase(w!)}’s ${details}`;
+      }),
       ...gaps.filter(g => !g.who).map(g => `“${g.text}”`),
     ];
     out.push({
@@ -456,9 +434,6 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     });
   }
   // An attachment that the draft does not use (it is made from words only).
-  const runMessage = at;
-  const asking =
-    runMessage > 0 ? [...project.messages.slice(0, runMessage)].reverse().find(m => m.role === 'user') : undefined;
   const used = new Set((r.references ?? []).map(x => x.asset_id));
   // Every message that shaped this draft counts: an image attached at the start is still unused after a follow-up.
   const askedBy = (runId: string) => {
@@ -466,7 +441,7 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
     return reply > 0 ? [...project.messages.slice(0, reply)].reverse().find(m => m.role === 'user') : undefined;
   };
   const attached = card.revisions.flatMap(v => (v.run_id ? askedBy(v.run_id)?.assets : undefined) ?? []);
-  const unused = [...new Set([...(asking?.assets ?? []), ...attached])].filter(a => !used.has(a));
+  const unused = [...new Set([...(trigger?.assets ?? []), ...attached])].filter(a => !used.has(a));
   if (unused.length && !(r.references ?? []).length)
     out.push({
       id: 'unused-input|' + unused.join(','),
@@ -479,42 +454,26 @@ function draftChecks(card: ChatCard, project: Project, siblings: number): Check[
   return out;
 }
 
-const stop = new Set([
-  'the',
-  'and',
-  'with',
-  'her',
-  'his',
-  'their',
-  'a',
-  'an',
-  'of',
-  'in',
-  'on',
-  'at',
-  'to',
-  'for',
-  'over',
-  'through',
-  'small',
-  'old',
-  'years',
-  'year',
-  'from',
-  'into',
-  'every',
-  'always',
-  'never',
-  'anywhere',
-  'shot',
-  'shots',
-]);
+const stop = new Set(
+  (
+    'the and with her his their a an of in on at to for over through small old years year from into every always ' +
+    'never anywhere shot shots'
+  ).split(' '),
+);
 const words = (s: string) =>
   s
     .toLowerCase()
     .replace(/[^a-z0-9:'\s-]/g, ' ')
     .split(/[\s-]+/)
     .filter(w => w.length > 2 && !stop.has(w));
+const tidy = (part: string) =>
+  part
+    .trim()
+    .replace(/\.$/, '')
+    .replace(/^(and|or|with)\s+/i, '');
+const lowerFirst = (s: string) => s.charAt(0).toLowerCase() + s.slice(1);
+/** A detail that is an action ("carries a tin lantern") rather than a thing someone has. */
+const actionVerb = /^(?:carries|carry|wears|wear|has|have|holds|hold|is|are|keeps|walks|rides|uses)\b/i;
 /** Whether a phrase is in a prompt in substance: most of its meaningful words appear (word starts, so "curls" matches "curly"). */
 function mentions(prompt: string, phrase: string) {
   const have = new Set(words(prompt).map(w => w.slice(0, 4))),
@@ -609,10 +568,7 @@ export function briefGapList(
       if (far && !generic) continue;
       for (const part of lookParts(m[2]!)
         .map(p =>
-          p
-            .trim()
-            .replace(/\.$/, '')
-            .replace(/^(and|or|with)\s+/i, '')
+          tidy(p)
             // A label inside the line ("Wardrobe: mustard coat") is not part of the detail.
             .replace(/^(?:wardrobe|costume|outfit|clothes|clothing|look|appearance|props?|hair|face)\s*:\s*/i, '')
             // "She has a silver earring" is the detail "a silver earring".
@@ -629,7 +585,7 @@ export function briefGapList(
         if (personality.test(part) || !isVisibleDetail(part)) continue;
         // Who someone is to someone else ("grandson", "his aunt") is not something a picture shows.
         if (relation.test(part)) continue;
-        if (!mentions(prompt, part)) out.push({ who: lastName, text: part.charAt(0).toLowerCase() + part.slice(1) });
+        if (!mentions(prompt, part)) out.push({ who: lastName, text: lowerFirst(part) });
       }
     } else if (/place|location|setting|environment|world|set\b/.test(section)) {
       // Places hold continuity too: a shot set at the lighthouse carries the lighthouse's look. A close-up shows too
@@ -646,14 +602,9 @@ export function briefGapList(
         : words.length > 0 && words.every(w => new RegExp('\\b' + w + '\\b', 'i').test(prompt));
       if (!here) continue;
       for (const part of lookParts(m[2]!)
-        .map(p =>
-          p
-            .trim()
-            .replace(/\.$/, '')
-            .replace(/^(and|or|with)\s+/i, ''),
-        )
+        .map(tidy)
         .filter(p => p.length > 2 && !abstractRule.test(p) && !deliveryNote.test(p) && !mentions(prompt, p)))
-        out.push({ where: m[1]!.trim(), text: part.charAt(0).toLowerCase() + part.slice(1) });
+        out.push({ where: m[1]!.trim(), text: lowerFirst(part) });
     } else if (/rule|always|never|constraint/.test(section)) {
       // A rule about the project as a whole ("keep wardrobe consistent across shots") is not a visible detail to
       // put in one prompt; only concrete rules ("no text anywhere") are checked.
@@ -666,7 +617,7 @@ export function briefGapList(
         !/\bshots?\s*\d/i.test(item) &&
         !mentions(prompt, item)
       )
-        out.push({ text: item.charAt(0).toLowerCase() + item.slice(1).replace(/\.$/, '') });
+        out.push({ text: lowerFirst(item).replace(/\.$/, '') });
     }
   }
   return out.filter((g, i) => out.findIndex(x => x.text === g.text) === i).slice(0, 5);
@@ -684,9 +635,7 @@ export function addBriefDetails(prompt: string, gaps: Array<{ who?: string; text
     // character, add the details as a sentence of their own so the fix always changes the prompt.
     const at = out.search(new RegExp('\\b' + who.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + "\\b(?!['’]s\\b)", 'i'));
     // "Mara, with a mustard raincoat," or, for a detail that is an action, "Mara, who carries a tin lantern,".
-    const joiner = /^(?:carries|carry|wears|wear|has|have|holds|hold|is|are|keeps|walks|rides|uses)\b/i.test(details)
-      ? 'who'
-      : 'with';
+    const joiner = actionVerb.test(details) ? 'who' : 'with';
     if (at >= 0) {
       // The whole name, not just its first word: "Marit Halvorsen, with …", never "Marit, with …, Halvorsen".
       const surname = out.slice(at + who.length).match(/^(?:\s+\p{Lu}[\p{L}'’-]+)+/u)?.[0] ?? '';
@@ -701,6 +650,23 @@ export function addBriefDetails(prompt: string, gaps: Array<{ who?: string; text
   return rules.length ? out + (/[.!?]$/.test(out) ? ' ' : '. ') + rules.join('. ') + '.' : out;
 }
 
+/** The video model's prompt sections and the headings a person reads for them. */
+const sections: Array<[string, string]> = [
+  ['integrated_multimodal_description', 'Scene'],
+  ['subject_definitions', 'Subjects'],
+  ['scene_anchor', 'Setting'],
+  ['action_timeline', 'Action'],
+  ['camera_path', 'Camera'],
+  ['overall_soundscape', 'Sound'],
+  ['non_diegetic_music', 'Music'],
+  ['retention_analysis', 'Keep'],
+  ['detailed_description', 'Detail'],
+];
+const naLine = /^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i;
+/** The video engine's own scaffolding sentence (from the official animate format): needed by the model, noise to a person. */
+const scaffold =
+  /For the target video, at [\d.]+ seconds into the target video,[\s\S]{0,240}?(?:is )?(?:fully )?referenced\.[ \t]*/gi;
+
 /** Prompt text for people: input tokens such as <Picture 1> become the input's name. */
 export function readablePrompt(r: ImageRequest, project: Project, everywhere: JobRecord[] = []) {
   const labels = inputLabels(r.references ?? []);
@@ -714,21 +680,10 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
     q.toLowerCase().includes(who.toLowerCase()) ? q : m,
   );
   // Video prompts are structured for the model; show their sections as plain headings.
-  const headings: Record<string, string> = {
-    integrated_multimodal_description: 'Scene',
-    subject_definitions: 'Subjects',
-    scene_anchor: 'Setting',
-    action_timeline: 'Action',
-    camera_path: 'Camera',
-    overall_soundscape: 'Sound',
-    non_diegetic_music: 'Music',
-    retention_analysis: 'Keep',
-    detailed_description: 'Detail',
-    summary: 'Summary',
-  };
+  const headings: Record<string, string> = Object.fromEntries([...sections, ['summary', 'Summary']]);
   text = text
     .split('\n')
-    .filter(line => !/^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i.test(line))
+    .filter(line => !naLine.test(line))
     .join('\n');
   text = text.replace(
     /^(\s*)([a-z]+(?:_[a-z]+)+)\s*:\s*/gm,
@@ -770,28 +725,11 @@ export function readablePrompt(r: ImageRequest, project: Project, everywhere: Jo
   );
 }
 
-const sections: Array<[string, string]> = [
-  ['integrated_multimodal_description', 'Scene'],
-  ['subject_definitions', 'Subjects'],
-  ['scene_anchor', 'Setting'],
-  ['action_timeline', 'Action'],
-  ['camera_path', 'Camera'],
-  ['overall_soundscape', 'Sound'],
-  ['non_diegetic_music', 'Music'],
-  ['retention_analysis', 'Keep'],
-  ['detailed_description', 'Detail'],
-];
-const naLine = /^\s*[a-z]+(?:_[a-z]+)+\s*:\s*N\/?A\.?\s*$/i;
-
 /**
  * An editable, person-readable form of a prompt that converts back exactly: known sections become headings,
  * [Shot N] becomes "Shot N:", input tokens become quoted names, and N/A lines are set aside and restored.
  * Returns null when the prompt cannot be round-tripped safely (then the raw prompt is edited instead).
  */
-/** The video engine's own scaffolding sentence (from the official animate format): needed by the model, noise to a person. */
-const scaffold =
-  /For the target video, at [\d.]+ seconds into the target video,[\s\S]{0,240}?(?:is )?(?:fully )?referenced\.[ \t]*/gi;
-
 export function editablePrompt(r: ImageRequest, project: Project, everywhere: JobRecord[] = []) {
   const labels = inputLabels(r.references ?? []);
   const named = (r.references ?? [])
@@ -846,11 +784,10 @@ export const nameCase = (name: string) =>
 const abstractRule =
   /\b(continuity|consisten\w*|maintain|ensure|preserve|specific|match(es|ing)?|same as|across (all |every |the )?(shots|scenes|frames)|every shot|each shot)\b/i;
 
-/** Character traits that describe a personality, not something a picture shows. */
 /** Relationships ("grandson", "his aunt"): who someone is to another person, not something a picture shows. */
 const relation =
   /^(?:(?:his|her|their|the)\s+)?(?:son|daughter|child|mother|father|mum|mom|dad|parent|brother|sister|sibling|aunt|uncle|niece|nephew|cousin|wife|husband|partner|friend|neighbou?r|apprentice|boss|grandson|granddaughter|grandmother|grandfather|grandchild)s?(?:\s+of\s+\w+)?$/i;
-
+/** Character traits that describe a personality, not something a picture shows. */
 const personality =
   /\b(calm|kind|kindly|gentle|shy|brave|curious|stubborn|cheerful|grumpy|witty|humou?r|funny|wise|patient|anxious|nervous|proud|lonely|thoughtful|playful|sarcastic|optimistic|melancholic|cheeky|mischievous|quiet|serious|bold|clever|bright|warm|cold|stern|determined|fierce|tender|dreamy|restless|weary|tired|energetic|personality|temperament|loves|likes|hates|fears|dreams of)\b/i;
 

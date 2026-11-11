@@ -28,6 +28,27 @@ import { Compare } from './viewer/Compare.js';
 import { ProjectsList } from './project/ProjectsList.js';
 import { Dialog, Overlay } from './ui.js';
 
+const pageTitles: Record<string, string> = {
+  library: 'Library',
+  gpus: 'GPUs',
+  settings: 'Settings',
+  projects: 'Projects',
+};
+type Intent = NonNullable<AppContextValue['pendingUse']>['intent'];
+
+/** After a layer closes, focus goes back to what opened it, or to its replacement with the same name (live boards
+ * re-render their tiles). */
+function refocus(opener: Element | null | undefined) {
+  const el = opener as HTMLElement | null | undefined,
+    label = el?.getAttribute('aria-label');
+  requestAnimationFrame(() =>
+    (el?.isConnected || !label
+      ? el
+      : document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(label)}"]`)
+    )?.focus?.(),
+  );
+}
+
 export function App() {
   const { route, go } = useRouter();
   const { mode, setMode } = useModeState();
@@ -43,10 +64,7 @@ export function App() {
   );
   const [comparing, setComparing] = useState<{ a: ViewerItem; b: ViewerItem; opener?: Element | null } | null>(null);
   const [pendingUse, setPendingUse] = useState<AppContextValue['pendingUse']>(null);
-  const [destination, setDestination] = useState<{
-    item: ViewerItem;
-    intent: NonNullable<AppContextValue['pendingUse']>['intent'];
-  } | null>(null);
+  const [destination, setDestination] = useState<{ item: ViewerItem; intent: Intent } | null>(null);
   const [lastProject, setLastProject] = useStoredState<string>('seed.lastProject.' + mode, '');
   const toastId = useRef(0);
   const toast = useCallback((text: string, action?: Toast['action']) => {
@@ -61,17 +79,14 @@ export function App() {
   useEffect(() => {
     if (!tasks.loaded) return;
     const done = new Set(tasks.jobs.filter(j => jobPhase(j) === 'completed').map(j => j.id));
-    if (finished.current) {
-      const fresh = tasks.jobs.filter(j => done.has(j.id) && !finished.current!.has(j.id));
-      const elsewhere = fresh.filter(j => !(route.name === 'project' && j.source?.chat_id === route.id));
-      if (elsewhere.length && route.name !== 'project') {
-        const chat = elsewhere[0]!.source?.chat_id,
-          title = list.items.find(p => p.id === chat)?.title;
-        toast(
-          `${elsewhere.length} ${elsewhere.length === 1 ? 'result' : 'results'} done${title ? ' · ' + title : ''}`,
-          chat ? { label: 'Show', run: () => go({ name: 'project', id: chat, view: 'conversation' }) } : undefined,
-        );
-      }
+    const fresh = finished.current && tasks.jobs.filter(j => done.has(j.id) && !finished.current!.has(j.id));
+    if (fresh?.length && route.name !== 'project') {
+      const chat = fresh[0]!.source?.chat_id,
+        title = list.items.find(p => p.id === chat)?.title;
+      toast(
+        `${fresh.length} ${fresh.length === 1 ? 'result' : 'results'} done${title ? ' · ' + title : ''}`,
+        chat ? { label: 'Show', run: () => go({ name: 'project', id: chat, view: 'conversation' }) } : undefined,
+      );
     }
     finished.current = done;
   }, [tasks.jobs, route, list.items]);
@@ -87,15 +102,7 @@ export function App() {
     const page =
       route.name === 'project'
         ? (projectTitle ?? 'Project') + (route.view === 'results' ? ' · Results' : '')
-        : route.name === 'library'
-          ? 'Library'
-          : route.name === 'gpus'
-            ? 'GPUs'
-            : route.name === 'settings'
-              ? 'Settings'
-              : route.name === 'projects'
-                ? 'Projects'
-                : '';
+        : (pageTitles[route.name] ?? '');
     document.title = page ? `${page} · Seed` : 'Seed';
   }, [route, projectTitle]);
 
@@ -165,10 +172,15 @@ export function App() {
     narrow,
     split,
   };
-  function handTo(item: ViewerItem, intent: NonNullable<AppContextValue['pendingUse']>['intent'], projectId: string) {
+  function handTo(item: ViewerItem, intent: Intent, projectId: string) {
     setPendingUse({ item: { ...item, project: projectId }, intent, nonce: Date.now() });
     if (!(route.name === 'project' && route.id === projectId && route.view === 'conversation'))
       go({ name: 'project', id: projectId, view: 'conversation' });
+  }
+  /** Closes the "which project?" question and hands the result to the chosen project. */
+  function sendTo(projectId: string) {
+    setDestination(null);
+    if (destination) handTo(destination.item, destination.intent, projectId);
   }
   const top = route.name !== 'project';
   return (
@@ -230,17 +242,8 @@ export function App() {
           siblings={viewing.siblings}
           onPick={item => setViewing(v => v && { ...v, item })}
           onClose={() => {
-            const opener = viewing.opener as HTMLElement | null;
-            const label = opener?.getAttribute('aria-label');
             setViewing(null);
-            requestAnimationFrame(() => {
-              // Live boards re-render their tiles: if the opener was replaced, focus the button with the same name.
-              const target =
-                opener?.isConnected || !label
-                  ? opener
-                  : document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(label)}"]`);
-              target?.focus?.();
-            });
+            refocus(viewing.opener);
           }}
         />
       )}
@@ -249,16 +252,8 @@ export function App() {
           a={comparing.a}
           b={comparing.b}
           onClose={() => {
-            const opener = comparing.opener as HTMLElement | null;
-            const label = opener?.getAttribute('aria-label');
             setComparing(null);
-            // Focus goes back to what opened Compare, or to its replacement after a re-render.
-            requestAnimationFrame(() =>
-              (opener?.isConnected || !label
-                ? opener
-                : document.querySelector<HTMLElement>(`[aria-label="${CSS.escape(label)}"]`)
-              )?.focus?.(),
-            );
+            refocus(comparing.opener);
           }}
         />
       )}
@@ -279,14 +274,7 @@ export function App() {
           {[...new Set([lastProject, destination.item.project].filter((x): x is string => Boolean(x)))].map(pid => {
             const p = list.items.find(x => x.id === pid);
             return p ? (
-              <button
-                key={pid}
-                className="option"
-                onClick={() => {
-                  setDestination(null);
-                  handTo(destination.item, destination.intent, pid);
-                }}
-              >
+              <button key={pid} className="option" onClick={() => sendTo(pid)}>
                 <span>
                   <b>{p.title}</b>
                   <small>
@@ -300,11 +288,10 @@ export function App() {
           <button
             className="option"
             onClick={() => {
-              const d = destination;
               setDestination(null);
               void projectsApi.create(mode).then(p => {
                 list.refresh();
-                handTo(d.item, d.intent, p.id);
+                sendTo(p.id);
               });
             }}
           >
@@ -317,19 +304,17 @@ export function App() {
             <button
               className="option"
               onClick={() => {
-                const d = destination,
-                  from = destination.item.project!;
                 setDestination(null);
                 void (async () => {
                   let p = await projectsApi.create(mode);
-                  const source = await projectsApi.get(from).catch(() => null);
+                  const source = await projectsApi.get(destination.item.project!).catch(() => null);
                   if (source?.brief) p = await projectsApi.setBrief(p, source.brief);
                   // The cast's approved references come along, so new shots are drafted from the same pictures.
                   for (const [name, asset] of approvedReferences(source?.choices))
                     p = await projectsApi.choose(p.id, { reference: name, asset }).catch(() => p);
                   if (source?.title) p = await projectsApi.rename(p, source.title + ' · continued').catch(() => p);
                   list.refresh();
-                  handTo(d.item, d.intent, p.id);
+                  sendTo(p.id);
                 })();
               }}
             >
@@ -345,14 +330,7 @@ export function App() {
               {list.items
                 .filter(p => p.id !== lastProject && p.id !== destination.item.project)
                 .map(p => (
-                  <button
-                    key={p.id}
-                    className="option"
-                    onClick={() => {
-                      setDestination(null);
-                      handTo(destination.item, destination.intent, p.id);
-                    }}
-                  >
+                  <button key={p.id} className="option" onClick={() => sendTo(p.id)}>
                     <span>{p.title}</span>
                   </button>
                 ))}
@@ -387,6 +365,9 @@ function waitingJob(job: JobRecord) {
   const phase = jobPhase(job);
   return phase === 'queued' || (!job.progress && phase !== 'running' && phase !== 'saving');
 }
+
+const gpuStarting = (pool: AppContextValue['pool']) =>
+  (pool?.workers ?? []).some(w => ['starting', 'preparing'].includes(w.state));
 
 /** The status control: active work and the running rental rate, in every header. */
 export function StatusControl() {
@@ -434,8 +415,7 @@ export function StatusControl() {
                       ? waiting + (hourly ? ' queued' : ' waiting for a GPU')
                       : '';
   // Inside a project the pill speaks for that project first; work in other projects is one count beside it.
-  const scoped = (() => {
-    if (route.name !== 'project') return undefined;
+  if (route.name === 'project') {
     const here = active.filter(j => j.source?.chat_id === route.id);
     const hereWaiting = here.filter(waitingJob).length;
     const hereMaking = here.length - hereWaiting;
@@ -452,10 +432,8 @@ export function StatusControl() {
         : hereWaiting
           ? `${hereWaiting} waiting`
           : '';
-    const rest = elsewhere ? `+${elsewhere} elsewhere` : '';
-    return [own, rest].filter(Boolean).join(' · ');
-  })();
-  if (scoped !== undefined) words = scoped;
+    words = [own, elsewhere ? `+${elsewhere} elsewhere` : ''].filter(Boolean).join(' · ');
+  }
   const label = [words, hourly ? rate(hourly) + ' GPU' : ''].filter(Boolean).join(', ') || 'Nothing running';
   return (
     <button
@@ -465,17 +443,11 @@ export function StatusControl() {
       aria-haspopup="dialog"
     >
       <span
-        className={`dot ${making || planning ? 'live' : ready.length ? 'amber' : waiting ? 'amber' : attention ? 'amber' : hourly ? '' : 'off'}`}
+        className={`dot ${making || planning ? 'live' : ready.length || waiting || attention ? 'amber' : hourly ? '' : 'off'}`}
       />
       <span className={words ? '' : 'label'}>
         {words ||
-          (attention
-            ? 'Needs you'
-            : hourly
-              ? (pool?.workers ?? []).some(w => ['starting', 'preparing'].includes(w.state))
-                ? 'GPU starting'
-                : 'GPU ready'
-              : 'Nothing running')}
+          (attention ? 'Needs you' : hourly ? (gpuStarting(pool) ? 'GPU starting' : 'GPU ready') : 'Nothing running')}
       </span>
       {hourly > 0 && (
         <span className="rate">
@@ -584,9 +556,7 @@ function Rail() {
           <span className="txt">
             GPUs
             <span className="no-tablet">
-              {active
-                ? ` · ${(pool?.workers ?? []).some(w => ['starting', 'preparing'].includes(w.state)) ? 'starting' : active + ' on'} · ${rate(hourly)}`
-                : ''}
+              {active ? ` · ${gpuStarting(pool) ? 'starting' : active + ' on'} · ${rate(hourly)}` : ''}
             </span>
           </span>
         </button>

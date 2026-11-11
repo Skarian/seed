@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../icons.js';
 import { MenuButton, Thumb, Dialog, useInertBehind } from '../ui.js';
-import { kindLabels, isVideoKind, type Kind } from '../api.js';
+import { kindLabels, isVideoKind, workflowOf, type Kind } from '../api.js';
 import { useApp, type ViewerItem } from '../data.js';
+import { plural } from '../format.js';
 import {
   type Attachment,
   type MakeSettings,
@@ -17,7 +18,16 @@ import {
 import { RequestFields } from './RequestFields.js';
 import type { StyleEntry } from './readiness.js';
 import { LibraryPicker } from '../library/LibraryPicker.js';
-import { workflowOf } from '../api.js';
+import { usingInput } from './drafts.js';
+
+const fileKindLabels = { image: 'Image', video: 'Video', audio: 'Audio' };
+const kindHints: Record<Kind, string> = {
+  image: 'A new still from words.',
+  edit: 'Change an image you attach (one source, optional references).',
+  video: 'A new clip from words.',
+  animate: 'A clip guided by images, video or audio you attach.',
+};
+const singleRoles = new Set<Attachment['role']>(['source', 'first_frame', 'last_frame']);
 
 export type ComposerContext =
   | { type: 'talk' }
@@ -114,23 +124,7 @@ export function Composer(p: Props) {
   // The result being refined or animated is an input like any attachment, in Ask and in Make alike.
   const inputs =
     p.context.type === 'using'
-      ? defaultRoles(p.settings.kind, [
-          {
-            key: p.context.item.asset,
-            asset_id: p.context.item.asset,
-            name: p.context.item.title,
-            kind: p.context.item.kind,
-            role:
-              p.context.intent === 'animate'
-                ? 'first_frame'
-                : p.context.intent === 'refine'
-                  ? p.context.item.kind === 'video'
-                    ? 'reference'
-                    : 'source'
-                  : undefined,
-          },
-          ...p.attachments,
-        ])
+      ? defaultRoles(p.settings.kind, [usingInput(p.context), ...p.attachments])
       : p.attachments;
   const problem =
     p.mode === 'make'
@@ -140,81 +134,69 @@ export function Composer(p: Props) {
         : null;
   // The usual fix for an attached image in the wrong mode is one step: use it as the source (Edit) or start frame (Animate).
   const firstImage = p.attachments.find(a => a.kind === 'image' && a.asset_id);
-  const asRole = (role: 'source' | 'first_frame') =>
-    p.onAttachments(list =>
-      list.map(a =>
-        a.key === firstImage!.key ? { ...a, role } : a.role === role ? { ...a, role: 'reference' as const } : a,
-      ),
-    );
+  const fix =
+    p.settings.kind === 'image' || p.settings.kind === 'edit'
+      ? ({ kind: 'edit', role: 'source' } as const)
+      : ({ kind: 'animate', role: 'first_frame' } as const);
   const inputFix =
     p.mode !== 'make' || !problem || !firstImage
       ? null
-      : p.settings.kind === 'image' || p.settings.kind === 'edit'
-        ? {
-            label: `Edit “${firstImage.name}” with this prompt`,
-            run: () => {
-              p.onSettings({ ...p.settings, kind: 'edit' });
-              asRole('source');
-            },
-          }
-        : {
-            label: `Animate “${firstImage.name}” with this prompt`,
-            run: () => {
-              p.onSettings({ ...p.settings, kind: 'animate' });
-              asRole('first_frame');
-            },
-          };
+      : {
+          label: `${kindLabels[fix.kind]} “${firstImage.name}” with this prompt`,
+          run: () => {
+            p.onSettings({ ...p.settings, kind: fix.kind });
+            p.onAttachments(list =>
+              list.map(a =>
+                a.key === firstImage.key
+                  ? { ...a, role: fix.role }
+                  : a.role === fix.role
+                    ? { ...a, role: 'reference' as const }
+                    : a,
+              ),
+            );
+          },
+        };
   const canSend = !p.disabled && !problem && p.text.trim().length > 0;
-  const count = p.settings.count,
-    video = isVideoKind(p.settings.kind);
-  const makeLabel = `Make ${count} ${video ? (count === 1 ? 'clip' : 'clips') : count === 1 ? 'image' : 'images'} from this prompt`;
+  const makeLabel = `Make ${plural(p.settings.count, isVideoKind(p.settings.kind) ? 'clip' : 'image')} from this prompt`;
 
   function addFiles(files: FileList | File[]) {
     for (const f of Array.from(files)) {
       const kind = kindOfFile(f);
       if (!kind) continue;
       const key = Math.random().toString(36).slice(2);
+      const update = (change: Partial<Attachment>) =>
+        p.onAttachments(list => list.map(a => (a.key === key ? { ...a, ...change } : a)));
       p.onAttachments(list => [
         ...list,
         { key, file: f, name: f.name, kind, url: URL.createObjectURL(f), progress: 'Uploading…' },
       ]);
-      void uploadFile(f, kind, contentMode, text =>
-        p.onAttachments(list => list.map(a => (a.key === key ? { ...a, progress: text } : a))),
-      )
-        .then(id =>
-          p.onAttachments(list => list.map(a => (a.key === key ? { ...a, asset_id: id, progress: undefined } : a))),
-        )
-        .catch(e =>
-          p.onAttachments(list =>
-            list.map(a => (a.key === key ? { ...a, progress: undefined, error: (e as Error).message } : a)),
-          ),
-        );
+      void uploadFile(f, kind, contentMode, text => update({ progress: text }))
+        .then(id => update({ asset_id: id, progress: undefined }))
+        .catch(e => update({ progress: undefined, error: (e as Error).message }));
     }
   }
-  const ctxItems = [
-    ...(p.planOpen
-      ? [
-          {
-            label: 'Revise this plan',
-            hint: 'Your message can change the open plan.',
-            checked: p.context.type === 'plan',
-            onSelect: () => p.onContext({ type: 'plan' }),
-          },
-          {
-            label: 'Talk without changing this plan',
-            hint: 'Seed answers; the plan stays exactly as it is.',
-            checked: p.context.type === 'keep',
-            onSelect: () => p.onContext({ type: 'keep' }),
-          },
-        ]
-      : [
-          {
-            label: 'Talking with Seed',
-            checked: p.context.type === 'talk',
-            onSelect: () => p.onContext({ type: 'talk' }),
-          },
-        ]),
-  ];
+  const ctxItems = p.planOpen
+    ? [
+        {
+          label: 'Revise this plan',
+          hint: 'Your message can change the open plan.',
+          checked: p.context.type === 'plan',
+          onSelect: () => p.onContext({ type: 'plan' }),
+        },
+        {
+          label: 'Talk without changing this plan',
+          hint: 'Seed answers; the plan stays exactly as it is.',
+          checked: p.context.type === 'keep',
+          onSelect: () => p.onContext({ type: 'keep' }),
+        },
+      ]
+    : [
+        {
+          label: 'Talking with Seed',
+          checked: p.context.type === 'talk',
+          onSelect: () => p.onContext({ type: 'talk' }),
+        },
+      ];
   const submit = () => {
     if (!canSend) return;
     p.mode === 'make' ? p.onMake() : p.onSend();
@@ -286,12 +268,8 @@ export function Composer(p: Props) {
                       <button className="link" onClick={() => setRoleFor(a.key)}>
                         {roleLabels[a.role ?? 'reference']} ▾
                       </button>
-                    ) : a.kind === 'image' ? (
-                      'Image'
-                    ) : a.kind === 'video' ? (
-                      'Video'
                     ) : (
-                      'Audio'
+                      fileKindLabels[a.kind]
                     ))}
                 </span>
               </span>
@@ -321,14 +299,8 @@ export function Composer(p: Props) {
         }}
         onKeyDown={e => {
           if (e.key !== 'Enter' || e.nativeEvent.isComposing) return;
-          if (p.mode === 'make') {
-            if (e.ctrlKey || e.metaKey) {
-              e.preventDefault();
-              submit();
-            }
-            return;
-          }
-          if (!e.shiftKey && !touch) {
+          // Make sends on Ctrl+Enter; Ask on Enter, except on touch screens where Enter is a new line.
+          if (p.mode === 'make' ? e.ctrlKey || e.metaKey : !e.shiftKey && !touch) {
             e.preventDefault();
             submit();
           }
@@ -490,14 +462,9 @@ export function Composer(p: Props) {
           onClose={() => setRoleFor(null)}
           onChange={a =>
             p.onAttachments(list =>
+              // Only one input can hold the source, first frame or last frame role.
               list.map(x =>
-                x.key === a.key
-                  ? a
-                  : (a.role === 'source' && x.role === 'source') ||
-                      (a.role === 'first_frame' && x.role === 'first_frame') ||
-                      (a.role === 'last_frame' && x.role === 'last_frame')
-                    ? { ...x, role: 'reference' }
-                    : x,
+                x.key === a.key ? a : x.role === a.role && singleRoles.has(x.role) ? { ...x, role: 'reference' } : x,
               ),
             )
           }
@@ -508,7 +475,6 @@ export function Composer(p: Props) {
 }
 
 function summary(s: MakeSettings, styles: StyleEntry[]) {
-  const video = isVideoKind(s.kind);
   return [
     kindLabels[s.kind],
     s.kind === 'edit'
@@ -517,12 +483,18 @@ function summary(s: MakeSettings, styles: StyleEntry[]) {
           s.aspect
         ],
     '×' + s.count,
-    ...(video ? [s.duration + ' s', s.sound === 'silent' ? 'silent' : 'sound'] : []),
+    ...(isVideoKind(s.kind) ? [s.duration + ' s', s.sound === 'silent' ? 'silent' : 'sound'] : []),
     ...(s.style && s.kind !== 'edit' ? [styles.find(x => x.id === s.style!.id)?.name ?? 'style'] : []),
     s.target === 'local' ? 'Seed PC' : s.target === 'cloud' ? 'Cloud' : 'Auto',
     ...(s.seed && s.seed !== 'random' ? ['seed ' + s.seed] : []),
   ].join(' · ');
 }
+
+const doneButton = (onClose: () => void) => (
+  <button className="btn primary" onClick={onClose}>
+    Done
+  </button>
+);
 
 function MakeSettingsDialog({
   settings: s,
@@ -536,19 +508,10 @@ function MakeSettingsDialog({
   onClose: () => void;
 }) {
   const set = (patch: Partial<MakeSettings>) => onChange({ ...s, ...patch });
-  const video = isVideoKind(s.kind),
-    workflow = workflowOf[s.kind];
+  const video = isVideoKind(s.kind);
   const route = s.kind === 'image' ? 'image' : s.kind === 'video' ? 'fl' : 'ref';
   return (
-    <Dialog
-      title="Make settings"
-      onClose={onClose}
-      footer={
-        <button className="btn primary" onClick={onClose}>
-          Done
-        </button>
-      }
-    >
+    <Dialog title="Make settings" onClose={onClose} footer={doneButton(onClose)}>
       <div className="field">
         <span>Kind</span>
         <div className="seg" role="group" aria-label="Kind">
@@ -559,19 +522,12 @@ function MakeSettingsDialog({
           ))}
         </div>
         <span className="faint" style={{ fontSize: '0.875rem' }}>
-          {s.kind === 'image'
-            ? 'A new still from words.'
-            : s.kind === 'edit'
-              ? 'Change an image you attach (one source, optional references).'
-              : s.kind === 'video'
-                ? 'A new clip from words.'
-                : 'A clip guided by images, video or audio you attach.'}{' '}
-          Engine: {engines[s.kind]}.
+          {kindHints[s.kind]} Engine: {engines[s.kind]}.
         </span>
       </div>
       <div className="editor">
         <RequestFields
-          workflow={workflow}
+          workflow={workflowOf[s.kind]}
           route={route}
           styles={styles}
           shape={s.kind !== 'edit'}
@@ -633,15 +589,7 @@ function RoleDialog({
 }) {
   const roles = rolesFor(kind, a.kind);
   return (
-    <Dialog
-      title={'How to use ' + a.name}
-      onClose={onClose}
-      footer={
-        <button className="btn primary" onClick={onClose}>
-          Done
-        </button>
-      }
-    >
+    <Dialog title={'How to use ' + a.name} onClose={onClose} footer={doneButton(onClose)}>
       <div className="field">
         <span>Role</span>
         <div className="seg" role="group" aria-label="Role">

@@ -143,13 +143,10 @@ export function MenuButton({
         <DropdownMenu.Content
           // Closing returns focus to the menu button, unless an item has already moved focus on purpose (a dialog).
           onCloseAutoFocus={e => {
-            const active = document.activeElement;
-            if (active && active !== document.body && !active.closest('[role=menu]')) {
-              e.preventDefault();
-              return;
-            }
             e.preventDefault();
-            trigger.current?.focus({ preventScroll: true });
+            const active = document.activeElement;
+            if (!active || active === document.body || active.closest('[role=menu]'))
+              trigger.current?.focus({ preventScroll: true });
           }}
           className="menu"
           side={placement === 'above' ? 'top' : 'bottom'}
@@ -158,36 +155,25 @@ export function MenuButton({
           collisionPadding={8}
           onClick={e => e.stopPropagation()}
         >
-          {items.map((item, i) =>
-            item === 'divider' ? (
-              <DropdownMenu.Separator key={i} className="menu-sep" />
-            ) : item.checked === undefined ? (
-              <DropdownMenu.Item
-                key={i}
-                disabled={item.disabled}
-                className={'menu-item' + (item.danger ? ' danger' : '')}
-                onSelect={() => item.onSelect()}
-              >
+          {items.map((item, i) => {
+            if (item === 'divider') return <DropdownMenu.Separator key={i} className="menu-sep" />;
+            const props = {
+              disabled: item.disabled,
+              className: 'menu-item' + (item.danger ? ' danger' : ''),
+              onSelect: () => item.onSelect(),
+              children: (
                 <span>
                   {item.label}
                   {item.hint && <small>{item.hint}</small>}
                 </span>
-              </DropdownMenu.Item>
+              ),
+            };
+            return item.checked === undefined ? (
+              <DropdownMenu.Item key={i} {...props} />
             ) : (
-              <DropdownMenu.CheckboxItem
-                key={i}
-                checked={item.checked}
-                disabled={item.disabled}
-                className={'menu-item' + (item.danger ? ' danger' : '')}
-                onSelect={() => item.onSelect()}
-              >
-                <span>
-                  {item.label}
-                  {item.hint && <small>{item.hint}</small>}
-                </span>
-              </DropdownMenu.CheckboxItem>
-            ),
-          )}
+              <DropdownMenu.CheckboxItem key={i} checked={item.checked} {...props} />
+            );
+          })}
         </DropdownMenu.Content>
       </DropdownMenu.Portal>
     </DropdownMenu.Root>
@@ -298,12 +284,7 @@ export function Dialog({
 }) {
   const returnFocus = useReturnFocus();
   return (
-    <RadixDialog.Root
-      open
-      onOpenChange={open => {
-        if (!open) onClose();
-      }}
-    >
+    <RadixDialog.Root open onOpenChange={open => !open && onClose()}>
       <RadixDialog.Portal>
         <div className={`backdrop ${sheet ? 'sheet' : ''}`}>
           <RadixDialog.Content
@@ -473,25 +454,22 @@ export class LocalBoundary extends React.Component<
   }
 }
 
+const extensions: Record<string, string> = {
+  'image/png': '.png',
+  'image/jpeg': '.jpg',
+  'image/webp': '.webp',
+  'video/mp4': '.mp4',
+  'video/webm': '.webm',
+  'audio/mpeg': '.mp3',
+  'audio/wav': '.wav',
+  'audio/x-wav': '.wav',
+};
 /** Downloads a result under a readable name ("moss-and-kettle-storefront-2.png") instead of its storage id. */
 export async function downloadAsset(id: string, title: string) {
   let ext = '';
   try {
     const head = await fetch(media.content(id), { method: 'HEAD' });
-    const type = head.headers.get('content-type') ?? '';
-    ext =
-      (
-        {
-          'image/png': '.png',
-          'image/jpeg': '.jpg',
-          'image/webp': '.webp',
-          'video/mp4': '.mp4',
-          'video/webm': '.webm',
-          'audio/mpeg': '.mp3',
-          'audio/wav': '.wav',
-          'audio/x-wav': '.wav',
-        } as Record<string, string>
-      )[type.split(';')[0]!.trim()] ?? '';
+    ext = extensions[(head.headers.get('content-type') ?? '').split(';')[0]!.trim()] ?? '';
   } catch {
     /* keep the server's name */
   }

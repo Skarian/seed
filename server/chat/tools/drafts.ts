@@ -8,7 +8,8 @@ import { loraRoute, isVideoWorkflow } from '../../../shared/workflows.js';
 import type { ImageRequest } from '../../workflows.js';
 import { addPlan, agentRequest, latest, openGroup, referenceMode } from '../model.js';
 import { validateChatReferences, validateCastReferences, withCastLooks } from '../references.js';
-import { requestToolSchemas, prepareToolRequest, requestToolResultError, toolInputLabels } from '../request-tools.js';
+import { requestToolSchemas, prepareToolRequest, requestToolResultError } from '../request-tools.js';
+import { kleinOffCloud, toolInputLabels } from '../request-tools.js';
 import { current, defineTool, ToolFailure, type ToolSession } from './define.js';
 import { stylesFor } from './kind.js';
 import { silencedPrompt } from '../../../shared/generation.js';
@@ -85,6 +86,7 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
               : 'This draft is a picture. A clip (an animation of it) is a new draft: use create_request with the picture as its start frame; leave the picture draft as it is.',
           );
         const prior = card ? latest(card).request : undefined;
+        const cloudWorkflows = host.jobs.pool.cloudWorkflows();
         const request = prepareToolRequest(
           {
             workflow: kind,
@@ -92,7 +94,7 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
             assets: session.assets,
             previous: changesKind ? undefined : prior,
             referenceMode: mode,
-            cloudWorkflows: host.jobs.pool.cloudWorkflows(),
+            cloudWorkflows,
           },
           changesKind
             ? (({ request_id: _id, ...rest }) => ({ title: prior!.title, prompt: prior!.prompt, ...rest }))(value)
@@ -109,15 +111,7 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
               .map(c => latest(c).request.target)
               .filter(Boolean)
               .at(-1);
-          if (
-            chosen &&
-            !(
-              chosen === 'cloud' &&
-              request.engine === 'klein' &&
-              !host.jobs.pool.cloudWorkflows().includes('image-to-image:klein')
-            )
-          )
-            request.target = chosen;
+          if (chosen && !(chosen === 'cloud' && kleinOffCloud(request, cloudWorkflows))) request.target = chosen;
         }
         for (const ref of request.references ?? [])
           if (!chat.assets.includes(ref.asset_id)) throw Error('Input is not attached to this chat.');
@@ -160,7 +154,6 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
           host.jobs.loras.resolve(request.loras, loraRoute(request), request.mode);
         group ??= addPlan(chat, 'assembling', kind, []);
         let saved: ChatCard;
-        const before = card ? latest(card).request : undefined;
         if (card) {
           card.revisions.push(host.revision(chat, request, latest(card).number + 1, latest(card).source_job_id));
           card.workflow = kind;
@@ -185,7 +178,7 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
         if (session.target === saved.id) session.target = undefined;
         delete group.submission_error;
         host.save(chat);
-        return receipt(session, chat, request, before, saved, silenced);
+        return receipt(session, chat, request, prior, saved, silenced);
       },
     }),
   );

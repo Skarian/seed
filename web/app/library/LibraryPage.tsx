@@ -22,6 +22,11 @@ type Filters = {
   order: 'newest' | 'oldest';
 };
 const none: Filters = { kind: '', source: '', favorites: false, collection: '', project: '', order: 'newest' };
+/** The Filters dialog's pick-one rows: each choice's value and label. */
+const segments = [
+  { title: 'Kind', key: 'kind', choices: { '': 'All', image: 'Images', video: 'Videos' } },
+  { title: 'Source', key: 'source', choices: { '': 'All', made: 'Made in Seed', uploaded: 'Uploaded' } },
+] as const;
 
 export const assetTitle = (a: LibraryAsset) =>
   (a.title ??
@@ -52,32 +57,23 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
     const t = setTimeout(() => setQuery(q), 250);
     return () => clearTimeout(t);
   }, [q]);
-  // Opened from a collection chip: show just that collection.
+  // Opened from a collection chip: show just that collection. Opened from a project: show that project's results (the
+  // Project filter shows it and clears it).
   useEffect(() => {
-    if (collection) {
-      setF({ ...none, collection });
+    if (collection || project) {
+      setF({ ...none, collection: collection ?? '', project: project ?? '' });
       app.go({ name: 'library' }, true);
     }
-  }, [collection]);
-  // Opened from a project: show that project's results (the Project filter shows it and clears it).
-  useEffect(() => {
-    if (project) {
-      setF({ ...none, project });
-      app.go({ name: 'library' }, true);
-    }
-  }, [project]);
-  useEffect(() => {
+  }, [collection, project]);
+  const refreshCols = () =>
     void collectionsApi
       .list(app.mode)
       .then(setCols)
       .catch(() => {});
-  }, [app.mode, toCollection]);
+  useEffect(refreshCols, [app.mode, toCollection]);
   // Membership changed elsewhere (a result's Details): refresh counts here too.
   collectionsChanged.useHear(() => {
-    void collectionsApi
-      .list(app.mode)
-      .then(setCols)
-      .catch(() => {});
+    refreshCols();
     list.refresh();
   }, [app.mode]);
   // Picking items to put into a collection: browse everything, then add the selection in one step.
@@ -88,13 +84,13 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
     if (!selecting) setSelected([]);
     setSelecting(true);
   }
-  async function finishFilling() {
-    const c = filling!;
-    await bulk(id => assetsApi.inCollection(id, c.id, true), `Added to ${c.name}:`);
+  /** Leaves picking and shows the collection being filled. */
+  function stopFilling(c: AssetCollection) {
     setFilling(null);
     setSelecting(false);
     setF({ ...none, collection: c.id });
   }
+  const addTo = (c: AssetCollection) => bulk(id => assetsApi.inCollection(id, c.id, true), `Added to ${c.name}:`);
   const current = cols.find(c => c.id === f.collection);
   const list = useAssets({
     mode: app.mode,
@@ -129,36 +125,18 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
     }
     return out;
   }, [list.items]);
-  const active: Array<[string, () => void]> = [
-    ...(f.kind
-      ? [
-          [{ image: 'Images', video: 'Videos', audio: 'Audio' }[f.kind], () => setF({ ...f, kind: '' })] as [
-            string,
-            () => void,
-          ],
-        ]
-      : []),
-    ...(f.source
-      ? [[f.source === 'made' ? 'Made in Seed' : 'Uploaded', () => setF({ ...f, source: '' })] as [string, () => void]]
-      : []),
-    ...(f.favorites ? [['Favorites', () => setF({ ...f, favorites: false })] as [string, () => void]] : []),
-    ...(f.collection
-      ? [
-          [cols.find(c => c.id === f.collection)?.name ?? 'Collection', () => setF({ ...f, collection: '' })] as [
-            string,
-            () => void,
-          ],
-        ]
-      : []),
-    ...(f.project
-      ? [
-          [app.projectList.find(p => p.id === f.project)?.title ?? 'Project', () => setF({ ...f, project: '' })] as [
-            string,
-            () => void,
-          ],
-        ]
-      : []),
-  ];
+  // Each filter that is on, as a removable chip: its label, and how to clear it.
+  const active = (
+    [
+      [f.kind && { image: 'Images', video: 'Videos', audio: 'Audio' }[f.kind], { kind: '' }],
+      [f.source && (f.source === 'made' ? 'Made in Seed' : 'Uploaded'), { source: '' }],
+      [f.favorites && 'Favorites', { favorites: false }],
+      [f.collection && (current?.name ?? 'Collection'), { collection: '' }],
+      [f.project && (app.projectList.find(p => p.id === f.project)?.title ?? 'Project'), { project: '' }],
+    ] as Array<[string | false, Partial<Filters>]>
+  )
+    .filter((x): x is [string, Partial<Filters>] => Boolean(x[0]))
+    .map(([label, clear]): [string, () => void] => [label, () => setF({ ...f, ...clear })]);
   const anyFilter = active.length > 0 || Boolean(query);
   const toggle = (id: string) => setSelected(s => (s.includes(id) ? s.filter(x => x !== id) : [...s, id]));
   async function bulk(fn: (id: string) => Promise<unknown>, done: string) {
@@ -178,10 +156,7 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
     );
     setSelected([]);
     list.refresh();
-    void collectionsApi
-      .list(app.mode)
-      .then(setCols)
-      .catch(() => {});
+    refreshCols();
   }
   return (
     <>
@@ -357,7 +332,8 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
               <div className={'grid library-grid' + (dense ? ' dense' : '') + (few ? ' few' : '')}>
                 {list2.map(a => {
                   const it = items.find(i => i.asset === a.id)!,
-                    on = selected.includes(a.id);
+                    on = selected.includes(a.id),
+                    noteHit = query && a.note?.toLowerCase().includes(query.trim().toLowerCase());
                   const ratio = a.width && a.height ? Math.min(2.4, Math.max(0.45, a.width / a.height)) : 1;
                   return (
                     <figure
@@ -413,12 +389,12 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
                           <small>
                             {app.projectList.find(p => p.id === a.chat_id)?.title ?? (a.job_id ? '' : 'Uploaded')}
                           </small>
-                          {query && a.note?.toLowerCase().includes(query.trim().toLowerCase()) && (
+                          {noteHit && (
                             <small className="note-match">
-                              Note: <Highlight text={noteExcerpt(a.note, query.trim())} words={query} />
+                              Note: <Highlight text={noteExcerpt(a.note!, query.trim())} words={query} />
                             </small>
                           )}
-                          {query && !a.note?.toLowerCase().includes(query.trim().toLowerCase()) && a.prompt_match && (
+                          {query && !noteHit && a.prompt_match && (
                             <small className="note-match">
                               Prompt:{' '}
                               <Highlight
@@ -460,18 +436,14 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
           {filling && (
             <>
               <span style={{ flex: 1 }} />
-              <button
-                className="btn"
-                onClick={() => {
-                  const c = filling;
-                  setFilling(null);
-                  setSelecting(false);
-                  setF({ ...none, collection: c.id });
-                }}
-              >
+              <button className="btn" onClick={() => stopFilling(filling)}>
                 Cancel
               </button>
-              <button className="btn primary" disabled={!selected.length} onClick={() => void finishFilling()}>
+              <button
+                className="btn primary"
+                disabled={!selected.length}
+                onClick={() => void addTo(filling).then(() => stopFilling(filling))}
+              >
                 Add {selected.length || ''} to “{filling.name}”
               </button>
             </>
@@ -558,38 +530,18 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
             </>
           }
         >
-          <div className="field">
-            <span>Kind</span>
-            <div className="seg">
-              {(
-                [
-                  ['', 'All'],
-                  ['image', 'Images'],
-                  ['video', 'Videos'],
-                ] as const
-              ).map(([k, l]) => (
-                <button key={k} aria-pressed={f.kind === k} onClick={() => setF({ ...f, kind: k })}>
-                  {l}
-                </button>
-              ))}
+          {segments.map(({ title, key, choices }) => (
+            <div className="field" key={key}>
+              <span>{title}</span>
+              <div className="seg">
+                {Object.entries(choices).map(([k, l]) => (
+                  <button key={k} aria-pressed={f[key] === k} onClick={() => setF({ ...f, [key]: k })}>
+                    {l}
+                  </button>
+                ))}
+              </div>
             </div>
-          </div>
-          <div className="field">
-            <span>Source</span>
-            <div className="seg">
-              {(
-                [
-                  ['', 'All'],
-                  ['made', 'Made in Seed'],
-                  ['uploaded', 'Uploaded'],
-                ] as const
-              ).map(([k, l]) => (
-                <button key={k} aria-pressed={f.source === k} onClick={() => setF({ ...f, source: k })}>
-                  {l}
-                </button>
-              ))}
-            </div>
-          </div>
+          ))}
           <label className="field">
             <span>Collection</span>
             <select className="select" value={f.collection} onChange={e => setF({ ...f, collection: e.target.value })}>
@@ -622,7 +574,7 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
               className="option"
               onClick={() => {
                 setToCollection(false);
-                void bulk(id => assetsApi.inCollection(id, c.id, true), `Added to ${c.name}:`);
+                void addTo(c);
               }}
             >
               <span>
@@ -637,7 +589,7 @@ export function LibraryPage({ collection, project }: { collection?: string; proj
             onCreate={async name => {
               const c = await collectionsApi.create(app.mode, name);
               setToCollection(false);
-              await bulk(id => assetsApi.inCollection(id, c.id, true), `Added to ${c.name}:`);
+              await addTo(c);
             }}
           />
         </Dialog>

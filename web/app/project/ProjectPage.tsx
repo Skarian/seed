@@ -63,17 +63,11 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   // "/" jumps to the message box from anywhere in the project, as in chat apps.
   useEffect(() => {
     const key = (e: KeyboardEvent) => {
-      if (
-        e.key !== '/' ||
-        e.defaultPrevented ||
-        (e.target as HTMLElement).closest('input,textarea,select,[contenteditable]')
-      )
-        return;
       const box = document.querySelector<HTMLTextAreaElement>('.composer textarea');
-      if (box) {
-        e.preventDefault();
-        box.focus();
-      }
+      if (e.key !== '/' || e.defaultPrevented || !box) return;
+      if ((e.target as HTMLElement).closest('input,textarea,select,[contenteditable]')) return;
+      e.preventDefault();
+      box.focus();
     };
     addEventListener('keydown', key);
     return () => removeEventListener('keydown', key);
@@ -96,9 +90,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     role: 'image' | 'video';
     action: string;
     seconds?: number | null;
-    then: () => Promise<void>;
+    then: () => Promise<unknown>;
   }>(null);
-  const [conflict, setConflict] = useState<null | { label: string; run: () => Promise<void> }>(null);
+  const [conflict, setConflict] = useState<null | { label: string; run: () => Promise<unknown> }>(null);
   const [confirmDelete, setConfirmDelete] = useState(false),
     [renaming, setRenaming] = useState(false);
   const [busy, setBusy] = useState(''),
@@ -169,7 +163,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   /** Sends a message written by one of Seed's own buttons. */
   const ask = (text: string) => run('', () => projectsApi.send(currentProject(id) ?? project!, { text, assets: [] }));
   /** Runs an action that needs a new plan; if one is open, ask first. Never discards or runs the open plan silently. */
-  function needsNewPlan(label: string, action: () => Promise<void>) {
+  function needsNewPlan(label: string, action: () => Promise<unknown>) {
     if (plan) setConflict({ label, run: action });
     else void action();
   }
@@ -182,7 +176,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       ),
     );
   /** Starts a direct make once a GPU can run it: a blocked request says why, a new rental asks for consent first. */
-  async function whenReady(r: ImageRequest, count: number, go: () => Promise<void>) {
+  async function whenReady(r: ImageRequest, count: number, go: () => Promise<unknown>) {
     const need = readiness(r, app.pool, styles);
     if (need.blocked) return setProblem(need.label);
     if (need.needs)
@@ -230,11 +224,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     if (ok) {
       setText('');
       setAttachments([]);
-      setContext(c =>
-        c.type === 'using' || c.type === 'draft' || c.type === 'keep'
-          ? { type: plan && addToPlan ? 'plan' : 'talk' }
-          : c,
-      );
+      setContext(c => (['using', 'draft', 'keep'].includes(c.type) ? { type: addToPlan ? 'plan' : 'talk' } : c));
     }
   }
   async function retry() {
@@ -324,9 +314,9 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   function remake(card: ChatCard, how: 'more' | 'retry' | 'cancelled' | 'again') {
     if (!project) return;
     const request = drafts.remakeRequest(project, card, how);
-    void whenReady(latest(card).request, request.count, async () => {
-      await run('Starting', () => projectsApi.makeDirect(id, request, randomKey()));
-    });
+    void whenReady(latest(card).request, request.count, () =>
+      run('Starting', () => projectsApi.makeDirect(id, request, randomKey())),
+    );
   }
   const restore = (card: ChatCard, join = false) =>
     projectsApi.restore(id, card.id, latest(card).number, revisable(latest(card).request), join);
@@ -346,22 +336,19 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         })
         .catch(e => app.toast((e as Error).message)),
     onPrepare: (card: ChatCard) =>
-      needsNewPlan('Prepare a variation', async () => {
-        await run('', () => projectsApi.repeat(id, card.id, latest(card).number, { fresh: true }));
-      }),
-    onBringBack: (card: ChatCard) =>
-      needsNewPlan('Bring back', async () => {
-        await run('', () => restore(card));
-      }),
+      needsNewPlan('Prepare a variation', () =>
+        run('', () => projectsApi.repeat(id, card.id, latest(card).number, { fresh: true })),
+      ),
+    onBringBack: (card: ChatCard) => needsNewPlan('Bring back', () => run('', () => restore(card))),
     // Several set-aside drafts come back together as one plan.
     onBringBackAll: (cards: ChatCard[]) =>
-      needsNewPlan('Bring back', async () => {
-        await run('', async () => {
+      needsNewPlan('Bring back', () =>
+        run('', async () => {
           let view: Project | undefined;
           for (const [i, card] of cards.entries()) view = await restore(card, i > 0);
           return view!;
-        });
-      }),
+        }),
+      ),
   };
 
   const timeline = useMemo(() => (project ? buildTimeline(project) : []), [project]);
@@ -578,12 +565,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
               </div>
               <div
                 className="dock"
-                onFocus={e => {
-                  if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(true);
-                }}
-                onBlur={e => {
-                  if ((e.target as HTMLElement).tagName === 'TEXTAREA') setTyping(false);
-                }}
+                onFocus={e => (e.target as HTMLElement).tagName === 'TEXTAREA' && setTyping(true)}
+                onBlur={e => (e.target as HTMLElement).tagName === 'TEXTAREA' && setTyping(false)}
               >
                 <div className="col">
                   {plan && status && (status.planStale || status.question) && (
@@ -714,9 +697,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           seconds={compute.seconds}
           onClose={() => setCompute(null)}
           onStarted={() => {
-            const then = compute.then;
             setCompute(null);
-            void then();
+            void compute.then();
           }}
         />
       )}
