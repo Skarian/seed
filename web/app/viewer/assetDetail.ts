@@ -2,6 +2,7 @@
 import { useEffect, useState } from 'react';
 import { shotFromTitle, shotNameKey, shotsFromBrief } from '../../../shared/shots.js';
 import { chosenAs, chosenTake, type ProjectChoices } from '../../../shared/choices.js';
+import { jobPhase } from '../../../shared/jobs.js';
 import { assets as assetsApi, jobs as jobsApi, type AssetDetail, type JobRecord } from '../api.js';
 import { useApp, type ViewerItem } from '../data.js';
 import { titleOf, duration } from '../format.js';
@@ -47,7 +48,7 @@ export function useFamily(item: ViewerItem, job?: JobRecord) {
     };
   });
   const children = tasks
-    .filter(j => j.state === 'completed' && j.request.references?.some(r => r.asset_id === item.asset))
+    .filter(j => jobPhase(j) === 'completed' && j.request.references?.some(r => r.asset_id === item.asset))
     .flatMap(j => j.outputs.map(o => ({ asset: o, job: j })));
   return { parents, children };
 }

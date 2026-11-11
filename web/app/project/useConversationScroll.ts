@@ -2,6 +2,7 @@
  * group, and on phones tuck the bars away while the user reads down. */
 import { useEffect, useLayoutEffect, useRef, useState, type UIEvent } from 'react';
 import type { Project } from '../api.js';
+import { jobPhase } from '../../../shared/jobs.js';
 
 export function useConversationScroll(project: Project | null, view: string, focus?: string, narrow = false) {
   const scroller = useRef<HTMLDivElement>(null),
@@ -22,7 +23,7 @@ export function useConversationScroll(project: Project | null, view: string, foc
         project.messages.length,
         project.messages.at(-1)?.text.length,
         project.groups.map(g => g.state + g.cards.map(c => c.revisions.length).join()).join(),
-        project.jobs.filter(j => j.state === 'completed').length,
+        project.jobs.filter(j => jobPhase(j) === 'completed').length,
       ].join('|')
     : '';
   useLayoutEffect(() => {

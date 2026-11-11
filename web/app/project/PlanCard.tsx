@@ -7,10 +7,19 @@ import { latest, titleOf, settingChips, changesBetween, assetName } from '../for
 import { readiness, styleName, type StyleEntry } from './readiness.js';
 import { sizeOptions } from './requests.js';
 import { ackKey, askedFor, checkDraft } from './checks.js';
-import { commonWords, preflight, revisable, reviseEach, revisionSummary, sharedChips, splitWarnings } from './plan.js';
+import {
+  commonWords,
+  preflight,
+  revisable,
+  reviseEach,
+  revisionSummary,
+  sharedChips,
+  splitWarnings,
+  ticked,
+  type Selection,
+} from './plan.js';
 import { Draft, IncludeBox, ReadyBadge } from './Draft.js';
 
-export type Selection = Record<string, boolean>;
 type Props = {
   project: Project;
   group: ChatGroup;
@@ -136,7 +145,7 @@ export function PlanCard({
           </MenuButton>
         </span>
       </div>
-      {planWide.map(c => (
+      {planWide.map(({ check: c, each }) => (
         <div className="check-note plan-wide" key={c.text}>
           <span>
             ⚠ All drafts:{' '}
@@ -154,11 +163,13 @@ export function PlanCard({
                 disabled={busy || working}
                 onClick={() => {
                   if (f.cropTo) void chooseFrame(project.id, f.cropTo);
-                  // The fix applies to every draft; a draft it does not change just stops showing the warning.
+                  // Each draft takes its own copy of the fix (it may name that draft's inputs); a draft it does not
+                  // change just stops showing the warning.
                   void reviseEach(
                     cards,
-                    card => {
-                      const patch = f.patch(latest(card).request);
+                    (card, i) => {
+                      const own = each[i]!.fixes.find(x => x.label === f.label);
+                      const patch = own ? own.patch(latest(card).request) : {};
                       if (Object.keys(patch).length) return patch;
                       onAcknowledge(ackKey(card, c));
                       return null;
@@ -235,13 +246,14 @@ export function PlanCard({
         {cards.map((card, i) => {
           const rev = latest(card),
             r = rev.request,
-            on = selection[card.id] ?? !card.left_out,
+            on = ticked(selection, card),
             blocked = Boolean(ready[i]?.blocked);
           const own = chips[i]!.filter(([k]) => !sharedKeys.has(k));
           const prior = card.revisions.at(-2);
           const changed =
             rev.number > 1 && prior ? changesBetween(prior, rev, name, a => assetName(project, a, everywhere)) : [];
-          const toggle = () => !blocked && onSelection({ ...selection, [card.id]: !on });
+          const toggle = () =>
+            !blocked && onSelection({ ...selection, [card.id]: { on: !on, was: Boolean(card.left_out) } });
           // The checkbox and the row's open button are siblings: one control inside another is not allowed.
           if (compact && open !== card.id)
             return (

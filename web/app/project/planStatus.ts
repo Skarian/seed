@@ -3,7 +3,7 @@
 import { kindOf, isVideoKind, type ChatCard, type ChatGroup, type JobRecord, type Project } from '../api.js';
 import { cleanReply } from '../ui.js';
 import { latest, outputNoun, plural, estimateSeconds } from '../format.js';
-import type { Selection } from './PlanCard.js';
+import { ticked, type Selection } from './plan.js';
 import type { Readiness } from './readiness.js';
 import { ackKey, checkDraft } from './checks.js';
 
@@ -27,7 +27,7 @@ export function planStatus(
   acknowledged: Set<string>,
   ready: (card: ChatCard) => Readiness,
 ) {
-  const selectedCards = plan.cards.filter(c => (selection[c.id] ?? !c.left_out) && !ready(c).blocked);
+  const selectedCards = plan.cards.filter(c => ticked(selection, c) && !ready(c).blocked);
   // What Make makes, by kind: "4 images", "2 clips" or "4 images and 2 clips" for a mixed plan.
   const madeOf = (video: boolean) =>
     selectedCards

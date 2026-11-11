@@ -10,6 +10,7 @@ import {
   type JobRecord,
 } from '../api.js';
 import { latest, titleOf, cardJobs, isFailed } from '../format.js';
+import { jobPhase } from '../../../shared/jobs.js';
 import type { ComposerContext } from './Composer.js';
 import { readablePrompt } from './checks.js';
 import { defaultRoles, type Attachment, type MakeSettings } from './requests.js';
@@ -77,7 +78,7 @@ export function settingsForMake(context: ComposerContext, settings: MakeSettings
 export function remakeRequest(project: Project, card: ChatCard, how: 'more' | 'retry' | 'cancelled' | 'again') {
   const r = latest(card).request;
   // Retry and redo-cancelled replace only the takes that did not finish, with their own seeds.
-  const failed = cardJobs(project, card).filter(j => (how === 'cancelled' ? j.state === 'cancelled' : isFailed(j)));
+  const failed = cardJobs(project, card).filter(j => (how === 'cancelled' ? jobPhase(j) === 'cancelled' : isFailed(j)));
   const { mode: _m, resolved_seeds, ...rest } = r;
   const count = how === 'retry' || how === 'cancelled' ? Math.max(1, failed.length) : r.count;
   const seedsFor =

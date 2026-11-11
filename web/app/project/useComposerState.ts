@@ -1,10 +1,10 @@
 /** The composer's state for one project, kept on this device across navigation and reloads: draft text, mode, Make
  * settings, finished attachments, a Refine or Animate target, and the open plan's ticks and acknowledged checks. */
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useState } from 'react';
 import type { ChatGroup } from '../api.js';
 import { useStoredState } from '../data.js';
 import type { ComposerContext } from './Composer.js';
-import type { Selection } from './PlanCard.js';
+import type { Selection } from './plan.js';
 import { defaultMake, type Attachment, type MakeSettings } from './requests.js';
 
 /** Reads a stored JSON value; anything missing or unreadable gives the fallback. */
@@ -62,7 +62,8 @@ export function useComposerState(id: string, plan: ChatGroup | undefined) {
           : c,
     );
   }, [Boolean(plan)]);
-  // Ticks and acknowledged warnings belong to the plan and survive a reload on this device.
+  // Ticks and acknowledged warnings belong to the plan and survive a reload on this device. A tick keeps the
+  // `left_out` it overrode, so when Seed narrows or widens the plan later, Seed's choice wins (see `ticked`).
   useEffect(() => {
     if (!plan) {
       setSelection({});
@@ -76,26 +77,6 @@ export function useComposerState(id: string, plan: ChatGroup | undefined) {
     save('seed.plan.sel.' + plan.id, selection);
     save('seed.plan.ack.' + plan.id, [...acknowledged]);
   }, [selection, acknowledged]);
-  // When Seed narrows or widens the plan, its choice replaces earlier ticks on those drafts.
-  const leftOut = plan?.cards.map(c => c.id + (c.left_out ? '-' : '')).join() ?? '';
-  const lastLeftOut = useRef(leftOut);
-  useEffect(() => {
-    const first = !lastLeftOut.current;
-    const before = new Set(lastLeftOut.current.split(','));
-    lastLeftOut.current = leftOut;
-    const now = new Set(leftOut.split(','));
-    // A plan appearing (first load, or a different plan) keeps the ticks restored for it.
-    const ids = (set: Set<string>) => new Set([...set].map(x => x.replace(/-$/, '')));
-    const was = ids(before);
-    if (first || ![...ids(now)].some(x => was.has(x))) return;
-    setSelection(s =>
-      Object.fromEntries(
-        Object.entries(s).filter(
-          ([id]) => (before.has(id) && now.has(id)) || (before.has(id + '-') && now.has(id + '-')),
-        ),
-      ),
-    );
-  }, [leftOut]);
 
   return {
     text,

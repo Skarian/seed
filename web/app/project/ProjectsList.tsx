@@ -5,7 +5,7 @@ import { Icon } from '../icons.js';
 import { relativeTime } from '../format.js';
 import { Thumb } from '../ui.js';
 import { kindOf, isVideoKind } from '../api.js';
-import { jobActive } from '../../../shared/jobs.js';
+import { jobActive, jobPhase } from '../../../shared/jobs.js';
 import { StatusControl } from '../App.js';
 
 /** Every project, newest first. The phone's top level, and the tablet drawer. */
@@ -14,7 +14,7 @@ export function ProjectsList({ compact = false, onChosen }: { compact?: boolean;
   const [query, setQuery] = useState('');
   const active = new Set(tasks.filter(jobActive).map(j => j.source?.chat_id));
   const made = (id: string) =>
-    tasks.filter(j => j.source?.chat_id === id && j.state === 'completed' && j.outputs.length);
+    tasks.filter(j => j.source?.chat_id === id && jobPhase(j) === 'completed' && j.outputs.length);
   const shown = projectList.filter(p => p.title.toLowerCase().includes(query.trim().toLowerCase()));
   async function create() {
     const p = await projectsApi.create(mode);

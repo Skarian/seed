@@ -54,21 +54,37 @@ export function revisionSummary(cards: ChatCard[]) {
   return ` · last revision: ${[`${revised} changed`, added ? `${added} added` : '', unchanged ? `${unchanged} unchanged` : ''].filter(Boolean).join(', ')}`;
 }
 
-/** A warning every draft shares is said once, for the whole plan; each draft keeps only its own. */
+/**
+ * A warning every draft shares (same code and text) is said once, for the whole plan; each draft keeps only its own.
+ * `each` holds every draft's own copy of a plan-wide warning: its fixes close over that draft's inputs.
+ */
 export function splitWarnings(raw: Check[][]) {
+  const same = (a: Check) => (b: Check) => a.code === b.code && a.text === b.text;
   const planWide =
-    raw.length > 1 ? (raw[0] ?? []).filter(w => !w.soft && raw.every(ws => ws.some(x => x.text === w.text))) : [];
-  return { planWide, warnings: raw.map(ws => ws.filter(w => !planWide.some(p => p.text === w.text))) };
+    raw.length > 1
+      ? (raw[0] ?? [])
+          .filter(w => !w.soft && raw.every(ws => ws.some(same(w))))
+          .map(check => ({ check, each: raw.map(ws => ws.find(same(check))!) }))
+      : [];
+  return { planWide, warnings: raw.map(ws => ws.filter(w => !planWide.some(p => same(p.check)(w)))) };
+}
+
+/**
+ * The person's ticks, each kept with the `left_out` it overrode. Once Seed changes a draft's `left_out`, Seed's
+ * choice decides. Ticks saved by older releases (plain booleans) never match, so Seed's choice decides for them too.
+ */
+export type Selection = Record<string, { on: boolean; was: boolean }>;
+export function ticked(selection: Selection, card: ChatCard) {
+  const tick = selection[card.id];
+  return tick?.was === Boolean(card.left_out) ? tick.on : !card.left_out;
 }
 
 /** Continuity preflight: drafts going into the make that leave out brief details, listed once for the whole plan. */
-export function preflight(cards: ChatCard[], warnings: Check[][], selection: Record<string, boolean>) {
+export function preflight(cards: ChatCard[], warnings: Check[][], selection: Selection) {
   if (cards.length < 2) return [];
   return cards
     .map((card, i) => ({ card, check: warnings[i]!.find(w => w.code === 'continuity') }))
-    .filter(
-      (x): x is { card: ChatCard; check: Check } => Boolean(x.check) && (selection[x.card.id] ?? !x.card.left_out),
-    );
+    .filter((x): x is { card: ChatCard; check: Check } => Boolean(x.check) && ticked(selection, x.card));
 }
 
 /** An edit or animation runs on its own engine and size; this says so next to the source it came from. */

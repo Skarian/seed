@@ -18,6 +18,7 @@ import { Composer } from './Composer.js';
 import { ComputeSheet } from './ComputeSheet.js';
 import { ResultsView } from './ResultsView.js';
 import { approvedReferences } from '../../../shared/choices.js';
+import { jobPhase } from '../../../shared/jobs.js';
 import { readiness } from './readiness.js';
 import { buildRequest, type Attachment, type MakeSettings } from './requests.js';
 import { useStyles } from './styles.js';
@@ -47,7 +48,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       setAnnounce('Seed replied: ' + cleanReply(finished.text).split(/(?<=[.!?])\s/)[0]);
     heard.current = finished.id;
   }, [finished?.id]);
-  const doneCount = project?.jobs.filter(j => j.state === 'completed').length ?? 0,
+  const doneCount = project?.jobs.filter(j => jobPhase(j) === 'completed').length ?? 0,
     seenDone = useRef<number | null>(null);
   useEffect(() => {
     seenDone.current = null;
@@ -281,7 +282,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     }));
     const go = async () => {
       // Seed may have revised the plan while the GPU question was open: make only the drafts the owner saw.
-      if (planMoved(currentProject(id)?.groups.find(g => g.id === plan.id), decisions)) {
+      if (
+        planMoved(
+          currentProject(id)?.groups.find(g => g.id === plan.id),
+          decisions,
+        )
+      ) {
         setProblem('Seed changed the plan while you were deciding. Check the drafts, then choose Make again.');
         setFlash(plan.id);
         return;
@@ -361,7 +367,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           g.cards.every(
             c =>
               latest(c).decision !== 'approved' ||
-              latest(c).job_ids.every(j => project.jobs.find(x => x.id === j)?.state === 'completed'),
+              latest(c).job_ids.every(j => project.jobs.some(x => x.id === j && jobPhase(x) === 'completed')),
           ),
       )
     : [];
@@ -603,7 +609,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                           : ''}
                         {seconds !== null ? ' · ' + estimateText(seconds) : ''}
                         {status.need?.billing
-                          ? /whichever is free first/.test(status.need.label)
+                          ? status.need.where === 'either'
                             ? ' · Seed PC or the running cloud GPU'
                             : ' · on the running cloud GPU'
                           : status.need?.needs
@@ -737,8 +743,8 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         >
           <p style={{ margin: 0 }}>
             <>{conflict.label} starts a new plan. </>
-            The waiting drafts stay listed under “Not run · kept as drafts” with their settings, and Move back to the
-            plan returns any of them. Nothing is made or deleted, and your message is kept.
+            The waiting drafts stay listed under “Not run · kept as drafts” with their settings, and Bring back returns
+            any of them. Nothing is made or deleted, and your message is kept.
           </p>
         </Dialog>
       )}
@@ -763,7 +769,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
           body={
             <>
               <p style={{ margin: 0 }}>The conversation and its plans are removed. Its results stay in your Library.</p>
-              {(replying || project.jobs.some(j => !['completed', 'failed', 'cancelled'].includes(j.state))) && (
+              {(replying || project.jobs.some(j => !['completed', 'failed', 'cancelled'].includes(jobPhase(j)))) && (
                 <p className="changed">
                   This project is still working. Stop the reply and wait for its results to finish before deleting.
                 </p>

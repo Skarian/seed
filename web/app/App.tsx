@@ -16,7 +16,7 @@ import {
 import { projects as projectsApi } from './api.js';
 import { Icon } from './icons.js';
 import { rate } from './format.js';
-import { jobActive } from '../../shared/jobs.js';
+import { jobActive, jobNeedsAttention, jobPhase, type JobRecord } from '../../shared/jobs.js';
 import { approvedReferences } from '../../shared/choices.js';
 import { ProjectPage } from './project/ProjectPage.js';
 import { LibraryPage } from './library/LibraryPage.js';
@@ -60,7 +60,7 @@ export function App() {
   const finished = useRef<Set<string> | null>(null);
   useEffect(() => {
     if (!tasks.loaded) return;
-    const done = new Set(tasks.jobs.filter(j => j.state === 'completed').map(j => j.id));
+    const done = new Set(tasks.jobs.filter(j => jobPhase(j) === 'completed').map(j => j.id));
     if (finished.current) {
       const fresh = tasks.jobs.filter(j => done.has(j.id) && !finished.current!.has(j.id));
       const elsewhere = fresh.filter(j => !(route.name === 'project' && j.source?.chat_id === route.id));
@@ -382,13 +382,17 @@ export function App() {
   );
 }
 
+/** Active work with nothing to show yet: queued, or starting or cancelling without progress. */
+function waitingJob(job: JobRecord) {
+  const phase = jobPhase(job);
+  return phase === 'queued' || (!job.progress && phase !== 'running' && phase !== 'saving');
+}
+
 /** The status control: active work and the running rental rate, in every header. */
 export function StatusControl() {
   const { tasks, pool, openStatus, projectList, route, narrow } = useApp();
   const active = tasks.filter(jobActive),
-    waiting = active.filter(
-      j => j.state === 'queued' || (!j.progress && j.state !== 'running' && j.state !== 'copying'),
-    ).length,
+    waiting = active.filter(waitingJob).length,
     making = active.length - waiting;
   // Two lanes: Seed planning (agent replies) and making (renders on GPUs).
   const planningIn = projectList.filter(p => p.activity === 'thinking' || p.activity === 'preparing'),
@@ -399,12 +403,7 @@ export function StatusControl() {
   const hourly = pool?.summary.hourly ?? 0,
     attention =
       (pool?.summary.needs_attention ?? 0) +
-      tasks.filter(
-        j =>
-          ['failed', 'needs_attention'].includes(j.state) &&
-          !j.uncertainty_acknowledged &&
-          Date.now() - Date.parse(j.updated_at) < 3600_000,
-      ).length;
+      tasks.filter(j => jobNeedsAttention(j) && Date.now() - Date.parse(j.updated_at) < 3600_000).length;
   // One state reads in full; several become short counts so the header never overflows. The panel has the details.
   const states = [planning, ready.length, making, waiting].filter(Boolean).length;
   let words =
@@ -438,9 +437,7 @@ export function StatusControl() {
   const scoped = (() => {
     if (route.name !== 'project') return undefined;
     const here = active.filter(j => j.source?.chat_id === route.id);
-    const hereWaiting = here.filter(
-      j => j.state === 'queued' || (!j.progress && j.state !== 'running' && j.state !== 'copying'),
-    ).length;
+    const hereWaiting = here.filter(waitingJob).length;
     const hereMaking = here.length - hereWaiting;
     const thinking = planningIn.some(p => p.id === route.id);
     const elsewhere = new Set([

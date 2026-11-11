@@ -289,7 +289,7 @@ export function estimateSeconds(jobs: JobRecord[], workflow: string, outputs: nu
     return m?.elapsed_to_saved_seconds;
   };
   const per = jobs
-    .filter(j => j.request.workflow === workflow && j.state === 'completed' && run(j))
+    .filter(j => j.request.workflow === workflow && jobPhase(j) === 'completed' && run(j))
     .slice(-10)
     .map(j => run(j)! / Math.max(1, j.outputs.length || j.request.count))
     .sort((a, b) => a - b);

@@ -21,7 +21,7 @@ import { roleLabels } from './requests.js';
 import { castOf } from '../../../shared/cast.js';
 import { approvedReference } from '../../../shared/choices.js';
 import { shotFromTitle } from '../../../shared/shots.js';
-import { jobActive } from '../../../shared/jobs.js';
+import { jobActive, jobPhase } from '../../../shared/jobs.js';
 import { planOpen } from '../../../shared/plan.js';
 
 type Actions = {
@@ -61,7 +61,8 @@ export function ResultGroup({
     return (
       <section className="notice error" id={'group-' + group.id}>
         <b>Couldn't start “{titleOf(latest(group.cards[0]!).request)}”.</b>{' '}
-        {group.submission_error ?? 'Nothing ran and nothing was charged.'}
+        {group.submission_error ??
+          'This request did not start. A cloud GPU you started keeps billing until you release it.'}
         <div className="actions">
           <button className="btn small" onClick={() => actions.onMakeAgain(group.cards[0]!)}>
             Try again
@@ -130,10 +131,10 @@ function CardResults({
   const r = latest(card).request,
     // A take whose picture was deleted leaves no empty slot behind, and is not counted.
     list = cardJobs(project, card).filter(
-      j => !(j.state === 'completed' && !j.outputs.length && j.deleted_outputs?.length),
+      j => !(jobPhase(j) === 'completed' && !j.outputs.length && j.deleted_outputs?.length),
     ),
     title = titleOf(r);
-  const done = list.filter(j => j.state === 'completed'),
+  const done = list.filter(j => jobPhase(j) === 'completed'),
     failed = list.filter(isFailed),
     running = list.filter(jobActive);
   const [how, setHow] = useState(false);
@@ -146,11 +147,11 @@ function CardResults({
       project: project.id,
     })),
   );
-  const cancelled = list.filter(j => j.state === 'cancelled');
+  const cancelled = list.filter(j => jobPhase(j) === 'cancelled');
   // Cancelled takes that were made again since (a later job with the same title) need no "Make again".
   const remade = madeAgain(project, title, cancelled, list);
   const status = running.length
-    ? `${done.length} of ${list.length} done · ${running.every(j => j.state === 'queued') ? 'queued' : 'making'}`
+    ? `${done.length} of ${list.length} done · ${running.every(j => jobPhase(j) === 'queued') ? 'queued' : 'making'}`
     : [
         done.length ? (done.length === list.length ? 'Done' : `${done.length} done`) : '',
         failed.length ? `${failed.length} failed` : '',
@@ -276,7 +277,7 @@ function CardResults({
       {waiting.length > 0 && <span>Not run · kept as drafts:</span>}
       {waiting.length > 1 && (
         <button className="btn small" onClick={() => actions.onBringBackAll(waiting)}>
-          Move all {waiting.length} back to the plan
+          Bring back all {waiting.length}
         </button>
       )}
       {waiting.map(c => (
@@ -285,9 +286,9 @@ function CardResults({
           <button
             className="link"
             onClick={() => actions.onBringBack(c)}
-            aria-label={'Move back to the plan: ' + titleOf(latest(c).request)}
+            aria-label={'Bring back: ' + titleOf(latest(c).request)}
           >
-            Move back to the plan
+            Bring back
           </button>
         </span>
       ))}
@@ -315,7 +316,7 @@ function CardResults({
       )}
     </div>
   );
-  if (list.length && list.every(j => j.state === 'cancelled'))
+  if (list.length && cancelled.length === list.length)
     return (
       <section className="card" id={'card-' + card.id} data-group={group.id}>
         <div className="notnow">
@@ -375,7 +376,7 @@ function CardResults({
         }
       >
         {list
-          .filter(j => j.state !== 'cancelled' || running.length)
+          .filter(j => jobPhase(j) !== 'cancelled' || running.length)
           .map((job, n) => (
             <ResultTile
               key={job.id}
@@ -391,15 +392,7 @@ function CardResults({
       {!running.length && cancelled.length > 0 && done.length > 0 && !remade && (
         <div className="notnow">
           <span>
-            {cancelled.length}{' '}
-            {isVideoKind(kindOf[r.workflow])
-              ? cancelled.length === 1
-                ? 'clip'
-                : 'clips'
-              : cancelled.length === 1
-                ? 'image'
-                : 'images'}{' '}
-            cancelled before {cancelled.length === 1 ? 'it was' : 'they were'} made
+            {outputNoun(r, cancelled.length)} cancelled before {cancelled.length === 1 ? 'it was' : 'they were'} made
           </span>
           <button className="link" onClick={() => actions.onRedoCancelled(card)}>
             {cancelled.length === 1 ? 'Make that one again' : `Make those ${cancelled.length} again`}
@@ -409,7 +402,7 @@ function CardResults({
       {notNowRow}
       <IdleAfterCancel
         role={isVideoKind(kindOf[r.workflow]) ? 'video' : 'image'}
-        show={!running.length && list.some(j => j.state === 'cancelled')}
+        show={!running.length && cancelled.length > 0}
         jobs={list}
       />
     </section>
@@ -426,7 +419,7 @@ function IdleAfterCancel({ role, show, jobs }: { role: 'image' | 'video'; show: 
   const w = app.pool?.workers.find(
     x => served.has(x.id) && x.worker_class === role && x.state === 'ready' && !x.current_job_id && !x.quit_mode,
   );
-  const busyElsewhere = app.tasks.some(j => ['queued', 'running', 'submitting', 'uploading'].includes(j.state));
+  const busyElsewhere = app.tasks.some(j => ['queued', 'starting', 'running'].includes(jobPhase(j)));
   if (!show || (!w && !done) || busyElsewhere) return null;
   if (done)
     return (
@@ -534,7 +527,7 @@ function ResultTile({
   // A setting the GPU refused fails the same way again: offer to change it instead of retrying as is.
   const rejected = /^Generation did not start: the GPU rejected a setting/.test(job.error ?? '');
   const asset = job.outputs[0];
-  if (job.state !== 'completed' || !asset)
+  if (jobPhase(job) !== 'completed' || !asset)
     return (
       <div
         className={`tile pending ${shape} ${state.tone === 'bad' ? 'failed' : ''} ${state.tone === 'live' || state.tone === 'wait' ? 'shimmer' : ''}`}
@@ -554,7 +547,9 @@ function ResultTile({
               {state.label}
               {state.retained && (
                 <>
-                  <small className="wait-reason">The picture was made but didn’t reach this PC.</small>
+                  <small className="wait-reason">
+                    The {video ? 'clip' : 'image'} was made but didn’t reach this PC.
+                  </small>
                   <button
                     className="btn small"
                     style={{ marginTop: 8 }}
@@ -570,7 +565,7 @@ function ResultTile({
                 </>
               )}
               {/* A specific blocker (not ordinary queueing) is shown where the waiting job is. */}
-              {job.state === 'queued' &&
+              {jobPhase(job) === 'queued' &&
                 job.waiting_reason &&
                 /cannot|can't|needs|Enable|Resume|unavailable|No GPU/.test(job.waiting_reason) && (
                   <small className="wait-reason">{job.waiting_reason}</small>
@@ -581,19 +576,19 @@ function ResultTile({
               {state.label.replace(/^Failed · /, '')}
               <br />
               {/* An uncertain job offers Check again only when Seed can safely retry it; otherwise the worker decides. */}
-              {(job.state !== 'needs_attention' || job.recovery?.action) && (
+              {(jobPhase(job) !== 'uncertain' || job.recovery?.action) && (
                 <button
                   className="btn small"
                   style={{ marginTop: 8 }}
                   onClick={() =>
-                    job.state === 'needs_attention'
+                    jobPhase(job) === 'uncertain'
                       ? void jobsApi.recover(job.id).catch(() => undefined)
                       : rejected
                         ? actions.onReuse(card)
                         : actions.onRetryFailed(card)
                   }
                 >
-                  {job.state === 'needs_attention' ? 'Check again' : rejected ? 'Change settings' : 'Make it again'}
+                  {jobPhase(job) === 'uncertain' ? 'Check again' : rejected ? 'Change settings' : 'Make it again'}
                 </button>
               )}
             </span>
@@ -621,7 +616,7 @@ function ResultTile({
                   .then(after => {
                     app.refreshTasks();
                     app.toast(
-                      after.state === 'completed'
+                      jobPhase(after) === 'completed'
                         ? 'It had already finished, so it was kept'
                         : job.worker?.executor === 'local' || job.request.target === 'local'
                           ? 'Cancelled · nothing else was affected'

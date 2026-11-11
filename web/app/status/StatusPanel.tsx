@@ -4,7 +4,7 @@ import { useApp } from '../data.js';
 import { Icon } from '../icons.js';
 import { Thumb, onTabKeys, tabStop } from '../ui.js';
 import { tileState, titleOf, relativeTime } from '../format.js';
-import { jobActive } from '../../../shared/jobs.js';
+import { jobActive, jobPhase } from '../../../shared/jobs.js';
 import { GpuOverview } from '../gpus/GpusPage.js';
 
 /** Every task across projects and every GPU, one click from any screen. */
@@ -59,10 +59,10 @@ export function StatusPanel({
   const row = (list: typeof recent) => {
     const j = list[0]!,
       project = app.projectList.find(p => p.id === j.source?.chat_id);
-    const done = list.filter(x => x.state === 'completed'),
+    const done = list.filter(x => jobPhase(x) === 'completed'),
       live = list.filter(x => tileState(x).cancellable),
       failed = list.filter(x => tileState(x).tone === 'bad'),
-      cancelled = list.filter(x => x.state === 'cancelled');
+      cancelled = list.filter(x => jobPhase(x) === 'cancelled');
     const s =
       list.length === 1
         ? tileState(j).label

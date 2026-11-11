@@ -3,7 +3,7 @@
 import { kindOf, isVideoKind, type JobRecord, type LibraryAsset, type Project } from '../api.js';
 import type { ViewerItem } from '../data.js';
 import { titleOf, latest } from '../format.js';
-import { jobActive } from '../../../shared/jobs.js';
+import { jobActive, jobPhase } from '../../../shared/jobs.js';
 import { castOf } from '../../../shared/cast.js';
 import { shotsFromBrief, placeShot } from '../../../shared/shots.js';
 import { planOpen } from '../../../shared/plan.js';
@@ -93,7 +93,7 @@ export function buildBoard(project: Project, assets: LibraryAsset[], filter: Fil
       /\b(film|films|short film|trailer|animated|animation|music video|clips? for each shot)\b/i.test(
         project.brief ?? '',
       )) ||
-    project.jobs.some(j => isVideo(j) && j.state === 'completed');
+    project.jobs.some(j => isVideo(j) && jobPhase(j) === 'completed');
   const hasShots = [
     ...briefShots.map(b => `Shot ${b.n}: ${b.name}`),
     ...items.map(titleOfItem),
@@ -349,7 +349,7 @@ export function boardStages(b: Board): Stage[] {
         toDraft.length ? shotWord(toDraft) + have(toDraft) + ' no keyframe yet.' : '',
         toChoose.length ? 'Pick a keyframe for ' + shotWord(toChoose).toLowerCase() + '.' : '',
         toBringBack.length
-          ? `${shotWord(toBringBack)}${have(toBringBack)} ${toBringBack.length === 1 ? 'a saved draft' : 'saved drafts'}: move ${them(toBringBack)} back to the plan in the conversation to make ${them(toBringBack)}.`
+          ? `${shotWord(toBringBack)}${have(toBringBack)} ${toBringBack.length === 1 ? 'a saved draft' : 'saved drafts'}: bring ${them(toBringBack)} back in the conversation to make ${them(toBringBack)}.`
           : '',
       ),
       action: toDraft.length
