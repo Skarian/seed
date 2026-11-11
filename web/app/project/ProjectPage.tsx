@@ -200,7 +200,12 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   useEffect(() => {
     if (queued && project && !replying) {
       setQueued(false);
-      if (text.trim()) void send();
+      // The reply may have changed the project (choosing a kind does): read it first, so the send is not refused as stale.
+      if (text.trim())
+        void projectsApi
+          .get(id)
+          .then(putProject)
+          .then(send, () => send());
     }
   }, [queued, replying, Boolean(project)]);
   async function send() {

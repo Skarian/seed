@@ -13,7 +13,7 @@
     "start": "node dist/server/main.js",
     "dev": "npm run build && npm start",
     "test": "vitest run",
-    "test:browser": "node scripts/test-browser.mjs",
+    "test:browser": "npm run build && node scripts/test-browser.mjs",
     "user-test": "node scripts/user-test.mjs",
     "test:user": "node scripts/user-test.mjs --test",
     "test:recovery": "npm run build && node scripts/test-pool-recovery.mjs",
