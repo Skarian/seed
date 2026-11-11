@@ -37,10 +37,9 @@ export type ProjectSummary = {
   title: string;
   activity: ChatView['activity'];
   ready_to_review?: boolean;
-  error: string | null;
-  /** Set when the project has a failed result. */
-  status?: 'Failed';
-  last_reply_id?: string;
+  /** The project has a failed result. */
+  failed: boolean;
+  created_at: string;
   updated_at: string;
 };
 export type AssetDetail = {
@@ -98,16 +97,14 @@ export const media = {
     '/api/v1/assets/' + encodeURIComponent(id) + '/preview' + (large ? '?size=1280' : ''),
 };
 
-/** The server names new chats "New chat"; in Seed an untitled project is named by its day, so several stay distinguishable. */
-const named = <T extends { title: string; created_at?: string }>(p: T): T =>
-  p.title === 'New chat'
-    ? {
+/** An untitled project is named by its day, so several stay distinguishable. */
+const named = <T extends { title: string; created_at: string }>(p: T): T =>
+  p.title
+    ? p
+    : {
         ...p,
-        title:
-          'Untitled · ' +
-          new Date(p.created_at ?? Date.now()).toLocaleDateString([], { month: 'short', day: 'numeric' }),
-      }
-    : p;
+        title: 'Untitled · ' + new Date(p.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }),
+      };
 const pj = (path: string, init?: Parameters<typeof api>[1]) => api<Project>(path, init).then(named);
 export const projects = {
   list: (mode: string) => api<{ items: ProjectSummary[] }>('chats?mode=' + mode).then(r => r.items.map(named)),

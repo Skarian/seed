@@ -75,7 +75,7 @@ export function ProjectsList({ compact = false, onChosen }: { compact?: boolean;
                       <>
                         <span className="dot live" /> Seed is replying
                       </>
-                    ) : p.status === 'Failed' ? (
+                    ) : p.failed ? (
                       'Something failed'
                     ) : (
                       `${outs.length ? outs.length + ' ' + (outs.length === 1 ? 'result' : 'results') + ' · ' : ''}${relativeTime(p.updated_at)}`

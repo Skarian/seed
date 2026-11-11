@@ -24,6 +24,15 @@ export const toolLabels = {
   choose_take: { doing: 'Choosing a take', failed: 'Choose a take', saves: true },
 } satisfies Record<string, { doing: string; failed: string; saves?: true }>;
 export type ToolName = keyof typeof toolLabels;
+type Drafted = { request: { title?: string; duration_seconds?: number } };
+/** What a tool that worked tells the agent, as far as the receipt reads it; `defineTool` holds each tool to its entry. */
+export interface ToolResults extends Record<ToolName, object> {
+  create_request: Drafted;
+  edit_request: Drafted;
+  update_brief: { cast_added?: string[] };
+}
+/** A succeeded step's result, narrowed by its tool's name. Stored turns may lack fields, so every one is optional. */
+type Succeeded = { [N in ToolName]: { name: N; result?: Partial<ToolResults[N]> } }[ToolName];
 /** The words for a tool by the name a step recorded, if it is one of Seed's tools. */
 export const toolLabel = (name: string | undefined): { doing: string; failed: string; saves?: true } | undefined =>
   name && Object.hasOwn(toolLabels, name) ? toolLabels[name as ToolName] : undefined;
@@ -61,8 +70,8 @@ function legacyFailure(step: TurnStep): StepFailure {
     return toolFailure(text);
   }
 }
-const details = (step: TurnStep) =>
-  ((step.result as { details?: unknown } | undefined)?.details ?? {}) as Record<string, unknown>;
+const succeeded = (step: TurnStep) =>
+  ({ name: step.name, result: (step.result as { details?: unknown } | undefined)?.details }) as Succeeded;
 
 export function turnOutcome(
   turn: TurnTranscript | undefined,
@@ -80,30 +89,18 @@ export function turnOutcome(
     tools.forEach((s, i) => {
       const name = s.name ?? '';
       if (s.state !== 'failed') return;
-      const worked = (t: TurnStep) => t.name === name && t.state === 'succeeded';
-      // Made good by a later try for the same thing (any later try, for the brief, the kind, or an untitled draft).
+      // Made good by a later success of the same tool for the same thing, or for anything when the step named nothing
+      // (the brief, the kind, an untitled draft) or a draft that does not exist (a stale id). An earlier success of
+      // the same tool never hides a later failure.
+      const draft = String(input(s).request_id ?? ''),
+        anything = !target(s) || (draft !== '' && !draftTitle(draft));
       const madeGood = tools
         .slice(i + 1)
-        .some(
-          t =>
-            worked(t) &&
-            (target(t) === target(s) ||
-              name === 'update_brief' ||
-              name === 'choose_kind' ||
-              (name === 'create_request' && !target(s))),
-        );
-      if (madeGood) return;
+        .some(t => t.name === name && t.state === 'succeeded' && (anything || target(t) === target(s)));
       const { error, internal } = s.failure ?? legacyFailure(s);
-      // Made good only by a later save: of the same draft, or, for a slip that named no draft that exists (a stale id),
-      // by any later success of the same tool. An earlier save of the draft never hides a later failure.
-      const id = String(input(s).request_id ?? ''),
-        stale = !target(s) || (id !== '' && !draftTitle(id));
-      const retried = tools.some(
-        (t, j) => j > i && worked(t) && (stale || target(t) === target(s)),
-      );
-      if (internal && progressed && (!toolLabel(name)?.saves || retried)) return;
+      // Seed's own slip on a step that saves nothing stays quiet once the turn saved something.
+      if (madeGood || (internal && progressed && !toolLabel(name)?.saves)) return;
       const label = toolLabel(name)?.failed ?? 'A step',
-        draft = String(input(s).request_id ?? ''),
         named = draft ? draftTitle(draft) : String(input(s).title ?? '') || undefined;
       const step = {
         label:
@@ -126,15 +123,15 @@ function done(tools: TurnStep[]) {
   for (const s of tools) {
     if (s.state !== 'succeeded') continue;
     const input = (s.input ?? {}) as Record<string, unknown>,
-      result = details(s);
-    const request = result.request as { title?: string; duration_seconds?: number } | undefined;
-    // A clip says so, so a plan of pictures can never quietly become clips.
-    const title =
-      String(request?.title ?? input.title ?? '').trim() + (request?.duration_seconds !== undefined ? ' (clip)' : '');
-    if (s.name === 'create_request') drafted.push(title || 'a draft');
-    else if (s.name === 'edit_request') changed.push(title || 'a draft');
-    else if (s.name === 'update_brief') {
-      const added = (result.cast_added as string[] | undefined) ?? [];
+      step = succeeded(s);
+    if (step.name === 'create_request' || step.name === 'edit_request') {
+      const request = step.result?.request;
+      // A clip says so, so a plan of pictures can never quietly become clips.
+      const title =
+        String(request?.title ?? input.title ?? '').trim() + (request?.duration_seconds !== undefined ? ' (clip)' : '');
+      (step.name === 'create_request' ? drafted : changed).push(title || 'a draft');
+    } else if (step.name === 'update_brief') {
+      const added = step.result?.cast_added ?? [];
       out.push(added.length ? `Saved the brief (added ${added.join(', ')} to the cast)` : 'Saved the brief');
     } else if (s.name === 'approve_reference') out.push(`Approved ${String(input.name ?? 'a')}’s reference`);
     else if (s.name === 'choose_take') out.push('Chose a take' + (input.shot ? ' for shot ' + String(input.shot) : ''));

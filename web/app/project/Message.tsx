@@ -1,11 +1,13 @@
 import { useState } from 'react';
-import { type ChatMessage, type Project } from '../api.js';
+import { projects, type ChatMessage, type Project } from '../api.js';
+import type { TurnEnd, TurnTranscript } from '../../../shared/chat.js';
 import { useApp, useNow } from '../data.js';
 import { Markdown, Thumb, cleanReply } from '../ui.js';
 import { duration, assetName, titleOf, latest } from '../format.js';
 
 import { toolLabel, turnOutcome } from '../../../shared/turn.js';
 import { buttonAction } from './timeline.js';
+import { seedAsks } from './planStatus.js';
 
 export function Message({
   message,
@@ -29,7 +31,13 @@ export function Message({
     running = turn?.state === 'running';
   const [open, setOpen] = useState(false);
   const now = useNow(1000, running),
-    { tasks } = useApp();
+    { tasks, go, mode, refreshProjects } = useApp();
+  const stop = turn?.state === 'failed' ? turnStop(turn) : undefined;
+  async function newProject() {
+    const p = await projects.create(mode);
+    refreshProjects();
+    go({ name: 'project', id: p.id, view: 'conversation' });
+  }
   if (message.role === 'event') return <div className="sys">{message.text}</div>;
   if (message.role === 'user') {
     const names = new Map((project.asset_manifest ?? []).map(a => [a.id, a]));
@@ -98,10 +106,7 @@ export function Message({
     },
   );
   const madePlan = project.groups.some(g => g.cards.some(c => c.revisions.some(r => r.run_id === message.id)));
-  // A reply that asks something ("Please attach…", ends with a question) is Seed asking, not Seed failing.
-  const asking =
-    /\?\s*$/.test(text.trim()) ||
-    /\b(please (attach|send|share|tell)|could you|which (one|of)|do you want|would you like)\b/i.test(text);
+  const asking = seedAsks(text);
   const toolFailed = turn?.steps.some(s => s.kind === 'tool' && s.state === 'failed') && !madePlan && !asking;
   // What the tools did, filled in as Seed works, and the steps that did not work once it is done.
   const { done: receipt, unfinished } = turnOutcome(turn, id => {
@@ -195,7 +200,7 @@ export function Message({
               </li>
             ))}
           </ul>
-          {turn?.state === 'failed' && !turn.error && text && (
+          {turn?.state === 'failed' && !stop && text && (
             <div className="actions">
               <button className="btn small" onClick={onRetry}>
                 Try again
@@ -204,13 +209,17 @@ export function Message({
           )}
         </div>
       )}
-      {!running && turn?.state === 'failed' && !(unfinished.length && text && !turn.error) && (
+      {!running && turn?.state === 'failed' && !(unfinished.length && text && !stop) && (
         <div className="notice error">
-          {friendlyError(turn.error)}
+          {stop?.says ?? 'Seed couldn’t finish that. Drafts without a new version are unchanged, and nothing was made.'}
           <div className="actions">
-            {/turn limit/i.test(turn.error ?? '') ? (
+            {stop?.action === 'continue' ? (
               <button className="btn small primary" onClick={onContinue}>
                 Continue
+              </button>
+            ) : stop?.action === 'new' ? (
+              <button className="btn small primary" onClick={() => void newProject()}>
+                Start a new project
               </button>
             ) : (
               <button className="btn small" onClick={onRetry}>
@@ -270,22 +279,29 @@ export function Message({
     </div>
   );
 }
-/** Errors from the model service, in words that say what happened to the person's work. */
-export function friendlyError(error?: string | null) {
-  const e = (error ?? '').replace(/\.+$/, '');
-  if (/turn limit/i.test(e))
-    return 'Seed ran out of steps before finishing. Anything it saved is above. Continue lets it finish the rest.';
-  if (/timeout|timed out|ETIMEDOUT|idle/i.test(e))
-    return 'Seed couldn’t finish this reply in time. Nothing was made and nothing new was rented. Try again.';
-  if (/rate.?limit|429|too many/i.test(e))
-    return 'The model service is busy right now. Nothing was made. Try again in a minute.';
-  if (/network|fetch failed|ECONN|socket|5\d\d|upstream|unavailable/i.test(e))
-    return 'Seed lost its connection to the model service. Nothing was made. Try again.';
-  if (/credit|payment|402|insufficient/i.test(e))
-    return 'The model service needs more credit on your OpenRouter account. Nothing was made.';
-  return e
-    ? `Seed stopped: ${e}. Nothing was made.`
-    : 'Seed couldn’t finish that. Drafts without a new version are unchanged, and nothing was made.';
+/** Why a turn stopped early, in words that say what happened to the owner's work, and the one action that helps. */
+const ends: Record<TurnEnd, { says: string; action: 'continue' | 'retry' | 'new' }> = {
+  length: { says: 'Seed’s reply reached its length limit. Anything it saved is above.', action: 'continue' },
+  turn_limit: { says: 'Seed ran out of steps before finishing. Anything it saved is above.', action: 'continue' },
+  restart: { says: 'Seed restarted while replying. Anything it saved is above.', action: 'continue' },
+  timeout: { says: 'Seed couldn’t finish this reply in time. Nothing was made.', action: 'retry' },
+  summary: {
+    says: 'Seed couldn’t summarise the earlier conversation, so it didn’t reply. Nothing was made.',
+    action: 'retry',
+  },
+  provider: { says: 'The model service stopped Seed’s reply. Nothing was made.', action: 'retry' },
+  too_large: {
+    says: 'This project’s conversation, drafts and inputs are too much for Seed to read at once. Nothing was made.',
+    action: 'new',
+  },
+};
+/** A failed turn that stopped early, or nothing when a step of its own failed. */
+export function turnStop(turn: TurnTranscript) {
+  // Turns saved before `end` was stored say why only in words, written for the owner.
+  const end = turn.end ?? (/turn limit/i.test(turn.error ?? '') ? 'turn_limit' : undefined);
+  if (!end) return turn.error ? { says: turn.error, action: 'retry' as const } : undefined;
+  const detail = end === 'provider' && turn.error ? ` It said: “${turn.error.replace(/\.+$/, '')}”.` : '';
+  return { says: ends[end].says + detail, action: ends[end].action };
 }
 /** What Seed is doing now, and how many of its steps are done, so a long turn has something to watch. */
 export function stageOf(turn: NonNullable<ChatMessage['transcript']>) {

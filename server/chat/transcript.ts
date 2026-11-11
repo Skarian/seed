@@ -1,6 +1,16 @@
 import type { AgentEvent } from '@earendil-works/pi-agent-core';
-import type { TurnTranscript } from '../../shared/chat.js';
+import type { TurnEnd, TurnTranscript } from '../../shared/chat.js';
 import { toolFailure } from '../../shared/turn.js';
+
+/** A turn that stopped early, and why; `detail` is the model service's own words, if it gave any. */
+export class TurnStopped extends Error {
+  constructor(
+    readonly end: TurnEnd,
+    readonly detail?: string,
+  ) {
+    super(detail ?? end);
+  }
+}
 // Keep display data structured; never persist binary media from tool output here.
 export function displayResult(value: unknown): unknown {
   if (Array.isArray(value)) return value.map(displayResult);

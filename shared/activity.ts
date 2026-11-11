@@ -1,4 +1,4 @@
-import type { JobRecord } from './jobs.js';
+import { isTerminal, type JobRecord } from './jobs.js';
 import type { LoraImportActivity } from './loras.js';
 import type { PoolWorker } from './pool.js';
 
@@ -9,7 +9,7 @@ export type ClearedActivity = {
 };
 export const emptyClearedActivity = (): ClearedActivity => ({ jobs: {}, imports: {}, workers: {} });
 export const finishedActivityJob = (job: JobRecord) =>
-  ['completed', 'failed', 'cancelled'].includes(job.state) && !job.recovery_blocked && !job.recovery?.pending;
+  isTerminal(job.state) && !job.recovery_blocked && !job.recovery?.pending;
 export const finishedActivityImport = (job: LoraImportActivity) => ['ready', 'failed'].includes(job.state);
 export const workerActivityRevision = (worker: PoolWorker) => worker.released_at ?? worker.created_at;
 export const visibleActivityJob = (job: JobRecord, cleared: ClearedActivity) =>

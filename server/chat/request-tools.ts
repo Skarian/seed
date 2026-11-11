@@ -321,7 +321,11 @@ export function compileStablePrompt(prompt: string, refs: InputReference[], asse
   if (issues.length) throw new ToolRequestError(issues);
   return compiled;
 }
-/** Build and validate the entire candidate before callers save anything. Does not mutate context. */
+/**
+ * Build and validate the entire candidate before callers save anything. Does not mutate context. The agent library
+ * has already checked the call against the tool's schema (no unknown settings), so only the rules a schema cannot say
+ * are checked here.
+ */
 export function prepareToolRequest(context: RequestToolContext, raw: unknown): ImageRequest {
   const issues: RequestIssue[] = [];
   const add = (field: string, message: string, fix?: string) =>
@@ -330,31 +334,6 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
     throw new ToolRequestError([{ field: 'request', message: 'Provide request settings.' }]);
   const value = raw as Record<string, any>,
     video = isVideoWorkflow(context.workflow);
-  const allowed = [
-    'request_id',
-    ...(context.workflow === 'image-to-image' ? [] : ['loras']),
-    'prompt',
-    'title',
-    'batch_size',
-    'seed',
-    'aspect_ratio',
-    'note',
-    'shot',
-    'runs_on',
-    ...(context.workflow === 'image-to-image' ? ['engine'] : []),
-    ...(video ? ['duration_seconds', 'audio_output', 'steps', 'detail'] : []),
-    ...(usesInputs(context.workflow) ? ['inputs'] : []),
-    ...(context.mode === 'nsfw' ? ['mode'] : []),
-  ];
-  for (const key of Object.keys(value))
-    if (key === 'loras' && context.workflow === 'image-to-image')
-      add(
-        'loras',
-        'Styles cannot be used with edits or shots from reference images (FLUX 3 Image Klein); they work with new pictures from words (Krea 2) and clips.',
-        'Remove loras, describe the look in the prompt instead, and tell the user in one sentence that the style was not applied and that a words-only version can use it.',
-      );
-    else if (!allowed.includes(key))
-      add(key, 'Unknown setting.', 'Remove this field. Use flat setting names from the tool schema.');
   if (value.request_id !== undefined && !context.previous)
     add('request_id', 'No existing request was supplied for this edit.', 'Use create_request for a new card.');
   if (!context.previous && value.prompt === undefined) add('prompt', 'Provide the generation prompt.');
@@ -457,21 +436,6 @@ export function prepareToolRequest(context: RequestToolContext, raw: unknown): I
             add(field, 'Provide an input object.');
             return null;
           }
-          for (const k of Object.keys(input))
-            if (
-              ![
-                'asset',
-                'replace_asset',
-                'id',
-                'instance',
-                'role',
-                'framing',
-                'start_seconds',
-                'duration_seconds',
-                'include_audio',
-              ].includes(k)
-            )
-              add(field + '.' + k, 'Unknown input setting.', 'The app determines media kind and internal asset id.');
           if (
             input.instance !== undefined &&
             (typeof input.instance !== 'string' || !/^[-\w]{1,100}$/.test(input.instance))

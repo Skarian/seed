@@ -1,6 +1,7 @@
 import { Agent, type AgentTool, type AgentMessage } from '@earendil-works/pi-agent-core';
 import type { Model } from '@earendil-works/pi-ai';
 import { streamSimple } from '@earendil-works/pi-ai/api/openai-completions';
+import { TurnStopped } from './transcript.js';
 
 export const CHAT_MODEL = 'google/gemma-4-31b-it';
 export interface ChatAccounting {
@@ -151,7 +152,8 @@ export function createChatAgent(options: {
       : undefined,
     transformContext: async messages => explainToolValidation(messages, currentTools),
     streamFn: (_model, context, streamOptions) => {
-      if (++turns > 16) throw new Error('Agent turn limit reached.');
+      // The agent library keeps only the message: the turn reads it back as its end.
+      if (++turns > 16) throw new TurnStopped('turn_limit');
       return streamSimple(model, context, {
         ...streamOptions,
         apiKey: options.apiKey,

@@ -4,8 +4,8 @@ import type { MentionBinding } from '../../shared/chat-mentions.js';
 import { createReadInputTool } from './read-input.js';
 import { requestToolRules, type ToolAsset } from './request-tools.js';
 import { visualContext } from './visual-context.js';
-import { recordTurnEvent, finishTurn } from './transcript.js';
-import { latest, now, openGroup, referenceMode, settlePlan, type StoredChat } from './model.js';
+import { recordTurnEvent, finishTurn, TurnStopped } from './transcript.js';
+import { addPlan, latest, now, openGroup, referenceMode, settlePlan, type StoredChat } from './model.js';
 import { type ToolHost, type ToolSession } from './tools/define.js';
 import { draftTools } from './tools/drafts.js';
 import { planTools } from './tools/plan.js';
@@ -106,6 +106,10 @@ export class Chats {
     private transport?: typeof fetch,
   ) {
     jobs.onSaved = job => this.jobSaved(job.source?.chat_id);
+    // An untitled project was once named "New chat"; one the owner named so keeps its name.
+    db.prepare(
+      `UPDATE chats SET body_json=json_set(body_json,'$.title','') WHERE json_extract(body_json,'$.title')='New chat' AND json_extract(body_json,'$.title_manual') IS NOT 1`,
+    ).run();
     for (const row of db.prepare('SELECT body_json FROM chats').all() as { body_json: string }[]) {
       const chat = JSON.parse(row.body_json) as StoredChat;
       let changed = false;
@@ -139,7 +143,7 @@ export class Chats {
             changed = true;
           }
         } else {
-          movePlan(group, 'released');
+          movePlan(group, 'stopped');
           delete group.submission_error;
           changed = true;
         }
@@ -152,7 +156,7 @@ export class Chats {
         for (const message of chat.messages)
           if (message.transcript?.state === 'running') {
             finishTurn(message.transcript, 'failed');
-            message.transcript.error = 'Seed restarted while replying.';
+            message.transcript.end = 'restart';
           }
       }
       if (changed) this.save(chat);
@@ -220,6 +224,11 @@ export class Chats {
   private chatJobs(chat: ChatView) {
     return this.jobs.many(this.jobIds(chat));
   }
+  /** Adds the project's results to its assets, so Seed and the owner can use them; returns the project's jobs. */
+  private withResults(chat: ChatView, jobs = this.chatJobs(chat)) {
+    for (const job of jobs) for (const asset of job.outputs) if (!chat.assets.includes(asset)) chat.assets.push(asset);
+    return jobs;
+  }
   private generating(chat: ChatView, jobs = this.chatJobs(chat)) {
     const active = jobs.filter(jobActive).map(job => job.id);
     if (!active.length) return false;
@@ -249,9 +258,8 @@ export class Chats {
   view(id: string) {
     const chat = this.get(id);
     const { accounting, ...view } = chat,
-      jobs = this.chatJobs(chat);
+      jobs = this.withResults(chat);
     view.activity = this.activityOf(chat, jobs);
-    for (const job of jobs) for (const asset of job.outputs) if (!chat.assets.includes(asset)) chat.assets.push(asset);
     return {
       ...view,
       revision: this.viewRevision(id),
@@ -262,23 +270,19 @@ export class Chats {
     };
   }
   list(mode: ChatMode) {
-    return (this.db.prepare('SELECT id FROM chats WHERE mode=?').all(mode) as { id: string }[])
+    return (this.db.prepare('SELECT body_json FROM chats WHERE mode=?').all(mode) as { body_json: string }[])
       .map(row => {
         // A summary only: the list never builds a project's assets, notes or accounting.
-        const c = this.get(row.id),
+        const c = JSON.parse(row.body_json) as StoredChat,
           jobs = this.chatJobs(c),
           activity = this.activityOf(c, jobs);
         return {
           id: c.id,
           title: c.title,
-          last_reply_id: c.messages.filter(m => m.role === 'assistant').at(-1)?.id ?? '',
           activity,
           ready_to_review: activity === 'idle' && c.groups.some(g => g.state === 'reviewing' && g.cards.length > 0),
-          error:
-            c.error ??
-            c.groups.find(g => g.state === 'reviewing' && g.submission_error)?.submission_error ??
-            jobs.find(j => j.state === 'failed')?.error,
-          ...(jobs.some(j => j.state === 'failed') ? { status: 'Failed' as const } : {}),
+          failed: jobs.some(j => j.state === 'failed'),
+          created_at: c.created_at,
           updated_at: c.updated_at,
         };
       })
@@ -289,7 +293,7 @@ export class Chats {
     this.save({
       id,
       mode,
-      title: 'New chat',
+      title: '',
       workflow: null,
       version: 0,
       epoch: 0,
@@ -357,8 +361,8 @@ export class Chats {
     if (!reference && (!choice.shot || !['image', 'clip'].includes(choice.kind))) throw Error('Choose a shot.');
     if (asset && asset !== 'skip') {
       if (reference && this.jobs.media.get(asset)?.kind !== 'image') throw Error('A reference must be an image.');
-      const known =
-        this.jobIds(chat).some(j => this.jobs.get(j)?.outputs.includes(asset)) || chat.assets.includes(asset);
+      this.withResults(chat);
+      const known = chat.assets.includes(asset);
       // A reference can come from another project (a new project with the same brief): it is attached here.
       if (!known && reference) {
         this.assertAssets(chat, [asset], false);
@@ -591,8 +595,7 @@ export class Chats {
     if (!input.text.trim() || input.text.length > 16000) throw Error('Write a message of 1–16000 characters.');
     const key = chatCredential(this.paths);
     if (!key) throw Error('Add your OpenRouter key in Settings → API keys.');
-    for (const job of this.jobIds(chat).map(id => this.jobs.get(id)))
-      for (const asset of job?.outputs ?? []) if (!chat.assets.includes(asset)) chat.assets.push(asset);
+    this.withResults(chat);
     this.assertAssets(chat, input.assets);
     for (const asset of input.assets) if (!chat.assets.includes(asset)) chat.assets.push(asset);
     const group = openGroup(chat);
@@ -815,8 +818,7 @@ export class Chats {
         await summarizer.prompt(input);
         if (this.get(id).epoch !== epoch) throw Error('Stopped.');
         const final = summarizer.state.messages.at(-1);
-        if (final?.role !== 'assistant' || final.stopReason !== 'stop')
-          throw Error('Seed couldn’t summarise the earlier conversation. Send your message again.');
+        if (final?.role !== 'assistant' || final.stopReason !== 'stop') throw new TurnStopped('summary');
         return final.content
           .filter(p => p.type === 'text')
           .map(p => p.text)
@@ -837,10 +839,7 @@ export class Chats {
         compact,
         visual,
       });
-      if (context.length > 400000)
-        throw Error(
-          'This project’s drafts and inputs are too much for Seed to read at once. Start another project with fewer inputs.',
-        );
+      if (context.length > 400000) throw new TurnStopped('too_large');
       const session = this.toolSession(id, epoch, runId, toolAssets, target);
       const kindTools = (workflow: ChatWorkflow) => [
         ...draftTools(session, workflow),
@@ -919,14 +918,16 @@ export class Chats {
         const final = agent.state.messages.at(-1);
         if (final?.role === 'assistant' && ['error', 'aborted', 'length'].includes(final.stopReason)) {
           this.save(current);
-          throw Error(
+          // The turn limit (a TurnStopped in the agent's stream) reaches here as its message alone.
+          const end =
             final.stopReason === 'length'
-              ? 'Seed’s reply reached its length limit. Send a message to let it continue.'
-              : final.errorMessage?.includes('timed out')
-                ? 'Seed’s reply timed out after 10 minutes. Drafts it saved are kept; send a message to continue.'
-                : final.errorMessage ||
-                  'Seed’s reply was cut off. Drafts it saved are kept; send a message to continue.',
-          );
+              ? 'length'
+              : final.errorMessage === 'turn_limit'
+                ? 'turn_limit'
+                : final.errorMessage?.includes('timed out')
+                  ? 'timeout'
+                  : 'provider';
+          throw new TurnStopped(end, end === 'provider' ? final.errorMessage : undefined);
         }
         const toolResults = agent.state.messages.filter(m => m.role === 'toolResult');
         const message = current.messages.find(m => m.id === runId)!;
@@ -951,7 +952,9 @@ export class Chats {
         const message = current.messages.find(m => m.id === runId);
         if (message?.transcript) {
           finishTurn(message.transcript, 'failed');
-          message.transcript.error = (error as Error).message;
+          if (error instanceof TurnStopped) message.transcript.end = error.end;
+          const detail = error instanceof TurnStopped ? error.detail : (error as Error).message;
+          if (detail) message.transcript.error = detail;
         }
         current.error = (error as Error).message;
         current.activity = 'idle';
@@ -962,8 +965,7 @@ export class Chats {
   }
   revise(id: string, cardId: string, number: number, raw: unknown) {
     const chat = this.get(id);
-    for (const job of this.jobIds(chat).map(j => this.jobs.get(j)))
-      for (const asset of job?.outputs ?? []) if (!chat.assets.includes(asset)) chat.assets.push(asset);
+    this.withResults(chat);
     if (this.agentBusy(chat)) throw Error('Wait for Seed to finish, then edit this draft.');
     const group = openGroup(chat),
       card = group?.cards.find(c => c.id === cardId);
@@ -1028,7 +1030,8 @@ export class Chats {
     delete group.submission_error;
     const prepare = group.cards.some(c => latest(c).decision === 'approved');
     chat.activity = prepare ? 'preparing' : 'idle';
-    if (!prepare) movePlan(group, 'released');
+    // Every draft set aside: the plan stops, unmade.
+    if (!prepare) movePlan(group, 'stopped');
     chat.version++;
     this.save(chat);
     if (prepare) await this.release(id, group.id, chat.epoch);
@@ -1051,17 +1054,11 @@ export class Chats {
     const request = this.request(chat, workflow, settings);
     const revision = { ...this.revision(chat, request, 1), decision: 'approved' as const, approved_snapshot: true };
     revision.request.resolved_seeds = seeds(revision.request);
-    const group: ChatGroup = {
-      id: randomUUID(),
-      after_message_id: chat.messages.at(-1)?.id ?? null,
-      workflow,
-      state: 'reviewing',
-      cards: [{ id: randomUUID(), workflow, revisions: [revision] }],
+    // Keep an open plan first so plan revisions still find it.
+    const group = addPlan(chat, 'reviewing', workflow, [{ id: randomUUID(), workflow, revisions: [revision] }], {
       direct: true,
       ...(clientRequestId ? { client_request_id: clientRequestId } : {}),
-    };
-    // Keep an open plan first so plan revisions still find it.
-    chat.groups.push(group);
+    });
     chat.activity = 'preparing';
     chat.version++;
     this.save(chat);
@@ -1145,13 +1142,9 @@ export class Chats {
       seed: fresh ? 'random' : revision.request.seed,
       resolved_seeds: !fresh && originals.length ? originals.map(j => j.seed) : undefined,
     };
-    chat.groups.push({
-      id: randomUUID(),
-      after_message_id: chat.messages.at(-1)?.id ?? null,
-      workflow: card.workflow,
-      state: 'reviewing',
-      cards: [{ id: randomUUID(), workflow: card.workflow, revisions: [this.revision(chat, request, 1)] }],
-    });
+    addPlan(chat, 'reviewing', card.workflow, [
+      { id: randomUUID(), workflow: card.workflow, revisions: [this.revision(chat, request, 1)] },
+    ]);
     chat.version++;
     this.save(chat);
     return this.view(id);
@@ -1173,14 +1166,7 @@ export class Chats {
       revisions: [...source.revisions, this.revision(chat, request, latest(source).number + 1)],
     };
     if (open && join) open.cards.push(card);
-    else
-      chat.groups.push({
-        id: randomUUID(),
-        after_message_id: chat.messages.at(-1)?.id ?? null,
-        workflow: source.workflow,
-        state: 'reviewing',
-        cards: [card],
-      });
+    else addPlan(chat, 'reviewing', source.workflow, [card]);
     chat.version++;
     this.save(chat);
     return this.view(id);

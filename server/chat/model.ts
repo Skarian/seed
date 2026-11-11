@@ -1,4 +1,5 @@
-import type { ChatCard, ChatView, ChatWorkflow } from '../../shared/chat.js';
+import { randomUUID } from 'node:crypto';
+import type { ChatCard, ChatGroup, ChatView, ChatWorkflow } from '../../shared/chat.js';
 import { isVideoWorkflow } from '../../shared/workflows.js';
 import { movePlan, planOpen } from '../../shared/plan.js';
 import { videoDetail, videoSteps } from '../../shared/video-settings.js';
@@ -21,6 +22,23 @@ export const latest = (card: ChatCard) => card.revisions.at(-1)!;
 export const now = () => new Date().toISOString();
 /** The plan still open for review or revision, if any. */
 export const openGroup = (chat: ChatView) => chat.groups.find(planOpen);
+/**
+ * A new plan, added to the project. Seed assembles one in its reply, placed after the owner's message it answers; the
+ * owner's own (a direct make, Try again, Bring back) is up for review at once, after the conversation so far.
+ */
+export function addPlan(
+  chat: ChatView,
+  state: 'assembling' | 'reviewing',
+  workflow: ChatWorkflow,
+  cards: ChatCard[],
+  extra?: Pick<ChatGroup, 'direct' | 'client_request_id'>,
+) {
+  const after =
+    state === 'assembling' ? [...chat.messages].reverse().find(m => m.role === 'user') : chat.messages.at(-1);
+  const plan: ChatGroup = { id: randomUUID(), after_message_id: after?.id ?? null, workflow, state, cards, ...extra };
+  chat.groups.push(plan);
+  return plan;
+}
 /** When a turn ends (or a restart cuts it off), the open plan goes back to review, or away if it is still empty. */
 export function settlePlan(chat: StoredChat) {
   const plan = openGroup(chat);

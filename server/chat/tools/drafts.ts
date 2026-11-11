@@ -1,11 +1,12 @@
 import { randomUUID } from 'node:crypto';
+import { validateToolArguments } from '@earendil-works/pi-ai';
 import type { ChatCard, ChatWorkflow } from '../../../shared/chat.js';
 import { castOf } from '../../../shared/cast.js';
 import { shotsFromBrief, shotNameKey, shotFromTitle } from '../../../shared/shots.js';
 import { asksSavedStyle } from '../../../shared/styles-asked.js';
 import { loraRoute, isVideoWorkflow } from '../../../shared/workflows.js';
 import type { ImageRequest } from '../../workflows.js';
-import { agentRequest, latest, openGroup, referenceMode } from '../model.js';
+import { addPlan, agentRequest, latest, openGroup, referenceMode } from '../model.js';
 import { validateChatReferences, validateCastReferences, withCastLooks } from '../references.js';
 import { requestToolSchemas, prepareToolRequest, requestToolResultError, toolInputLabels } from '../request-tools.js';
 import { current, defineTool, ToolFailure, type ToolSession } from './define.js';
@@ -21,19 +22,32 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
   const mode = referenceMode();
   return (['create', 'edit'] as const).map(operation =>
     defineTool({
-      name: operation + '_request',
+      name: `${operation}_request` as const,
       label: operation === 'create' ? 'Create request' : 'Edit request',
       description:
-        operation === 'create'
+        (operation === 'create'
           ? 'Prepare one new request for user review. Does not generate media.'
-          : 'Change an existing request. Copy request_id from context. Send only changed fields; all omitted fields stay unchanged.',
+          : 'Change an existing request. Copy request_id from context. Send only changed fields; all omitted fields stay unchanged.') +
+        (workflow === 'image-to-image'
+          ? ' Styles (loras) cannot be used with edits or shots from reference images (FLUX 3 Image Klein); they work with new pictures from words (Krea 2) and clips. If the user asked for a style here, describe the look in the prompt and tell them in one sentence that the style was not applied and that a words-only version can use it.'
+          : ''),
       parameters: schemas[operation],
       failure: error => requestToolResultError(error, operation),
       run: value => {
         const chat = current(session);
-        // choose_kind earlier in this step switched the kind of work: the draft is saved as that kind (its fields are
-        // checked again for it), so the agent never reports drafts that were silently dropped.
+        // choose_kind earlier in this step switched the kind of work: the draft is saved as that kind, and its fields
+        // (checked by the agent library for the old kind) are checked again for it, so the agent never reports drafts
+        // that were silently dropped.
         const kind: ChatWorkflow = chat.workflow ?? workflow;
+        if (kind !== workflow)
+          validateToolArguments(
+            {
+              name: `${operation}_request`,
+              description: '',
+              parameters: requestToolSchemas(kind, chatMode)[operation],
+            },
+            { type: 'toolCall', id: '', name: `${operation}_request`, arguments: value },
+          );
         // A plan can hold several kinds of work (keyframes, their edits and their animations); each draft has its own.
         let group = openGroup(chat);
         const editId = operation === 'edit' ? String(value.request_id) : session.target;
@@ -144,16 +158,7 @@ export function draftTools(session: ToolSession, workflow: ChatWorkflow) {
           request.prompt = silencedPrompt(request.prompt);
         if (request.workflow !== 'image-to-image')
           host.jobs.loras.resolve(request.loras, loraRoute(request), request.mode);
-        if (!group) {
-          group = {
-            id: randomUUID(),
-            after_message_id: [...chat.messages].reverse().find(m => m.role === 'user')?.id ?? null,
-            workflow: kind,
-            state: 'assembling',
-            cards: [],
-          };
-          chat.groups.push(group);
-        }
+        group ??= addPlan(chat, 'assembling', kind, []);
         let saved: ChatCard;
         const before = card ? latest(card).request : undefined;
         if (card) {

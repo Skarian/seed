@@ -255,7 +255,6 @@ it('failed later preparation admits zero jobs',async()=>fixture(async({chats,job
   await decide(chats,c.id);expect(jobs.all()).toHaveLength(0);
   const failed=chats.view(c.id),savedSeeds=failed.groups[0]!.cards.flatMap(card=>card.revisions.at(-1)!.request.resolved_seeds!);
   expect(failed.groups[0]!.submission_error).toBe('Preparation failed');expect(failed.error).toBeNull();expect(failed.activity).toBe('idle');
-  expect(chats.list('sfw')[0]!.error).toBe('Preparation failed');
   const retried=await decide(chats,c.id);
   expect(retried.groups[0]!.submission_error).toBeUndefined();expect(retried.groups[0]!.state).toBe('released');
   expect(jobs.all().map(job=>job.seed)).toEqual(savedSeeds);
@@ -324,7 +323,7 @@ it.each(['legacy','failed','all-denied','undecided'])('recovers %s review record
     if(state==='legacy'){expect(saved.submission_error).toBe('These drafts were approved but did not start. Choose Make to try again.');expect(saved.submission_error).not.toContain('restart');}
     else if(state==='failed')expect(saved.submission_error).toBe(group.submission_error);
     else expect(saved.submission_error).toBeUndefined();
-    expect(saved.state).toBe(state==='all-denied'?'released':'reviewing');
+    expect(saved.state).toBe(state==='all-denied'?'stopped':'reviewing');
   }finally{await restarted.close();}
 }));
 
@@ -335,7 +334,7 @@ it('clears preparation errors on new revisions and closes all-denied reviews wit
   c=chats.revise(c.id,card.id,1,{...request,prompt:'Changed landscape'});expect(c.groups[0]!.submission_error).toBeUndefined();
   await expect(decide(chats,c.id,[],1)).rejects.toThrow('changed');expect(attempts).toBe(1);
   await decide(chats,c.id);expect(chats.view(c.id).groups[0]!.submission_error).toBeTruthy();
-  c=await decide(chats,c.id,[card.id]);expect(c.groups[0]!.state).toBe('released');expect(c.groups[0]!.submission_error).toBeUndefined();expect(c.activity).toBe('idle');expect(attempts).toBe(2);expect(jobs.all()).toHaveLength(0);
+  c=await decide(chats,c.id,[card.id]);expect(c.groups[0]!.state).toBe('stopped');expect(c.groups[0]!.submission_error).toBeUndefined();expect(c.activity).toBe('idle');expect(attempts).toBe(2);expect(jobs.all()).toHaveLength(0);
 }));
 
 it('shipped prompt copies are editable, preserved and loaded next run',async()=>fixture(async({paths})=>{
@@ -497,11 +496,29 @@ it('reattaches request images on follow-ups, deduplicates them, and retains sett
  chats.send(c.id,{version:c.version,text:'Set seed to 42',assets:[]});c=await idle(chats,c.id);expect(payload().images).toHaveLength(0);expect(payload().text).toContain('Green scene');expect(payload().text).toContain('A quiet landscape');
 }));
 
+it('stores why a turn stopped as a value, with the model service’s own words as detail',async()=>fixture(async({chats,queue})=>{
+ let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
+ queue.push(new Error('Upstream 502 from provider'));
+ chats.send(c.id,{version:c.version,text:'Create a scene',assets:[]});c=await idle(chats,c.id);
+ expect(c.messages.at(-1)!.transcript).toMatchObject({state:'failed',end:'provider',error:'Connection error.'});
+}));
+it('lists projects from one read, keeps an untitled one untitled, and keeps a project the owner named “New chat”',async()=>fixture(async({chats,db,paths,jobs})=>{
+ const untitled=chats.create('sfw');expect(untitled.title).toBe('');
+ let named=chats.create('sfw');named=chats.settings(named.id,named.version,{title:'New chat'});
+ // Saved when an untitled project was stored as "New chat".
+ const old=chats.create('sfw');db.prepare(`UPDATE chats SET body_json=json_set(body_json,'$.title','New chat') WHERE id=?`).run(old.id);
+ const restarted=new Chats(db,paths,jobs);
+ try{
+  const list=restarted.list('sfw');
+  expect(Object.fromEntries(list.map(p=>[p.id,p.title]))).toEqual({[untitled.id]:'',[named.id]:'New chat',[old.id]:''});
+  expect(list.every(p=>p.failed===false&&p.created_at)).toBe(true);expect(list[0]).not.toHaveProperty('error');
+ }finally{await restarted.close();}
+}));
 it('keeps a saved proposal reviewable when the model response times out',async()=>fixture(async({chats,queue})=>{
  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'text-to-image'});
  queue.push([{operation:'create',request}],new Error('Request timed out.'));
  chats.send(c.id,{version:c.version,text:'Create a scene',assets:[]});c=await idle(chats,c.id);
- expect(c.error).toContain('timed out');expect(c.error).not.toContain('configuration');expect(c.groups[0]!.state).toBe('reviewing');expect(c.groups[0]!.cards[0]!.revisions).toHaveLength(1);
+ expect(c.messages.at(-1)!.transcript!.end).toBe('timeout');expect(c.groups[0]!.state).toBe('reviewing');expect(c.groups[0]!.cards[0]!.revisions).toHaveLength(1);
 }));
 it('explains reference labels and ids instead of leaving the model to guess',async()=>fixture(async({chats,queue})=>{
  let c=chats.create('sfw');c=chats.settings(c.id,c.version,{workflow:'reference-to-video'});

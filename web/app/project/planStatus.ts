@@ -19,6 +19,11 @@ export function planSeconds(jobs: JobRecord[], cards: ChatCard[]) {
   return total;
 }
 
+/** A reply that asks the owner something ("Please attach…", or it ends with a question): Seed asking, not failing. */
+export const seedAsks = (text: string) =>
+  /\?\s*$/.test(text.trim()) ||
+  /\b(please (attach|send|share|tell)|could you|which (one|of)|do you want|would you like)\b/i.test(text);
+
 /** Everything the bar shows about the open plan, worked out from the plan, the ticks and the conversation. */
 export function planStatus(
   project: Project,
@@ -63,30 +68,32 @@ export function planStatus(
   // the plan still shows the earlier version, so running it is a secondary, clearly named choice.
   const lastTurn = [...project.messages].reverse().find(m => m.role === 'assistant' && m.transcript);
   const lastAsk = [...project.messages].reverse().find(m => m.role === 'user');
+  const lastReply = lastTurn?.transcript?.state === 'completed' ? cleanReply(lastTurn.text) : '';
+  // The drafts that turn changed.
+  const askedOn = lastTurn ? plan.cards.filter(c => c.revisions.some(r => r.run_id === lastTurn.id)) : [];
   const planStale = Boolean(
     lastTurn &&
     lastAsk &&
     Date.parse(lastAsk.created_at) <= Date.parse(lastTurn.created_at) &&
-    lastTurn.transcript?.state === 'completed' &&
-    plan.cards.every(c => !c.revisions.some(r => r.run_id === lastTurn.id)) &&
-    /\?\s*$/.test(cleanReply(lastTurn.text)),
+    !askedOn.length &&
+    seedAsks(lastReply),
   );
   // Seed changed the plan and also asked something (often about an unsupported setting): quote it next to Make.
-  const lastReply = lastTurn?.transcript?.state === 'completed' ? cleanReply(lastTurn.text) : '';
-  // Only for a real decision (a substitution or limit), not a polite "anything else?".
-  // Answering with a button (a fix, or keeping a setting) settles Seed's question too.
-  const answered = plan.cards.some(
-    c => (latest(c).number > 1 && !latest(c).run_id) || [...acknowledged].some(k => k.startsWith(c.id + ':')),
+  // Only for a real decision (a substitution or limit), not a polite "anything else?". The owner answers it on a draft
+  // that turn changed: by editing it since, or with a button (a fix, or keeping a setting) on one of its checks.
+  const answered = askedOn.some(
+    c =>
+      latest(c).run_id !== lastTurn!.id ||
+      checkDraft(c, project, plan.cards.length).some(x => acknowledged.has(ackKey(c, x))),
   );
   const question =
-    !planStale &&
+    askedOn.length > 0 &&
     !unresolved &&
     !answered &&
-    /\?\s*$/.test(lastReply) &&
+    seedAsks(lastReply) &&
     /support|instead|can.?t|cannot|not available|only (offer|support|do)|unable|which (one|option|format)|would you (prefer|like)/i.test(
       lastReply,
-    ) &&
-    plan.cards.some(c => c.revisions.some(r => r.run_id === lastTurn!.id))
+    )
       ? (
           lastReply
             .split(/(?<=[.!])\s+/)

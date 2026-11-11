@@ -6,6 +6,7 @@ import { agentRequest, chatKinds, latest, openGroup, referenceMode, type StoredC
 import { chatReferenceLabels } from './references.js';
 import { toolInputLabels, type ToolAsset } from './request-tools.js';
 import { workerPolicy } from './rules.js';
+import { TurnStopped } from './transcript.js';
 import type { visualContext } from './visual-context.js';
 
 /** One project asset as Seed reads it: its name in words, what it is chosen for, and its note. */
@@ -193,7 +194,7 @@ export async function compactConversation(
   summarize: (input: string) => Promise<string>,
 ) {
   const start = previous?.through ?? 0;
-  if (start > history.length) throw Error('Conversation summary is inconsistent with its history.');
+  if (start > history.length) throw new TurnStopped('summary');
   if (JSON.stringify(history.slice(start)).length <= 60000) return { summary: previous, recent: history.slice(start) };
   const through = Math.max(start, history.length - 8);
   if (through === start) return { summary: previous, recent: history.slice(start) };
@@ -201,13 +202,9 @@ export async function compactConversation(
     previous_summary: previous?.text ?? '',
     earlier_messages: history.slice(start, through),
   });
-  if (input.length > 200000)
-    throw Error(
-      'The earlier conversation exceeds the summarization budget. Start a new chat with the relevant assets.',
-    );
+  if (input.length > 200000) throw new TurnStopped('too_large');
   const text = (await summarize(input)).trim();
-  if (!text || text.length > 16000)
-    throw Error('Conversation summary did not complete within its budget. Try sending again.');
+  if (!text || text.length > 16000) throw new TurnStopped('summary');
   return { summary: { through, text }, recent: history.slice(through) };
 }
 

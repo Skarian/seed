@@ -550,7 +550,7 @@ function Rail() {
             <span className="txt">{p.title}</span>
             {activeChats.has(p.id) || p.activity !== 'idle' ? (
               <span className="dot live" aria-label="Working" />
-            ) : p.status === 'Failed' ? (
+            ) : p.failed ? (
               <span className="dot red" aria-label="Has a failed result" />
             ) : null}
           </button>

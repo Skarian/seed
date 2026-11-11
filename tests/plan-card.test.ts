@@ -6,10 +6,12 @@ import type { Check } from '../web/app/project/checks.js';
 const request = (ref: string, asset: string) => ({ references: [{ id: ref, asset_id: asset, role: 'subject' }] }) as any;
 // Like the old-reference check: the same words for every draft, but the fix names this draft's own input.
 const oldReference = (ref: string): Check => ({
+  id: 'old-reference|Mara|approved',
   code: 'old-reference',
   text: 'This draft uses an older picture of Mara, not the approved reference.',
   fixes: [
     {
+      id: 'use-approved',
       label: 'Use Mara’s approved reference',
       patch: x => ({
         references: (x.references ?? []).map(y => (y.id === ref ? { ...y, asset_id: 'approved' } : y)),

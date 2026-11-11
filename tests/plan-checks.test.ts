@@ -1,5 +1,6 @@
 import { it, expect } from 'vitest';
-import { askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, briefGapList, addBriefDetails } from '../web/app/project/checks.js';
+import { ackKey, askedFor, checkDraft, readablePrompt, editablePrompt, briefGaps, briefGapList, addBriefDetails } from '../web/app/project/checks.js';
+import { splitWarnings } from '../web/app/project/plan.js';
 import { silencedPrompt } from '../shared/generation.js';
 
 // Synthetic fixtures only.
@@ -334,4 +335,40 @@ it('flags a draft that uses an older picture of someone and swaps in the approve
   const check = checkDraft(card(request) as any, p).find(c => c.code === 'old-reference')!;
   expect(check.text).toBe('This draft uses an older picture of The Lighthouse, not the approved reference.');
   expect((check.fixes[0]!.patch(request as any) as any).references[0].asset_id).toBe('new-pic');
+});
+
+// An old-reference check: the Lighthouse has an older picture and approved pictures `new-pic` and `newer-pic`.
+const lighthouse = (approved: string) =>
+  project([message('user', 'Shot 1'), message('assistant', 'Ready', 'run')], {
+    brief: '## Places\n- The Lighthouse: slate tower',
+    choices: { references: { 'The Lighthouse': approved }, takes: {} },
+    jobs: ['old-pic', 'new-pic', 'newer-pic'].map(pic => ({ id: pic, outputs: [pic], request: { title: 'Reference: The Lighthouse', workflow: 'text-to-image' } })),
+  });
+const fromOld = (input: string) => ({ workflow: 'image-to-image', engine: 'klein', prompt: 'The lighthouse from <image1>.', output: { aspect: '16:9', size: 'image-768' }, count: 1, seed: 'random', mode: 'sfw', references: [{ id: input, asset_id: 'old-pic', kind: 'image', role: 'source' }] });
+const oldReference = (p: any, c: any) => checkDraft(c, p).find(x => x.code === 'old-reference')!;
+
+it('keeps an acknowledgement when only the wording of its check changes', () => {
+  const c = card(fromOld('input1')) as any,
+    check = oldReference(lighthouse('new-pic'), c);
+  expect(ackKey(c, { ...check, text: 'Reworded: an older picture of The Lighthouse.' })).toBe(ackKey(c, check));
+});
+
+it('asks again once the approved reference changes, though the warning reads the same', () => {
+  const c = card(fromOld('input1')) as any;
+  const before = oldReference(lighthouse('new-pic'), c),
+    after = oldReference(lighthouse('newer-pic'), c);
+  expect(after.text).toBe(before.text);
+  expect(ackKey(c, after)).not.toBe(ackKey(c, before));
+});
+
+it('says a check once for the plan when drafts hold it on different inputs, and fixes each draft by its own', () => {
+  const p = lighthouse('new-pic'),
+    requests = [fromOld('input-a'), fromOld('input-b')],
+    cards = requests.map((r, i) => ({ ...card(r), id: 'card-' + i }) as any);
+  const { planWide, warnings } = splitWarnings(cards.map(c => checkDraft(c, p, 2)));
+  expect(planWide.map(w => w.check.code)).toEqual(['old-reference']);
+  expect(warnings.map(w => w.filter(x => x.code === 'old-reference'))).toEqual([[], []]);
+  const fix = planWide[0]!.check.fixes[0]!;
+  const patched = planWide[0]!.each.map((check, i) => check.fixes.find(f => f.id === fix.id)!.patch(requests[i] as any) as any);
+  expect(patched.map(x => x.references[0].asset_id)).toEqual(['new-pic', 'new-pic']);
 });

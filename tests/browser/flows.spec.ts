@@ -159,9 +159,9 @@ test('a message sent while Seed replies waits, then sends itself once', async ({
   await expect(box).toHaveValue('');
 });
 
-// App bug: in a project's first reply, choose_kind raises the project version mid-turn. The page takes "reply ended"
-// from the event stream before its debounced re-read lands, so the queued message sends against the old version and
-// fails with "This project changed in another tab. Refresh and try again." Enable this once that is fixed.
+// Regression: in a project's first reply, choose_kind raises the project version mid-turn. The page used to take
+// "reply ended" from the event stream before its debounced re-read landed, so the queued message sent against the old
+// version and failed with "This project changed in another tab. Refresh and try again."
 test('a message queued during a project\'s first reply sends itself once', async ({ page }) => {
   const id = await openProject(page);
   const { stop, box } = await queueDuringReply(page, id, 0);

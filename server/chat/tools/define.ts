@@ -5,7 +5,9 @@ import type { ImageRequest } from '../../workflows.js';
 import type { Jobs } from '../../jobs.js';
 import type { StoredChat } from '../model.js';
 import type { ToolAsset } from '../request-tools.js';
+import type { ToolName, ToolResults } from '../../../shared/turn.js';
 
+type Result<N extends ToolName> = ToolResults[N] & Record<string, unknown>;
 /**
  * A tool call that did not work. `internal` marks Seed's own slip (a stale id, a run that ended): the owner is not
  * shown it when the turn otherwise got its work done. `extra` rides along for the agent (choices, a next step).
@@ -73,15 +75,16 @@ export const namedInput = (session: ToolSession, handle: unknown) =>
  * One of Seed's tools. `run` returns what the agent is told on success (`ok: true` is added); it throws ToolFailure
  * (or any error) when the call did not work.
  */
-export function defineTool(spec: {
-  name: string;
+export function defineTool<N extends ToolName>(spec: {
+  name: N;
   label: string;
   description: string;
   properties?: Record<string, unknown>;
   required?: string[];
   /** A full schema instead of `properties` (the draft tools build theirs per kind of work). */
   parameters?: unknown;
-  run: (input: Record<string, unknown>) => Record<string, unknown> | Promise<Record<string, unknown>>;
+  /** What the receipt reads must be there: the result is held to the tool's entry in `ToolResults`. */
+  run: (input: Record<string, unknown>) => Result<N> | Promise<Result<N>>;
   /** Shapes every failure instead (the draft tools list field problems). */
   failure?: (error: unknown) => ToolFailureResult;
 }): AgentTool {

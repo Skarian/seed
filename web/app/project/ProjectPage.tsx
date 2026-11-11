@@ -368,7 +368,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
   const finishedGroups = project
     ? project.groups.filter(
         g =>
-          g.state === 'released' &&
+          (g.state === 'released' || g.state === 'stopped') &&
           g.cards.every(
             c =>
               latest(c).decision !== 'approved' ||

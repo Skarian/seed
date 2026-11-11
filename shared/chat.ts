@@ -36,6 +36,11 @@ export interface TurnStep {id:string;kind:'reasoning'|'text'|'tool';text?:string
   /** Set on a failed tool step. Turns saved before it existed are read from their result text. */
   failure?:StepFailure;
   started_at:string;ended_at?:string}
-export interface TurnTranscript {started_at:string;ended_at?:string;state:'running'|'completed'|'failed'|'stopped';steps:TurnStep[];error?:string;
+/** Why a turn stopped early: its reply or step budget ran out, it timed out, the project was too large to read, its
+ * earlier conversation could not be summarised, Seed restarted, or the model service failed. */
+export type TurnEnd='length'|'turn_limit'|'timeout'|'too_large'|'summary'|'restart'|'provider';
+export interface TurnTranscript {started_at:string;ended_at?:string;state:'running'|'completed'|'failed'|'stopped';steps:TurnStep[];
+  /** Set when the turn stopped early; `error` then holds the model service's own words, if any. Older turns have only `error`. */
+  end?:TurnEnd;error?:string;
   /** What the turn was asked to work on: the kind of work then, the attached inputs, and the draft it revised. */
   scope?:{workflow?:ChatWorkflow|null;source_assets?:string[];target_request_id?:string}}

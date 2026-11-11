@@ -4,7 +4,8 @@ export type PlanState = ChatGroup['state'];
 
 /**
  * How a plan moves. Seed fills it (assembling), the owner reviews it, a reply revises it and gives it back, and Make
- * releases it. Setting it aside stops it. Released and stopped plans never reopen; Bring back starts a new plan.
+ * releases it, so a released plan was made. Stop, setting every draft aside, or a direct make that could not start
+ * stops it. Released and stopped plans never reopen; Bring back starts a new plan.
  */
 const moves: Record<PlanState, PlanState[]> = {
   assembling: ['reviewing', 'revising', 'stopped'],
