@@ -18,6 +18,8 @@ const context:RequestToolContext={workflow:'reference-to-video',mode:'sfw',asset
 ]};
 const base={prompt:'<Picture 1> speaks in <Video 1>.',inputs:[{asset:'image1'},{asset:'video1',start_seconds:0,duration_seconds:3,include_audio:true}]};
 const previous=()=>prepareToolRequest(context,base);
+/** A call checked against its tool's schema, as the agent library does before the tool runs. */
+const called=(workflow:RequestToolContext['workflow'],operation:'create'|'edit',args:Record<string,unknown>,mode:'sfw'|'nsfw'='sfw',hasLoras=true)=>validateToolCall([{name:operation+'_request',description:'',parameters:requestToolSchemas(workflow,mode,hasLoras)[operation]}],{type:'toolCall',id:'t',name:operation+'_request',arguments:args});
 afterEach(()=>vi.unstubAllEnvs());
 describe('simple request adapter',()=>{
   it('defaults new videos to 20 steps, preserves omitted steps on edits, and validates explicit choices',()=>{
@@ -52,8 +54,8 @@ describe('simple request adapter',()=>{
     expect(result.references).toHaveLength(1);expect(result.prompt).toBe('<Picture 1> walks.');
   });
   it('reports independent role,clip,and quality problems together without irrelevant revise advice',()=>{
-    try{prepareToolRequest(context,{prompt:'Scene.',size:'720p',inputs:[{asset:'video1',role:'first_frame',duration_seconds:1}]});throw Error('expected rejection');}
-    catch(error){const result=requestToolResultError(error,'create');expect(result.saved).toBe(false);expect(result.errors.map(e=>e.field)).toEqual(expect.arrayContaining(['inputs[0].role','inputs[0].start_seconds','inputs[0].duration_seconds','size']));expect(result.next_action).toContain('No request was created');expect(JSON.stringify(result)).not.toContain('operation revise');}
+    try{prepareToolRequest(context,{prompt:'Scene.',inputs:[{asset:'video1',role:'first_frame',duration_seconds:1}]});throw Error('expected rejection');}
+    catch(error){const result=requestToolResultError(error,'create');expect(result.saved).toBe(false);expect(result.error).toBe(result.fields![0]!.message);expect(result.fields!.map(e=>e.field)).toEqual(expect.arrayContaining(['inputs[0].role','inputs[0].start_seconds','inputs[0].duration_seconds']));expect(result.next_action).toContain('No request was created');expect(JSON.stringify(result)).not.toContain('operation revise');}
   });
   it('rejects unknown inputs, invented ids, numeric strings and clips exceeding source',()=>{
     for(const input of [{asset:'Picture 1'},{asset:'video1',id:'invented',start_seconds:0,duration_seconds:3},{asset:'video1',start_seconds:'0',duration_seconds:3},{asset:'video1',start_seconds:9,duration_seconds:3}])expect(()=>prepareToolRequest(context,{prompt:'Scene.',inputs:[input]})).toThrow();
@@ -72,7 +74,7 @@ describe('simple request adapter',()=>{
     expect(prepareToolRequest({...context,previous:original},{batch_size:2}).resolved_seeds).toBeUndefined();
   });
   it('text-only workflows reject input settings instead of discarding them',()=>{
-    for(const workflow of ['text-to-image','text-to-video'] as const){const c={...context,workflow};expect(prepareToolRequest(c,{prompt:'Scene.'}).workflow).toBe(workflow);expect(()=>prepareToolRequest(c,{...base})).toThrow('Unknown setting');}
+    for(const workflow of ['text-to-image','text-to-video'] as const){const c={...context,workflow};expect(prepareToolRequest(c,{prompt:'Scene.'}).workflow).toBe(workflow);expect(()=>called(workflow,'create',{...base})).toThrow('Validation failed');}
   });
 });
 describe('Chat resolution ownership',()=>{
@@ -86,8 +88,7 @@ describe('Chat resolution ownership',()=>{
         expect(schema.properties).not.toHaveProperty('size');
         const tool={name:operation+'_request',description:'test',parameters:schema};
         const raw={...(operation==='create'?creation(workflow):{request_id:'card',prompt:'A new scene.'}),size:original.output.size};
-        expect(()=>validateToolCall([tool],{id:'t',name:tool.name,arguments:raw,type:'toolCall'})).toThrow();
-        expect(()=>prepareToolRequest({...c,...(operation==='edit'?{previous:original}:{})},raw)).toThrow('size: Unknown setting');
+        expect(()=>validateToolCall([tool],{id:'t',name:tool.name,arguments:raw,type:'toolCall'})).toThrow('Validation failed');
       }
       expect(original).toEqual(copy);
       expect(requestToolRules('stable',workflow)).toContain('Never send size in a tool call');
@@ -106,7 +107,7 @@ describe('Chat resolution ownership',()=>{
       if(workflow!=='image-to-image')edits.push({aspect_ratio:'9:16'});
       if(original.references?.length)edits.push({inputs:[{id:'image1',replace_asset:'image2',role:original.references[0]!.role}]});
       for(const edit of edits)expect(prepareToolRequest({...c,previous:original},edit).output.size).toBe(original.output.size);
-      expect(()=>prepareToolRequest({...c,previous:original},{prompt:'Rejected scene.',size:created.output.size})).toThrow('size: Unknown setting');
+      expect(()=>called(workflow,'edit',{request_id:'card',prompt:'Rejected scene.',size:created.output.size})).toThrow('Validation failed');
       expect(original).toEqual(copy);
     }
   });
@@ -120,7 +121,8 @@ describe('Chat resolution ownership',()=>{
         let chat=chats.create('sfw');chat=chats.settings(chat.id,chat.version,{workflow});
         const tools=()=>(chats as any).workflowTools(chat.id,chat.epoch,workflow,'fixture-run',[]);
         const [create]=tools();
-        await expect(create.execute('bad-create',{prompt:'A scene.',size:workflow==='text-to-image'?'image-768':'768p'})).rejects.toThrow('Unknown setting');
+        // The agent library checks a call against the tool's schema before the tool runs.
+        expect(()=>validateToolCall([create],{type:'toolCall',id:'t',name:create.name,arguments:{prompt:'A scene.',size:workflow==='text-to-image'?'image-768':'768p'}})).toThrow('Validation failed');
         expect(chats.view(chat.id).groups).toHaveLength(0);
         const result=await create.execute('create',{prompt:'A scene.'});
         expect(result.details.request).not.toHaveProperty('size');
@@ -130,7 +132,7 @@ describe('Chat resolution ownership',()=>{
         chats.revise(chat.id,card.id,1,{...manual,output:{...manual.output,size:workflow==='text-to-image'?'2mp':'480p'}});
         card=chats.view(chat.id).groups[0]!.cards[0]!;const before=structuredClone(card);
         const [,edit]=tools();
-        await expect(edit.execute('bad-edit',{request_id:card.id,prompt:'Rejected prompt.',size:request.output.size})).rejects.toThrow('Unknown setting');
+        expect(()=>validateToolCall([edit],{type:'toolCall',id:'t',name:edit.name,arguments:{request_id:card.id,prompt:'Rejected prompt.',size:request.output.size}})).toThrow('Validation failed');
         expect(chats.view(chat.id).groups[0]!.cards[0]).toEqual(before);
         const edited=await edit.execute('edit',{request_id:card.id,prompt:'A misty scene.'});
         card=chats.view(chat.id).groups[0]!.cards[0]!;
@@ -205,7 +207,7 @@ describe('provider-readable enums and input instance contract',()=>{
       const schemas=requestToolSchemas(workflow,'nsfw');
       for(const schema of [schemas.create,schemas.edit]){
         const raw=JSON.parse(JSON.stringify(schema));expect(JSON.stringify(raw)).not.toContain('anyOf');
-        expect(raw.properties.aspect_ratio).toMatchObject({type:'string',enum:['16:9','9:16']});
+        expect(raw.properties.aspect_ratio).toMatchObject({type:'string',enum:workflow==='text-to-image'?['16:9','9:16','1:1','4:5']:['16:9','9:16']});
         if(workflow!=='text-to-image')expect(raw.properties.audio_output).toMatchObject({type:'string',enum:['generated','silent']});
       }
     }
@@ -294,4 +296,37 @@ it('normalizes redundant standalone audio flags and aliases without changing sou
   const refs=previous().references!;
   expect(()=>compileStablePrompt('[[image1:audio]]',refs)).toThrow('not available');
   expect(()=>compileStablePrompt('[[video1:audio]]',refs.map(r=>r.kind==='video'?{...r,include_audio:false}:r))).toThrow('not available');
+});
+
+describe('shot details',()=>{
+  const image={workflow:'text-to-image' as const,mode:'sfw' as const,assets:[]};
+  it('saves shot details and merges edits field by field',()=>{
+    const first=prepareToolRequest(image,{prompt:'A girl on a causeway.',title:'Shot 1: Causeway',shot:{number:1,name:'Causeway',cast:['Maren'],framing:'wide',delivery:'2.39:1'}});
+    expect(first.shot).toEqual({number:1,name:'Causeway',cast:['Maren'],framing:'wide',delivery:'2.39:1'});
+    const edited=prepareToolRequest({...image,previous:first},{request_id:'card',shot:{lens_mm:85,framing:'close-up'}});
+    expect(edited.shot).toEqual({number:1,name:'Causeway',cast:['Maren'],framing:'close-up',delivery:'2.39:1',lens_mm:85});
+    expect(imageRequest(edited).shot).toEqual(edited.shot);
+    expect(()=>prepareToolRequest(image,{prompt:'x',shot:{delivery:'wide'}})).toThrow();
+    expect(()=>imageRequest({...first,shot:{number:0}})).toThrow(/number/);
+    expect(requestToolSchemas('text-to-image','sfw').create.properties.shot).toBeDefined();
+  });
+});
+describe('runs_on',()=>{
+  const edit:RequestToolContext={workflow:'image-to-image',mode:'sfw',assets:[{handle:'image1',asset_id:'image-a',kind:'image'}]};
+  const draft={prompt:'The girl from [[image1]] at the door',inputs:[{asset:'image1',role:'source'}],aspect_ratio:'16:9'};
+  it('sets where a draft is made when the owner says so, and keeps it on later edits',()=>{
+    const pc=prepareToolRequest(edit,{...draft,runs_on:'seed_pc'});expect(pc.target).toBe('local');
+    expect(prepareToolRequest({...edit,previous:pc},{request_id:'card',note:'x'}).target).toBe('local');
+    expect(prepareToolRequest({...edit,previous:pc},{request_id:'card',runs_on:'auto'}).target).toBeUndefined();
+  });
+  it('refuses a cloud GPU for FLUX 3 Image Klein',()=>{
+    expect(()=>prepareToolRequest(edit,{...draft,runs_on:'cloud'})).toThrow(ToolRequestError);
+    expect(prepareToolRequest(edit,{...draft,engine:'qwen',aspect_ratio:'source',runs_on:'cloud'}).target).toBe('cloud');
+    expect(prepareToolRequest({...edit,cloudWorkflows:['text-to-image','image-to-image:klein']},{...draft,runs_on:'cloud'}).target).toBe('cloud');
+  });
+});
+describe('styles on edits',()=>{
+  it('refuses a style on a FLUX 3 Image Klein edit before the tool runs',()=>{
+    expect(()=>called('image-to-image','create',{prompt:'The girl from [[image1]]',inputs:[{asset:'image1',role:'source'}],loras:[{id:'x',revision:'y',scale:1}]})).toThrow('Validation failed');
+  });
 });

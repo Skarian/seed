@@ -1,15 +1,15 @@
 import {localExecutor,type ExecutionWorker} from './executors.js';
 import { Media, type PreparedReference, probe } from "./media.js";
-import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, supportsWorkflow, QWEN_PROFILE, QWEN_SETTINGS } from "../shared/workflows.js";
-import { workerClassFor } from "../shared/pool.js";
+import { loraRoute, executionProfile, executionRoute, isVideoWorkflow, usesKlein, KLEIN_CAPABILITY, QWEN_PROFILE, QWEN_SETTINGS, KLEIN_PROFILE, KLEIN_SETTINGS } from "../shared/workflows.js";
+import { canRun, gpuNeed, workerClassFor } from "../shared/pool.js";
 import { Loras, digest, sourceReady, type LoraSelection } from "./loras.js";
 import { WorkerPool } from "./pool.js";
 import type { WorkerReceipt } from "./pool-contracts.js";
 import { graphFor, type GraphLora } from "./worker-graphs.js";
 import { hardwareProfile } from "./hardware.js";
-import { resolveDimensions } from "../shared/resolution.js";
+import { resolveDimensions, kleinCanvas } from "../shared/resolution.js";
 import { nextProgress } from "../shared/generation-progress.js";
-import { jobState } from "../shared/jobs.js";
+import { isJobState, isTerminal, jobCanMove, jobPhase, type JobRecord } from "../shared/jobs.js";
 import {
   WorkerHttpError,
   TransferIntegrityError,
@@ -21,7 +21,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, statSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { StudioPaths } from "./storage.js";
-import { imageRequest, seeds, type ImageRequest } from "./workflows.js";
+import { imageRequest, seeds } from "./workflows.js";
 type SubmissionMetadata = { route: string; loras: GraphLora[] };
 export type Job = import("../shared/jobs.js").JobRecord & {
   worker?: {
@@ -41,14 +41,33 @@ export type Job = import("../shared/jobs.js").JobRecord & {
   prepared?: PreparedReference[];
 };
 const executionId=(job:Job)=>job.worker?.execution_id??job.id;
-const terminal = ["completed", "failed", "cancelled"];
+const ACK_TRIES = 5;
+const media = (job: Job) => (isVideoWorkflow(job.request.workflow) ? 'clip' : 'image');
+const notSaved = (job: Job) => `The ${media(job)} was made but did not reach this PC. Try saving again, or cancel it.`;
+/** What leaves the server about a job: no ComfyUI graph, prepared paths, receipts or retired-provider records. */
+function jobView({ worker, prepared: _p, fal: _f, input_snapshot: _i, ...job }: Job): JobRecord {
+  return worker ? { ...job, worker: { id: worker.id, executor: worker.executor } } : job;
+}
+/**
+ * A stored job, read once at the boundary. A state this release does not know (a newer or damaged record) is never
+ * resumed or resubmitted automatically: it reads as needing attention, naming the state it had.
+ */
+function readJob(json: string): Job {
+  const job = JSON.parse(json) as Job;
+  if (isJobState(job.state)) return job;
+  return { ...job, state: "needs_attention", error: `Seed can't read this take's saved state (${String(job.state)}). Check its GPU before trying again.` };
+}
 export class Jobs {
   private chain: Promise<unknown> = Promise.resolve();
   private timer?: ReturnType<typeof setInterval>;
   private stopped = false;
   private inFlight = new Map<string, { task: Promise<void>; recovery: boolean }>();
+  /** Failed acknowledgements per job since start; at ACK_TRIES Seed stops asking until it restarts. */
+  private ackFailures = new Map<string, number>();
   public media: Media;
   public loras: Loras;
+  /** Called after every committed save; the chat service pushes it to whoever watches the job's project. */
+  onSaved: (job: Job) => void = () => {};
   constructor(
     private db: Database.Database,
     private paths: StudioPaths,
@@ -60,27 +79,19 @@ export class Jobs {
       pending: (w) =>
         this.all().some(
           (j) =>
-            j.state === "queued" && j.request.target!=='local' &&
-            j.worker &&
-            workerClassFor(j.request.workflow) === w.worker_class &&
-            (supportsWorkflow(w,j.request.workflow) || (!w.ready_at && !w.workflows)) &&
-            (!w.finish_before || j.created_at <= w.finish_before) &&
-            j.worker.loras.every((l) =>
-              (w.adapters_frozen ? w.installed_loras : w.requested_loras).some(
-                (i) => i.id === l.id && i.revision === l.revision,
-              ),
-            ),
+            j.state === "queued" && j.request.target !== 'local' && !!j.worker &&
+            canRun(w, gpuNeed(j.request, j.worker.loras, j.created_at), 'wait'),
         ),
       cancel: (id) => this.quitJobs(id),
       assigned: (id) => ({ unknown: this.get(id)?.state === 'needs_attention', recovering: this.inFlight.get(id)?.recovery ?? false }),
     });
     // Historical fal receipts remain readable; never submit them to a new executor.
     for (const job of this.all().filter(
-      (j) => !j.worker && !terminal.includes(j.state),
+      (j) => !j.worker && !isTerminal(j.state),
     )) {
       job.state = "needs_attention";
       job.error =
-        "This request belongs to the retired API provider. Its saved history has been preserved; create a new request to use a GPU worker.";
+        "This take was sent to an online service Seed no longer uses. Its history is kept; make the draft again to use a GPU.";
       this.save(job);
     }
   }
@@ -90,7 +101,10 @@ export class Jobs {
     return next;
   }
   isInFlight(id: string) { return this.inFlight.has(id); }
-  publicJob(job: Job): Job {
+  publicJob(job: Job): JobRecord {
+    return jobView(this.withRecovery(job));
+  }
+  private withRecovery(job: Job): Job {
     const pending = this.inFlight.get(job.id)?.recovery ?? false;
     if (!job.worker || (job.state !== 'needs_attention' && !pending)) return job;
     const worker = job.worker.id ? this.pool.executor(job.worker.id) : null;
@@ -112,14 +126,14 @@ export class Jobs {
     return { ...job, recovery: { pending, reason, worker_id: job.worker.id,
       ...(reason === 'submission_unknown' && !pending ? { action: 'retry' as const } : {}) } };
   }
-  recover(id: string): Job {
+  recover(id: string): JobRecord {
     const job = this.get(id);
     if (!job) throw Error('Job not found.');
     const previous = this.inFlight.get(id);
-    if (previous?.recovery || terminal.includes(job.state) || ['running', 'copying'].includes(job.state)) return this.publicJob(job);
+    if (previous?.recovery || isTerminal(job.state) || ['running', 'copying'].includes(job.state)) return this.publicJob(job);
     const action=this.publicJob(job).recovery?.action;
     if (this.stopped || !action)
-      throw Error('This request cannot be retried safely. View its worker for recovery options.');
+      throw Error('Seed cannot safely try this take again. Open its GPU on the GPUs page for recovery options.');
     this.track(id, async () => {
       await previous?.task;
       try { if(action==='retry_local')await this.retryLocal(id);else await this.recoverOriginal(id); }
@@ -129,10 +143,10 @@ export class Jobs {
         if (current) {
           if (current.job.worker?.receipt?.manifest?.state === 'completed') {
             current.job.recovery_blocked = actionableTransfer(error);
-            current.job.error = 'The output is retained on the worker. Retry saving after checking local storage or reconnecting.';
+            current.job.error = notSaved(current.job);
           } else {
             current.job.state = 'needs_attention';
-            current.job.error = action==='retry_local'?'Local retry could not proceed. The prior attempt and any output files are preserved; check the worker before retrying.':'The worker could not confirm recovery. The original request is still reserved; check its worker before trying again.';
+            current.job.error = action==='retry_local'?"Seed PC couldn't try this take again. Anything it made is kept; check Seed PC on the GPUs page before trying again.":"The GPU couldn't confirm what happened to this take. The take stays on that GPU; check it on the GPUs page before trying again.";
           }
           this.save(current.job);
         }
@@ -168,7 +182,7 @@ export class Jobs {
   }
   private recoveryWorker(id: string) {
     const job = this.get(id), worker = job?.worker?.id ? this.pool.executor(job.worker.id) : null;
-    if (this.stopped || !job?.worker || !worker || terminal.includes(job.state) ||
+    if (this.stopped || !job?.worker || !worker || isTerminal(job.state) ||
       this.cancelled(id) || job.worker.quit_now || worker.quit_mode === 'now' ||
       localExecutor(worker)&&(Boolean(worker.issue)||worker.interrupted) ||
       ['released', 'releasing', 'reconnecting', 'starting', 'preparing'].includes(worker.state) || worker.current_job_id !== id) return null;
@@ -197,7 +211,7 @@ export class Jobs {
       return;
     }
     if (probe.state !== 'ready' || probe.active_job_id || !probe.session_id) {
-      current.job.error = 'The worker is not idle and ready. The original request is still reserved; view its worker before retrying.';
+      current.job.error = "The GPU is busy or not ready. The take stays on that GPU; check it on the GPUs page before trying again.";
       this.save(current.job);
       this.recoveryEvent(id, 'worker_not_ready');
       return;
@@ -230,7 +244,7 @@ export class Jobs {
       // Compatibility for known saved graphs from before envelope persistence. No catalog lookups.
       const route = executionRoute(job.request), graph = job.worker.graph as Record<string, { class_type?: string; inputs?: Record<string, unknown> }>;
       const video = isVideoWorkflow(job.request.workflow), output = graph[video ? '14' : '9'];
-      const model = route === 'image' ? 'krea2_turbo_int8_convrot.safetensors' : route === 'image-edit' ? 'qwen_image_2.1_int8_convrot.safetensors' : `minimax_h3_${route}2va_pruned_int8_convrot.safetensors`;
+      const model = route === 'image' ? 'krea2_turbo_int8_convrot.safetensors' : route === 'image-edit' ? 'qwen_image_2.1_int8_convrot.safetensors' : route === 'image-klein' ? 'flux3-image-klein-int8-convrot.safetensors' : `minimax_h3_${route}2va_pruned_int8_convrot.safetensors`;
       if (graph['1']?.class_type !== 'UNETLoader' || graph['1']?.inputs?.unet_name !== model ||
         output?.class_type !== (video ? 'SeedVideoSave' : 'SaveImage') || output.inputs?.filename_prefix !== `seed/${executionId(job)}/${video ? 'video' : 'image'}`)
         throw Error('The saved submission format is not supported.');
@@ -244,7 +258,7 @@ export class Jobs {
     return { prompt_id: executionId(job), prompt: job.worker.graph, ...metadata };
   }
   usesAsset(id: string) {
-    return this.all().some(job => (!terminal.includes(job.state) || this.isInFlight(job.id)) &&
+    return this.all().some(job => (!isTerminal(job.state) || this.isInFlight(job.id)) &&
       [...(job.request.references ?? []), ...(job.prepared ?? [])].some(ref => ref.asset_id === id));
   }
   start() {
@@ -263,7 +277,7 @@ export class Jobs {
   retrySave(id: string) {
     const job = this.get(id);
     if (!job?.recovery_blocked || !job.worker?.receipt)
-      throw Error("This output does not need saving again.");
+      throw Error("This take does not need saving again.");
     job.recovery_blocked = false;
     job.error = null;
     this.save(job);
@@ -272,7 +286,7 @@ export class Jobs {
   continueRequest(id: string) {
     const job = this.get(id);
     if (!job || job.state !== "blocked")
-      throw Error("This request is not waiting for action.");
+      throw Error("This take is not waiting for you.");
     for (const item of this.all().filter(
       (j) => j.submission_id === job.submission_id && j.state === "blocked",
     )) {
@@ -291,7 +305,7 @@ export class Jobs {
           "SELECT snapshot_json FROM jobs WHERE (? = '' OR (created_at,id) < (SELECT created_at,id FROM jobs WHERE id=?)) ORDER BY created_at DESC,id DESC LIMIT ?",
         )
         .all(cursor, cursor, limit) as { snapshot_json: string }[]
-    ).map((r) => JSON.parse(r.snapshot_json));
+    ).map((r) => readJob(r.snapshot_json));
   }
   all(): Job[] {
     return (
@@ -300,16 +314,25 @@ export class Jobs {
           "SELECT snapshot_json FROM jobs ORDER BY created_at, submission_index",
         )
         .all() as { snapshot_json: string }[]
-    ).map((r) => JSON.parse(r.snapshot_json));
+    ).map((r) => readJob(r.snapshot_json));
+  }
+  /** Several jobs in one read, in the order asked; ids with no job are left out. */
+  many(ids: string[]): Job[] {
+    const rows = this.db
+      .prepare("SELECT id, snapshot_json FROM jobs WHERE id IN (SELECT value FROM json_each(?))")
+      .all(JSON.stringify(ids)) as { id: string; snapshot_json: string }[];
+    const byId = new Map(rows.map((r) => [r.id, r.snapshot_json]));
+    return ids.flatMap((id) => (byId.has(id) ? [readJob(byId.get(id)!)] : []));
   }
   get(id: string): Job | null {
     const row = this.db
       .prepare("SELECT snapshot_json FROM jobs WHERE id = ?")
       .get(id) as { snapshot_json: string } | undefined;
-    return row ? JSON.parse(row.snapshot_json) : null;
+    return row ? readJob(row.snapshot_json) : null;
   }
   save(job: Job) {
     const latest = this.get(job.id);
+    // A stale copy saved late cannot undo a quit or a cancellation: those intents are applied first.
     if (latest?.worker?.quit_now) {
       job.state = "cancelled";
       if (job.worker) job.worker.quit_now = true;
@@ -320,9 +343,11 @@ export class Jobs {
       } else if (["uploading", "submitting", "running", "needs_attention"].includes(job.state))
         job.state = "cancel_requested";
     }
+    if (latest && !jobCanMove(latest.state, job.state))
+      throw Error(`A request cannot go from ${latest.state} to ${job.state}.`);
     if (
       job.metrics &&
-      terminal.includes(job.state) &&
+      isTerminal(job.state) &&
       !job.metrics.terminal_at
     ) {
       job.metrics.terminal_at = new Date().toISOString();
@@ -332,7 +357,7 @@ export class Jobs {
     }
     delete job.recovery; // Recovery activity belongs to the current process, never restart intent.
     delete job.activity; // Replaced by progress; older records may still carry it.
-    const shown = jobState(job);
+    const shown = jobPhase(job);
     if (shown === 'starting') {
       const assigned = job.worker?.id ? this.pool.executor(job.worker.id) : null;
       const loras = Boolean(assigned && localExecutor(assigned) && assigned.state === 'preparing' && assigned.adapter_download);
@@ -351,6 +376,7 @@ export class Jobs {
         "UPDATE jobs SET state=?, snapshot_json=?, updated_at=? WHERE id=?",
       )
       .run(job.state, JSON.stringify(job), job.updated_at, job.id);
+    this.onSaved(job);
   }
   async submit(raw: unknown, key: string) {
     const prepared = await this.prepareSubmission(raw, key);
@@ -382,23 +408,26 @@ export class Jobs {
     );
     if (selected.some((l) => !sourceReady(l.source)))
       throw Error(
-        "Reimport this LoRA in Admin so new workers can download its pinned source.",
+        "Add this style again in Settings → Styles so new GPUs can download it.",
       );
     const prepared: PreparedReference[] = [];
     for (const ref of request.references ?? []) {
       const asset=this.media.get(ref.asset_id);
       if(!asset || (request.mode==='sfw' && asset.metadata.mode==='nsfw')) throw Error('This input is unavailable. Choose another image.');
       prepared.push(
+        // Edit inputs are always prepared as images; a Klein draft's own shape only sets its canvas.
         await this.media.prepare(
           ref,
-          request.output.aspect,
+          request.workflow === 'image-to-image' ? 'source' : request.output.aspect,
           request.output.duration_seconds!,
           request.output.size,
         ),
       );
     }
     const dimensions = request.workflow==='image-to-image'
-      ? {width:prepared[0]!.width!,height:prepared[0]!.height!}
+      ? request.output.aspect==='source'
+        ? {width:prepared[0]!.width!,height:prepared[0]!.height!}
+        : kleinCanvas(resolveDimensions('text-to-image',request.output.size,request.output.aspect))
       : resolveDimensions(request.workflow,request.output.size,request.output.aspect);
     const submission_id = randomUUID(),
       now = new Date().toISOString();
@@ -488,7 +517,7 @@ export class Jobs {
     this.db.transaction(() => {
       for (const id of ids) {
         const job = this.get(id);
-        if (!job || terminal.includes(job.state)) continue;
+        if (!job || isTerminal(job.state)) continue;
         this.db
           .prepare("INSERT OR IGNORE INTO job_cancel_intents VALUES (?)")
           .run(id);
@@ -509,13 +538,13 @@ export class Jobs {
   private quitJobs(workerId?: string) {
     for (const job of this.all().filter(
       (j) =>
-        !terminal.includes(j.state) && (workerId ? j.worker?.id===workerId :
+        !isTerminal(j.state) && (workerId ? j.worker?.id===workerId :
           j.request.target!=='local'&&(!j.worker?.id||this.pool.local?.get()?.id!==j.worker.id)),
     )) {
       if (job.worker) job.worker.quit_now = true;
       job.state = "cancelled";
       job.error =
-        "Cancelled when the worker was terminated. Unsaved output may be unavailable.";
+        "Cancelled when its GPU was released. Anything not yet saved here is lost.";
       this.save(job);
       this.pool.complete(job.id);
     }
@@ -523,7 +552,7 @@ export class Jobs {
   acknowledge(id: string) {
     const job = this.get(id);
     if (!job || job.state !== "needs_attention")
-      throw Error("Only a request needing attention can be acknowledged.");
+      throw Error("Only a take that needs attention can be acknowledged.");
     job.uncertainty_acknowledged = true;
     this.save(job);
     return job;
@@ -534,6 +563,13 @@ export class Jobs {
   }
   async reconcile(background = false) {
     for (const job of this.all()) {
+      // Saved before an older release marked a failed acknowledgement as a failed save: the take is here, so clear that
+      // and let the acknowledgement be sent again below.
+      if (job.recovery_blocked && job.state === "completed" && job.outputs.length) {
+        job.recovery_blocked = false;
+        job.error = null;
+        this.save(job);
+      }
       if (
         !job.worker ||
         this.inFlight.has(job.id) ||
@@ -542,8 +578,8 @@ export class Jobs {
       )
         continue;
       if (
-        terminal.includes(job.state) &&
-        (!job.worker.receipt || job.worker.acknowledged)
+        isTerminal(job.state) &&
+        (!job.worker.receipt || job.worker.acknowledged || (this.ackFailures.get(job.id) ?? 0) >= ACK_TRIES)
       )
         continue;
       if (job.state === "queued") {
@@ -551,15 +587,7 @@ export class Jobs {
           this.pool.assignedExecutor(job.id) ??
           this.pool.claimExecutor(job.id,job.request,job.worker.loras,job.created_at);
         if (!w) {
-          const local=this.pool.local, localWorker=local?.get();
-          const localSupported=job.request.target!=='cloud'&&localWorker?.enabled&&local?.supports(job.request);
-          job.waiting_reason = localSupported
-            ? localWorker.issue?'This PC needs attention. Open Workers to review its status.':localWorker.paused?'Resume This PC in Workers to run this request.':job.worker.loras.length?'Waiting for This PC to finish its current output. Missing LoRAs download automatically when this request starts.':'Waiting for This PC to finish its current output.'
-            : job.request.target==='local'
-            ? !localWorker?.enabled?'Enable and set up This PC in Workers to run this request locally.':'These settings are unavailable on This PC. Check the workflow, output settings, and selected LoRA sources in Admin.'
-            : job.worker.loras.length
-            ? "Waiting for a ready worker with the selected LoRAs. Start a new worker to include recently added adapters."
-            : job.request.workflow==='image-to-image' ? 'Waiting for an Image worker with image editing support. Start a new Image worker if your current worker uses an older image.' : `Waiting for a ready ${workerClassFor(job.request.workflow)} worker.`;
+          job.waiting_reason = this.waitingReason(job);
           this.save(job);
           continue;
         }
@@ -574,12 +602,10 @@ export class Jobs {
       }
       const worker = job.worker.id ? this.pool.executor(job.worker.id) : null;
       if (!worker) {
-        if (job.state !== "queued") {
-          job.state = "needs_attention";
-          job.error =
-            "The assigned worker record is missing. This request will not be submitted again automatically.";
-          this.save(job);
-        }
+        job.state = "needs_attention";
+        job.error =
+          "Seed lost track of the GPU this take was on, and won't start it again on its own.";
+        this.save(job);
         continue;
       }
       if(localExecutor(worker)&&this.cancelled(job.id)&&!job.worker.submitted&&!job.submission_pending&&!worker.interrupted){
@@ -591,20 +617,27 @@ export class Jobs {
         continue;
       }
       if(localExecutor(worker)&&worker.issue){
-        if(worker.issue.code==='local_adapter_failed'&&!job.worker.submitted&&!job.submission_pending)job.worker.local_preparation_blocked=true;
+        // A style that cannot be downloaded fails only this job; Seed PC is freed for everything else.
+        if(worker.issue.code==='local_adapter_failed'&&!job.worker.submitted&&!job.submission_pending){
+          // The style's own name in plain words: no nested brackets or HTTP codes.
+          const style=worker.issue.message.match(/(?:download or verify|get) (.+?)(?: \(HTTP|\.|$)/)?.[1]?.trim();
+          job.state='failed';
+          job.error=`Seed PC couldn't download ${style?'the '+style+' style':"this draft's style"}. Make it without the style, or check your Civitai key in Settings.`;
+          this.save(job);this.pool.complete(job.id);continue;
+        }
         job.state='needs_attention';job.error=worker.issue.message;this.save(job);continue;
       }
       if(localExecutor(worker)&&job.worker.local_preparation_blocked&&!job.worker.submitted&&!job.submission_pending){
         job.state='uploading';job.error=null;delete job.worker.local_preparation_blocked;this.save(job);
       }
       if (worker.state === "released") {
-        if (terminal.includes(job.state)) {
+        if (isTerminal(job.state)) {
           this.pool.complete(job.id);
           continue;
         }
         job.state = "failed";
         job.error =
-          "The worker rental ended before this output was saved. Submit a new request to try again.";
+          "The GPU was released before this take was saved. Make it again to try again.";
         this.save(job);
         this.pool.complete(job.id);
         continue;
@@ -623,7 +656,7 @@ export class Jobs {
             if(this.cancelled(job.id)||worker.quit_mode==='now'){
               job.state='cancelled';job.error=null;this.save(job);this.pool.complete(job.id);return;
             }
-            job.state='needs_attention';job.error='The local engine was interrupted. Saved output recovery was checked. Retry on This PC when you are ready; generation will not restart automatically.';this.save(job);
+            job.state='needs_attention';job.error="Seed PC stopped while making this take, and nothing was saved. Try again on Seed PC when you're ready; it won't restart on its own.";this.save(job);
             return;
           }
           if (
@@ -637,19 +670,20 @@ export class Jobs {
           this.pool.diagnostics?.error('job.execute',error,{worker_id:worker.id,job_id:job.id});
           if (this.stopped) return;
           if (job.worker?.receipt?.manifest && this.finishCancellation(job)) return;
+          // Finished here; only the GPU's acknowledgement failed. The result stands, and the next pass asks again.
+          if (isTerminal(job.state) && job.worker?.receipt?.manifest) return;
           if (job.worker?.receipt?.manifest?.state === "completed") {
             job.recovery_blocked = actionableTransfer(error);
-            job.error =
-              "The output is retained on the worker. Retry saving after checking local storage or reconnecting.";
+            job.error = notSaved(job);
           } else if(localExecutor(worker)&&worker.interrupted){
-            job.state='needs_attention';job.error=error instanceof Error?error.message:'Local recovery needs attention.';
+            job.state='needs_attention';job.error=error instanceof Error?error.message:'Seed PC needs attention.';
           } else if (job.submission_pending) {
             job.state = "needs_attention";
             job.error =
-              "The worker has not confirmed this submission. Seed will check its receipt without generating it twice.";
+              "The GPU hasn't confirmed it started this take. Seed will check again without making it twice.";
           } else {
             job.error =
-              localExecutor(worker)?'Cannot reach This PC. Check its worker card for recovery options.':"Cannot reach the assigned worker. Reconnect it or quit the rental; no replacement worker will be rented automatically.";
+              localExecutor(worker)?"Can't reach Seed PC. Open the GPUs page for recovery options.":"Can't reach this take's GPU. Reconnect or release it on the GPUs page; Seed won't start another GPU on its own.";
           }
           this.save(job);
         }
@@ -657,6 +691,27 @@ export class Jobs {
       if (!background) await task;
     }
     if (!background) await Promise.allSettled([...this.inFlight.values()].map(entry => entry.task));
+  }
+  /** What the owner must do before a queued take can start, in the words the GPUs page uses; nothing for ordinary queueing. */
+  private waitingReason({ request, worker }: Job) {
+    const local = this.pool.local, seedPc = local?.get(), cls = workerClassFor(request.workflow);
+    if (request.target !== 'cloud' && seedPc?.enabled && local!.supports(request)) {
+      if (seedPc.issue) return 'Seed PC needs attention. Open GPUs to see why.';
+      if (seedPc.paused) return 'Resume Seed PC on the GPUs page to make this.';
+      return; // Ordinary queueing: Seed PC takes it when it is free.
+    }
+    if (request.target === 'local')
+      return seedPc?.enabled ? 'Seed PC cannot make these settings. Check the size, shape and styles of this draft.'
+        : 'Turn on Seed PC on the GPUs page to make this here.';
+    if (worker!.loras.length)
+      return `Waiting for ${cls === 'image' ? 'an image' : 'a video'} GPU with this draft's styles. Start a new GPU if you added them after the running one started.`;
+    if (usesKlein(request))
+      return this.pool.cloudWorkflows().includes(KLEIN_CAPABILITY) ? 'Waiting for a ready image GPU that has FLUX 3 Image Klein. Start an image GPU to make this.'
+        : local?.supports(request) ? 'Cloud GPUs here cannot run FLUX 3 Image Klein. Cancel and make it again with Runs on: Seed PC.'
+        : 'No GPU here can run FLUX 3 Image Klein: cloud GPUs do not have it, and Seed PC needs it installed (GPUs → Seed PC → Add Klein).';
+    if (request.workflow === 'image-to-image')
+      return 'Waiting for an image GPU that can edit images. Start a new image GPU if the running one is on an older release.';
+    // Ordinary queueing: a ready GPU takes it.
   }
   private track(id: string, action: () => Promise<void>, recovery = false) {
     // Reserve before action's first await; an older task cannot delete its successor.
@@ -733,8 +788,15 @@ export class Jobs {
         if (!receipt) {
           job.submission_pending = false;
           job.state = "failed";
-          job.error =
-            "The worker rejected these settings before generation. Review the request and worker version.";
+          // The worker's own reason is a settings check, never prompt text: show it so the fix is clear.
+          const said = (() => {
+            const d = error.detail as { error?: unknown; detail?: unknown; message?: unknown } | string | undefined;
+            const text = typeof d === 'string' ? d : typeof d?.error === 'string' ? d.error : typeof d?.detail === 'string' ? d.detail : typeof d?.message === 'string' ? d.message : '';
+            return text && text.length <= 200 ? text.replace(/\s+/g, ' ').trim() : '';
+          })();
+          job.error = said
+            ? `Generation did not start: the GPU rejected a setting (${said}). Change the size or shape and make it again.`
+            : "Generation did not start: the GPU rejected a setting. Change the size or shape and make it again.";
           this.save(job);
           this.pool.complete(job.id);
           return;
@@ -751,13 +813,13 @@ export class Jobs {
   private async advance(job: Job, w: ExecutionWorker, found?: WorkerReceipt, engineSession?: string | null) {
     const driver = this.pool.executionDriver(w);
     if (job.worker?.quit_now || this.get(job.id)?.worker?.quit_now) return;
-    if (this.cancelled(job.id) && !terminal.includes(job.state))
+    if (this.cancelled(job.id) && !isTerminal(job.state))
       await driver.cancel(executionId(job));
     const record = found ?? job.worker!.receipt ?? (await driver.receipt(executionId(job)));
     if (!record) {
       job.state = "needs_attention";
       job.error =
-        "The worker has no receipt for this request. Retry checks the worker and safely resubmits the original request if needed.";
+        "The GPU has no record of this take. Check again asks it, and starts the take again only if it never ran.";
       this.save(job);
       return;
     }
@@ -770,14 +832,14 @@ export class Jobs {
         engineSession = (await driver.probe()).session_id;
       if (record.submission?.engine_session_id && engineSession === null && !job.worker!.interruption) {
         job.state = 'needs_attention';
-        job.error = 'The worker has a receipt, but its engine is not ready. View the worker while Seed continues checking for a result.';
+        job.error = "The GPU started this take but isn't ready now. Seed keeps checking for the result; open the GPUs page to see why.";
         this.save(job);
         return;
       }
       if (job.worker!.interruption || (engineSession && record.submission?.engine_session_id && engineSession !== record.submission.engine_session_id)) {
         job.worker!.interruption = 'engine_interrupted';
         job.state = 'needs_attention';
-        job.error = 'The worker restarted after accepting this request, before saving a result. Automatic replay is unsafe; view the worker to reconnect or quit.';
+        job.error = "The GPU restarted after starting this take, before it was saved. Seed won't start it again on its own; reconnect or release the GPU on the GPUs page.";
         this.save(job);
         return;
       }
@@ -790,7 +852,7 @@ export class Jobs {
     if(localExecutor(w)&&record.manifest.state==='cancelled'&&!this.cancelled(job.id)&&w.quit_mode!=='now'){
       job.worker!.interruption='engine_interrupted';
       job.state='needs_attention';
-      job.error='The local engine stopped without a cancellation request. The prior attempt and any output files are preserved. Retry on This PC after recovery.';
+      job.error="Seed PC stopped this take without being asked to. Anything it made is kept; try again on Seed PC once it has recovered.";
       this.save(job);return; // No acknowledgement: preserve the old attempt for explicit recovery.
     }
     delete job.worker!.interruption;
@@ -807,13 +869,24 @@ export class Jobs {
       }
       job.error =
         record.manifest.state === "failed"
-          ? "The worker could not generate this output. Review the request or reconnect the worker."
+          ? `The GPU couldn't make this ${media(job)}. Check the draft's settings, or reconnect the GPU on the GPUs page.`
           : null;
       this.save(job);
     }
     if (this.get(job.id)?.worker?.quit_now) return;
     this.finishCancellation(job);
-    await driver.acknowledge(executionId(job), record.manifest_digest!);
+    try {
+      await driver.acknowledge(executionId(job), record.manifest_digest!);
+    } catch (error) {
+      // Asked again on the next pass. A GPU that refuses for good, or keeps failing, is freed and flagged instead, so
+      // a rental never bills on for a take Seed already has.
+      const tries = error instanceof WorkerHttpError && error.permanent ? ACK_TRIES : (this.ackFailures.get(job.id) ?? 0) + 1;
+      this.ackFailures.set(job.id, tries);
+      if (tries < ACK_TRIES) throw error;
+      this.pool.diagnostics?.error('job.acknowledge', error, { worker_id: w.id, job_id: job.id });
+      this.pool.unconfirmed(job.id);
+      return;
+    }
     job.worker!.acknowledged = true;
     this.save(job);
     this.pool.complete(job.id);
@@ -880,7 +953,7 @@ export class Jobs {
     if (this.get(job.id)?.worker?.quit_now) return;
     if (this.finishCancellation(job)) return;
     Object.assign(metadata, {
-      ...(job.request.workflow==='image-to-image'?{runtime_profile:QWEN_PROFILE,runtime_settings:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{}),
+      ...(job.request.workflow==='image-to-image'?{runtime_profile:usesKlein(job.request)?KLEIN_PROFILE:QWEN_PROFILE,runtime_settings:usesKlein(job.request)?KLEIN_SETTINGS:QWEN_SETTINGS,source_asset_id:job.request.references?.find(r=>r.role==='source')?.asset_id,input_asset_ids:job.request.references?.map(r=>r.asset_id),...(job.request.output.aspect==='source'?{resolved_width:job.prepared?.[0]?.width,resolved_height:job.prepared?.[0]?.height}:{resolved_width:kleinCanvas(resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect)).width,resolved_height:kleinCanvas(resolveDimensions('text-to-image',job.request.output.size,job.request.output.aspect)).height})}:{}),
       job_id: job.id,
       mode: job.request.mode,
       mime_type: output.mime_type,

@@ -10,7 +10,7 @@ import type { FastifyInstance } from 'fastify';
 import { Server } from '@tus/server';
 import { FileStore } from '@tus/file-store';
 import { randomUUID, createHash } from 'node:crypto';
-import { mkdirSync, readFileSync, existsSync, renameSync, statSync, statfsSync, createReadStream } from 'node:fs';
+import { mkdirSync, existsSync, renameSync, statSync, statfsSync, createReadStream } from 'node:fs';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 import path from 'node:path';

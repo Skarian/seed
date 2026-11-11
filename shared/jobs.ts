@@ -50,7 +50,7 @@ export type JobRecord = {
     elapsed_to_saved_seconds?: number;
   };
   id: string;
-  state: string;
+  state: JobState;
   submission_id: string;
   submission_index: number;
   request: ImageRequest;
@@ -76,48 +76,59 @@ export type JobRecord = {
   submission_pending?: boolean;
   recovery_blocked?: boolean;
 };
-export function jobState(job: JobRecord) {
-  if (job.state === "completed") return "completed";
-  if (job.recovery_blocked) return "failed";
-  return (
-    (
-      {
-        needs_attention: "unknown",
-        uploading: "starting",
-        submitting: "starting",
-        copying: "saving",
-        cancel_requested: "cancelling",
-      } as Record<string, string>
-    )[job.state] ?? job.state
-  );
+/**
+ * How a job stands: the one reading every route and screen uses. `held` waits for review before it may run;
+ * `unsaved` was made on a GPU but has not reached this PC yet; `uncertain` lost contact mid-run.
+ */
+export type JobPhase =
+  | 'queued' | 'held' | 'starting' | 'running' | 'saving' | 'unsaved' | 'cancelling' | 'uncertain'
+  | 'completed' | 'failed' | 'cancelled';
+/** Every stored job state, and the phase it shows as. */
+const phases = {
+  queued: 'queued', blocked: 'held', uploading: 'starting', submitting: 'starting', running: 'running',
+  copying: 'saving', cancel_requested: 'cancelling', needs_attention: 'uncertain',
+  completed: 'completed', failed: 'failed', cancelled: 'cancelled',
+} as const satisfies Record<string, JobPhase>;
+export type JobState = keyof typeof phases;
+export const jobStates = Object.keys(phases) as JobState[];
+export const isJobState = (value: unknown): value is JobState => typeof value === 'string' && Object.hasOwn(phases, value);
+const finished: JobPhase[] = ['completed', 'failed', 'cancelled'];
+/** A stored state no job leaves. */
+export const isTerminal = (state: string) => (finished as string[]).includes(state);
+export function jobPhase(job: Pick<JobRecord, 'state' | 'recovery_blocked'>): JobPhase {
+  // A state this release does not know (an older or newer record) reads as uncertain, never as progress.
+  const phase: JobPhase = isJobState(job.state) ? phases[job.state] : 'uncertain';
+  return job.recovery_blocked && !finished.includes(phase) ? 'unsaved' : phase;
 }
-export const jobStateLabels: Record<string, string> = {
-  queued: "Queued",
-  starting: "Starting",
-  running: "Generating",
-  saving: "Saving",
-  cancelling: "Cancelling",
-  completed: "Complete",
-  failed: "Failed",
-  blocked: "Needs action",
-  unknown: "Status unknown",
-  cancelled: "Cancelled",
+/**
+ * How a stored job may move. Any open job can fail, be cancelled (or asked to cancel), or lose contact. Otherwise it
+ * moves forward through the pipeline (queued, uploading, submitting, running, copying, completed), skipping steps a
+ * fast worker already finished; a held request is released to the queue, an upload can start over, and a job that
+ * lost contact or was asked to cancel can resume anywhere. A finished job never changes.
+ */
+const stops: JobState[] = ['failed', 'cancelled', 'cancel_requested', 'needs_attention'];
+const resume: JobState[] = ['queued', 'uploading', 'submitting', 'running', 'copying', 'completed', ...stops];
+const moves: Record<JobState, JobState[]> = {
+  blocked: ['queued', ...stops],
+  queued: ['uploading', 'submitting', 'running', 'copying', 'completed', ...stops],
+  uploading: ['queued', 'submitting', 'running', 'copying', 'completed', ...stops],
+  submitting: ['running', 'copying', 'completed', ...stops],
+  running: ['copying', 'completed', ...stops],
+  copying: ['completed', ...stops],
+  cancel_requested: resume,
+  needs_attention: resume,
+  completed: [],
+  failed: [],
+  cancelled: [],
 };
-export const jobActive = (j: JobRecord) =>
-  !["completed", "failed", "cancelled", "unknown", "blocked"].includes(
-    jobState(j),
-  );
+export const jobCanMove = (from: JobState, to: JobState) =>
+  isJobState(from) && isJobState(to) && (from === to || moves[from].includes(to));
+/** Work a GPU is doing or will do. */
+export const jobActive = (job: JobRecord) =>
+  ['queued', 'starting', 'running', 'saving', 'cancelling'].includes(jobPhase(job));
 /** Acknowledging old API history must not hide unresolved worker assignments. */
-export const jobNeedsAttention = (job: JobRecord) =>
-  ['failed', 'blocked'].includes(jobState(job)) ||
-  (jobState(job) === 'unknown' && (Boolean(job.worker || job.recovery) || !job.uncertainty_acknowledged));
-export function groupJobs(jobs: JobRecord[]) {
-  const groups = new Map<string, JobRecord[]>();
-  for (const job of jobs) {
-    const key = job.submission_id || job.id;
-    groups.set(key, [...(groups.get(key) ?? []), job]);
-  }
-  return [...groups.values()].map((g) =>
-    g.sort((a, b) => a.submission_index - b.submission_index),
-  );
+export function jobNeedsAttention(job: JobRecord) {
+  const phase = jobPhase(job);
+  if (phase === 'uncertain') return Boolean(job.worker || job.recovery) || !job.uncertainty_acknowledged;
+  return phase === 'failed' || phase === 'held' || phase === 'unsaved';
 }

@@ -111,3 +111,8 @@ it('removes legacy catalog entries without deleting local binaries or unrelated 
   expect(f.loras.all().map(l=>l.id)).toEqual(['other']);
   expect(readFileSync(binary,'utf8')).toBe('keep');
 });
+it('refuses to import a style the owner already has, keeping their name and guidance',async()=>{
+  const f=fixture();await f.imports.add({...f.input,name:'Tonal study',description:'Cold moonlit grade'});
+  await expect(f.imports.add({...f.input,name:'Someone else',description:'Other guidance'})).rejects.toThrow('You already have this style as “Tonal study”');
+  expect(f.loras.groups('sfw')[0]!.name).toBe('Tonal study');expect(f.loras.groups('sfw')[0]!.description).toBe('Cold moonlit grade');
+});

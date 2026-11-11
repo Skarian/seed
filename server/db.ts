@@ -2,6 +2,8 @@ import Database from 'better-sqlite3';
 import path from 'node:path';
 import { existsSync } from 'node:fs';
 import type { LibraryAsset } from '../shared/studio.js';
+import { choicesFromPicks, shotLabel, type ProjectChoices } from '../shared/choices.js';
+import { shotsFromBrief } from '../shared/shots.js';
 
 export function openDatabase(dataDirectory: string) {
   const db = new Database(path.join(dataDirectory, 'studio.sqlite'));
@@ -13,7 +15,7 @@ export function openDatabase(dataDirectory: string) {
     db.exec('CREATE TABLE IF NOT EXISTS schema_migrations (version INTEGER PRIMARY KEY, applied_at TEXT NOT NULL)');
     db.transaction(() => {
       const latest = db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as {version:number|null};
-      if (latest.version === 7 || latest.version === 8 || latest.version === 9 || latest.version === 10) return;
+      if (latest.version !== null && latest.version >= 7 && latest.version <= 12) return;
       if (latest.version === 6) {
         // Preserve old held requests instead of unexpectedly submitting them during migration.
         const state=db.prepare('SELECT paused FROM dispatcher_state WHERE id=1').get() as {paused:number};
@@ -83,6 +85,7 @@ export function openDatabase(dataDirectory: string) {
         CREATE INDEX IF NOT EXISTS asset_collections ON collection_assets(asset_id);`);
       db.prepare('INSERT OR IGNORE INTO schema_migrations VALUES (10,?)').run(new Date().toISOString());
     })();
+    migrateChats(db, dataDirectory);
     return db;
   } catch (error) {
     db.close();
@@ -90,23 +93,106 @@ export function openDatabase(dataDirectory: string) {
   }
 }
 
-export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string, filters: {favorites?:boolean;collection_id?:string} = {}): LibraryAsset[] {
+/**
+ * Version 11: a project keeps the owner's choices as a typed record (not "ref:Name" and "shot:<key>:image" keys).
+ * Version 12: a turn is stored once, as its assistant message: what it worked on moves onto its transcript, model
+ * usage onto the project, and the separate run records (with their unread copies of history) go.
+ */
+function migrateChats(db: Database.Database, dataDirectory: string) {
+  const version = (db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get() as { version: number }).version;
+  if (version !== 10 && version !== 11) return;
+  const rows = db.prepare('SELECT id, body_json FROM chats').all() as Array<{ id: string; body_json: string }>;
+  const backup = path.join(dataDirectory, 'studio-before-chat-v' + (version + 1) + '.sqlite');
+  if (rows.length && !existsSync(backup)) db.prepare('VACUUM INTO ?').run(backup);
+  db.transaction(() => {
+    const update = db.prepare('UPDATE chats SET body_json=? WHERE id=?');
+    for (const row of rows) {
+      const chat = JSON.parse(row.body_json);
+      if (chat.picks) chat.choices = choicesFromPicks(chat.picks);
+      delete chat.picks;
+      const runs: Array<Record<string, any>> = chat.runs ?? [];
+      for (const run of runs) {
+        const transcript = chat.messages?.find((m: { id: string }) => m.id === run.id)?.transcript;
+        if (transcript)
+          transcript.scope = {
+            workflow: run.workflow ?? null,
+            source_assets: run.source_assets ?? [],
+            ...(run.target_request_id ? { target_request_id: run.target_request_id } : {}),
+          };
+      }
+      chat.accounting = [...(chat.accounting ?? []), ...runs.flatMap(run => run.accounting ?? [])];
+      delete chat.runs;
+      update.run(JSON.stringify(chat), row.id);
+    }
+    if (version === 10) db.prepare('INSERT INTO schema_migrations VALUES (11,?)').run(new Date().toISOString());
+    db.prepare('INSERT INTO schema_migrations VALUES (12,?)').run(new Date().toISOString());
+  })();
+}
+
+export type AssetFilters = {favorites?:boolean;collection_id?:string;q?:string;source?:'made'|'uploaded';chat_id?:string;order?:'newest'|'oldest';approved?:boolean};
+/** What each asset is used as across projects: approved references and chosen takes. */
+function usedAs(db: Database.Database) {
+  const map = new Map<string, string[]>(), refs = new Set<string>();
+  const add = (asset: string, label: string) => map.set(asset, [...(map.get(asset) ?? []), label]);
+  for (const row of db.prepare('SELECT body_json FROM chats').all() as Array<{ body_json: string }>) {
+    let chat: { choices?: ProjectChoices; brief?: string };
+    try { chat = JSON.parse(row.body_json); } catch { continue; }
+    const { choices } = chat;
+    if (!choices) continue;
+    for (const [name, asset] of Object.entries(choices.references)) if (asset !== 'skip') { refs.add(asset); add(asset, name + '’s reference'); }
+    const shots = shotsFromBrief(chat.brief);
+    for (const [shot, take] of Object.entries(choices.takes)) {
+      const label = 'Chosen for ' + shotLabel(shots, shot);
+      for (const asset of [take.image, take.clip]) if (asset) add(asset, label);
+    }
+  }
+  return { map, refs };
+}
+export function listAssets(db: Database.Database, cursor = '', limit = 50, mode?: 'sfw' | 'nsfw', kind?:string, filters: AssetFilters = {}): LibraryAsset[] {
+  const oldest = filters.order === 'oldest';
+  // Search matches every word, in any order and anywhere in the prompt, title or note ("Maren brick-red").
+  // Each word must start a word in the text (punctuation counts as a space), so "Ines" never matches "bioluminescent".
+  const terms = (filters.q ?? '').toLowerCase().replace(/[%_]/g, '').replace(/[()[\]<>"“”‘’'\-/,.:;!?]/g, ' ').split(/\s+/).filter(Boolean).map(w => '% ' + w + '%');
+  const q = terms[0] ?? null, more = terms.slice(1);
+  const used = usedAs(db);
   const rows = db.prepare(`WITH items AS (
     SELECT a.id, a.kind, a.name, a.created_at,
+      j.id AS job_id,
+      -- Only a crop or picked frame (no job of its own) is derived; an edit's source input is not its origin.
+      CASE WHEN json_extract(a.metadata_json, '$.job_id') IS NULL THEN json_extract(a.metadata_json, '$.source_asset_id') END AS source_asset_id,
+      json_extract(a.metadata_json, '$.crop.shape') AS crop_shape,
+      json_extract(j.snapshot_json, '$.request.title') AS title,
+      json_extract(j.snapshot_json, '$.source.chat_id') AS chat_id,
+      json_extract(j.snapshot_json, '$.submission_index') AS submission_index,
+      json_extract(j.snapshot_json, '$.request.count') AS batch_count,
+      ' ' || replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(replace(lower(COALESCE(json_extract(j.snapshot_json, '$.request.prompt'), '') || ' ' || COALESCE(json_extract(j.snapshot_json, '$.request.title'), '') || ' ' || COALESCE((SELECT note FROM asset_notes WHERE id=a.id), '') || ' ' || a.name), '(', ' '), ')', ' '), '[', ' '), ']', ' '), '<', ' '), '>', ' '), '"', ' '), '“', ' '), '”', ' '), '‘', ' '), '’', ' '), '''', ' '), '-', ' '), '/', ' '), ',', ' '), '.', ' '), ':', ' '), ';', ' '), '!', ' '), '?', ' '), char(10), ' ') AS haystack,
       json_extract(a.metadata_json, '$.executor') AS executor,
       json_extract(a.metadata_json, '$.execution_profile') AS execution_profile,
       COALESCE(json_extract(a.metadata_json, '$.mode'), s.mode, 'sfw') AS mode,
-      EXISTS(SELECT 1 FROM asset_favorites WHERE asset_id=a.id) AS favorite
+      EXISTS(SELECT 1 FROM asset_favorites WHERE asset_id=a.id) AS favorite,
+      (SELECT note FROM asset_notes WHERE id=a.id) AS note,
+      json_extract(a.metadata_json, '$.width') AS width,
+      json_extract(a.metadata_json, '$.height') AS height,
+      json_extract(j.snapshot_json, '$.request.prompt') AS prompt
     FROM assets a
+    LEFT JOIN assets src ON json_extract(a.metadata_json, '$.job_id') IS NULL AND src.id=json_extract(a.metadata_json, '$.source_asset_id')
+    LEFT JOIN jobs j ON j.id=COALESCE(json_extract(a.metadata_json, '$.job_id'), json_extract(src.metadata_json, '$.job_id'))
     LEFT JOIN sequence_frames f ON f.asset_id=a.id
     LEFT JOIN sequences s ON s.id=f.sequence_id
     WHERE COALESCE(json_extract(a.metadata_json, '$.state'), 'ready')='ready'
       AND s.pending_json IS NULL
   ) SELECT * FROM items WHERE (? IS NULL OR mode=?) AND (? IS NULL OR kind=?)
     AND (?=0 OR favorite=1)
+    AND (?=0 OR id IN (SELECT value FROM json_each(?)))
     AND (? IS NULL OR EXISTS(SELECT 1 FROM collection_assets ca JOIN collections c ON c.id=ca.collection_id WHERE ca.asset_id=items.id AND c.id=? AND c.mode=items.mode))
-    AND (? = '' OR (created_at,id) < (SELECT created_at,id FROM items WHERE id=?))
-    ORDER BY created_at DESC,id DESC LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.collection_id??null,filters.collection_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number}>;
-  return rows.map(({executor,execution_profile,...row})=>({...row,favorite:Boolean(row.favorite),
+    AND (? IS NULL OR haystack LIKE ?)${more.map(() => ' AND haystack LIKE ?').join('')}
+    AND (? IS NULL OR (?='made' AND job_id IS NOT NULL) OR (?='uploaded' AND job_id IS NULL))
+    AND (? IS NULL OR chat_id=?)
+    AND (? = '' OR (created_at,id) ${oldest ? '>' : '<'} (SELECT created_at,id FROM items WHERE id=?))
+    ORDER BY created_at ${oldest ? 'ASC' : 'DESC'},id ${oldest ? 'ASC' : 'DESC'} LIMIT ?`).all(mode??null,mode??null,kind??null,kind??null,filters.favorites?1:0,filters.approved?1:0,JSON.stringify([...used.refs]),filters.collection_id??null,filters.collection_id??null,q,q,...more,filters.source??null,filters.source??null,filters.source??null,filters.chat_id??null,filters.chat_id??null,cursor,cursor,limit) as Array<Omit<LibraryAsset,'favorite'> & {favorite:number;haystack?:string;job_id:string|null;source_asset_id:string|null;crop_shape:string|null;title:string|null;chat_id:string|null;submission_index:number|null;batch_count:number|null;note:string|null;width:number|null;height:number|null;prompt:string|null}>;
+  // When a search matched the prompt, return a few words around the match (never the whole prompt).
+  const words = terms.map(t => t.slice(2, -1));
+  const excerpt = (text: string | null) => { if (!text || !words.length) return undefined; const low = text.toLowerCase(), at = low.indexOf(words[0]!); if (at < 0 || !words.every(w => low.includes(w))) return undefined; const start = at > 30 ? text.lastIndexOf(' ', at - 30) + 1 : 0, end = Math.min(text.length, at + words[0]!.length + 50); return (start ? '…' : '') + text.slice(start, end).trim() + (end < text.length ? '…' : ''); };
+  return rows.map(({executor,execution_profile,haystack:_haystack,job_id,source_asset_id,crop_shape,title,chat_id,submission_index,batch_count,note,width,height,prompt,...row})=>({...row,favorite:Boolean(row.favorite),...(excerpt(prompt)?{prompt_match:excerpt(prompt)}:{}),...(note?{note}:{}),...(used.map.get(row.id)?{used_as:used.map.get(row.id)}:{}),...(width&&height?{width:Number(width),height:Number(height)}:{}),...(!source_asset_id&&Number(batch_count)>1&&submission_index!=null?{variant:Number(submission_index)+1,variants:Number(batch_count)}:{}),...(job_id&&!source_asset_id?{job_id}:{}),...(source_asset_id?{source_asset_id}:{}),...(crop_shape?{crop_shape}:{}),...(title?{title}:{}),...(chat_id?{chat_id}:{}),
     ...(executor==='local'||executor==='cloud'?{executor}:{}),...(typeof execution_profile==='string'?{execution_profile}:{})}));
 }

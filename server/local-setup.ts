@@ -6,6 +6,7 @@ import {fileURLToPath} from 'node:url';
 import type {StudioPaths} from './storage.js';
 import {localLease} from '../scripts/local-lock.mjs';
 import {engineSpec,hardwareProfile,hardwareProfiles} from './hardware.js';
+import {credential} from './credential-store.js';
 
 const packageRoot=path.resolve(path.dirname(fileURLToPath(import.meta.url)),'..');
 type Model={path:string;size:number;sha256:string};
@@ -16,8 +17,10 @@ export class LocalSetup {
   private task?:Promise<void>;
   private starting=false;
   private closing=false;
-  private progress:{state:'idle'|'running'|'failed'|'complete';phase:string;error?:string}={state:'idle',phase:'Not set up'};
+  private progress:{state:'idle'|'running'|'failed'|'complete';phase:string;error?:string;note?:string}={state:'idle',phase:'Not set up'};
+  private readonly paths:StudioPaths;
   constructor(paths:StudioPaths,root?:string){
+    this.paths=paths;
     this.root=path.resolve(root??process.env.SEED_LOCAL_ROOT??path.join(paths.data,'local-worker'));
     try{this.progress=JSON.parse(readFileSync(path.join(this.root,'setup-status.json'),'utf8'));}catch{}
     if(this.progress.state==='running')this.progress={state:'failed',phase:'Setup interrupted',error:'Resume setup to verify existing files and continue downloads.'};
@@ -30,6 +33,14 @@ export class LocalSetup {
     const profile=gpu===undefined?hardwareProfiles()[0]:hardwareProfile(gpu);
     const files:Model[]=[...await read('models-image.json'),...(profile?await read(profile.manifest):[]),...(await read('qwen-model.json')).files];
     return [...new Map(files.map(file=>[file.path,file])).values()];
+  }
+  /** FLUX 3 Image Klein is optional: gated on Hugging Face, so it needs the owner's saved token and accepted licence. */
+  private async klein(){
+    const spec=JSON.parse(await readFile(path.join(packageRoot,'worker','klein-model.json'),'utf8')) as {files:Model[];total_bytes:number};
+    let complete=0;
+    for(const model of spec.files){try{const file=await open(path.join(this.root,'models',model.path));try{if((await file.stat()).size===model.size)complete++;}finally{await file.close();}}catch{}}
+    let token=false;try{token=Boolean(credential(this.paths,'huggingFaceToken'));}catch{}
+    return {installed:complete===spec.files.length,bytes_total:spec.total_bytes,token};
   }
   private async persist(){
     const file=path.join(this.root,'setup-status.json');
@@ -51,7 +62,7 @@ export class LocalSetup {
     }catch{}
     let disk:number|undefined,candidate=this.root;
     for(;;){try{const space=await statfs(candidate);disk=space.bavail*space.bsize;break;}catch{const parent=path.dirname(candidate);if(parent===candidate)break;candidate=parent;}}
-    return {supported:process.platform==='win32',installed:runtime&&verified&&complete===models.length,...this.progress,
+    return {supported:process.platform==='win32',installed:runtime&&verified&&complete===models.length,...this.progress,klein:await this.klein(),
       disk_free_bytes:disk,required_additional_bytes:Math.max(0,models.reduce((sum,file)=>sum+file.size,0)-bytes)+(runtime?2:36)*1024**3,
       bytes_done:bytes,bytes_total:models.reduce((sum,file)=>sum+file.size,0),files_done:complete,files_total:models.length};
   }
@@ -68,22 +79,29 @@ export class LocalSetup {
     this.progress={state:'running',phase:'Installing native runtime'};
     await this.persist();
     this.task=(async()=>{
-      for(const mode of ['runtime','models']){
+      const klein=await this.klein();
+      for(const mode of ['runtime','models',...(!klein.installed&&klein.token?['klein']:[])]){
         if(this.closing)throw Error('Setup interrupted by shutdown.');
-        this.progress.phase=mode==='runtime'?'Installing native runtime':'Downloading and verifying models';
+        this.progress.phase=mode==='runtime'?'Installing native runtime':mode==='klein'?'Downloading FLUX 3 Image Klein':'Downloading and verifying models';
         await this.persist();
-        await new Promise<void>((resolve,reject)=>{
+        try{await new Promise<void>((resolve,reject)=>{
           const child=spawn(process.execPath,[path.join(packageRoot,'scripts/setup-local-worker.mjs'),mode],{windowsHide:true,stdio:['pipe','pipe','pipe'],
             env:{...Object.fromEntries(Object.entries(process.env).filter(([key])=>!/(KEY|TOKEN|SECRET|PASSWORD)/i.test(key)&&!key.startsWith('T3_'))),SEED_LOCAL_ROOT:this.root,SEED_SETUP_PARENT:String(process.pid)}});
           this.child=child;let stderr='';
           child.stdin?.on('error',()=>{});
+          // The gated download reads the token from its first stdin line; the pipe stays open as the parent lifeline.
+          if(mode==='klein')child.stdin?.write(credential(this.paths,'huggingFaceToken')+'\n');
           child.stderr?.on('data',(chunk:Buffer)=>{stderr=(stderr+chunk.toString()).slice(-4000);});
           child.stdout?.on('data',()=>{});
           child.on('error',reject);child.on('exit',code=>{if(this.child===child)this.child=undefined;code===0?resolve():reject(Error('Local '+mode+' setup failed. Retry to resume verified downloads. '+stderr.slice(-500)));});
-        });
+        });}catch(error){
+          // Klein is optional: the PC works without it, so its failure is a note, not a failed setup.
+          if(mode!=='klein')throw error;
+          this.progress.note='FLUX 3 Image Klein did not download. Accept its licence on Hugging Face with the account of your saved token, then set up again.';
+        }
         if(this.closing)throw Error('Setup interrupted by shutdown.');
       }
-      this.progress={state:'complete',phase:'Ready to enable'};
+      this.progress={state:'complete',phase:'Ready to enable',...(this.progress.note?{note:this.progress.note}:{})};
     })().catch(error=>{this.progress={state:'failed',phase:'Setup needs attention',error:error instanceof Error?error.message:'Setup failed.'};})
       .finally(async()=>{try{await this.persist();}catch{this.progress.error='Could not save setup status. Check the local installation directory.';}finally{this.task=undefined;}});
     return this.status();

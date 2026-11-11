@@ -3,7 +3,6 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { StudioPaths } from "./storage.js";
 import type { Loras, LoraSelection } from "./loras.js";
 import type { CredentialField } from "../shared/credentials.js";
 import type {
@@ -16,6 +15,7 @@ import type {
   WorkerClass,
   Provider,
 } from "../shared/pool.js";
+import { canRun, gpuNeed, rentalState, type GpuNeed } from "../shared/pool.js";
 import type {
   PoolDependencies,
   RentalRecord,
@@ -49,8 +49,7 @@ export class WorkerPool {
   }
   claimExecutor(job:string,request:ImageRequest,loras:LoraSelection[],created_at:string):ExecutionWorker|null {
     if(request.target!=='local'){
-      const video=request.workflow.endsWith('video');
-      const rented=this.claim(job,video?'video':'image',loras,created_at,request.workflow);
+      const rented=this.claim(job,gpuNeed(request,loras,created_at));
       if(rented)return rented;
     }
     return request.target==='cloud'?null:this.local?.claim(job,request)??null;
@@ -71,7 +70,6 @@ export class WorkerPool {
   readonly startupLogs: StartupLogs;
   constructor(
     private db: Database.Database,
-    private paths: StudioPaths,
     private loras: Loras,
     readonly dependencies: PoolDependencies,
     readonly diagnostics?: Diagnostics,
@@ -126,11 +124,25 @@ export class WorkerPool {
     this.save(w);
     return w;
   }
+  /** What a cloud GPU can make: what a fresh worker of each published release offers, and what running workers report. */
+  cloudWorkflows(active: PoolWorker[] = this.all().map((w) => this.publicWorker(w)).filter((w) => w.state !== "released")) {
+    const out = new Set<string>();
+    for (const role of ["image", "video"] as const) {
+      try {
+        for (const w of this.release(role).workflows ?? (role === "image" ? ["text-to-image", "image-to-image"] : ["text-to-video", "reference-to-video"])) out.add(w);
+      } catch {
+        /* no published release for this role: nothing new can be rented */
+      }
+    }
+    for (const w of active) for (const f of w.workflows ?? []) out.add(f);
+    return [...out];
+  }
   snapshot(): PoolSnapshot {
     const workers = this.all().map((w) => this.publicWorker(w)),
       active = workers.filter((w) => w.state !== "released");
     return {
       server_time: this.date(),
+      cloud_workflows: this.cloudWorkflows(active),
       ...(this.local?{local:this.local.get()}:{}),
       workers,
       summary: {
@@ -149,6 +161,7 @@ export class WorkerPool {
           0,
         ),
         estimated_spend: active.reduce((n, w) => n + w.estimated_spend, 0),
+        spend_24h: workers.filter((w) => w.state !== "released" || Date.parse(w.released_at ?? "") >= this.now() - 86_400_000).reduce((n, w) => n + w.estimated_spend, 0),
         image: active.filter((w) => w.worker_class === "image").length,
         video: active.filter((w) => w.worker_class === "video").length,
       },
@@ -202,7 +215,7 @@ export class WorkerPool {
       gpu: w.gpu,
       vram_gb: w.vram_gb,
       region: w.region,
-      state: w.state,
+      state: rentalState(w),
       hourly: w.hourly,
       compute_hourly: w.compute_hourly,
       storage_hourly: w.storage_hourly,
@@ -219,6 +232,10 @@ export class WorkerPool {
       current_job_id: w.current_job_id,
       current_activity: w.current_activity,
       quit_mode: w.quit_mode,
+      idle_release_minutes: w.idle_release_minutes,
+      max_minutes: w.max_minutes,
+      idle_since: w.idle_since,
+      released_reason: w.released_reason,
       issue: w.issue,
       preparation: w.preparation,
       installed_loras: w.installed_loras,
@@ -234,7 +251,7 @@ export class WorkerPool {
       path.dirname(fileURLToPath(import.meta.url)),
       "../worker",
     );
-    let entry: { image?: string; disk_gb: number };
+    let entry: { image?: string; disk_gb: number; workflows?: string[] };
     try {
       entry = JSON.parse(
         readFileSync(path.join(root, "releases.json"), "utf8"),
@@ -261,6 +278,7 @@ export class WorkerPool {
     ].reduce((a, b) => a + b, 0);
     return {
       image: entry.image,
+      workflows: entry.workflows,
       disk_gb: entry.disk_gb + Math.ceil((extraBytes * 1.2) / 1e9),
       manifest: JSON.parse(
         readFileSync(path.join(root, `models-${role}.json`), "utf8"),
@@ -334,7 +352,9 @@ export class WorkerPool {
       !input.selections.length ||
       input.selections.length > 16 ||
       !Number.isFinite(input.max_hourly) ||
-      input.max_hourly < 0
+      input.max_hourly < 0 ||
+      (input.idle_release_minutes !== undefined && (!Number.isInteger(input.idle_release_minutes) || input.idle_release_minutes < 0 || input.idle_release_minutes > 1440)) ||
+      (input.max_minutes !== undefined && (!Number.isInteger(input.max_minutes) || input.max_minutes < 0 || input.max_minutes > 10080))
     )
       throw Error("Choose workers and review the total hourly rate.");
     const body = JSON.stringify(input),
@@ -425,6 +445,8 @@ export class WorkerPool {
           manifest,
           submit_key: key,
           preparation_revision: 0,
+          ...(input.idle_release_minutes ? { idle_release_minutes: input.idle_release_minutes } : {}),
+          ...(input.max_minutes ? { max_minutes: input.max_minutes } : {}),
         });
     }
     if (total > input.max_hourly + 0.000001)
@@ -473,6 +495,7 @@ export class WorkerPool {
         this.releaseNow(w.id);
         continue;
       }
+      if (this.releaseIfIdle(w.id)) continue;
       if (this.inFlight.has(w.id) || this.quitting.has(w.id)) continue;
       const task = this.advance(w.id)
         .catch((error) => {
@@ -492,6 +515,51 @@ export class WorkerPool {
       this.inFlight.set(w.id, task);
     }
     await Promise.allSettled(this.inFlight.values());
+  }
+  /** Track idle time and finish a worker that stayed idle past its policy. Server-side, so it works with no browser open. */
+  private releaseIfIdle(id: string) {
+    const w = this.get(id);
+    if (!w || stopped(w)) return false;
+    // The time cap is a hard stop: work still running a grace period past it (a fifth of the cap, at least five
+    // minutes) is cancelled and the rental released, so a job that never finishes cannot keep a GPU billing.
+    if (
+      w.quit_mode === "finish" &&
+      w.released_reason === "limit" &&
+      w.max_minutes &&
+      w.allocated_at &&
+      this.now() - Date.parse(w.allocated_at) >= w.max_minutes * 60_000 + Math.max(5, w.max_minutes / 5) * 60_000
+    ) {
+      this.diagnostics?.event({ category: "worker", operation: "worker.limit_stop", worker_id: id, provider: w.provider, data: { max_minutes: w.max_minutes } });
+      this.update(id, (current) => {
+        current.quit_mode = "now";
+        current.state = "releasing";
+      });
+      this.cancelJobs(id);
+      this.releaseNow(id);
+      return true;
+    }
+    if (w.quit_mode) return false;
+    // A rental time cap: finish current work, then release, so a forgotten GPU cannot bill indefinitely.
+    if (w.max_minutes && w.allocated_at && this.now() - Date.parse(w.allocated_at) >= w.max_minutes * 60_000) {
+      this.diagnostics?.event({ category: "worker", operation: "worker.limit_release", worker_id: id, provider: w.provider, data: { max_minutes: w.max_minutes } });
+      this.update(id, (current) => { current.quit_mode = "finish"; current.finish_before ??= this.date(); current.released_reason = "limit"; });
+      return false;
+    }
+    const idle = w.state === "ready" && !w.current_job_id;
+    if (!idle) {
+      if (w.idle_since) this.update(id, (current) => { delete current.idle_since; });
+      return false;
+    }
+    if (!w.idle_since) { this.update(id, (current) => { current.idle_since = this.date(); }); return false; }
+    const limit = w.idle_release_minutes ?? 0;
+    if (!limit || this.now() - Date.parse(w.idle_since) < limit * 60_000) return false;
+    this.diagnostics?.event({ category: "worker", operation: "worker.idle_release", worker_id: id, provider: w.provider, data: { idle_minutes: limit } });
+    this.update(id, (current) => {
+      current.quit_mode = "finish";
+      current.finish_before ??= this.date();
+      current.released_reason = "idle";
+    });
+    return false;
   }
   private async advance(id: string) {
     let w = this.get(id)!;
@@ -578,7 +646,7 @@ export class WorkerPool {
     }
     if (!resource.ssh) {
       this.update(id, (current) => {
-        current.state = current.quit_mode === 'finish' ? 'finishing' : 'starting';
+        current.state = 'starting';
       });
       return;
     }
@@ -640,11 +708,9 @@ export class WorkerPool {
             ? current.state === "saving"
               ? "saving"
               : "generating"
-            : current.quit_mode === "finish"
-              ? "finishing"
-              : current.ready
-                ? "ready"
-                : "preparing";
+            : current.ready
+              ? "ready"
+              : "preparing";
       current.issue = foreignBusy
         ? {
             code: "worker_busy",
@@ -660,8 +726,22 @@ export class WorkerPool {
                 "Worker preparation needs attention. Check the file details below and choose a recovery action.",
               retryable: true,
             }
-          : undefined;
+          : current.issue?.code === "take_unconfirmed"
+            ? current.issue
+            : undefined;
     });
+  }
+  /** Change an active rental's idle release and time cap. 0 turns either off. */
+  limits(id: string, input: { idle_release_minutes?: number; max_minutes?: number }) {
+    const w = this.get(id);
+    if (!w || stopped(w)) throw Error("Worker not found.");
+    const bad = (v: number | undefined, max: number) => v !== undefined && (!Number.isInteger(v) || v < 0 || v > max);
+    if (bad(input.idle_release_minutes, 1440) || bad(input.max_minutes, 10080)) throw Error("Invalid rental limits.");
+    this.update(id, (current) => {
+      if (input.idle_release_minutes !== undefined) { if (input.idle_release_minutes) current.idle_release_minutes = input.idle_release_minutes; else delete current.idle_release_minutes; }
+      if (input.max_minutes !== undefined) { if (input.max_minutes) current.max_minutes = input.max_minutes; else delete current.max_minutes; }
+    });
+    return this.snapshot();
   }
   async action(id: string, action: PoolAction, paths?: string[]) {
     const w = this.get(id);
@@ -683,7 +763,6 @@ export class WorkerPool {
         if (current.quit_mode !== "now") {
           current.quit_mode = "finish";
           current.finish_before ??= this.date();
-          current.state = "finishing";
         }
       });
       void this.tick();
@@ -808,7 +887,6 @@ export class WorkerPool {
             if (current.quit_mode !== "now") {
               current.quit_mode = "finish";
               current.finish_before ??= cutoff;
-              current.state = "finishing";
             }
           });
       })();
@@ -900,36 +978,9 @@ export class WorkerPool {
     if (worker)
       void this.dependencies.worker.disconnect(worker).catch(error => this.diagnostics?.error('worker.disconnect',error,{worker_id:worker.id,provider:worker.provider}));
   }
-  compatible(
-    w: RentalRecord,
-    role: WorkerClass,
-    loras: LoraSelection[],
-    created_at: string,
-  ) {
-    return (
-      w.worker_class === role &&
-      w.ready &&
-      ["ready", "finishing", "generating", "saving"].includes(w.state) &&
-      w.quit_mode !== "now" &&
-      (!w.finish_before || created_at <= w.finish_before) &&
-      loras.every((l) =>
-        w.installed_loras.some(
-          (i) => i.id === l.id && i.revision === l.revision,
-        ),
-      )
-    );
-  }
-  claim(
-    job: string,
-    role: WorkerClass,
-    loras: LoraSelection[],
-    created_at: string,
-    workflow?: string,
-  ) {
+  claim(job: string, need: GpuNeed) {
     return this.db.transaction(() => {
-      const w = this.all().find(
-        (w) => !w.current_job_id && this.compatible(w, role, loras, created_at) && (workflow!=='image-to-image'||w.workflows?.includes(workflow)),
-      );
+      const w = this.all().find((w) => canRun(w, need, "claim"));
       if (!w) return null;
       const id = randomUUID();
       this.db
@@ -976,14 +1027,18 @@ export class WorkerPool {
       this.update(w.id, (current) => {
         delete current.current_job_id;
         if (!stopped(current) && current.quit_mode !== "now")
-          current.state =
-            current.quit_mode === "finish"
-              ? "finishing"
-              : current.ready
-                ? "ready"
-                : "reconnecting";
+          current.state = current.ready ? "ready" : "reconnecting";
       });
     })();
+  }
+  /** Frees a GPU that will not confirm a finished take, and tells the owner, who decides when to release it. */
+  unconfirmed(job: string) {
+    const w = this.assigned(job);
+    if (w)
+      this.update(w.id, (current) => {
+        current.issue = { code: "take_unconfirmed", message: "Seed couldn't confirm a finished take with this GPU. Release it when you're done.", retryable: false, worker_id: w.id };
+      });
+    this.complete(job);
   }
   async beforeCredentialChange(
     field: CredentialField,

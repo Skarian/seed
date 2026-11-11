@@ -1,4 +1,4 @@
-import {afterEach,expect,it} from 'vitest';
+import { expect, it } from 'vitest';
 import {mkdtempSync,mkdirSync,rmSync} from 'node:fs';
 import path from 'node:path';
 import Fastify from 'fastify';

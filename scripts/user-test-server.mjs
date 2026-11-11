@@ -34,11 +34,14 @@ const app = await createApp({
   paths, host, port,
   ...(process.env.SEED_QA_WEB_ROOT ? { webRoot: process.env.SEED_QA_WEB_ROOT } : {}),
   ...dependencies,
+  // GPU mode: the real local worker renders on this PC from synthetic prompts; cloud providers stay offline.
+  ...(process.env.SEED_QA_GPU === "local" ? { localWorker: true } : {}),
 });
 app.post("/__qa/scenario", async (request) => fixtureControls.configure(request.body ?? {}));
 // Host names and counts only: never request or response content.
 app.get("/__qa/status", async () => ({
   scenario: fixtureControls.status().scenario,
+  gpu: process.env.SEED_QA_GPU === "local" ? "local" : "fake",
   allowed_hosts: allowed,
   allowed_external_calls: Object.fromEntries(allowedExternal),
   blocked_external_attempts: blockedExternal,

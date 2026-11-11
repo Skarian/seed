@@ -15,7 +15,7 @@ export class AppRecovery extends Component<{children:ReactNode},{failed:boolean}
       <p>Reload to try again. Your saved work is safe, and jobs continue in the background.</p>
       <div className="app-recovery-actions">
         <button type="button" onClick={()=>window.location.reload()}>Reload</button>
-        <a href="/">Open Generate</a>
+        <a href="/">Open Seed</a>
       </div>
     </section></main>;
   }

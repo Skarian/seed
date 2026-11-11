@@ -1,11 +1,12 @@
 import {it,expect} from 'vitest';
-import {mkdtempSync,mkdirSync,rmSync,writeFileSync,existsSync} from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import {Jobs} from '../server/jobs.js';
 import {openDatabase} from '../server/db.js';
 import {resolvePaths,prepareStorage} from '../server/storage.js';
 import {fakePool} from './fake-pool.js';
 import {WorkerHttpError} from '../server/worker-transfer.js';
+import {gpuNeed} from '../shared/pool.js';
 type JobsFixture=ReturnType<typeof fakePool>&{jobs:Jobs;db:ReturnType<typeof openDatabase>;paths:ReturnType<typeof resolvePaths>;request:any;settle:()=>Promise<void>};
 async function fixture(run:(f:JobsFixture)=>Promise<void>){
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/pool-jobs-')),paths=resolvePaths(root);prepareStorage(paths);
@@ -43,6 +44,25 @@ it('retries local saving without generating a second output',async()=>fixture(as
   expect(f.jobs.get(job!.id)!.recovery_blocked).toBe(true);expect(f.worker.acknowledge).not.toHaveBeenCalled();
   f.jobs.retrySave(job!.id);await f.settle();expect(f.jobs.get(job!.id)!.state).toBe('completed');expect(f.worker.submit).toHaveBeenCalledTimes(1);expect(f.worker.acknowledge).toHaveBeenCalledTimes(1);
 }));
+it('keeps a saved result when only the worker acknowledgement fails, and acknowledges it on the next pass',async()=>fixture(async f=>{
+  await f.ready();f.worker.acknowledge.mockRejectedValueOnce(Error('worker gone'));const {jobs:[job]}=await f.jobs.submit(f.request,'ack-retry-fixture');await f.settle();
+  const saved=f.jobs.get(job!.id)!;expect(saved.state).toBe('completed');expect(saved.outputs).toHaveLength(1);expect(saved.recovery_blocked).toBeFalsy();expect(saved.error).toBeNull();
+  await f.jobs.reconcile();expect(f.worker.acknowledge).toHaveBeenCalledTimes(2);expect(f.jobs.get(job!.id)!.worker!.acknowledged).toBe(true);
+}));
+it('reads a stored job whose state this release does not know as needing attention, never as work to resume',async()=>fixture(async f=>{
+  await f.ready();const {jobs:[job]}=await f.jobs.submit(f.request,'unknown-state-fixture');await f.settle();
+  const stored=f.jobs.get(job!.id)!;f.db.prepare('UPDATE jobs SET snapshot_json=? WHERE id=?').run(JSON.stringify({...stored,state:'toString'}),stored.id);
+  const read=f.jobs.get(job!.id)!;expect(read.state).toBe('needs_attention');expect(read.error).toContain('toString');
+  expect(f.jobs.many([job!.id])[0]!.state).toBe('needs_attention');
+}));
+it('acknowledges a saved take that an older release left marked as unsaved',async()=>fixture(async f=>{
+  await f.ready();f.worker.acknowledge.mockRejectedValueOnce(Error('worker gone'));const {jobs:[job]}=await f.jobs.submit(f.request,'legacy-blocked-fixture');await f.settle();
+  // The record as the old catch left it: completed, saved, unacknowledged and blocked.
+  const stored=f.jobs.get(job!.id)!;stored.recovery_blocked=true;stored.error='The picture was made but did not reach this PC.';
+  f.db.prepare('UPDATE jobs SET snapshot_json=? WHERE id=?').run(JSON.stringify(stored),stored.id);
+  await f.jobs.reconcile();
+  const fixed=f.jobs.get(job!.id)!;expect(fixed.recovery_blocked).toBe(false);expect(fixed.error).toBeNull();expect(fixed.state).toBe('completed');expect(fixed.worker!.acknowledged).toBe(true);
+}));
 it('cancels unsent work without contacting the worker or changing other requests',async()=>fixture(async f=>{
   const first=await f.jobs.submit(f.request,'cancel-first-fixture'),second=await f.jobs.submit(f.request,'cancel-second-fixture');
   f.jobs.stopJobs([first.jobs[0]!.id]);expect(f.jobs.get(first.jobs[0]!.id)!.state).toBe('cancelled');expect(f.jobs.get(second.jobs[0]!.id)!.state).toBe('queued');expect(f.worker.cancel).not.toHaveBeenCalled();
@@ -78,9 +98,34 @@ it('executes image and video work concurrently in separate worker classes',async
 
 async function eventually(check:()=>boolean){for(let i=0;i<200;i++){if(check())return;await new Promise(resolve=>setTimeout(resolve,2));}throw Error('Fixture operation did not settle.');}
 function gate(){let release!:()=>void;const promise=new Promise<void>(resolve=>release=resolve);return {promise,release};}
+it('refuses a move the job table forbids, and a cancellation outlasts a stale save',async()=>fixture(async f=>{
+  await f.ready();const {jobs:[done]}=await f.jobs.submit(f.request,'save-refuses-done-fixture');await f.settle();
+  expect(f.jobs.get(done!.id)!.state).toBe('completed');
+  expect(()=>f.jobs.save({...f.jobs.get(done!.id)!,state:'running'})).toThrow('cannot go from completed to running');
+  expect(f.jobs.get(done!.id)!.state).toBe('completed');
+  const {jobs:[job]}=await f.jobs.submit({...f.request,prompt:'Another'},'save-cancel-fence-fixture');
+  const stale=f.jobs.get(job!.id)!;stale.state='running';f.jobs.save(stale);
+  f.jobs.stopJobs([job!.id]);expect(f.jobs.get(job!.id)!.state).toBe('cancel_requested');
+  stale.state='running';f.jobs.save(stale);expect(f.jobs.get(job!.id)!.state).toBe('cancel_requested');
+}));
+it('gives no waiting reason for ordinary queueing, only for something the owner must do',async()=>fixture(async f=>{
+  const {jobs:[job]}=await f.jobs.submit({...f.request,target:'cloud'},'waiting-words-fixture');await f.jobs.reconcile();
+  expect(f.jobs.get(job!.id)!.state).toBe('queued');expect(f.jobs.get(job!.id)!.waiting_reason).toBeUndefined();
+  const {jobs:[local]}=await f.jobs.submit({...f.request,target:'local'},'waiting-local-fixture');await f.jobs.reconcile();
+  expect(f.jobs.get(local!.id)!.waiting_reason).toBe('Turn on Seed PC on the GPUs page to make this here.');
+}));
+it.each([[409,1],[503,5]])('frees and flags a GPU that keeps refusing to confirm a saved take (HTTP %i, %i tries)',async(status,tries)=>fixture(async f=>{
+  await f.ready();f.worker.acknowledge.mockRejectedValue(new WorkerHttpError(status));
+  const {jobs:[job]}=await f.jobs.submit(f.request,'ack-refused-fixture-'+status);await f.settle();await f.settle();
+  const saved=f.jobs.get(job!.id)!;expect(saved.state).toBe('completed');expect(saved.outputs).toHaveLength(1);expect(saved.error).toBeNull();
+  expect(f.worker.acknowledge).toHaveBeenCalledTimes(tries);
+  const [gpu]=f.pool.snapshot().workers;
+  expect(gpu).toMatchObject({state:'ready',issue:{code:'take_unconfirmed',message:"Seed couldn't confirm a finished take with this GPU. Release it when you're done."}});
+  expect(gpu!.current_job_id).toBeUndefined();
+}));
 it('recovers a durable claim when the process stopped before the job snapshot recorded its worker',async()=>fixture(async f=>{
   await f.ready('image',2);const {jobs:[job]}=await f.jobs.submit(f.request,'claim-crash-fixture');
-  const claimed=f.pool.claim(job!.id,'image',[],job!.created_at)!;expect(f.jobs.get(job!.id)!.worker!.id).toBeUndefined();
+  const claimed=f.pool.claim(job!.id,gpuNeed(job!.request,[],job!.created_at))!;expect(f.jobs.get(job!.id)!.worker!.id).toBeUndefined();
   await f.settle();expect(f.jobs.get(job!.id)!.state).toBe('completed');expect(f.worker.submit).toHaveBeenCalledTimes(1);expect(f.worker.submit.mock.calls[0]![0].id).toBe(claimed.id);
   expect((f.db.prepare('SELECT COUNT(*) AS n FROM job_attempts WHERE job_id=?').get(job!.id) as {n:number}).n).toBe(1);
 }));
@@ -280,9 +325,9 @@ it.each(['recovery','reconciliation'] as const)('does not mistake an old engine 
   f.worker.probe.mockResolvedValue({...probe,session_id:'restarted-engine'});
   if(entry==='recovery')f.jobs.recover(job.id);
   await f.jobs.reconcile();await f.jobs.reconcile();
-  expect(f.jobs.publicJob(f.jobs.get(job.id)!)).toMatchObject({state:'needs_attention',worker:{interruption:'engine_interrupted'},recovery:{pending:false,reason:'engine_interrupted'}});
+  expect(f.jobs.get(job.id)).toMatchObject({state:'needs_attention',worker:{interruption:'engine_interrupted'}});expect(f.jobs.publicJob(f.jobs.get(job.id)!)).toMatchObject({state:'needs_attention',recovery:{pending:false,reason:'engine_interrupted'}});expect(Object.keys(f.jobs.publicJob(f.jobs.get(job.id)!).worker!)).toEqual(['id','executor']);
   expect(f.jobs.publicJob(f.jobs.get(job.id)!).recovery?.action).toBeUndefined();
-  expect(()=>f.jobs.recover(job.id)).toThrow('cannot be retried safely');
+  expect(()=>f.jobs.recover(job.id)).toThrow('cannot safely try this take again');
   expect(f.worker.submit).toHaveBeenCalledTimes(1);
   expect(f.pool.get(worker.id)!.current_job_id).toBe(job.id);
 }));
@@ -310,7 +355,7 @@ it.each(['saved envelope','known legacy graph','unsupported legacy graph'] as co
   }
   if(format==='unsupported legacy graph'){
     expect(f.jobs.publicJob(f.jobs.get(job.id)!).recovery).toMatchObject({reason:'submission_unavailable'});
-    expect(()=>f.jobs.recover(job.id)).toThrow('cannot be retried safely');
+    expect(()=>f.jobs.recover(job.id)).toThrow('cannot safely try this take again');
     expect(f.worker.submit).toHaveBeenCalledTimes(1);
   }else{
     f.jobs.recover(job.id);await f.jobs.reconcile();
@@ -328,7 +373,7 @@ it.each(['cancelled','released','unassigned','missing graph','closed app'] as co
   else if(condition==='missing graph'){delete job.worker!.graph;f.jobs.save(job);}
   else await f.jobs.close();
   if(condition==='released')expect(f.jobs.recover(job.id).recovery?.action).toBeUndefined();
-  else expect(()=>f.jobs.recover(job.id)).toThrow('cannot be retried safely');
+  else expect(()=>f.jobs.recover(job.id)).toThrow('cannot safely try this take again');
   expect(f.worker.probe).not.toHaveBeenCalled();
   expect(f.worker.submit).toHaveBeenCalledTimes(1);
 }));

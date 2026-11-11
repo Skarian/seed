@@ -1,0 +1,520 @@
+import React, { useState } from 'react';
+import { castFromBrief, castOf, sameCast, type CastEntry } from '../../../shared/cast.js';
+import { approvedReference, referenceSkipped, type ProjectChoices } from '../../../shared/choices.js';
+import { useApp, type ViewerItem } from '../data.js';
+import { projects as projectsApi } from '../api.js';
+import { Media, Dialog, MenuButton, type MenuItem } from '../ui.js';
+import { Icon } from '../icons.js';
+
+/** What Seed is asked when the owner wants a reference drafted; Seed carries the look from the brief. */
+export const referenceAsk = (e: CastEntry) =>
+  e.kind === 'prop'
+    ? `Draft a prop reference for ${e.name} from the brief: ${e.name} alone, whole and in focus, on a plain light-grey background in soft even light, no people, at 1:1 with 2 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`
+    : e.kind === 'place'
+      ? `Draft a place reference for ${e.name} from the brief: a wide picture of ${e.name} with no people, in clear light, at 16:9 with 2 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`
+      : `Draft a character reference for ${e.name} from the brief: ${e.name} alone, full length, standing and facing the camera, on a plain light-grey background in soft even light, at 4:5 with 2 takes, titled "Reference: ${e.name}". Leave the other drafts as they are. Do not run anything.`;
+const kindLabel = { character: 'Character', place: 'Place', prop: 'Prop' } as const;
+/** Whether a picture was drafted for this name (its title names it): those come first when choosing. */
+const titled = (i: ViewerItem, name: string) => i.title.toLowerCase().includes(name.toLowerCase());
+export const sheetAsk = (e: CastEntry) =>
+  `Draft a reference sheet for ${e.name} as an edit of ${e.name}'s approved reference, at 16:9: the same person full length from the front, three-quarter, side and back, plus a head-and-shoulders close-up, in the same outfit on a plain light-grey background, titled "Reference sheet: ${e.name}". Do not run anything.`;
+
+/**
+ * The characters and places of the brief, each with the reference image the owner approved for it. Seed drafts the
+ * shots they appear in from these images (FLUX 3 Image Klein), so a face, a coat or a lighthouse carries from shot to shot.
+ */
+export function CastStrip({
+  brief,
+  cast: stored,
+  onEdit,
+  choices,
+  images,
+  busy,
+  onChoose,
+  onAsk,
+  onOpen,
+  onImport,
+  projectId,
+  shotsMade,
+}: {
+  brief: string | null | undefined;
+  /** The project's cast record (read from the brief when the project has none yet). */
+  cast?: CastEntry[];
+  /** Adds (from null), changes or removes (entry null) one entry; the brief follows. */
+  onEdit?: (from: string | null, entry: CastEntry | null) => Promise<void>;
+  choices: ProjectChoices | undefined;
+  images: ViewerItem[];
+  /** The cast name whose choice is being saved. */
+  busy: string;
+  /** Approves a name's reference picture, says it needs none ('skip'), or clears either (null). */
+  onChoose: (name: string, asset: string | 'skip' | null) => void;
+  onAsk?: (text: string) => void;
+  onOpen: (item: ViewerItem) => void;
+  /** Brings characters, places and props (brief entry and approved picture) from another project. */
+  onImport?: (items: Array<{ entry: CastEntry; asset: string }>) => Promise<void>;
+  /** This project, left out of the projects to bring from. */
+  projectId?: string;
+  /** Shots already have results: setup gives way to the work, whatever is still unapproved. */
+  shotsMade?: boolean;
+}) {
+  const cast = stored ?? castFromBrief(brief);
+  const [picking, setPicking] = useState<CastEntry | null>(null);
+  const [importing, setImporting] = useState(false);
+  // The entry being edited, or a new one of a kind ("Add character").
+  const [editing, setEditing] = useState<{ from: string | null; entry: CastEntry } | null>(null);
+  if (!cast.length && !(onImport && brief?.trim()) && !onEdit) return null;
+  // Entries the owner marked Not needed stop counting; they stay listed so the choice can be undone.
+  const skipped = (name: string) => referenceSkipped(choices, name);
+  const approved = cast.filter(e => choices?.references[e.name]).length,
+    skips = cast.filter(e => skipped(e.name)).length;
+  // Once every entry is settled the cast is a reference row: small pictures, names, and each one's actions in a menu.
+  const compact = cast.length > 0 && (approved === cast.length || Boolean(shotsMade));
+  const edit = (e: CastEntry) => setEditing({ from: e.name, entry: { ...e } });
+  return (
+    <section className={'cast-strip' + (compact ? ' compact' : '')} aria-label="Cast and places">
+      <div className="film-board-head">
+        <b role="heading" aria-level={2}>
+          {cast.some(e => e.kind === 'prop') ? 'Cast, places & props' : 'Cast & places'}
+        </b>
+        <span className="faint">
+          {`${approved - skips} of ${cast.length - skips} approved${skips ? ` · ${skips} not needed` : ''} · drafts from references use these pictures`}
+        </span>
+      </div>
+      <div className="cast-tools">
+        {onEdit && (
+          <button
+            className="btn small"
+            onClick={() => setEditing({ from: null, entry: { kind: 'character', name: '', look: '' } })}
+          >
+            Add…
+          </button>
+        )}
+        {onImport && (
+          <button className="btn small quiet cast-import" onClick={() => setImporting(true)}>
+            From another project…
+          </button>
+        )}
+      </div>
+      {!cast.length && (
+        <p className="faint" style={{ margin: 0 }}>
+          No characters, places or props yet. Add one, bring them from another project, or ask Seed.
+        </p>
+      )}
+      <ul className="cast-cells">
+        {cast.map(e => {
+          const id = approvedReference(choices, e.name),
+            item = images.find(i => i.asset === id);
+          // Results drafted as this name's reference come first in the menu.
+          const options = [...images].sort((a, b) => +titled(b, e.name) - +titled(a, e.name)).slice(0, 30);
+          const draftSheet = onAsk && id && e.kind === 'character' ? () => onAsk(sheetAsk(e)) : undefined;
+          return (
+            <li key={e.name} className={'cast-cell ' + e.kind + (id ? ' done' : '')}>
+              <button
+                className="cast-thumb"
+                disabled={!item}
+                onClick={() => item && onOpen(item)}
+                aria-label={id ? `Open ${e.name}’s reference` : `${e.name} has no reference yet`}
+              >
+                {id ? <Media id={id} kind="image" alt="" /> : <span className="faint">No reference</span>}
+              </button>
+              <span className="cast-text">
+                <b>{e.name}</b>
+                <small className="faint" title={e.look}>
+                  {kindLabel[e.kind]} · {id ? 'Approved' : skipped(e.name) ? 'Not needed' : 'No picture yet'}
+                </small>
+              </span>
+              {compact ? (
+                <MenuButton
+                  label={`${e.name}: actions`}
+                  items={(
+                    [
+                      id && item && { label: 'Open reference', onSelect: () => onOpen(item) },
+                      options.length > 0 && {
+                        label: id ? 'Change reference…' : 'Approve a picture…',
+                        onSelect: () => setPicking(e),
+                      },
+                      draftSheet && {
+                        label: 'Draft a reference sheet',
+                        hint: 'Front, side and back in one picture',
+                        onSelect: draftSheet,
+                      },
+                      !id && { label: 'Needed after all', onSelect: () => onChoose(e.name, null) },
+                      onEdit && { label: 'Edit…', hint: 'Name, kind and look', onSelect: () => edit(e) },
+                    ] as Array<MenuItem | false | null | undefined | ''>
+                  ).filter((x): x is MenuItem => Boolean(x))}
+                >
+                  <Icon.More />
+                </MenuButton>
+              ) : (
+                <span className="cast-actions">
+                  {onAsk && !id && !skipped(e.name) && (
+                    <button className="btn small" onClick={() => onAsk(referenceAsk(e))}>
+                      Draft reference
+                    </button>
+                  )}
+                  {!id && (
+                    <button
+                      className="btn small quiet"
+                      aria-pressed={skipped(e.name)}
+                      onClick={() => onChoose(e.name, skipped(e.name) ? null : 'skip')}
+                    >
+                      {skipped(e.name) ? 'Needed after all' : 'Not needed'}
+                    </button>
+                  )}
+                  {draftSheet && (
+                    <button className="btn small" onClick={draftSheet}>
+                      Draft sheet
+                    </button>
+                  )}
+                  {options.length > 0 && (
+                    <button
+                      className="btn small"
+                      aria-label={id ? `Change ${e.name}’s reference` : `Approve a picture as ${e.name}’s reference`}
+                      onClick={() => setPicking(e)}
+                    >
+                      {id ? 'Change' : 'Approve…'}
+                    </button>
+                  )}
+                  {onEdit && (
+                    <button className="btn small quiet" aria-label={`Edit ${e.name}`} onClick={() => edit(e)}>
+                      Edit
+                    </button>
+                  )}
+                </span>
+              )}
+            </li>
+          );
+        })}
+      </ul>
+      {picking &&
+        (() => {
+          const id = approvedReference(choices, picking.name);
+          const own = images
+            .filter(i => titled(i, picking.name))
+            .sort((x, y) => x.title.localeCompare(y.title, undefined, { numeric: true }))
+            .slice(0, 24);
+          const rest = images.filter(i => !titled(i, picking.name)).slice(0, 30);
+          const tile = (o: ViewerItem) => (
+            <li key={o.asset}>
+              <button
+                className={'pick-tile' + (o.asset === id ? ' on' : '')}
+                aria-pressed={o.asset === id}
+                aria-label={`${o.title.replace(/^Reference:\s*/i, '') || 'Untitled picture'} as ${picking.name}’s reference`}
+                disabled={busy === picking.name}
+                onClick={() => {
+                  onChoose(picking.name, o.asset);
+                  setPicking(null);
+                }}
+              >
+                <span className="pick-thumb">
+                  <Media id={o.asset} kind="image" alt="" />
+                </span>
+                <small>{o.title.replace(/^Reference:\s*/i, '')}</small>
+              </button>
+            </li>
+          );
+          return (
+            <Dialog
+              title={`${picking.name}’s reference`}
+              wide
+              onClose={() => setPicking(null)}
+              footer={
+                id ? (
+                  <button
+                    className="btn danger"
+                    onClick={() => {
+                      onChoose(picking.name, null);
+                      setPicking(null);
+                    }}
+                  >
+                    Clear the reference
+                  </button>
+                ) : undefined
+              }
+            >
+              <p className="faint" style={{ marginTop: 0 }}>
+                Pick the picture that shows {picking.name} best. Drafts made from references (FLUX 3 Image Klein) use
+                it; drafts made from words use {picking.name}’s description.
+              </p>
+              {own.length > 0 && <ul className="pick-grid">{own.map(tile)}</ul>}
+              {rest.length > 0 && (
+                <details open={!own.length}>
+                  <summary className="link">Other pictures in this project ({rest.length})</summary>
+                  <ul className="pick-grid">{rest.map(tile)}</ul>
+                </details>
+              )}
+            </Dialog>
+          );
+        })()}
+      {editing && onEdit && (
+        <CastEditor
+          editing={editing}
+          taken={cast.filter(x => x.name !== editing.from).map(x => x.name.toLowerCase())}
+          approved={Boolean(editing.from && approvedReference(choices, editing.from))}
+          onClose={() => setEditing(null)}
+          onSave={async entry => {
+            await onEdit(editing.from, entry);
+            setEditing(null);
+          }}
+        />
+      )}
+      {importing && onImport && (
+        <ImportCast
+          projectId={projectId}
+          have={cast.filter(e => approvedReference(choices, e.name)).map(e => e.name)}
+          onClose={() => setImporting(false)}
+          onImport={async items => {
+            await onImport(items);
+            setImporting(false);
+          }}
+        />
+      )}
+    </section>
+  );
+}
+
+/** Other projects' approved characters, places and props, as pictures to tick and bring into this project. */
+function ImportCast({
+  projectId,
+  have,
+  onClose,
+  onImport,
+}: {
+  projectId?: string;
+  have: string[];
+  onClose: () => void;
+  onImport: (items: Array<{ entry: CastEntry; asset: string }>) => Promise<void>;
+}) {
+  const { projectList } = useApp();
+  const [found, setFound] = useState<Array<{
+    project: string;
+    items: Array<{ entry: CastEntry; asset: string }>;
+  }> | null>(null);
+  const [chosen, setChosen] = useState<Set<string>>(new Set());
+  const [busy, setBusy] = useState(false);
+  React.useEffect(() => {
+    let live = true;
+    void Promise.all(
+      projectList
+        .filter(p => p.id !== projectId)
+        .slice(0, 16)
+        .map(p => projectsApi.get(p.id).catch(() => null)),
+    ).then(list => {
+      if (!live) return;
+      setFound(
+        list
+          .filter((p): p is NonNullable<typeof p> => Boolean(p))
+          .map(p => ({
+            project: p.title,
+            items: castOf(p)
+              .filter(e => approvedReference(p.choices, e.name) && !have.some(h => sameCast(h, e.name)))
+              .map(e => ({ entry: e, asset: approvedReference(p.choices, e.name)! })),
+          }))
+          .filter(g => g.items.length),
+      );
+    });
+    return () => {
+      live = false;
+    };
+  }, [projectId]);
+  const all = (found ?? []).flatMap(g => g.items);
+  const picked = all.filter(x => chosen.has(x.asset + x.entry.name));
+  return (
+    <Dialog
+      title="Bring from another project"
+      wide
+      onClose={onClose}
+      footer={
+        <button
+          className="btn primary"
+          disabled={!picked.length || busy}
+          onClick={() => {
+            setBusy(true);
+            void onImport(picked).finally(() => setBusy(false));
+          }}
+        >
+          {busy
+            ? 'Bringing them in…'
+            : picked.length
+              ? `Bring ${picked.length} into this project`
+              : 'Choose who to bring'}
+        </button>
+      }
+    >
+      <p className="faint" style={{ marginTop: 0 }}>
+        Each one comes with its approved picture and its look from that project's brief, so new shots here are drawn
+        from the same picture.
+      </p>
+      {found === null ? (
+        <p className="faint">Looking through your projects…</p>
+      ) : !found.length ? (
+        <p className="faint">No other project has an approved character, place or prop yet.</p>
+      ) : (
+        found.map(g => (
+          <section key={g.project} aria-label={g.project}>
+            <h3 className="pick-group">{g.project}</h3>
+            <ul className="pick-grid">
+              {g.items.map(x => {
+                const k = x.asset + x.entry.name,
+                  on = chosen.has(k);
+                return (
+                  <li key={k}>
+                    <button
+                      className={'pick-tile' + (on ? ' on' : '')}
+                      aria-pressed={on}
+                      onClick={() =>
+                        setChosen(c => {
+                          const next = new Set(c);
+                          if (on) next.delete(k);
+                          else next.add(k);
+                          return next;
+                        })
+                      }
+                    >
+                      <span className="pick-thumb">
+                        <Media id={x.asset} kind="image" alt="" />
+                      </span>
+                      <small>
+                        {x.entry.name} · {kindLabel[x.entry.kind]}
+                      </small>
+                    </button>
+                  </li>
+                );
+              })}
+            </ul>
+          </section>
+        ))
+      )}
+    </Dialog>
+  );
+}
+
+/** Adds, changes or removes one character, place or prop. The brief's cast sections follow. */
+function CastEditor({
+  editing,
+  taken,
+  approved,
+  onClose,
+  onSave,
+}: {
+  editing: { from: string | null; entry: CastEntry };
+  taken: string[];
+  approved: boolean;
+  onClose: () => void;
+  onSave: (entry: CastEntry | null) => Promise<void>;
+}) {
+  const [e, setE] = useState(editing.entry);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState('');
+  const [removing, setRemoving] = useState(false);
+  const name = e.name.trim();
+  const problem = !name
+    ? 'Give it a name.'
+    : taken.includes(name.toLowerCase())
+      ? name + ' is already in the cast.'
+      : '';
+  const save = async (entry: CastEntry | null) => {
+    setBusy(true);
+    setError('');
+    try {
+      await onSave(entry);
+    } catch (x) {
+      setError((x as Error).message);
+      setBusy(false);
+    }
+  };
+  return (
+    <Dialog
+      title={editing.from ? 'Edit ' + editing.from : 'Add to the cast'}
+      onClose={onClose}
+      footer={
+        <>
+          {editing.from && !removing && (
+            <button className="btn danger" disabled={busy} onClick={() => setRemoving(true)}>
+              Remove…
+            </button>
+          )}
+          <span className="grow" />
+          <button className="btn" onClick={onClose}>
+            Cancel
+          </button>
+          <button
+            className="btn primary"
+            disabled={busy || Boolean(problem)}
+            onClick={() => void save({ ...e, name, look: e.look.trim() })}
+          >
+            {editing.from ? 'Save' : 'Add ' + e.kind}
+          </button>
+        </>
+      }
+    >
+      {removing ? (
+        <div className="notice warn" role="alert">
+          Remove {editing.from} from the cast and the brief?
+          {approved ? ' Its approved picture stays in the Library.' : ''}
+          <div className="actions">
+            <button className="btn small danger" disabled={busy} onClick={() => void save(null)}>
+              Remove {editing.from}
+            </button>
+            <button className="btn small" autoFocus onClick={() => setRemoving(false)}>
+              Keep
+            </button>
+          </div>
+        </div>
+      ) : (
+        <div className="form-stack">
+          <div className="seg" role="radiogroup" aria-label="Kind">
+            {(['character', 'place', 'prop'] as const).map(k => (
+              <button key={k} role="radio" aria-checked={e.kind === k} onClick={() => setE({ ...e, kind: k })}>
+                {kindLabel[k]}
+              </button>
+            ))}
+          </div>
+          <label className="field">
+            <span>Name</span>
+            <input
+              className="input"
+              value={e.name}
+              maxLength={60}
+              autoFocus
+              onChange={x => setE({ ...e, name: x.target.value })}
+              aria-invalid={Boolean(problem && e.name)}
+            />
+          </label>
+          <label className="field">
+            <span>Look</span>
+            <textarea
+              className="input"
+              rows={4}
+              maxLength={600}
+              value={e.look}
+              placeholder={
+                e.kind === 'character'
+                  ? 'Age, face, hair, clothes, anything that must stay the same in every shot'
+                  : e.kind === 'place'
+                    ? 'What it looks like: shape, materials, light'
+                    : 'Size, shape, material, colour'
+              }
+              onChange={x => setE({ ...e, look: x.target.value })}
+            />
+          </label>
+          {editing.from && approved && name && name !== editing.from && (
+            <p className="faint" style={{ margin: 0 }}>
+              Renaming keeps {editing.from}’s approved picture and updates the brief.
+            </p>
+          )}
+          {problem && e.name && (
+            <p className="changed" role="alert" style={{ margin: 0 }}>
+              {problem}
+            </p>
+          )}
+        </div>
+      )}
+      {error && (
+        <p className="changed" role="alert">
+          {error}
+        </p>
+      )}
+    </Dialog>
+  );
+}

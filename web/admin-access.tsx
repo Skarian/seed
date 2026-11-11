@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AccessSettings } from '../shared/access.js';
 import { adminApi as api } from './admin-api.js';
 
@@ -66,8 +66,8 @@ export function AdminAccess() {
   return (
     <section className="admin-access" aria-label="Access settings">
       <div className="admin-section-heading">
-        <h2>Access</h2>
-        <p>Open Seed on your network or through your own secure tunnel.</p>
+        <h2>Other devices</h2>
+        <p>Use Seed on your phone or another computer, through your own secure tunnel.</p>
       </div>
       {status === 'loading' ? <p role="status">Loading access settings…</p> : !settings ? (
         <div className="admin-access-load-error">
@@ -77,8 +77,9 @@ export function AdminAccess() {
       ) : (
         <>
           <div className="admin-local-address">
-            <h3>On this network</h3>
+            <h3>{/\/\/(127\.|localhost|\[::1\])/.test(settings.localUrl) ? 'On this computer only' : 'On this network'}</h3>
             <a href={settings.localUrl} aria-label="Open Seed at its local address">{settings.localUrl}</a>
+            {/\/\/(127\.|localhost|\[::1\])/.test(settings.localUrl) && <p className="admin-access-description">This address only opens on the Seed PC itself. Other devices need the PC's network address or the remote address below.</p>}
           </div>
           <form className="admin-access-card" onSubmit={event => { event.preventDefault(); void save(); }}>
             <div className="admin-access-heading">

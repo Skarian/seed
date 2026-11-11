@@ -178,17 +178,52 @@ export async function offlineProviders(paths, { liveChat = false } = {}) {
         "\n\ndata: [DONE]\n\n",
       { headers: { "content-type": "text/event-stream" } },
     );
+  // Tests script the fake agent through /__qa/scenario: { agent: "normal" | "two_drafts" | "revise", agent_delay_ms }.
+  // two_drafts drafts two pictures in one step; revise edits the first draft of the open plan.
+  const agent = { mode: "normal", delay: 0 };
+  const call = (name, args) => ({ index: 0, id: randomUUID(), type: "function", function: { name, arguments: JSON.stringify(args) } });
+  const picture = (title, prompt) => ({ title, prompt, aspect_ratio: "16:9", seed: "42", batch_size: 1 });
+  // The open plan's request ids, from the context Seed gives the agent ("review": [{ "id": ... }]).
+  const reviewIds = (body) => {
+    const text = body.messages.flatMap((m) => (typeof m.content === "string" ? [m.content] : (m.content ?? []).map((p) => p.text ?? ""))).join("\n");
+    const review = [...text.matchAll(/"review"\s*:\s*\[([^\]]*)\]/g)].at(-1)?.[1] ?? "";
+    return [...review.matchAll(/"id"\s*:\s*"([0-9a-f-]{36})"/g)].map((m) => m[1]);
+  };
   const chatFetch = async (_url, init) => {
     const body = JSON.parse(String(init.body));
     if (
       JSON.stringify(body.messages[0]).includes("Generate a concise chat title")
     )
       return sse({ content: "Watercolor landscape" });
-    const edit = JSON.stringify(body.tools?.find(t=>t.function?.name==='create_request')?.function?.parameters).includes('"source"');
-    if (body.messages.at(-1).role === "tool")
+    // A slow reply waits once per turn, before its first model request.
+    if (agent.delay && body.messages.at(-1).role !== "tool") await new Promise((resolve) => setTimeout(resolve, agent.delay));
+    const edit = String(JSON.stringify(body.tools?.find(t=>t.function?.name==='create_request')?.function?.parameters)).includes('"source"');
+    // A new project has no kind of work yet: the agent picks pictures first, then drafts with the tools that loads.
+    const tools = (body.tools ?? []).map(t => t.function?.name);
+    if (!tools.includes("create_request") && tools.includes("choose_kind") && body.messages.at(-1).role !== "tool")
+      return sse({
+        tool_calls: [
+          { index: 0, id: randomUUID(), type: "function", function: { name: "choose_kind", arguments: JSON.stringify({ kind: "image" }) } },
+        ],
+      });
+    const last = body.messages.at(-1);
+    if (last.role === "tool" && !String(JSON.stringify(last.content)).includes('\\"kind\\"'))
       return sse({
         content:
-          edit ? "I prepared an edit to make the sky pink while preserving the mountains. Review the source and instructions before approving." : "I prepared a watercolor landscape with a gentle strength of 0.8. Review the request when you are ready.",
+          agent.mode === "two_drafts" ? "I prepared two drafts of the lake, one at dawn and one at dusk. Review them when you are ready."
+          : agent.mode === "revise" ? "I changed the first draft so the lake is calmer. Review it when you are ready."
+          : edit ?"I prepared an edit to make the sky pink while preserving the mountains. Review the source and instructions before approving." : "I prepared a watercolor landscape with a gentle strength of 0.8. Review the request when you are ready.",
+      });
+    if (agent.mode === "two_drafts")
+      return sse({
+        tool_calls: [
+          call("create_request", picture("Lake at dawn", "A quiet mountain lake at dawn, soft washes and paper texture")),
+          { ...call("create_request", picture("Lake at dusk", "A quiet mountain lake at dusk, soft washes and paper texture")), index: 1 },
+        ],
+      });
+    if (agent.mode === "revise")
+      return sse({
+        tool_calls: [call("edit_request", { request_id: reviewIds(body)[0], prompt: "A very still mountain lake at dawn, soft washes and paper texture" })],
       });
     return sse({
       tool_calls: [
@@ -216,6 +251,13 @@ export async function offlineProviders(paths, { liveChat = false } = {}) {
     poolDependencies: pool.dependencies,
     providerFetch,
     ...(liveChat ? {} : { chatFetch }),
-    fixtureControls: pool.controls,
+    fixtureControls: {
+      ...pool.controls,
+      configure(value) {
+        if (["normal", "two_drafts", "revise"].includes(value.agent)) agent.mode = value.agent;
+        if (Number.isFinite(value.agent_delay_ms)) agent.delay = value.agent_delay_ms;
+        return { ...pool.controls.configure(value), agent: agent.mode, agent_delay_ms: agent.delay };
+      },
+    },
   };
 }

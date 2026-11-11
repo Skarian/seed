@@ -8,6 +8,7 @@ import { fakePool } from "./fake-pool.js";
 import { PoolError, WorkerStarting } from "../server/pool-errors.js";
 import { WorkerPool } from "../server/pool.js";
 import { Diagnostics } from '../server/diagnostics.js';
+import { canRun, gpuNeed } from "../shared/pool.js";
 async function fixture(
   run: (
     f: ReturnType<typeof fakePool> & {
@@ -38,6 +39,38 @@ async function eventually(fn: () => boolean) {
   }
   throw Error("Fixture operation did not settle.");
 }
+it('finishes a worker on the server once it stays idle past its launch policy, and keeps its spend in the 24-hour total',()=>fixture(async f=>{
+  const offers=await f.pool.offers('image'),offer=offers.items.find(o=>o.provider==='vast')!;
+  await f.pool.launch({selections:[{offer_id:offer.id,quantity:1}],max_hourly:offer.hourly,idle_release_minutes:15},'idle-release-fixture');
+  await f.pool.tick();
+  const id=f.pool.all()[0]!.id;expect(f.pool.get(id)!.state).toBe('ready');
+  await f.pool.tick();expect(f.pool.get(id)!.idle_since).toBeTruthy();
+  f.advance(14*60_000);await f.pool.tick();expect(f.pool.get(id)!.quit_mode).toBeUndefined();
+  f.advance(2*60_000);await f.pool.tick();
+  expect(f.pool.get(id)!.released_reason).toBe('idle');expect(f.pool.get(id)!.quit_mode).toBe('finish');
+  await eventually(()=>f.pool.get(id)!.state==='released');
+  const summary=f.pool.snapshot().summary;expect(summary.estimated_spend).toBe(0);expect(summary.spend_24h).toBeGreaterThan(0);
+  await expect(f.pool.launch({selections:[{offer_id:offer.id,quantity:1}],max_hourly:offer.hourly,idle_release_minutes:-1},'idle-release-invalid')).rejects.toThrow();
+}));
+it('finishes a rental once it reaches its time cap, even while it is busy between jobs',()=>fixture(async f=>{
+  const offer=(await f.pool.offers('image')).items.find(o=>o.provider==='vast')!;
+  await f.pool.launch({selections:[{offer_id:offer.id,quantity:1}],max_hourly:offer.hourly,max_minutes:60},'limit-release-fixture');
+  await f.pool.tick();const id=f.pool.all()[0]!.id;expect(f.pool.get(id)!.max_minutes).toBe(60);
+  f.advance(59*60_000);await f.pool.tick();expect(f.pool.get(id)!.quit_mode).toBeUndefined();
+  f.advance(2*60_000);await f.pool.tick();expect(f.pool.get(id)!.released_reason).toBe('limit');expect(f.pool.get(id)!.quit_mode).toBe('finish');
+  // Work that never finishes cannot hold it past a grace period: the cap becomes a hard stop.
+  f.advance(13*60_000);await f.pool.tick();
+  const after=f.pool.get(id)!;expect(after.state==='released'||after.state==='releasing'||after.quit_mode==='now').toBe(true);
+}));
+it('changes the limits of an active rental',()=>fixture(async f=>{
+  const offer=(await f.pool.offers('image')).items.find(o=>o.provider==='vast')!;
+  await f.pool.launch({selections:[{offer_id:offer.id,quantity:1}],max_hourly:offer.hourly,max_minutes:60,idle_release_minutes:15},'limit-change-fixture');
+  await f.pool.tick();const id=f.pool.all()[0]!.id;
+  f.pool.limits(id,{max_minutes:120,idle_release_minutes:0});
+  expect(f.pool.get(id)!.max_minutes).toBe(120);expect(f.pool.get(id)!.idle_release_minutes).toBeUndefined();
+  f.advance(61*60_000);await f.pool.tick();expect(f.pool.get(id)!.quit_mode).toBeUndefined();
+  expect(()=>f.pool.limits(id,{max_minutes:-5})).toThrow();
+}));
 it('includes the role-specific base model download size in offers',()=>fixture(async f=>{
   f.deps.releases!.image!.manifest=[{path:'model',url:'https://example.test/model',sha256:'a'.repeat(64),size:123456}];
   expect((await f.pool.offers('image')).items.every(o=>o.model_download_bytes===123456)).toBe(true);
@@ -72,7 +105,7 @@ it("persists instance access preparation and does not prepare it again after res
     const worker = (await f.ready())[0]!;
     expect(prepareAccess).toHaveBeenCalledWith(expect.objectContaining({id:worker.id}), 'fixture-public');
     expect(f.pool.get(worker.id)!.access_prepared).toBe(true);
-    const restarted = new WorkerPool(f.db, f.paths, f.loras, f.deps);
+    const restarted = new WorkerPool(f.db, f.loras, f.deps);
     try { await restarted.tick(); expect(prepareAccess).toHaveBeenCalledOnce(); }
     finally { await restarted.close(); }
   }));
@@ -225,7 +258,7 @@ it('persists rejected-launch dismissal without altering diagnostics, billing or 
   const id = f.pool.all()[0]!.id;
   expect(f.pool.snapshot().workers[0]).toMatchObject({state:'released',create_rejected:true,estimated_spend:0,actions:['dismiss_launch_failure']});
   const diagnostics = new Diagnostics(f.db,f.paths,f.pool.now);
-  const restarted = new WorkerPool(f.db,f.paths,f.loras,f.deps,diagnostics);
+  const restarted = new WorkerPool(f.db, f.loras,f.deps,diagnostics);
   const creates=f.providers.runpod.create.mock.calls.length, finds=f.providers.runpod.find.mock.calls.length;
   const first=await restarted.action(id,'dismiss_launch_failure');
   f.advance(1000);
@@ -235,7 +268,7 @@ it('persists rejected-launch dismissal without altering diagnostics, billing or 
   expect(second.workers[0]!.issue?.code).toBe('capacity_unavailable');
   expect(second.summary).toMatchObject({active:0,hourly:0,estimated_spend:0});
   expect(second.workers[0]!.actions).toEqual([]);
-  const restored=new WorkerPool(f.db,f.paths,f.loras,f.deps,diagnostics);
+  const restored=new WorkerPool(f.db, f.loras,f.deps,diagnostics);
   expect(restored.snapshot().workers[0]!.launch_failure_dismissed_at).toBe(first.workers[0]!.launch_failure_dismissed_at);
   expect(diagnostics.history().items[0]).toMatchObject({outcome:'rejected',issue:{code:'capacity_unavailable'}});
   const actions=f.db.prepare("SELECT COUNT(*) AS count FROM acquisition_events WHERE worker_id=? AND operation='user_action'").get(id) as {count:number};
@@ -279,7 +312,9 @@ it("Finish jobs drains already-approved work while excluding requests created af
     f.pool.bindJobs({ pending: () => pending, cancel: () => {} });
     await f.pool.action(w.id, "finish");
     await f.pool.tick();
-    expect(f.pool.get(w.id)!.state).toBe("finishing");
+    // Finishing is what it shows; what it stores is still its real state.
+    expect(f.pool.snapshot().workers[0]!.state).toBe("finishing");
+    expect(f.pool.get(w.id)!.state).toBe("ready");
     expect(f.providers.vast.destroy).not.toHaveBeenCalled();
     const cutoff = f.pool.get(w.id)!.finish_before!;
     f.db
@@ -297,23 +332,21 @@ it("Finish jobs drains already-approved work while excluding requests created af
     expect(
       f.pool.claim(
         "new-job",
-        "image",
-        [],
-        new Date(Date.parse(cutoff) + 1).toISOString(),
+        gpuNeed({ workflow: "text-to-image" }, [], new Date(Date.parse(cutoff) + 1).toISOString()),
       ),
     ).toBeNull();
     expect(
       f.pool.claim(
         "existing-job",
-        "image",
-        [],
-        new Date(Date.parse(cutoff) - 1).toISOString(),
+        gpuNeed({ workflow: "text-to-image" }, [], new Date(Date.parse(cutoff) - 1).toISOString()),
       )?.id,
     ).toBe(w.id);
+    expect(f.pool.snapshot().workers[0]!.state).toBe("generating");
     pending = false;
     await f.pool.tick();
     expect(f.providers.vast.destroy).not.toHaveBeenCalled();
     f.pool.complete("existing-job");
+    expect(f.pool.snapshot().workers[0]!.state).toBe("finishing");
     await f.pool.tick();
     await eventually(() => f.pool.get(w.id)!.state === "released");
   }));
@@ -449,8 +482,8 @@ it("stops assigning work after engine readiness is lost while keeping adapter in
     expect(worker.ready).toBe(false);
     expect(worker.adapters_frozen).toBe(true);
     expect(
-      f.pool.compatible(worker, "image", [], worker.created_at),
-    ).toBeFalsy();
+      canRun(worker, gpuNeed({ workflow: "text-to-image" }, [], worker.created_at), "claim"),
+    ).toBe(false);
     await expect(f.pool.action(id, "retry_preparation")).rejects.toThrow(
       "frozen",
     );
@@ -472,8 +505,8 @@ it("does not advertise a worker as available while a foreign execution is runnin
       issue: { code: "worker_busy" },
     });
     expect(
-      f.pool.compatible(worker, "image", [], worker.created_at),
-    ).toBeFalsy();
+      canRun(worker, gpuNeed({ workflow: "text-to-image" }, [], worker.created_at), "claim"),
+    ).toBe(false);
   }));
 it("offers base-model fallback only before readiness and can quit while that transfer is in flight", async () =>
   fixture(async (f) => {
@@ -530,7 +563,7 @@ it("preserves allocation spend and unresolved release charges across coordinator
     await f.pool.action(id, "quit");
     await eventually(() => Boolean(f.pool.get(id)!.issue));
     f.advance(1800000);
-    const restarted = new WorkerPool(f.db, f.paths, f.loras, f.deps);
+    const restarted = new WorkerPool(f.db, f.loras, f.deps);
     try {
       expect(restarted.snapshot().workers[0]).toMatchObject({
         state: "releasing",

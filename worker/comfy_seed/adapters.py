@@ -7,10 +7,10 @@ from worker.resolution import resolution_preset, validate_canvas
 
 
 def validate_adapters(workspace, graph, selections, route):
-    if route not in ('image', 'image-edit', 'fl', 'ref'):
+    if route not in ('image', 'image-edit', 'image-klein', 'fl', 'ref'):
         raise ValueError('Unknown workflow route')
     role = worker_class()
-    if role in ('image', 'video') and (role == 'image') != (route in ('image', 'image-edit')):
+    if role in ('image', 'video') and (role == 'image') != (route in ('image', 'image-edit', 'image-klein')):
         raise ValueError('Workflow does not belong to this worker class')
     if not isinstance(selections, list) or len(selections) > 3:
         raise ValueError('Select up to three installed adapters')
@@ -20,6 +20,16 @@ def validate_adapters(workspace, graph, selections, route):
         if selections or chain:
             raise ValueError('Qwen editing does not support adapters in this release')
         validate_edit_inputs(graph)
+        return
+    if route == 'image-klein':
+        if selections or chain:
+            raise ValueError('Klein editing does not support adapters in this release')
+        validate_edit_inputs(graph)
+        canvas = graph.get('6', {})
+        if canvas.get('class_type') != 'EmptyFlux2LatentImage':
+            raise ValueError('Invalid workflow canvas node')
+        inputs = canvas.get('inputs', {})
+        validate_klein_canvas(inputs.get('width'), inputs.get('height'))
         return
     canvas = graph.get('6', {})
     kind = {'image': 'EmptyLatentImage', 'fl': 'MiniMaxH3ImageToVideo', 'ref': 'MiniMaxH3ReferenceToVideo'}[route]
@@ -47,6 +57,14 @@ def validate_adapters(workspace, graph, selections, route):
         selected[entry['filename']] = strength
     if chain != selected:
         raise ValueError('Adapter chain does not match selected adapters')
+
+
+def validate_klein_canvas(width, height):
+    # Any image shape the app offers, or a source shape, on the latent's 16-pixel grid and up to about 4 megapixels.
+    if type(width) is not int or type(height) is not int or width % 16 or height % 16:
+        raise ValueError('Invalid canvas size')
+    if not 256 <= width <= 4096 or not 256 <= height <= 4096 or width * height > 4194304 or max(width / height, height / width) > 4:
+        raise ValueError('Invalid canvas size')
 
 
 def validate_edit_inputs(graph):

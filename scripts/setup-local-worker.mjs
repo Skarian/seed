@@ -11,12 +11,15 @@ const repo = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const root = path.resolve(process.env.SEED_LOCAL_ROOT || path.join(repo, '.local/local-worker'));
 const spec = JSON.parse(await readFile(path.join(repo, 'worker/engine.json'), 'utf8'));
 const mode = process.argv[2] || 'runtime';
-if (!['runtime', 'models'].includes(mode)) throw Error('Use runtime or models.');
+if (!['runtime', 'models', 'klein'].includes(mode)) throw Error('Use runtime, models or klein.');
 if (process.platform !== 'win32') throw Error('Local setup currently targets Windows.');
 await mkdir(root, {recursive:true});
 const release=await localLease(root);
 // A coordinator owns this pipe; its disappearance stops the complete setup
 // tree, including curl and uv. Standalone maintainer setup has no such pipe.
+// The gated Klein download takes the Hugging Face token from the first stdin line (never argv or the environment).
+let stdinLine='';
+const firstLine=new Promise(resolve=>{process.stdin.on('data',chunk=>{stdinLine+=chunk;const at=stdinLine.indexOf('\n');if(at>=0)resolve(stdinLine.slice(0,at).trim());});process.stdin.once('end',()=>resolve(stdinLine.trim()));});
 if(process.env.SEED_SETUP_PARENT){
   process.stdin.resume();
   process.stdin.once('end',()=>{spawn('taskkill',['/PID',String(process.pid),'/T','/F'],{windowsHide:true,stdio:'ignore'});});
@@ -37,7 +40,7 @@ async function capture(command,args) {
   });
 }
 async function sha256(file) { const hash=createHash('sha256'); for await (const chunk of createReadStream(file)) hash.update(chunk); return hash.digest('hex'); }
-async function acquire(url, file, expectedHash, expectedSize) {
+async function acquire(url, file, expectedHash, expectedSize, token) {
   await mkdir(path.dirname(file),{recursive:true});
   if (existsSync(file)) {
     if ((!expectedSize || (await stat(file)).size===expectedSize) && (!expectedHash || await sha256(file)===expectedHash)) {log({verified:path.basename(file),cached:true});return;}
@@ -45,7 +48,14 @@ async function acquire(url, file, expectedHash, expectedSize) {
   }
   const partial=file+'.part';
   log({downloading:path.basename(file),bytes:expectedSize??null});
-  await run('curl.exe',['--fail','--location','--silent','--show-error','--retry','5','--retry-delay','3','--connect-timeout','30','--continue-at','-','--output',partial,url]);
+  const args=['--fail','--location','--silent','--show-error','--retry','5','--retry-delay','3','--connect-timeout','30','--continue-at','-','--output',partial,url];
+  if(!token)await run('curl.exe',args);
+  // A token reaches curl through its config on stdin, so it never appears in a process list.
+  else await new Promise((resolve,reject)=>{
+    const child=spawn('curl.exe',['--config','-',...args],{cwd:repo,env,windowsHide:true,stdio:['pipe','inherit','inherit']});
+    child.stdin.end('header = "Authorization: Bearer '+token.replace(/["\\\r\n]/g,'')+'"\n');
+    child.on('error',reject);child.on('exit',code=>code===0?resolve():reject(Error('curl.exe exited '+code+' (check the Hugging Face licence and token)')));
+  });
   if (expectedSize && (await stat(partial)).size!==expectedSize) throw Error('Download size mismatch: '+file);
   const actual=await sha256(partial);
   if (expectedHash && actual!==expectedHash) throw Error('Download checksum mismatch: '+file);
@@ -72,6 +82,13 @@ async function models() {
   const failed=transfers.find(result=>result.status==='rejected');if(failed)throw failed.reason;
   await writeFile(path.join(root,'models-verified.json'),JSON.stringify({at:new Date().toISOString(),files:entries},null,2));
 }
+async function klein() {
+  const spec=await worker('klein-model.json');
+  const token=process.env.SEED_SETUP_PARENT?await firstLine:process.env.HF_TOKEN;
+  if(!token)throw Error('FLUX 3 Image Klein needs a Hugging Face token.');
+  for(const file of spec.files)await acquire('https://huggingface.co/'+spec.repository+'/resolve/'+spec.revision+'/'+file.path,path.join(root,'models',file.path),file.sha256,file.size,token);
+  log({klein:true});
+}
 async function runtime() {
   const uvArchive=path.join(root,'downloads/uv-'+spec.uv.version+'.zip');
   await acquire(spec.uv.url,uvArchive,spec.uv.sha256);
@@ -93,5 +110,5 @@ async function runtime() {
   await rename(readyFile+'.tmp',readyFile);
   log({source,python,ready:true,...probe});
 }
-try { await (mode==='models'?models():runtime()); } finally {await release();process.stdin.pause();}
+try { await (mode==='models'?models():mode==='klein'?klein():runtime()); } finally {await release();process.stdin.pause();}
 log({complete:mode});

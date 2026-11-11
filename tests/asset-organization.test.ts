@@ -49,7 +49,7 @@ describe('asset favorites and collections',()=>{
     const file=asset('old');
     db.exec('DROP TABLE collection_assets; DROP TABLE collections; DROP TABLE asset_favorites; DELETE FROM schema_migrations WHERE version=10');
     db.close();await app.close();app=await createApp({paths:resolvePaths(root),port:4311});db=openDatabase(resolvePaths(root).data);
-    expect(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({version:10});
+    expect(db.prepare('SELECT MAX(version) AS version FROM schema_migrations').get()).toEqual({version:12});
     expect((await organization('old')).json()).toMatchObject({favorite:false,collection_ids:[]});
     expect(readFileSync(file,'utf8')).toBe('saved media');
   });
