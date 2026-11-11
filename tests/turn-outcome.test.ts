@@ -112,6 +112,22 @@ it('hides a draft failure a later try made good, and never shows raw JSON', () =
   expect(turnOutcome(turn).unfinished).toEqual([{ label: 'Write a draft: Watercolor study', reason: 'Seed couldn’t finish this step. Nothing was lost; ask again to retry it.' }]);
 });
 
+it('keeps a slip on one real draft listed when only another draft was changed afterwards', () => {
+  const slip = { content: [{ type: 'text', text: JSON.stringify({ ok: false, error: 'Bad field.', internal: true }) }] };
+  const turn: TurnTranscript = {
+    started_at: at,
+    state: 'completed',
+    steps: [
+      { ...tool('edit_request', 'failed', { request_id: 'a' }), result: slip },
+      tool('edit_request', 'succeeded', { request_id: 'b' }),
+    ],
+  };
+  const titles: Record<string, string> = { a: 'Shot 1', b: 'Shot 2' };
+  expect(turnOutcome(turn, id => titles[id]).unfinished.map(u => u.label)).toEqual(['Change a draft: Shot 1']);
+  // The same slip naming a draft that no longer exists (a stale id) is made good by the later change.
+  expect(turnOutcome(turn, id => (id === 'b' ? 'Shot 2' : undefined)).unfinished).toEqual([]);
+});
+
 it('adds missing details after the whole name, without labels or unseen clothes', async () => {
   const { briefGapList, addBriefDetails } = await import('../web/app/project/checks.js');
   const brief = '## Characters\n- Marit Halvorsen: 62, cropped silver hair, Wardrobe: mustard-yellow oilskin coat, black rubber boots';

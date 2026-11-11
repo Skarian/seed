@@ -173,6 +173,10 @@ export type AssetQuery = {
   approved?: boolean;
   cursor?: string;
 };
+/** Every change to an asset (favorite, delete, crop, frame, collection) tells the lists that show assets. */
+const assetWatchers = new Set<() => void>();
+export const onAssetsChanged = (watch: () => void) => (assetWatchers.add(watch), () => void assetWatchers.delete(watch));
+const changes = <T>(done: Promise<T>) => done.then(value => (assetWatchers.forEach(w => w()), value));
 export const assets = {
   list: (query: AssetQuery, signal?: AbortSignal) => {
     const params = new URLSearchParams();
@@ -181,15 +185,15 @@ export const assets = {
     return api<{ items: LibraryAsset[]; next_cursor: string | null }>('assets?' + params, { signal });
   },
   get: (id: string) => api<AssetDetail>('assets/' + encodeURIComponent(id)),
-  remove: (id: string) => api<void>('assets/' + encodeURIComponent(id), { method: 'DELETE' }),
+  remove: (id: string) => changes(api<void>('assets/' + encodeURIComponent(id), { method: 'DELETE' })),
   favorite: (id: string, favorite: boolean) =>
-    api<unknown>('assets/' + id + '/favorite', { method: 'PUT', body: { favorite } }),
+    changes(api<unknown>('assets/' + id + '/favorite', { method: 'PUT', body: { favorite } })),
   inCollection: (id: string, collection: string, included: boolean) =>
-    api<unknown>('assets/' + id + '/collections/' + collection, { method: 'PUT', body: { included } }),
+    changes(api<unknown>('assets/' + id + '/collections/' + collection, { method: 'PUT', body: { included } })),
   pickFrame: (id: string, time_seconds: number) =>
-    api<{ id: string }>('assets/' + id + '/frames', { body: { time_seconds } }),
+    changes(api<{ id: string }>('assets/' + id + '/frames', { body: { time_seconds } })),
   crop: (id: string, box: { x: number; y: number; width: number; height: number; shape?: string }) =>
-    api<{ id: string }>('assets/' + encodeURIComponent(id) + '/crops', { body: box }),
+    changes(api<{ id: string }>('assets/' + encodeURIComponent(id) + '/crops', { body: box })),
   note: (id: string) => api<{ note: string; revision: number }>('notes/' + id),
   saveNote: (id: string, note: string, revision: number) =>
     api<{ note: string; revision: number }>('notes/' + id, { method: 'PUT', body: { note, revision } }),

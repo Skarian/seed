@@ -4,6 +4,7 @@ import {
   pool as poolApi,
   jobs as jobsApi,
   assets as assetsApi,
+  onAssetsChanged,
   type Project,
   type ProjectSummary,
   type PoolSnapshot,
@@ -169,19 +170,23 @@ export const currentProject = (id: string) => held.get(id)?.project ?? null;
 /** Takes a project from any response. Responses can arrive out of order, so an older copy never replaces a newer one. */
 export function putProject(value: Project) {
   const now = currentProject(value.id);
-  if (
-    now &&
-    (value.version < now.version ||
-      (value.version === now.version && Date.parse(value.updated_at) < Date.parse(now.updated_at)))
-  )
-    return;
+  if (now?.as_of && value.as_of && value.as_of < now.as_of) return;
   hold(value.id, { project: value, error: '' });
 }
+/** One read of a project at a time; asks made meanwhile become one more read after it. */
+const reading = new Map<string, { again: boolean }>();
 export async function reloadProject(id: string) {
+  const busy = reading.get(id);
+  if (busy) return void (busy.again = true);
+  const read = { again: false };
+  reading.set(id, read);
   try {
     putProject(await projects.get(id));
   } catch (e) {
     hold(id, { ...(held.get(id) ?? none), error: (e as Error).message });
+  } finally {
+    reading.delete(id);
+    if (read.again) void reloadProject(id);
   }
 }
 /** The project's chat stream reports replies as they are written, saves, and job progress (as `{ jobs: true }`). */
@@ -204,6 +209,7 @@ export function useProject(id: string | null) {
         hold(id, {
           project: {
             ...p,
+            as_of: value.as_of > (p.as_of ?? '') ? value.as_of : p.as_of,
             activity: value.activity ?? p.activity,
             messages: p.messages.some(m => m.id === message.id)
               ? p.messages.map(m => (m.id === message.id ? message : m))
@@ -256,7 +262,8 @@ export const noteSaved = signal<{ asset: string; note: { note: string; revision:
 export const stylesChanged = signal();
 
 /* ---------- Library ---------- */
-/** `live`: a value that changes whenever the list may have; given one, the list re-reads then instead of polling. */
+/** Re-reads after any asset change made here. `live`: a value that changes whenever the list may have otherwise
+ * (new takes); given one, the list re-reads then instead of polling. */
 export function useAssets(query: AssetQuery | null, live?: unknown) {
   const key = JSON.stringify(query);
   const [state, setState] = useState<{
@@ -269,6 +276,7 @@ export function useAssets(query: AssetQuery | null, live?: unknown) {
   const [tick, setTick] = useState(0);
   const expanded = useRef(false);
   const refresh = useCallback(() => setTick(t => t + 1), []);
+  useEffect(() => onAssetsChanged(refresh), [refresh]);
   useEffect(() => {
     expanded.current = false;
     setState({ items: [], cursor: null, loaded: false, loading: false });

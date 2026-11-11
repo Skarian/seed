@@ -73,8 +73,13 @@ export function turnOutcome(
         );
       if (madeGood) return;
       const { error, internal } = read(s);
-      // Made good by a later try, or the same draft (by title) saved anywhere in the turn.
-      const retried = tools.some((t, j) => worked(t) && (j > i || (Boolean(target(s)) && target(t) === target(s))));
+      // Made good by the same draft saved anywhere in the turn. A slip that named no draft that exists (a stale id) is
+      // made good by any later success of the same tool; a slip on a real draft only by that draft's own save.
+      const id = String(input(s).request_id ?? ''),
+        stale = !target(s) || (id !== '' && !draftTitle(id));
+      const retried = tools.some(
+        (t, j) => worked(t) && ((Boolean(target(s)) && target(t) === target(s)) || (j > i && stale)),
+      );
       if (internal && progressed && (!saves.has(name) || retried)) return;
       const label = labels[name] ?? 'A step',
         draft = String(input(s).request_id ?? ''),

@@ -13,7 +13,7 @@ afterEach(()=>{for(const root of roots.splice(0))rmSync(root,{force:true,recursi
 function fixture(){
   mkdirSync('.local/tests',{recursive:true});const root=mkdtempSync(path.resolve('.local/tests/activity-'));roots.push(root);
   const paths=resolvePaths(root);prepareStorage(paths);
-  const jobs:Job[]=['completed','failed','cancelled','queued','running','copying','cancel_requested','blocked','needs_attention'].map((state,i)=>({
+  const jobs:Job[]=(['completed','failed','cancelled','queued','running','copying','cancel_requested','blocked','needs_attention'] as const).map((state,i)=>({
     id:'job-'+i,submission_id:'submission-'+i,submission_index:0,state,seed:'1',outputs:state==='completed'?['saved-media']:[],error:null,
     created_at:'2026-10-25T00:00:00Z',updated_at:'2026-10-25T00:01:00Z',
     request:{workflow:'text-to-image',mode:'sfw',prompt:'Keep my request',count:1,seed:'1',output:{aspect:'16:9',size:'1mp'}},

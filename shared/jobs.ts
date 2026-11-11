@@ -50,7 +50,7 @@ export type JobRecord = {
     elapsed_to_saved_seconds?: number;
   };
   id: string;
-  state: string;
+  state: JobState;
   submission_id: string;
   submission_index: number;
   request: ImageRequest;
@@ -83,26 +83,32 @@ export type JobRecord = {
 export type JobPhase =
   | 'queued' | 'held' | 'starting' | 'running' | 'saving' | 'unsaved' | 'cancelling' | 'uncertain'
   | 'completed' | 'failed' | 'cancelled';
-const phases: Record<string, JobPhase> = {
+/** Every stored job state, and the phase it shows as. */
+const phases = {
   queued: 'queued', blocked: 'held', uploading: 'starting', submitting: 'starting', running: 'running',
   copying: 'saving', cancel_requested: 'cancelling', needs_attention: 'uncertain',
   completed: 'completed', failed: 'failed', cancelled: 'cancelled',
-};
+} as const satisfies Record<string, JobPhase>;
+export type JobState = keyof typeof phases;
+export const jobStates = Object.keys(phases) as JobState[];
+export const isJobState = (value: unknown): value is JobState => typeof value === 'string' && value in phases;
 const finished: JobPhase[] = ['completed', 'failed', 'cancelled'];
 export function jobPhase(job: Pick<JobRecord, 'state' | 'recovery_blocked'>): JobPhase {
-  const phase = phases[job.state] ?? 'uncertain';
+  // A state this release does not know (an older or newer record) reads as uncertain, never as progress.
+  const phase: JobPhase = isJobState(job.state) ? phases[job.state] : 'uncertain';
   return job.recovery_blocked && !finished.includes(phase) ? 'unsaved' : phase;
 }
-const pipeline = ['queued', 'uploading', 'submitting', 'running', 'copying', 'completed'];
+const pipeline: JobState[] = ['queued', 'uploading', 'submitting', 'running', 'copying', 'completed'];
 /**
  * How a stored job may move. Any open job can fail, be cancelled (or asked to cancel), or lose contact. Otherwise it
  * moves forward through the pipeline, skipping steps a fast worker already finished; a held request is released to
  * the queue, an upload can start over, and a job that lost contact or was asked to cancel can resume anywhere. A
  * finished job never changes.
  */
-export function jobCanMove(from: string, to: string) {
+export function jobCanMove(from: JobState, to: JobState) {
+  if (!isJobState(from) || !isJobState(to)) return false;
   if (from === to) return true;
-  if (finished.includes(phases[from] ?? 'uncertain')) return false;
+  if (finished.includes(phases[from])) return false;
   if (['failed', 'cancelled', 'cancel_requested', 'needs_attention'].includes(to)) return true;
   if (from === 'blocked') return to === 'queued';
   if (from === 'cancel_requested' || from === 'needs_attention') return pipeline.includes(to);

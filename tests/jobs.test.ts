@@ -43,6 +43,11 @@ it('retries local saving without generating a second output',async()=>fixture(as
   expect(f.jobs.get(job!.id)!.recovery_blocked).toBe(true);expect(f.worker.acknowledge).not.toHaveBeenCalled();
   f.jobs.retrySave(job!.id);await f.settle();expect(f.jobs.get(job!.id)!.state).toBe('completed');expect(f.worker.submit).toHaveBeenCalledTimes(1);expect(f.worker.acknowledge).toHaveBeenCalledTimes(1);
 }));
+it('keeps a saved result when only the worker acknowledgement fails, and acknowledges it on the next pass',async()=>fixture(async f=>{
+  await f.ready();f.worker.acknowledge.mockRejectedValueOnce(Error('worker gone'));const {jobs:[job]}=await f.jobs.submit(f.request,'ack-retry-fixture');await f.settle();
+  const saved=f.jobs.get(job!.id)!;expect(saved.state).toBe('completed');expect(saved.outputs).toHaveLength(1);expect(saved.recovery_blocked).toBeFalsy();expect(saved.error).toBeNull();
+  await f.jobs.reconcile();expect(f.worker.acknowledge).toHaveBeenCalledTimes(2);expect(f.jobs.get(job!.id)!.worker!.acknowledged).toBe(true);
+}));
 it('cancels unsent work without contacting the worker or changing other requests',async()=>fixture(async f=>{
   const first=await f.jobs.submit(f.request,'cancel-first-fixture'),second=await f.jobs.submit(f.request,'cancel-second-fixture');
   f.jobs.stopJobs([first.jobs[0]!.id]);expect(f.jobs.get(first.jobs[0]!.id)!.state).toBe('cancelled');expect(f.jobs.get(second.jobs[0]!.id)!.state).toBe('queued');expect(f.worker.cancel).not.toHaveBeenCalled();

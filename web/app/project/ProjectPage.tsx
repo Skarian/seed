@@ -724,9 +724,10 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
               </button>
               <button
                 className="btn primary"
-                onClick={() => {
+                onClick={async () => {
                   setConflict(null);
-                  void conflict.run();
+                  // The waiting drafts are set aside first: the server starts no new plan while one is open.
+                  if (!plan || (await setAside())) await conflict.run();
                 }}
               >
                 Keep them and continue

@@ -176,6 +176,7 @@ export class Chats {
       try {
         listener({
           version: chat.version,
+          as_of: chat.updated_at,
           activity: chat.activity,
           error: chat.error,
           stream_message: [...chat.messages].reverse().find(m => m.transcript),
@@ -245,6 +246,7 @@ export class Chats {
     for (const job of jobs) for (const asset of job.outputs) if (!chat.assets.includes(asset)) chat.assets.push(asset);
     return {
       ...view,
+      as_of: jobs.reduce((at, job) => (job.updated_at > at ? job.updated_at : at), chat.updated_at),
       cast: castOf(chat),
       asset_manifest: this.contextAssets(chat),
       jobs: jobs.map(job => this.jobs.publicJob(job)),

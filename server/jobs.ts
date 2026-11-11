@@ -592,12 +592,10 @@ export class Jobs {
       }
       const worker = job.worker.id ? this.pool.executor(job.worker.id) : null;
       if (!worker) {
-        if (job.state !== "queued") {
-          job.state = "needs_attention";
-          job.error =
-            "The assigned worker record is missing. This request will not be submitted again automatically.";
-          this.save(job);
-        }
+        job.state = "needs_attention";
+        job.error =
+          "The assigned worker record is missing. This request will not be submitted again automatically.";
+        this.save(job);
         continue;
       }
       if(localExecutor(worker)&&this.cancelled(job.id)&&!job.worker.submitted&&!job.submission_pending&&!worker.interrupted){
@@ -662,6 +660,8 @@ export class Jobs {
           this.pool.diagnostics?.error('job.execute',error,{worker_id:worker.id,job_id:job.id});
           if (this.stopped) return;
           if (job.worker?.receipt?.manifest && this.finishCancellation(job)) return;
+          // Saved here; only the worker's acknowledgement failed. The result stands, and the next pass asks again.
+          if (job.state === "completed" && job.outputs.length) return;
           if (job.worker?.receipt?.manifest?.state === "completed") {
             job.recovery_blocked = actionableTransfer(error);
             job.error =
