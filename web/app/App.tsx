@@ -23,7 +23,8 @@ import { LibraryPage } from './library/LibraryPage.js';
 import { GpusPage } from './gpus/GpusPage.js';
 import { SettingsPage } from './settings/SettingsPage.js';
 import { StatusPanel } from './status/StatusPanel.js';
-import { Viewer, Compare, Inspector } from './viewer/Viewer.js';
+import { Viewer, Inspector } from './viewer/Viewer.js';
+import { Compare } from './viewer/Compare.js';
 import { ProjectsList } from './project/ProjectsList.js';
 import { Dialog, Overlay } from './ui.js';
 
