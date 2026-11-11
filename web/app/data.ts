@@ -199,6 +199,9 @@ export function useProject(id: string | null) {
       clearTimeout(pending);
       pending = setTimeout(() => void reloadProject(id), 120);
     };
+    // Read at once, not only when the stream opens: a project that is gone (or a stream that cannot open) still
+    // reports its error, and the stream's own opening reads again to catch anything missed in between.
+    void reloadProject(id);
     const stream = new EventSource('/api/v1/chats/' + id + '/events');
     stream.onmessage = event => {
       const value = JSON.parse(event.data),

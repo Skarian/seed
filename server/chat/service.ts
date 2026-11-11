@@ -176,7 +176,7 @@ export class Chats {
         listener({
           version: chat.version,
           as_of: chat.updated_at,
-          activity: chat.activity,
+          activity: this.activityOf(chat),
           error: chat.error,
           stream_message: [...chat.messages].reverse().find(m => m.transcript),
         });
@@ -222,10 +222,12 @@ export class Chats {
       .get(JSON.stringify(active)) as { n: number };
     return cancelled.n < active.length;
   }
-  /** What the project is doing now: Seed replying, preparing a plan, a GPU making its work, or nothing. */
-  private activityOf(chat: ChatView, jobs: Job[]): ChatView['activity'] {
-    if (this.tasks.has(chat.id)) return 'thinking';
-    if (this.preparing.has(chat.id)) return 'preparing';
+  /**
+   * What the project is doing now, the one reading the view and the live stream both send: Seed's own work (replying or
+   * preparing a plan, stored so a restart can tell it was cut off), else a GPU making its takes, else nothing.
+   */
+  private activityOf(chat: ChatView, jobs = this.chatJobs(chat)): ChatView['activity'] {
+    if (chat.activity === 'thinking' || chat.activity === 'preparing') return chat.activity;
     return this.generating(chat, jobs) ? 'generating' : 'idle';
   }
   private busy(chat: ChatView) {

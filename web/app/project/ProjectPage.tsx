@@ -194,14 +194,14 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
     else await go();
   }
 
-  // A message written while Seed replies waits and sends itself when the reply ends.
+  // A message written while Seed replies waits and sends itself when the reply ends (takes still rendering do not hold it).
   const [queued, setQueued] = useState(false);
   useEffect(() => {
-    if (queued && !replying && project?.activity === 'idle') {
+    if (queued && project && !replying) {
       setQueued(false);
       if (text.trim()) void send();
     }
-  }, [queued, replying, project?.activity]);
+  }, [queued, replying, Boolean(project)]);
   async function send() {
     if (!project) return;
     const { body, assets, extra, kind } = drafts.outgoingMessage(context, text, attachments);
