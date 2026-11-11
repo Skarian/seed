@@ -1,6 +1,6 @@
 import {afterEach,expect,it} from 'vitest';
 import {createHash} from 'node:crypto';
-import {mkdtempSync,mkdirSync,readFileSync,writeFileSync,rmSync,readdirSync} from 'node:fs';
+import { mkdtempSync, mkdirSync, readFileSync, writeFileSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import {chatPromptSnapshot,initializeChatPrompts,CHAT_PROMPT_VERSION} from '../server/chat/prompts.js';
 import {resolvePaths} from '../server/storage.js';

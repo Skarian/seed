@@ -104,7 +104,7 @@ it("persists instance access preparation and does not prepare it again after res
     const worker = (await f.ready())[0]!;
     expect(prepareAccess).toHaveBeenCalledWith(expect.objectContaining({id:worker.id}), 'fixture-public');
     expect(f.pool.get(worker.id)!.access_prepared).toBe(true);
-    const restarted = new WorkerPool(f.db, f.paths, f.loras, f.deps);
+    const restarted = new WorkerPool(f.db, f.loras, f.deps);
     try { await restarted.tick(); expect(prepareAccess).toHaveBeenCalledOnce(); }
     finally { await restarted.close(); }
   }));
@@ -257,7 +257,7 @@ it('persists rejected-launch dismissal without altering diagnostics, billing or 
   const id = f.pool.all()[0]!.id;
   expect(f.pool.snapshot().workers[0]).toMatchObject({state:'released',create_rejected:true,estimated_spend:0,actions:['dismiss_launch_failure']});
   const diagnostics = new Diagnostics(f.db,f.paths,f.pool.now);
-  const restarted = new WorkerPool(f.db,f.paths,f.loras,f.deps,diagnostics);
+  const restarted = new WorkerPool(f.db, f.loras,f.deps,diagnostics);
   const creates=f.providers.runpod.create.mock.calls.length, finds=f.providers.runpod.find.mock.calls.length;
   const first=await restarted.action(id,'dismiss_launch_failure');
   f.advance(1000);
@@ -267,7 +267,7 @@ it('persists rejected-launch dismissal without altering diagnostics, billing or 
   expect(second.workers[0]!.issue?.code).toBe('capacity_unavailable');
   expect(second.summary).toMatchObject({active:0,hourly:0,estimated_spend:0});
   expect(second.workers[0]!.actions).toEqual([]);
-  const restored=new WorkerPool(f.db,f.paths,f.loras,f.deps,diagnostics);
+  const restored=new WorkerPool(f.db, f.loras,f.deps,diagnostics);
   expect(restored.snapshot().workers[0]!.launch_failure_dismissed_at).toBe(first.workers[0]!.launch_failure_dismissed_at);
   expect(diagnostics.history().items[0]).toMatchObject({outcome:'rejected',issue:{code:'capacity_unavailable'}});
   const actions=f.db.prepare("SELECT COUNT(*) AS count FROM acquisition_events WHERE worker_id=? AND operation='user_action'").get(id) as {count:number};
@@ -562,7 +562,7 @@ it("preserves allocation spend and unresolved release charges across coordinator
     await f.pool.action(id, "quit");
     await eventually(() => Boolean(f.pool.get(id)!.issue));
     f.advance(1800000);
-    const restarted = new WorkerPool(f.db, f.paths, f.loras, f.deps);
+    const restarted = new WorkerPool(f.db, f.loras, f.deps);
     try {
       expect(restarted.snapshot().workers[0]).toMatchObject({
         state: "releasing",

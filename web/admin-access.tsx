@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { AccessSettings } from '../shared/access.js';
 import { adminApi as api } from './admin-api.js';
 

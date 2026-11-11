@@ -1,6 +1,6 @@
 import type { ChatCard, ChatMessage, Project, ImageRequest, JobRecord } from '../api.js';
 import { asksSavedStyle } from '../../../shared/styles-asked.js';
-import { castFromBrief, castOf, sameCast, lookParts, isVisibleDetail } from '../../../shared/cast.js';
+import { castOf, sameCast, lookParts, isVisibleDetail } from '../../../shared/cast.js';
 import { approvedReference } from '../../../shared/choices.js';
 import { kindOf, isVideoKind } from '../api.js';
 import { latest, assetName } from '../format.js';

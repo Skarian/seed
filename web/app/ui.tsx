@@ -1,7 +1,7 @@
-import React, { createContext, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import React, { createContext, useContext, useEffect, useRef, useState } from 'react';
 import * as DropdownMenu from '@radix-ui/react-dropdown-menu';
 import * as RadixDialog from '@radix-ui/react-dialog';
-import { createPortal } from 'react-dom';
+
 import { Streamdown } from 'streamdown';
 import { Icon } from './icons.js';
 import { media } from './api.js';

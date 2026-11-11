@@ -1,4 +1,4 @@
-import React from 'react';
+
 
 /** One step of making the film: how far it is, and the plan Seed is asked to draft for what is left. */
 export type Stage = {

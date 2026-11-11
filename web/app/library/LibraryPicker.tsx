@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { collections as collectionsApi, type AssetCollection, type LibraryAsset } from '../api.js';
 import { useApp, useAssets } from '../data.js';
 import { Icon } from '../icons.js';

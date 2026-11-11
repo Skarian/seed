@@ -13,11 +13,11 @@ import {PoolWorkerDriver} from './pool-worker.js';
 import type {PoolDependencies} from './pool-contracts.js';
 import {Loras} from './loras.js';
 import {acquireCoordinator} from './coordinator-lock.js';
-import {PoolError,poolIssue} from './pool-errors.js';
+import { PoolError } from './pool-errors.js';
 import {Diagnostics} from './diagnostics.js';
 import {clientFailurePath,registerClientFailures} from './client-failure.js';
 import type {LaunchRequest,PoolAction} from '../shared/pool.js';
-import {imageRequest} from './workflows.js';
+
 import { registerNotes } from './notes.js';
 import {registerAssetOrganization} from './asset-organization.js';
 import { Chats } from './chat/service.js';
@@ -54,7 +54,7 @@ export async function createApp(options: { paths: StudioPaths; port: number; web
   const diagnostics=new Diagnostics(db,options.paths,options.poolDependencies?.now);
   try {
   const dependencies=options.poolDependencies??{providers:createProviders(options.paths,options.providerFetch,diagnostics),worker:new PoolWorkerDriver(options.paths,diagnostics)};
-  const pool=new WorkerPool(db,options.paths,new Loras(options.paths),dependencies,diagnostics);
+  const pool=new WorkerPool(db, new Loras(options.paths),dependencies,diagnostics);
   const localSetup=new LocalSetup(options.paths);
   if(!options.poolDependencies||options.localWorker)pool.local=new LocalWorker(db,options.paths);
   const jobs=new Jobs(db,options.paths,pool);

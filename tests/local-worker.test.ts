@@ -124,7 +124,7 @@ it('routes Auto to existing rentals first, uses local capacity when busy, and re
 }));
 
 async function jobsFixture(run:(context:any)=>Promise<void>){return fixture(async context=>{
-  const {db,paths,local,runtime}=context,cloud=fakePool(db,paths);cloud.pool.local=local;
+  const {db,paths,local}=context,cloud=fakePool(db,paths);cloud.pool.local=local;
   vi.spyOn(cloud.pool,'executionDriver').mockImplementation(worker=>bindExecutor(cloud.worker as any,worker));
   const jobs=new Jobs(db,paths,cloud.pool);
   const settle=async()=>{for(let i=0;i<8;i++){await local.tick();await jobs.reconcile();}};

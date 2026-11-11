@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { pool as poolApi, randomKey, type OffersResponse, type WorkerClass } from '../api.js';
 import { Dialog, Spinner } from '../ui.js';
 import { rate, money, estimateText } from '../format.js';

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import { useEffect, useRef } from 'react';
 import { jobs as jobsApi, kindOf, isVideoKind } from '../api.js';
 import { useApp } from '../data.js';
 import { Icon } from '../icons.js';

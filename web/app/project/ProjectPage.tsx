@@ -17,7 +17,6 @@ import {
   titleOf,
   outputNoun,
   plural,
-  duration,
   cardJobs,
   isFailed,
   estimateSeconds,
@@ -241,7 +240,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
         if (el) el.scrollTop = el.scrollHeight;
       });
       void run('', () =>
-        projectsApi.send((currentProject(id) ?? project), {
+        projectsApi.send(currentProject(id) ?? project, {
           text: (() => {
             // The shot's own record (framing, who is in it, where) is the yardstick, so the check is about this shot.
             const shot = use.item.job?.request.shot;
@@ -355,7 +354,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
       follow.current = true;
       const ok = await run('', async () => {
         // Always send against the newest version (a plan may have just been set aside).
-        let current = (currentProject(id) ?? project);
+        let current = currentProject(id) ?? project;
         if (kind && !addToPlan && current.workflow !== kind) {
           try {
             current = await projectsApi.setKind(current, kind);
@@ -849,7 +848,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
             project={project}
             onAsk={text => {
               app.go({ name: 'project', id: project.id, view: 'conversation' });
-              void run('', () => projectsApi.send((currentProject(id) ?? project), { text, assets: [] }));
+              void run('', () => projectsApi.send(currentProject(id) ?? project, { text, assets: [] }));
             }}
             onChanged={putProject}
           />
@@ -864,7 +863,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                   openDrafts={plan?.cards.length ?? 0}
                   onUpdateDrafts={() =>
                     void run('', () =>
-                      projectsApi.send((currentProject(id) ?? project), {
+                      projectsApi.send(currentProject(id) ?? project, {
                         text: 'I changed the brief. Update every open draft so it matches the brief now, change nothing else, and tell me exactly what changed in each one. Do not run anything.',
                         assets: [],
                       }),
@@ -942,7 +941,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                               }}
                               onContinue={() =>
                                 void run('', () =>
-                                  projectsApi.send((currentProject(id) ?? project), {
+                                  projectsApi.send(currentProject(id) ?? project, {
                                     text: 'Continue where you stopped and finish the rest of my last request. Tell me what you finished.',
                                     assets: [],
                                   }),
@@ -1175,7 +1174,7 @@ export function ProjectPage({ id, view, focus }: { id: string; view: 'conversati
                 project={project}
                 embedded
                 onAsk={text =>
-                  void run('', () => projectsApi.send((currentProject(id) ?? project), { text, assets: [] }))
+                  void run('', () => projectsApi.send(currentProject(id) ?? project, { text, assets: [] }))
                 }
                 onChanged={putProject}
               />

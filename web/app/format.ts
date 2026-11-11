@@ -1,4 +1,4 @@
-import type { ImageRequest, JobRecord, Project, ChatCard, ChatRevision, ChatGroup } from './api.js';
+import type { ImageRequest, JobRecord, Project, ChatCard, ChatRevision } from './api.js';
 import { kindOf, kindLabels, isVideoKind, type Kind } from './api.js';
 import { jobPhase } from '../../shared/jobs.js';
 import { progressParts } from '../../shared/generation-progress.js';

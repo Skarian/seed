@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { useApp } from '../data.js';
 import { projects as projectsApi } from '../api.js';
 import { Icon } from '../icons.js';

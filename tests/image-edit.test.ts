@@ -1,5 +1,5 @@
-import {it,expect,vi} from 'vitest';
-import {mkdtempSync,mkdirSync,rmSync,writeFileSync} from 'node:fs';
+import { it, expect } from 'vitest';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import path from 'node:path';
 import sharp from 'sharp';
 import {imageRequest} from '../server/workflows.js';
@@ -101,7 +101,7 @@ it('reconciles an accepted edit receipt after server restart without resubmissio
  await editingWorker(f);const receipt=f.worker.receipt.getMockImplementation();f.worker.receipt.mockImplementation(async()=>({submission:{graph_digest:'fixture'}}));
  const accepted=await f.jobs.submit(request,'restart-qwen-edit');await f.settle();expect(f.jobs.get(accepted.jobs[0].id).state).toBe('running');
  await f.jobs.close();await f.pool.close();f.worker.receipt.mockImplementation(receipt);
- const pool=new WorkerPool(f.db,f.paths,new Loras(f.paths),f.deps),jobs=new Jobs(f.db,f.paths,pool);
+ const pool=new WorkerPool(f.db, new Loras(f.paths),f.deps),jobs=new Jobs(f.db,f.paths,pool);
  try{await pool.tick();for(let i=0;i<5;i++)await jobs.reconcile();expect(jobs.get(accepted.jobs[0].id)?.state).toBe('completed');expect(f.worker.submit).toHaveBeenCalledTimes(1);}finally{await jobs.close();await jobs.media.close();await pool.close();}
 }));
 it('prepares EXIF-rotated inputs with a separate image editing cache recipe',async()=>fixture(async f=>{

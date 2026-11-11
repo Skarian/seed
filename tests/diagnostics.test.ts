@@ -38,7 +38,7 @@ it('captures real adapter error bodies and request correlation while keeping pub
   expect(JSON.stringify(details)).not.toContain('secret-test-credential');
 }));
 it('retains acquisition outcomes and failure counts after restart and detailed-log expiry',()=>fixture(async({paths,db})=>{
-  const f=fakePool(db,paths),d=new Diagnostics(db,paths,f.deps.now),pool=new WorkerPool(db,paths,new Loras(paths),f.deps,d);
+  const f=fakePool(db,paths),d=new Diagnostics(db,paths,f.deps.now),pool=new WorkerPool(db, new Loras(paths),f.deps,d);
   await pool.offers('image');await pool.launch({selections:[{offer_id:'vast-image',quantity:1}],max_hourly:1},'diagnostics-launch-key');
   await pool.tick();const w=pool.all()[0]!;
   d.annotate(w.id,{campaign:'regression',manual_intervention:true,note:'Recorded manual repair'});
@@ -53,7 +53,7 @@ it('retains acquisition outcomes and failure counts after restart and detailed-l
 }));
 it('labels old rentals as partial history and never invents an unassisted success',()=>fixture(async({paths,db})=>{
   const f=fakePool(db,paths);await f.ready();await f.pool.close();
-  const d=new Diagnostics(db,paths),pool=new WorkerPool(db,paths,new Loras(paths),f.deps,d);
+  const d=new Diagnostics(db,paths),pool=new WorkerPool(db, new Loras(paths),f.deps,d);
   expect(d.history().summary).toMatchObject({ready:1,legacy:1,ready_without_recovery:0});await pool.close();
 }));
 it('bounds response streams before decoding and rejects oversized error bodies',async()=>{
@@ -62,7 +62,7 @@ it('bounds response streams before decoding and rejects oversized error bodies',
 });
 it('surfaces broken diagnostic storage without blocking provider cleanup',()=>fixture(async({paths,db})=>{
   const stderr=vi.spyOn(process.stderr,'write').mockReturnValue(true);
-  const f=fakePool(db,paths),d=new Diagnostics(db,paths,f.deps.now),pool=new WorkerPool(db,paths,new Loras(paths),f.deps,d);
+  const f=fakePool(db,paths),d=new Diagnostics(db,paths,f.deps.now),pool=new WorkerPool(db, new Loras(paths),f.deps,d);
   try {
     await pool.offers('image');await pool.launch({selections:[{offer_id:'vast-image',quantity:1}],max_hourly:1},'diagnostics-failed-disk');
     await pool.tick();const w=pool.all()[0]!;

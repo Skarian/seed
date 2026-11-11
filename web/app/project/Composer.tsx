@@ -1,4 +1,4 @@
-import React, { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { Icon } from '../icons.js';
 import { MenuButton, Thumb, Dialog, useInertBehind } from '../ui.js';
 import { kindLabels, isVideoKind, type Kind } from '../api.js';
@@ -9,7 +9,6 @@ import {
   rolesFor,
   roleLabels,
   inputProblem,
-  sizeOptions,
   kindOfFile,
   uploadFile,
   engines,

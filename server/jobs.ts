@@ -21,7 +21,7 @@ import { randomUUID } from "node:crypto";
 import { existsSync, statSync, rmSync } from "node:fs";
 import path from "node:path";
 import type { StudioPaths } from "./storage.js";
-import { imageRequest, seeds, type ImageRequest } from "./workflows.js";
+import { imageRequest, seeds } from "./workflows.js";
 type SubmissionMetadata = { route: string; loras: GraphLora[] };
 export type Job = import("../shared/jobs.js").JobRecord & {
   worker?: {

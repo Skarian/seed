@@ -416,7 +416,7 @@ function Draft({
     [discarding, setDiscarding] = useState(false);
   const [editing, setEditing] = useState(false),
     [full, setFull] = useState(false),
-    { split, tasks, narrow } = useApp();
+    { tasks } = useApp();
   const inputs = r.references ?? [];
   // An edit or animation runs on its own engine and size; say so next to the source it came from.
   const sourceJob = inputs.length ? project.jobs.find(j => j.outputs.includes(inputs[0]!.asset_id)) : undefined;

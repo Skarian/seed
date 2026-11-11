@@ -1,10 +1,10 @@
 import { test, expect } from 'vitest';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtempSync, mkdirSync, writeFileSync, readFileSync, existsSync } from 'node:fs';
+import { mkdtempSync, mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import path from 'node:path';
 import { createServer } from 'node:net';
-import {pathToFileURL} from 'node:url';
+
 const exec = promisify(execFile);
 
 test('CLI setup, concurrent start, authenticated stop, restart and data preservation', async () => {

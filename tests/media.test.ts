@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {mkdtempSync,mkdirSync,rmSync,writeFileSync,utimesSync} from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync } from 'node:fs';
 import sharp from 'sharp';
 import {Media,transcode,verifyMediaTools} from '../server/media.js';
 import {openDatabase} from '../server/db.js';

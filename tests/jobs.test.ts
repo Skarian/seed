@@ -1,5 +1,5 @@
 import {it,expect} from 'vitest';
-import {mkdtempSync,mkdirSync,rmSync,writeFileSync,existsSync} from 'node:fs';
+import { mkdtempSync, mkdirSync, rmSync, existsSync } from 'node:fs';
 import path from 'node:path';
 import {Jobs} from '../server/jobs.js';
 import {openDatabase} from '../server/db.js';

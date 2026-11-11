@@ -3,7 +3,7 @@ import { type ChatMessage, type Project } from '../api.js';
 import { useApp, useNow } from '../data.js';
 import { Markdown, Thumb, cleanReply } from '../ui.js';
 import { duration, assetName, titleOf, latest } from '../format.js';
-import { type Attachment } from './requests.js';
+
 import { turnOutcome } from '../../../shared/turn.js';
 import { buttonAction } from './timeline.js';
 

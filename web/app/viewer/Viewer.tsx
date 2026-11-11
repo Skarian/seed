@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { shotFromTitle, shotNameKey, shotsFromBrief } from '../../../shared/shots.js';
 import { chosenAs, chosenTake, shotKey } from '../../../shared/choices.js';
 import {
@@ -179,16 +179,6 @@ export function AssetPanel({
     (!detail?.job_id && typeof detail?.source_asset_id === 'string'
       ? app.tasks.find(j => j.outputs.includes(detail.source_asset_id as string))?.source
       : undefined);
-  async function variations() {
-    if (!source?.chat_id || !source.card_id || !source.revision) return;
-    try {
-      await projectsApi.repeat(source.chat_id, source.card_id, source.revision, { fresh: true });
-      onClosed?.();
-      app.go({ name: 'project', id: source.chat_id, view: 'conversation' });
-    } catch (e) {
-      app.toast((e as Error).message);
-    }
-  }
   const more = [
     ...(actionsOnly && source?.card_id
       ? [

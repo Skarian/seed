@@ -1,5 +1,5 @@
 import {Modal} from './modal.js';
-import React, { useEffect, useId, useRef, useState } from 'react';
+import { useId, useRef, useState } from 'react';
 
 export function ConfirmDialog({ title, description, action, onConfirm, onClose }: {
   title: string; description: string; action: string;

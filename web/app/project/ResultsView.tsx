@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import type { Project } from '../api.js';
 import { projects as projectsApi } from '../api.js';
 import { kindOf, isVideoKind } from '../api.js';

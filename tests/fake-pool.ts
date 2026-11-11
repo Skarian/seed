@@ -34,7 +34,7 @@ export function fakePool(db:Database.Database,paths:StudioPaths){
   } satisfies WorkerDriver;
   const release={image:'fixture/image@sha256:'+'a'.repeat(64),disk_gb:200,manifest:[]};
   const deps:PoolDependencies={providers,worker,now:()=>clock,releases:{image:release,video:{...release,image:'fixture/video@sha256:'+'b'.repeat(64)}}};
-  const pool=new WorkerPool(db,paths,new Loras(paths),deps);
+  const pool=new WorkerPool(db, new Loras(paths),deps);
   async function ready(role:WorkerClass='image',count=1,name:Provider='vast'){
     await pool.offers(role);await pool.launch({selections:[{offer_id:`${name}-${role}`,quantity:count}],max_hourly:count*(name==='vast'?1:2)},'fixture-launch-'+role+'-'+name+'-'+pool.all().length);await pool.tick();return pool.all().filter(w=>w.worker_class===role);
   }

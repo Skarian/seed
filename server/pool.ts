@@ -4,7 +4,6 @@ import { randomUUID } from "node:crypto";
 import { readFileSync } from "node:fs";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
-import type { StudioPaths } from "./storage.js";
 import type { Loras, LoraSelection } from "./loras.js";
 import type { CredentialField } from "../shared/credentials.js";
 import type {
@@ -72,7 +71,6 @@ export class WorkerPool {
   readonly startupLogs: StartupLogs;
   constructor(
     private db: Database.Database,
-    private paths: StudioPaths,
     private loras: Loras,
     readonly dependencies: PoolDependencies,
     readonly diagnostics?: Diagnostics,

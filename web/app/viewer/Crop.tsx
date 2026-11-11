@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { cropShapes } from '../project/checks.js';
 import { assets as assetsApi, media } from '../api.js';
 import { Dialog } from '../ui.js';

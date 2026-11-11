@@ -1,12 +1,5 @@
 import type {EnginePhase} from '../shared/generation-progress.js';
-import type {
-  PoolWorker,
-  WorkerClass,
-  WorkerOffer,
-  PreparationFile,
-  InstalledLora,
-  Provider,
-} from "../shared/pool.js";
+import type { PoolWorker, WorkerClass, WorkerOffer, InstalledLora, Provider } from "../shared/pool.js";
 export type ModelSource = {
   path: string;
   url: string;

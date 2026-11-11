@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import { useEffect, useState } from 'react';
 import { pool as poolApi, type LocalSetupStatus, type WorkerClass } from '../api.js';
 import { useApp } from '../data.js';
 import { Icon } from '../icons.js';

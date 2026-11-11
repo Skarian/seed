@@ -1,6 +1,6 @@
 import { expect, it } from 'vitest';
 import { editDimensions, isResolutionSize, resolveDimensions, resolutionOptions, sizeChoices } from '../shared/resolution.js';
-import { patchGeneration } from '../shared/generation.js';
+
 
 it('offers the approved catalog without flags and retains valid historical IDs', () => {
   expect(sizeChoices('text-to-image').map(p => p.id)).toEqual(['image-480','image-768','2mp','image-1440']);

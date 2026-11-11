@@ -21,7 +21,7 @@ import { planTools } from './tools/plan.js';
 import { briefTool } from './tools/brief.js';
 import type Database from 'better-sqlite3';
 import { createHash, randomUUID } from 'node:crypto';
-import path from 'node:path';
+
 import type { Agent, AgentTool } from '@earendil-works/pi-agent-core';
 import type { ChatView, ChatMode, ChatWorkflow, ChatGroup, ChatCard, ChatRevision } from '../../shared/chat.js';
 import type { StudioPaths } from '../storage.js';
@@ -207,9 +207,6 @@ export class Chats {
     const row = this.db.prepare('SELECT body_json FROM chats WHERE id=?').get(id) as { body_json: string } | undefined;
     if (!row) throw Error('Chat not found.');
     return JSON.parse(row.body_json);
-  }
-  private event(chat: StoredChat, text: string) {
-    chat.messages.push({ id: randomUUID(), role: 'event', text, assets: [], created_at: now() });
   }
   private jobIds(chat: ChatView) {
     return [...new Set(chat.groups.flatMap(g => g.cards.flatMap(c => c.revisions.flatMap(r => r.job_ids))))];
